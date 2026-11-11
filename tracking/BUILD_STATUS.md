@@ -12,30 +12,30 @@ the record of each package and are appended to, not rewritten.
 
 [November 5 plan](../docs/CREATOR_AGENT_IMPLEMENTATION_PLAN_2026-11-05.md) packages:
 
-| Package                                    | State on main                                                                                                                                                                             |
-| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P00 candidate and repair closure           | Done (PR #135; F1/F2 recheck passed)                                                                                                                                                      |
-| P01 activity links, P02 sorting and paging | Merged (PR #138)                                                                                                                                                                          |
-| P03 chat context                           | Merged (PR #136, fixes #139; ADR-0070, migration 43)                                                                                                                                      |
-| P04 guided Discover                        | Merged (PR #140; ADR-0071)                                                                                                                                                                |
-| P05 workspace files                        | Merged (PR #141; ADR-0072, migration 45)                                                                                                                                                  |
-| P06 named notes                            | Merged (PR #142; ADR-0073, migration 46)                                                                                                                                                  |
-| P07 previews until stopped                 | Merged (PR #137; ADR-0069, migration 44)                                                                                                                                                  |
-| P08 automatic assessments                  | Merged (PR #144; ADR-0074, migration 47)                                                                                                                                                  |
-| P09 why this response, proposals           | Merged (PR #148; ADR-0077, migration 49)                                                                                                                                                  |
-| P10 scoped routine approvals               | Merged (PR #153; ADR-0079, migration 50); no evidence-admission stage yet (P12)                                                                                                           |
-| P11 committee staging                      | Design and tester accounts merged (PRs #135, #143; ADR-0075, migration 48); deploy waits on D1–D9                                                                                         |
-| P12 online discovery                       | Not started; needs Jordan's search provider choice                                                                                                                                        |
-| P13 unattended workflow                    | Not started; needs P10 and P12                                                                                                                                                            |
-| P14 capability inventory and benchmarks    | Merged (PRs #135, #145, #146; ADR-0076)                                                                                                                                                   |
-| P15 larger software                        | Slice 1 `static-web/1` merged and recorded qualified on one route (PRs #149, #150; ADR-0078); later slices not started                                                                    |
-| P16 external runbook export                | Merged (PR #152; ADR-0080, no migration)                                                                                                                                                  |
-| P17 integrated acceptance                  | Not started                                                                                                                                                                               |
-| P18 collapsible options, shorter pages   | Open as PR #162 (review-clean; nit fixes in progress) |
-| P19 Standard/Advanced across the app       | Built November 11 on branch `claude/project-thread-xdq8er` (ADR-0082, migration 52), PR #164; independent review and two fix rounds done, ready to merge once the last re-review is clean |
-| P20 whole process from Chat              | Built November 11 on branch `claude/project-thread-b20hlm` (ADR-0083 amending ADR-0057/0070, migration 53), PR #165; review and re-review findings fixed, final re-review next |
-| P21 quick model switch                   | Merged (PR #161; ADR-0081, migration 51) |
-| P22 live API and GitHub checks           | Merged (PR #160); live checks passed November 10–11 (R24, R25) |
+| Package | State on main |
+| --- | --- |
+| P00 candidate and repair closure | Done (PR #135; F1/F2 recheck passed) |
+| P01 activity links, P02 sorting and paging | Merged (PR #138) |
+| P03 chat context | Merged (PR #136, fixes #139; ADR-0070, migration 43) |
+| P04 guided Discover | Merged (PR #140; ADR-0071) |
+| P05 workspace files | Merged (PR #141; ADR-0072, migration 45) |
+| P06 named notes | Merged (PR #142; ADR-0073, migration 46) |
+| P07 previews until stopped | Merged (PR #137; ADR-0069, migration 44) |
+| P08 automatic assessments | Merged (PR #144; ADR-0074, migration 47) |
+| P09 why this response, proposals | Merged (PR #148; ADR-0077, migration 49) |
+| P10 scoped routine approvals | Merged (PR #153; ADR-0079, migration 50); no evidence-admission stage yet (P12) |
+| P11 committee staging | Design and tester accounts merged (PRs #135, #143; ADR-0075, migration 48); deploy waits on D1–D9 |
+| P12 online discovery | Not started; needs Jordan's search provider choice |
+| P13 unattended workflow | Not started; needs P10 and P12 |
+| P14 capability inventory and benchmarks | Merged (PRs #135, #145, #146; ADR-0076) |
+| P15 larger software | Slice 1 `static-web/1` merged and recorded qualified on one route (PRs #149, #150; ADR-0078); later slices not started |
+| P16 external runbook export | Merged (PR #152; ADR-0080, no migration); wording follow-up merged (PR #163) |
+| P17 integrated acceptance | Not started |
+| P18 collapsible options, shorter pages | Merged (PR #162; no migration or ADR) |
+| P19 Standard/Advanced across the app | Merged (PR #164; ADR-0082, migration 52) |
+| P20 whole process from Chat              | Built November 11 on branch `claude/project-thread-b20hlm` (ADR-0083 amending ADR-0057/0070, migration 53), PR #165; reviews clean; ready to merge |
+| P21 quick model switch | Merged (PR #161; ADR-0081, migration 51) |
+| P22 live API and GitHub checks | Merged (PR #160); live checks passed November 10–11 (R24, R25) |
 
 Checks on main `e08e0a4`, November 10 (cloud container, PostgreSQL 16): TypeScript, web typecheck and
 formatting pass; `pnpm test:db` 867 tests, 833 pass, 29 skips, 5 fail (the known wrapper tests that need
@@ -911,6 +911,177 @@ ASSUMPTIONS.md line with REVIEW.md (L-A) and commits the final REVIEW.md marks w
 not (L-B); "other cases exist that you cannot see" appears only when cases are held out (L-C); the "cases govern"
 line also appears when every case is held out (N-A). Bundle hash now `8648d257…`.
 
+## P22 live connection checks (November 10, 2026, no migration, no ADR)
+
+Jordan's typed OK (November 10, 22:40 UTC) covers live API and GitHub tests. Added: a "Test
+connection" for the metered OpenAI API key route on Models and connections (one bounded request
+under its own run, grant and $0.05 run budget; closed, revoked and cancelled afterwards;
+`apps/web/src/api-key-check.ts`, `api-key-check-panel.tsx`), `live_model_id` on
+`GET /api/broker/status`, and a read-only GitHub pull-request checks read
+(`GET …/github-repositories/{id}/checks?pr=<n>`, `pnpm cli github-checks`, a form per repository).
+Owner steps: [docs/LIVE_CONNECTION_CHECKS.md](../docs/LIVE_CONNECTION_CHECKS.md). GitHub credential
+(Jordan's choice): a fine-grained token limited to one owner-created private repository
+`creator-agent-p22-trial`; a later trial with a repository-creating token is recorded as a follow-up.
+Local checks: new loopback API test `tests/src/api-key-check-api.test.ts`, unit tests
+`tests/src/web-api-key-check.test.ts`, GitHub fixture assertions in `tests/src/github.test.ts`.
+Live results (tracking/INTEGRATIONS.md, "P22 live connection checks"): API key route connected
+(`gpt-6-astra`, $0.00036, November 10 23:16 UTC); GitHub scoped trial succeeded (verify, branch, two
+pushes, PR #1 in `creator-agent-p22-trial`, checks read); ChatGPT and Claude Code availability rechecks
+passed at $0 (November 11). The dev studio now runs from `C:\dev\creator_agent_p22`
+(`.creator\studio\start-dev-p22.ps1`); `creator_studio` was backed up and migrated 49 → 50.
+Review of PR #160 (1 Medium, 6 Lows) fixed in the same PR: refused GitHub reads are reported as
+refusals (M-1); the panel says "outcome unknown, reconcile" when no answer arrives, archives a run
+record whose registration failed, and its clean-up is tested end to end through `runCheck` (L-3–L-5);
+Models and connections shows each model's last availability recheck (L-6). Re-review Lows fixed: the
+checks read's repository lookup keeps GitHub's real status, and a rate-limit 403 says "try again", not
+"token expired". Owner clean-up: Jordan revoked the "P22 trial" connection on November 11 (01:43 UTC)
+and reported the token deleted; the trial repository is his to keep or delete. Nits fixed at Jordan's
+request (November 11): a secondary rate limit without `retry-after` is recognised by GitHub's message, a
+read with no answer is worded as the studio's own error rather than "GitHub said", and `checksSummary`
+(now in `apps/web/src/github-checks.ts`) has unit tests (`tests/src/web-github-checks.test.ts`).
+Fourth re-review nits (GitHub App path, not used live): a GitHub App token the studio cannot create
+locally (e.g. an unusable private key) says to check the App credential, not "try again", and a token
+GitHub refuses (e.g. 422, repository removed from the installation) says so instead of "did not answer".
+Fifth re-review: a 404 from the App token step is a refusal, not "no such pull request" (L-1); a 401 there
+points at the App id or private key; a 5xx or a 201 without a token names the token step.
+
+## P18 collapsible options and shorter pages (November 10, branch `claude/project-thread-d4dxg5`, no migration or ADR)
+
+R20 and part of R12 from the [November 10 check](../docs/CREATOR_AGENT_IMPLEMENTATION_PLAN_2026-11-05.md) (the P18
+row arrives with docs PR #158). Web only; no data, route, gate, scoring or API change.
+
+- New `apps/web/src/fold.tsx` (`Fold`, `FoldAll`, `useFolds`) and `fold-state.ts` (pure rules: `foldIsOpen`,
+  `chooseAll`, `firstNeeding`, `nameList`). Each item is a native `<details>`/`<summary>`, so Enter/Space and screen
+  readers' expanded state work without extra code; closed content stays in the page, so typed fields keep their
+  values. Open state lives in the page component, and pages stay mounted while hidden, so it lasts while the app is
+  open. Expand all / Collapse all shows for lists of two or more.
+- Projects › Decide: claims, alternatives, the Decide form's options and the selection history each show one line
+  (alternatives: kind, title, scores, ethics and humility gates, how many choices gates block; options: chosen
+  disposition, what still needs the person, blocked choices). Only the first option that needs the person
+  (flagged, new, reasons written for another choice, or incomplete) opens by default; an option being edited stays
+  open. The line above Record now names the options it waits on, including the new case "give a disposition, reason
+  and would reverse if for N options (…)", so no reason a Record is disabled sits only inside a closed option.
+- Scores and specs: the two rankings (summary: candidates, first place, gates not clear, shortlist stability), the
+  selections and the open spec's task list fold; an unfrozen spec opens its tasks. Spec blockers and task-graph
+  problems stay outside the fold.
+- Proposals: the 15 editor sections fold (label, required, state, cited claims, first words); the first required
+  section not written opens; checks and blockers stay above the sections.
+- Monitor › Approvals: decision cards fold, every pending (and linked) decision is open, answered and closed ones
+  fold; "cannot be approved: the target changed" shows in the summary. Routine approval policies fold (a paused one
+  opens); the policy's error stays outside the fold.
+- Evidence (`tracking/evidence/p18-folds/`, throwaway PostgreSQL 16 database with the four seed workspaces, 1280×900):
+  page height before → after: Decide 6,480 → 3,563 px; Scores and specs 2,588 → 1,082 px (one screen); a new
+  proposal with all 15 sections open 5,880 → 2,623 px collapsed. `walk.cjs` output in `walk-output-2026-11-10.txt`:
+  Enter opens and Space closes an option from the keyboard; Expand/Collapse all; an emptied reason in a closed option
+  shows in its summary and in "Before you can record", Record disabled; open state and the typed (empty) field kept
+  after leaving for Scores and back; a freeze raised an approval whose card opened by default; empty Decide and
+  Approvals show their empty messages with no Expand/Collapse buttons. Before/after screenshots in `screens/`.
+- Gate: Scores and specs fits one screen. On Decide the collapsed alternatives and the collapsed options each fit in
+  about one screen, but the whole page is still about four screens (problem statement, automatic assessment, the
+  scoring form and "Why this response" are unchanged). Folding those is left to P19/P17.
+- Not done: Decide's assumption list, Proposals' review list and the Approvals runs and standing-policy lists stay
+  as they were (each is already one line per item). The decision card's `time_spent_ms` still counts from when the
+  card was shown, as before; pending cards open by default, so the measure is unchanged for them. Not independently
+  reviewed.
+- Checks (cloud container, PostgreSQL 16, no CI: Actions has no minutes): `pnpm typecheck` and `pnpm format:check`
+  pass; `pnpm test:db` 903 tests, 869 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests); `pnpm
+  test:dev-safety` 22 tests, 19 pass, 3 skip. New `tests/src/web-folds.test.ts` (4 tests); `web-session.test.ts`
+  stubs the new `./fold.js` import of `oversight.tsx`. The Windows CI job did not run.
+
+### P18 review fixes (November 10, same PR #162; review `reviews/P18_PR162_REVIEW_2026-11-10.md`, no High or Medium, 7 Lows)
+
+- L-1 Decide: the option that opens by default follows what is still unreviewed (`unreviewed`, stale reasons,
+  incomplete), not "changed since your decision", so after one changed option is reviewed the next one opens.
+- L-2 Decide: an option's summary names each choice gates block and its first reason ("Blocked by gates: Select for
+  a bounded build (…)") instead of only a count.
+- L-3 Proposals: a section a check blocks (`level: blocker` for that section, e.g. no cited claim, a cited claim
+  missing or no longer active) gets the attention style, shows "Written, blocked: …" and can be the section that opens.
+- L-4 Decide: "Before you can record" no longer names a new, untouched option twice.
+- L-5 Approvals: the question heading is inside the summary (read once; closed cards keep a heading); "expires"
+  shows once.
+- L-6 Proposals: section open/closed choices are held by the Proposals page (`useFoldChoices`, a new optional
+  argument of `useFolds`), so a save that remounts the editor keeps them; another proposal or a new draft starts
+  afresh.
+- L-7 Approvals: following a link to a decision opens its card even after Collapse all.
+- Evidence: `walk.cjs` re-run (output replaced): L-5 heading once inside the summary, L-7 linked card open after
+  Collapse all, L-6 the opened section still open after "Save proposal"; L-2 shows in the blocked summary line.
+  L-1 and L-4 need a revised alternative after a recorded selection and were checked from the code, not walked.
+- Checks after the fixes (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` and `pnpm format:check` pass;
+  `pnpm test:db` 910 tests, 876 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests). Not re-reviewed yet.
+
+### P18 re-review fixes (November 11, same PR #162; re-review `reviews/P18_PR162_REREVIEW_2026-11-10.md`, 3 Lows and a nit)
+
+- R-1 Approvals: a linked decision opens on every return to the page (`useOnShow`), not only when the id changes, so
+  following the same link again after closing the card opens it.
+- R-2 Proposals: opening a different proposal any way (list, Decide's link, an address) clears the section choices;
+  the step from a new draft to its first saved id keeps them.
+- R-3 Decide: summaries name only blocks the person can clear; blocks that follow from the option's kind ("has no
+  software to build", "Custom software is selected for build or validation", "not a response to recommend", "A
+  failed outcome cannot be validated") stay in the dropdown. The alternatives' "N choices blocked" counts the same way.
+- R-4: the L-3 entry above now says "missing or no longer active" (a stale citation is a warning, not a blocker).
+- Evidence: `walk.cjs` re-run (output replaced): R-1 same link after closing opens the card; R-2 after Expand all on
+  one proposal, another opened by address shows its own default (1 of 15 open); R-3 collapsed option summaries
+  52/73/91/52/52 px at 1280 wide (re-review measured about 110 px each before). A second proposal for the walk was
+  created through the API on the throwaway database.
+- Checks (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` and `pnpm format:check` pass; `pnpm test:db` 910
+  tests, 876 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests). `web-session.test.ts` stub gains `useOnShow`.
+
+### P18 second re-review fixes (November 11, same PR #162; `reviews/P18_PR162_REREVIEW2_2026-11-11.md`, 3 Lows and a nit)
+
+- R2-1 Proposals: starting a new draft while another proposal is open resets the remembered proposal, so the draft's
+  first save keeps the sections the person opened.
+- R3-1 Decide: a choice the option's kind rules out is left out of the summary and the "N choices blocked" count,
+  whatever its other reasons. N-1: the rule is now one function, `kindAllows` in `packages/contracts/src/selection.ts`,
+  used by the domain's kind blocks (`packages/domain/src/selection.ts`) and by the web, instead of matching the
+  domain's wording; tested in `tests/src/web-folds.test.ts`.
+- R3-2 Decide: the "Blocked by gates" line groups choices by reason ("Discovery disposition: duplicate. (blocks
+  validate, recommend)"), so a shared reason is written once.
+- Evidence: walk re-run (output replaced). Collapsed option summaries 52/73/73/52/52 px at 1280 and 110/129/111/110/91
+  px at 390 (the change-process option with a duplicate discovery went from 91 to 73 px at 1280). The revised-option
+  case (ethics not assessed) and R2-1 were checked from the code; the walk data has no revised option and no option
+  left to start a proposal for.
+- Checks (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` and `pnpm format:check` pass; `pnpm test:db` 912
+  tests, 878 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests). Domain selection tests pass with `kindAllows`.
+
+### P18 third re-review fixes (November 11, same PR #162; `reviews/P18_PR162_REREVIEW3_2026-11-11.md`, 1 Low and a nit)
+
+- R4-1 Proposals: the section choices belong to one proposal or to the unsaved draft (`'draft'`). Starting a draft
+  marks them as the draft's; the draft's own first save hands them to its new id; opening any other proposal,
+  including a saved one picked while a draft is open, starts afresh.
+- N-2 Decide: the "Blocked by gates" line uses the dropdown's labels ("Validate before building, Recommend (no new
+  software)").
+- Evidence: new `walk-proposal-choices.cjs` on a fresh `seed-selection` workspace (it records a second recommended
+  option, approving the one selection approval through the API as the owner would on Approvals), output in
+  `walk-proposal-choices-output-2026-11-11.txt`: A's opened sections survive its first save; an unsaved B draft's
+  choices do not carry to A (R4-1, A shows only its default); with A open, B's draft keeps its choices over its
+  first save (R2-1); A picked after B shows its default (R-2). Main walk re-run (output replaced).
+- Checks (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` and `pnpm format:check` pass; `pnpm test:db` 912
+  tests, 878 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests).
+
+### P18 fourth re-review fixes (November 11, same PR #162; fourth re-review at `6549579`, 1 Low and a nit)
+
+- R5-1 tracking: SESSION_HANDOFF's table no longer says P18 is "Not started", and its P18 entry now covers the review
+  rounds (shared `kindAllows`, the per-proposal fold choices, Approvals opening the focused decision, how to run
+  `walk-proposal-choices.cjs`, and the Decide sections left unfolded for P19/P17).
+- N-3 Decide: the blocked line reads "<reason> Blocks: Validate before building, Recommend (no new software)." with no
+  nested brackets.
+- Merged main (P21, #161); conflicts were only in BUILD_STATUS.md and SESSION_HANDOFF.md.
+- Checks (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` and `pnpm format:check` pass; `pnpm test:db` 919
+  tests, 885 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests).
+
+### P18 fifth re-review nits (November 11, same PR #162; `reviews/P18_PR162_REREVIEW5_2026-11-11.md`, review-clean, 2 nits)
+
+- N-4 Decide: two blocking reasons on one option are joined with a space, not ".;".
+- N-5 tracking: both status tables mark P21 merged (PR #161) and the P16 wording follow-up merged (PR #163).
+- Merged main again (#163); conflicts were only in BUILD_STATUS.md and SESSION_HANDOFF.md.
+- Checks (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` and `pnpm format:check` pass; `pnpm test:db` 919
+  tests, 885 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests).
+
+### P18 sixth re-review nit (November 11, same PR #162; `reviews/P18_PR162_REREVIEW6.md`, review-clean, 2 optional nits)
+
+- N-6 tracking: SESSION_HANDOFF's P18 review-rounds paragraph now covers re-reviews 5 and 6. Text only; no code
+  changed since `029f684`, so its checks stand. N-7 (P19 and P22 rows) is left to those threads.
+
 ## P19 Standard and Advanced (November 11, branch `claude/project-thread-xdq8er`, ADR-0082, migration 52)
 
 - What works:
@@ -1054,3 +1225,8 @@ locally (e.g. an unusable private key) says to check the App credential, not "tr
 GitHub refuses (e.g. 422, repository removed from the installation) says so instead of "did not answer".
 Fifth re-review: a 404 from the App token step is a refusal, not "no such pull request" (L-1); a 401 there
 points at the App id or private key; a 5xx or a 201 without a token names the token step.
+- After merging main with P18 (#162): `style.css` and the tracking logs conflicted and were joined; typecheck and
+  format pass; `pnpm test:db` 940 tests, 906 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests). The walk now
+  opens P18's one-line folds on Decide before using the option controls, as a person clicking each summary would,
+  and passed on a fresh database. The Decide and Proposals forms now carry P18's folds; folding their routine fields
+  under Standard is the remaining follow-up.

@@ -12,30 +12,30 @@ the record of each package and are appended to, not rewritten.
 
 [November 5 plan](../docs/CREATOR_AGENT_IMPLEMENTATION_PLAN_2026-11-05.md) packages:
 
-| Package                                    | State on main                                                                                                                                                                             |
-| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P00 candidate and repair closure           | Done (PR #135; F1/F2 recheck passed)                                                                                                                                                      |
-| P01 activity links, P02 sorting and paging | Merged (PR #138)                                                                                                                                                                          |
-| P03 chat context                           | Merged (PR #136, fixes #139; ADR-0070, migration 43)                                                                                                                                      |
-| P04 guided Discover                        | Merged (PR #140; ADR-0071)                                                                                                                                                                |
-| P05 workspace files                        | Merged (PR #141; ADR-0072, migration 45)                                                                                                                                                  |
-| P06 named notes                            | Merged (PR #142; ADR-0073, migration 46)                                                                                                                                                  |
-| P07 previews until stopped                 | Merged (PR #137; ADR-0069, migration 44)                                                                                                                                                  |
-| P08 automatic assessments                  | Merged (PR #144; ADR-0074, migration 47)                                                                                                                                                  |
-| P09 why this response, proposals           | Merged (PR #148; ADR-0077, migration 49)                                                                                                                                                  |
-| P10 scoped routine approvals               | Merged (PR #153; ADR-0079, migration 50); no evidence-admission stage yet (P12)                                                                                                           |
-| P11 committee staging                      | Design and tester accounts merged (PRs #135, #143; ADR-0075, migration 48); deploy waits on D1–D9                                                                                         |
-| P12 online discovery                       | Not started; needs Jordan's search provider choice                                                                                                                                        |
-| P13 unattended workflow                    | Not started; needs P10 and P12                                                                                                                                                            |
-| P14 capability inventory and benchmarks    | Merged (PRs #135, #145, #146; ADR-0076)                                                                                                                                                   |
-| P15 larger software                        | Slice 1 `static-web/1` merged and recorded qualified on one route (PRs #149, #150; ADR-0078); later slices not started                                                                    |
-| P16 external runbook export                | Merged (PR #152; ADR-0080, no migration)                                                                                                                                                  |
-| P17 integrated acceptance                  | Not started                                                                                                                                                                               |
-| P18 collapsible options, shorter pages   | Open as PR #162 (review-clean; nit fixes in progress) |
-| P19 Standard/Advanced across the app       | Built November 11 on branch `claude/project-thread-xdq8er` (ADR-0082, migration 52), PR #164; independent review and two fix rounds done, ready to merge once the last re-review is clean |
-| P20 whole process from Chat              | Built November 11 on branch `claude/project-thread-b20hlm` (ADR-0083 amending ADR-0057/0070, migration 53), PR #165; review and re-review findings fixed, final re-review next |
-| P21 quick model switch                   | Merged (PR #161; ADR-0081, migration 51) |
-| P22 live API and GitHub checks           | Merged (PR #160); live checks passed November 10–11 (R24, R25) |
+| Package | State on main |
+| --- | --- |
+| P00 candidate and repair closure | Done (PR #135; F1/F2 recheck passed) |
+| P01 activity links, P02 sorting and paging | Merged (PR #138) |
+| P03 chat context | Merged (PR #136, fixes #139; ADR-0070, migration 43) |
+| P04 guided Discover | Merged (PR #140; ADR-0071) |
+| P05 workspace files | Merged (PR #141; ADR-0072, migration 45) |
+| P06 named notes | Merged (PR #142; ADR-0073, migration 46) |
+| P07 previews until stopped | Merged (PR #137; ADR-0069, migration 44) |
+| P08 automatic assessments | Merged (PR #144; ADR-0074, migration 47) |
+| P09 why this response, proposals | Merged (PR #148; ADR-0077, migration 49) |
+| P10 scoped routine approvals | Merged (PR #153; ADR-0079, migration 50); no evidence-admission stage yet (P12) |
+| P11 committee staging | Design and tester accounts merged (PRs #135, #143; ADR-0075, migration 48); deploy waits on D1–D9 |
+| P12 online discovery | Not started; needs Jordan's search provider choice |
+| P13 unattended workflow | Not started; needs P10 and P12 |
+| P14 capability inventory and benchmarks | Merged (PRs #135, #145, #146; ADR-0076) |
+| P15 larger software | Slice 1 `static-web/1` merged and recorded qualified on one route (PRs #149, #150; ADR-0078); later slices not started |
+| P16 external runbook export | Merged (PR #152; ADR-0080, no migration); wording follow-up merged (PR #163) |
+| P17 integrated acceptance | Not started |
+| P18 collapsible options, shorter pages | Merged (PR #162; no migration or ADR) |
+| P19 Standard/Advanced across the app | Merged (PR #164; ADR-0082, migration 52) |
+| P20 whole process from Chat              | Built November 11 on branch `claude/project-thread-b20hlm` (ADR-0083 amending ADR-0057/0070, migration 53), PR #165; reviews clean; ready to merge |
+| P21 quick model switch | Merged (PR #161; ADR-0081, migration 51) |
+| P22 live API and GitHub checks | Merged (PR #160); live checks passed November 10–11 (R24, R25) |
 
 Checks on main `e08e0a4`, November 10 (cloud container, PostgreSQL 16): TypeScript, web typecheck and
 formatting pass; `pnpm test:db` 867 tests, 833 pass, 29 skips, 5 fail (the known wrapper tests that need
@@ -907,3 +907,56 @@ locally (e.g. an unusable private key) says to check the App credential, not "tr
 GitHub refuses (e.g. 422, repository removed from the installation) says so instead of "did not answer".
 Fifth re-review: a 404 from the App token step is a refusal, not "no such pull request" (L-1); a 401 there
 points at the App id or private key; a 5xx or a 201 without a token names the token step.
+
+## P18 collapsible options (November 10, branch `claude/project-thread-d4dxg5`, no migration or ADR)
+
+See the BUILD_STATUS entry "P18 collapsible options and shorter pages". Shared pieces for later pages (P19, P17):
+`Fold`, `FoldAll` and `useFolds` in `apps/web/src/fold.tsx`, rules in `fold-state.ts` (tested in
+`tests/src/web-folds.test.ts`). Rule for any new fold: the reason an action is blocked goes in the summary or
+outside the fold, never only inside it; open by default only what needs the person (`firstNeeding`), and mark an
+item open once the person edits it so it does not close under them. Walk scripts:
+`tracking/evidence/p18-folds/walk.cjs` and `heights.mjs` (set `WALK_CODE` to the throwaway API's
+`CREATOR_DEV_LOGIN_CODE`; web on 5183). P18 takes no migration or ADR number; P21 (parallel thread) takes migration 51 and
+ADR-0081, so check main before allocating. Next eligible prompt after review: P19 (Standard and Advanced across
+the app), which can fold Decide's remaining long sections.
+
+Review rounds on PR #162 (November 10–11; reports in the project's `reviews/P18_PR162_*`): first review 7 Lows,
+then re-reviews 1–4 (R-1..R-4, R2-1/R3-1/R3-2/N-1, R4-1/N-2, R5-1/N-3), all fixed; re-review 5 was review-clean
+with nits N-4/N-5 (fixed at `029f684`); re-review 6 was review-clean with nit N-6 (this paragraph, fixed) and N-7
+(P19/P22 table rows, left to their own threads). Details in BUILD_STATUS under the P18 entry. Things a later thread should know:
+- `kindAllows(kind, disposition)` in `packages/contracts/src/selection.ts` is the one rule for which dispositions an
+  option's kind can ever take. The domain's kind blocks use it; Decide's summaries leave those choices out.
+- Proposal section choices are held by the Proposals page and belong to one proposal or the unsaved draft
+  (`choicesFor` ref in `proposals.tsx`); `useFolds(attention, held)` takes parent-held choices.
+- Approvals opens a linked decision on focus change and on every return to the page (`useOnShow`).
+- `walk-proposal-choices.cjs` needs a fresh `seed-selection` workspace (`WALK_WS`); it records one selection and
+  approves it through the API on the throwaway database.
+- Still not done: Decide's problem statement, automatic assessment, scoring form and "Why this response" are not
+  folded (page about 4 screens); left to P19/P17. CI did not run (no Actions minutes).
+
+## P19 Standard and Advanced (November 11, branch `claude/project-thread-xdq8er`, ADR-0082, migration 52)
+
+What works and what was checked: see ADR-0082 and the BUILD_STATUS entry.
+
+New code:
+- Contracts in `packages/contracts/src/preferences.ts`.
+- Migration 52 `person_preferences`.
+- `ConnectionStore.viewPreference` and `setViewPreference`.
+- Route `/api/me/view-mode`.
+- Web:
+  - `view-mode.tsx` and `view-mode-rules.ts` (the context, the switch and the mode resolution).
+  - `routine.tsx` (the `Routine` fold and `WhatWillHappen`).
+  - `first-run.tsx` and `first-run-rules.ts`.
+  - `shownSections` and `hiddenTabs` in `pages.ts`.
+
+For P20:
+- Read the mode with `useViewMode()`.
+- Put new routine fields inside `Routine` and add a row to the form's `WhatWillHappen`.
+- Keep every default out of evidence, grants, qualifications, caps and the private data class.
+
+Overlap with open PRs:
+- `build.tsx`, `submit.tsx` and `main.tsx` overlap P21 (PR #161) and P18 (PR #162). Expect small conflicts.
+- Conflicts are also likely in the tracking logs.
+
+Main becomes schema 52 when this merges, after P21's 51. Next free numbers: migration 53 and ADR-0083.
+Next eligible prompts: P20, then P12 and P13 as the plan orders them.

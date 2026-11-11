@@ -49,8 +49,10 @@ test('browser session retains sign-in on failed logout and clears it after confi
           useEffect: () => undefined,
         }
       : name === './page-drafts.js'
-        ? { usePageActive: () => true }
-        : name === './labels.js' || name === './routine-policy.js'
+        ? { usePageActive: () => true, useOnShow: () => undefined }
+        : name === './labels.js' ||
+            name === './routine-policy.js' ||
+            name === './fold.js'
           ? {}
           : name === './transfers.js'
             ? {

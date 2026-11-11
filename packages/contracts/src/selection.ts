@@ -350,6 +350,24 @@ export const SelectionDispositionSchema = z.enum([
   'reject',
 ]);
 export type SelectionDisposition = z.infer<typeof SelectionDispositionSchema>;
+/**
+ * Whether an option of this kind can ever take the disposition. A disposition its kind rules
+ * out stays blocked whatever reviews or scores say (the domain's kind blocks); the web leaves
+ * such choices out of its short summaries (P18 re-review R3-1, N-1).
+ */
+export function kindAllows(
+  kind: string,
+  disposition: SelectionDisposition,
+): boolean {
+  if (disposition === 'select_for_build')
+    return ['build', 'hybrid'].includes(kind);
+  if (disposition === 'recommend_alternative')
+    return ['use_existing', 'change_process', 'human_led', 'hybrid'].includes(
+      kind,
+    );
+  if (disposition === 'proceed_to_validation') return kind !== 'failed';
+  return true;
+}
 export const ADVANCING_DISPOSITIONS: readonly SelectionDisposition[] = [
   'select_for_build',
   'proceed_to_validation',

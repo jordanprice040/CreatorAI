@@ -1,6 +1,7 @@
 import {
   RUBRICS,
   ScorecardBodySchema,
+  kindAllows,
   type ExactScore,
   type RankedCandidate,
   type RubricDefinition,
@@ -101,7 +102,6 @@ export interface CandidateInput {
   humility_reasons: readonly string[];
 }
 const SOFTWARE_KINDS = ['build', 'hybrid'];
-const RECOMMENDABLE = ['use_existing', 'change_process', 'human_led', 'hybrid'];
 const HARD_DISCOVERY_BLOCKS = [
   'duplicate',
   'rejected',
@@ -283,7 +283,7 @@ function gatesFor(c: CandidateInput, cards: Parsed[], opportunity: string) {
   // select_for_build
   block(
     'select_for_build',
-    SOFTWARE_KINDS.includes(kind)
+    kindAllows(kind, 'select_for_build')
       ? null
       : `A ${kind.replaceAll('_', ' ')} response has no software to build; it cannot be made build-ready.`,
   );
@@ -309,7 +309,7 @@ function gatesFor(c: CandidateInput, cards: Parsed[], opportunity: string) {
   // recommend_alternative
   block(
     'recommend_alternative',
-    RECOMMENDABLE.includes(kind)
+    kindAllows(kind, 'recommend_alternative')
       ? null
       : kind === 'build'
         ? 'Custom software is selected for build or validation, not recommended as an alternative.'
@@ -320,7 +320,9 @@ function gatesFor(c: CandidateInput, cards: Parsed[], opportunity: string) {
   // proceed_to_validation
   block(
     'proceed_to_validation',
-    kind === 'failed' ? 'A failed outcome cannot be validated.' : null,
+    kindAllows(kind, 'proceed_to_validation')
+      ? null
+      : 'A failed outcome cannot be validated.',
   );
   block('proceed_to_validation', ethicsReason);
   block(

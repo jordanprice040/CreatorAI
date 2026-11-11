@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { usePageActive } from './page-drafts.js';
+import { useOnShow, usePageActive } from './page-drafts.js';
 import { RoutinePolicies } from './routine-policy.js';
 import { runLabel } from './labels.js';
+import { Fold, FoldAll, useFolds, type Folds } from './fold.js';
 import { clearOtherTransfers, resetTransfers } from './transfers.js';
 import {
   clearNoteDrafts,
@@ -310,6 +311,7 @@ function Coverage({ d }: { d: Decision }) {
 function DecisionCard({
   d,
   focused,
+  folds,
   names,
   csrf,
   workspace,
@@ -317,6 +319,7 @@ function DecisionCard({
 }: {
   d: Decision;
   focused: boolean;
+  folds: Folds;
   names: (id: string) => string;
   csrf: string;
   workspace: string;
@@ -368,199 +371,224 @@ function DecisionCard({
       className={`decision${focused ? ' focused' : ''}`}
       aria-label={`${d.kind} decision`}
     >
-      <div className="decision-head">
-        <span className={`badge kind-${d.kind}`}>{d.kind.toUpperCase()}</span>
-        <span className="small">
-          {words(d.reason)} · {d.status}
-          {d.closed_reason ? ` (${words(d.closed_reason)})` : ''}
-        </span>
-      </div>
-      <h3 className="question">
-        {d.status === 'pending' ? 'Decision needed' : 'Decision'}: {d.question}
-      </h3>
-      <p className="small">
-        Asked by {names(d.requested_by)} on {when(d.created_at)} for run{' '}
-        {d.run_id.slice(0, 8)}
-        {d.status === 'pending' ? ` · expires ${when(d.expires_at)}` : ''}
-      </p>
-      <dl>
-        <div>
-          <dt>Evidence</dt>
-          <dd>
-            {d.evidence_refs.length
-              ? d.evidence_refs
-                  .map((r) => `${r.id.slice(0, 8)} v${r.version}`)
-                  .join(', ')
-              : 'none cited'}
-          </dd>
-        </div>
-        <div>
-          <dt>Uncertainty</dt>
-          <dd>{d.uncertainty}</dd>
-        </div>
-        <div>
-          <dt>If wrong</dt>
-          <dd>{d.consequence_if_wrong}</dd>
-        </div>
-        <div>
-          <dt>Blocks</dt>
-          <dd>{d.blocked_work.join('; ') || '—'}</dd>
-        </div>
-        <div>
-          <dt>Can continue</dt>
-          <dd>{d.unblocked_work.join('; ') || '—'}</dd>
-        </div>
-        {d.recommendation && (
+      <Fold
+        id={d.id}
+        folds={folds}
+        summary={
+          <>
+            <span className={`badge kind-${d.kind}`}>
+              {d.kind.toUpperCase()}
+            </span>{' '}
+            {/* Review L-5: the card's heading is in the summary, so it is read once and a
+                closed card still has a heading. */}
+            <h3 className="question fold-title">
+              {d.status === 'pending' ? 'Decision needed' : 'Decision'}:{' '}
+              {d.question}
+            </h3>
+            <span className="fold-line small">
+              {words(d.reason)} · {d.status}
+              {d.closed_reason ? ` (${words(d.closed_reason)})` : ''}
+              {pending ? ` · expires ${when(d.expires_at)}` : ''}
+              {d.response ? ` · answered: ${words(d.response.choice)}` : ''}
+              {!d.coverage.current && pending && (
+                <>
+                  {' · '}
+                  <span className="fold-attention">
+                    cannot be approved: the target changed
+                  </span>
+                </>
+              )}
+            </span>
+          </>
+        }
+      >
+        <p className="small">
+          Asked by {names(d.requested_by)} on {when(d.created_at)} for run{' '}
+          {d.run_id.slice(0, 8)}
+        </p>
+        <dl>
           <div>
-            <dt>Recommendation</dt>
+            <dt>Evidence</dt>
             <dd>
-              {d.recommendation}: {d.recommendation_reason}
+              {d.evidence_refs.length
+                ? d.evidence_refs
+                    .map((r) => `${r.id.slice(0, 8)} v${r.version}`)
+                    .join(', ')
+                : 'none cited'}
             </dd>
           </div>
+          <div>
+            <dt>Uncertainty</dt>
+            <dd>{d.uncertainty}</dd>
+          </div>
+          <div>
+            <dt>If wrong</dt>
+            <dd>{d.consequence_if_wrong}</dd>
+          </div>
+          <div>
+            <dt>Blocks</dt>
+            <dd>{d.blocked_work.join('; ') || '—'}</dd>
+          </div>
+          <div>
+            <dt>Can continue</dt>
+            <dd>{d.unblocked_work.join('; ') || '—'}</dd>
+          </div>
+          {d.recommendation && (
+            <div>
+              <dt>Recommendation</dt>
+              <dd>
+                {d.recommendation}: {d.recommendation_reason}
+              </dd>
+            </div>
+          )}
+        </dl>
+        <h3>What this decision covers</h3>
+        <Coverage d={d} />
+        {!d.coverage.current && pending && (
+          <p className="error" role="alert">
+            The target changed after this request. It cannot be approved; a new
+            request is needed.
+          </p>
         )}
-      </dl>
-      <h3>What this decision covers</h3>
-      <Coverage d={d} />
-      {!d.coverage.current && pending && (
-        <p className="error" role="alert">
-          The target changed after this request. It cannot be approved; a new
-          request is needed.
-        </p>
-      )}
-      {d.response && (
-        <p className="small">
-          Answered by {names(d.response.responder_id)} on{' '}
-          {when(d.response.responded_at)}:{' '}
-          <strong>{words(d.response.choice)}</strong>
-          {d.response.option_id ? ` (${d.response.option_id})` : ''} ·{' '}
-          {d.response.rationale}
-        </p>
-      )}
-      {pending && (
-        <>
-          <label htmlFor={`why-${d.id}`}>Your reason (required, brief)</label>
-          <textarea
-            id={`why-${d.id}`}
-            rows={2}
-            maxLength={1200}
-            value={rationale}
-            onChange={(e) => setRationale(e.target.value)}
-          />
-          <label htmlFor={`int-${d.id}`}>Was this question worth asking?</label>
-          <select
-            id={`int-${d.id}`}
-            value={interruption}
-            onChange={(e) =>
-              setInterruption(e.target.value as typeof interruption)
-            }
-          >
-            <option value="">No answer</option>
-            <option value="useful">Yes, useful</option>
-            <option value="unnecessary">No, an unnecessary interruption</option>
-          </select>
-          <div className="actions">
-            {d.kind === 'authorization' ? (
-              <>
-                <button
-                  className="secondary strong"
-                  disabled={disabled}
-                  onClick={() => void answer('approve_once')}
-                >
-                  Approve this action once
-                </button>
-                {d.coverage.standing && (
+        {d.response && (
+          <p className="small">
+            Answered by {names(d.response.responder_id)} on{' '}
+            {when(d.response.responded_at)}:{' '}
+            <strong>{words(d.response.choice)}</strong>
+            {d.response.option_id ? ` (${d.response.option_id})` : ''} ·{' '}
+            {d.response.rationale}
+          </p>
+        )}
+        {pending && (
+          <>
+            <label htmlFor={`why-${d.id}`}>Your reason (required, brief)</label>
+            <textarea
+              id={`why-${d.id}`}
+              rows={2}
+              maxLength={1200}
+              value={rationale}
+              onChange={(e) => setRationale(e.target.value)}
+            />
+            <label htmlFor={`int-${d.id}`}>
+              Was this question worth asking?
+            </label>
+            <select
+              id={`int-${d.id}`}
+              value={interruption}
+              onChange={(e) =>
+                setInterruption(e.target.value as typeof interruption)
+              }
+            >
+              <option value="">No answer</option>
+              <option value="useful">Yes, useful</option>
+              <option value="unnecessary">
+                No, an unnecessary interruption
+              </option>
+            </select>
+            <div className="actions">
+              {d.kind === 'authorization' ? (
+                <>
+                  <button
+                    className="secondary strong"
+                    disabled={disabled}
+                    onClick={() => void answer('approve_once')}
+                  >
+                    Approve this action once
+                  </button>
+                  {d.coverage.standing && (
+                    <button
+                      className="secondary"
+                      disabled={busy || !d.coverage.current}
+                      onClick={() => setStanding((v) => !v)}
+                    >
+                      Approve as a standing policy…
+                    </button>
+                  )}
                   <button
                     className="secondary"
-                    disabled={busy || !d.coverage.current}
-                    onClick={() => setStanding((v) => !v)}
+                    disabled={disabled}
+                    onClick={() => void answer('reject')}
                   >
-                    Approve as a standing policy…
+                    Reject
                   </button>
-                )}
-                <button
-                  className="secondary"
-                  disabled={disabled}
-                  onClick={() => void answer('reject')}
-                >
-                  Reject
-                </button>
-              </>
-            ) : (
-              d.options.map((o) => (
-                <button
-                  key={o.id}
-                  className="secondary"
-                  title={o.consequence}
-                  disabled={disabled}
-                  onClick={() => void answer('choose_option', o.id)}
-                >
-                  {o.label}
-                </button>
-              ))
-            )}
-            <button
-              className="secondary"
-              disabled={disabled}
-              onClick={() => void answer('request_evidence')}
-            >
-              Request evidence
-            </button>
-            {(d.kind === 'authorization' ||
-              !d.options.some((o) => o.id === 'defer')) && (
+                </>
+              ) : (
+                d.options.map((o) => (
+                  <button
+                    key={o.id}
+                    className="secondary"
+                    title={o.consequence}
+                    disabled={disabled}
+                    onClick={() => void answer('choose_option', o.id)}
+                  >
+                    {o.label}
+                  </button>
+                ))
+              )}
               <button
                 className="secondary"
                 disabled={disabled}
-                onClick={() => void answer('defer')}
+                onClick={() => void answer('request_evidence')}
               >
-                Defer
+                Request evidence
               </button>
+              {(d.kind === 'authorization' ||
+                !d.options.some((o) => o.id === 'defer')) && (
+                <button
+                  className="secondary"
+                  disabled={disabled}
+                  onClick={() => void answer('defer')}
+                >
+                  Defer
+                </button>
+              )}
+            </div>
+            {standing && d.coverage.standing && (
+              <aside
+                className="notice policy"
+                aria-label="Standing policy preview"
+              >
+                <strong>This changes policy, not just this action.</strong>
+                <span>
+                  It lets every future{' '}
+                  {words(d.coverage.standing.action_types.join(', '))} on{' '}
+                  {d.coverage.standing.target_kind ?? 'any target'} with{' '}
+                  {d.coverage.standing.data_classes.join(', ')} data in this run
+                  proceed without asking, until the expiry below. You can revoke
+                  it at any time.
+                </span>
+                <label htmlFor={`days-${d.id}`}>
+                  Expires after (days, up to 90)
+                </label>
+                <input
+                  id={`days-${d.id}`}
+                  type="number"
+                  min={1}
+                  max={90}
+                  value={days}
+                  onChange={(e) =>
+                    setDays(
+                      Math.min(90, Math.max(1, Number(e.target.value) || 1)),
+                    )
+                  }
+                />
+                <button
+                  className="secondary strong"
+                  disabled={disabled}
+                  onClick={() => void answer('approve_standing')}
+                >
+                  Create standing policy for {days} days
+                </button>
+              </aside>
             )}
-          </div>
-          {standing && d.coverage.standing && (
-            <aside
-              className="notice policy"
-              aria-label="Standing policy preview"
-            >
-              <strong>This changes policy, not just this action.</strong>
-              <span>
-                It lets every future{' '}
-                {words(d.coverage.standing.action_types.join(', '))} on{' '}
-                {d.coverage.standing.target_kind ?? 'any target'} with{' '}
-                {d.coverage.standing.data_classes.join(', ')} data in this run
-                proceed without asking, until the expiry below. You can revoke
-                it at any time.
-              </span>
-              <label htmlFor={`days-${d.id}`}>
-                Expires after (days, up to 90)
-              </label>
-              <input
-                id={`days-${d.id}`}
-                type="number"
-                min={1}
-                max={90}
-                value={days}
-                onChange={(e) =>
-                  setDays(
-                    Math.min(90, Math.max(1, Number(e.target.value) || 1)),
-                  )
-                }
-              />
-              <button
-                className="secondary strong"
-                disabled={disabled}
-                onClick={() => void answer('approve_standing')}
-              >
-                Create standing policy for {days} days
-              </button>
-            </aside>
-          )}
-        </>
-      )}
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
+          </>
+        )}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+      </Fold>
     </article>
   );
 }
@@ -705,6 +733,21 @@ export function Oversight({
       g.status === 'active' &&
       !policyGrants.has(g.id),
   );
+  // P18: every waiting decision is open (each needs the person); answered and closed ones,
+  // shown with "Show answered and closed", fold to one line.
+  const decisionFolds = useFolds(
+    decisions
+      .filter((d) => d.status === 'pending' || d.id === focus)
+      .map((d) => d.id),
+  );
+  // Review L-7: a decision someone was sent to opens, even if they had collapsed it.
+  useEffect(() => {
+    if (focus) decisionFolds.set(focus, true);
+  }, [focus]);
+  // Re-review R-1: the page stays mounted with the same id, so also open it on each return.
+  useOnShow(() => {
+    if (focus) decisionFolds.set(focus, true);
+  });
   const policyRun = (runId: string) => {
     const r = runs.find((x) => x.run_id === runId);
     return r ? runLabel(r, runNames) : `run ${runId.slice(0, 8)}`;
@@ -727,7 +770,14 @@ export function Oversight({
       </div>
       <div className="records-grid">
         <div>
-          <h3>{showAll ? 'All decisions' : 'Waiting for you'}</h3>
+          <div className="fold-head">
+            <h3>{showAll ? 'All decisions' : 'Waiting for you'}</h3>
+            <FoldAll
+              ids={decisions.map((d) => d.id)}
+              folds={decisionFolds}
+              label="decisions"
+            />
+          </div>
           {decisions.length === 0 ? (
             <p className="small">
               {showAll ? 'No decisions yet.' : 'Nothing needs you right now.'}
@@ -738,6 +788,7 @@ export function Oversight({
                 key={`${d.id}-${d.version}`}
                 d={d}
                 focused={d.id === focus}
+                folds={decisionFolds}
                 names={names}
                 csrf={session.csrf_token}
                 workspace={workspace}
