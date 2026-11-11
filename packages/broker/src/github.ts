@@ -33,6 +33,12 @@ export interface GitHubResponse {
   headers: Record<string, string>;
   data: Record<string, unknown> | null;
   message: string;
+  /**
+   * Set when the call never got past the GitHub App token step: `app_token` is GitHub's answer
+   * to the installation-token request; `studio` is a local failure (e.g. a private key that
+   * cannot sign), so GitHub was never asked.
+   */
+  stage?: 'app_token' | 'studio';
 }
 export interface ReadRefusal {
   step: 'repository' | 'pull' | 'check_runs' | 'statuses';
@@ -57,19 +63,29 @@ export const repositoryRefusal = (r: GitHubResponse): ReadRefusal => {
       r.headers['retry-after'] !== undefined ||
       /rate limit/i.test(r.message));
   const ours =
-    r.status === 200
-      ? 'GitHub’s reply about this repository could not be read; nothing was read. Try again later.'
-      : limited
-        ? 'GitHub is rate-limiting this credential; nothing was read. Try again later.'
-        : r.status === 401 || r.status === 403 || r.status === 404
-          ? 'GitHub did not show this repository to the connection’s credential: the token may be expired or revoked, or its access to the repository removed.'
-          : 'GitHub did not answer the repository read; nothing was read. Try again later.';
+    r.stage === 'studio'
+      ? 'The studio could not get a GitHub App token for this repository, so GitHub was not asked; check the App credential (App id and private key).'
+      : r.stage === 'app_token' &&
+          r.status !== null &&
+          !limited &&
+          r.status >= 400 &&
+          r.status < 500
+        ? 'GitHub refused a GitHub App token for this repository: the App may no longer be installed on it, or the installation was removed or suspended. Nothing was read.'
+        : r.status === 200
+          ? 'GitHub’s reply about this repository could not be read; nothing was read. Try again later.'
+          : limited
+            ? 'GitHub is rate-limiting this credential; nothing was read. Try again later.'
+            : r.status === 401 || r.status === 403 || r.status === 404
+              ? 'GitHub did not show this repository to the connection’s credential: the token may be expired or revoked, or its access to the repository removed.'
+              : 'GitHub did not answer the repository read; nothing was read. Try again later.';
   // With no HTTP answer the detail is the studio's own (a timeout, a reset); otherwise it is
   // GitHub's own message.
   const detail = !r.message
     ? ''
     : r.status === null
-      ? ` Studio error, no answer from GitHub: ${r.message}`
+      ? r.stage === 'studio'
+        ? ` Studio error: ${r.message}`
+        : ` Studio error, no answer from GitHub: ${r.message}`
       : ` GitHub said: ${r.message}`;
   return {
     step: 'repository',
@@ -647,7 +663,16 @@ export class LiveGitHub implements GitHubAdapter {
       );
     } catch (e) {
       const r = (e as { response?: GitHubResponse }).response;
-      return r ?? err(null, 'installation token unavailable');
+      if (r) return { ...r, stage: 'app_token' };
+      // Only the error's code, never its text, so nothing from the key can reach a message.
+      const code = (e as { code?: unknown }).code;
+      return {
+        ...err(
+          null,
+          `installation token unavailable (${typeof code === 'string' ? code.slice(0, 80) : 'local error'})`,
+        ),
+        stage: 'studio',
+      };
     }
     return this.#call(method, path, `Bearer ${token}`, body);
   }

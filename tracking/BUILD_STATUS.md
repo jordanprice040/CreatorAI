@@ -939,3 +939,6 @@ and reported the token deleted; the trial repository is his to keep or delete. N
 request (November 11): a secondary rate limit without `retry-after` is recognised by GitHub's message, a
 read with no answer is worded as the studio's own error rather than "GitHub said", and `checksSummary`
 (now in `apps/web/src/github-checks.ts`) has unit tests (`tests/src/web-github-checks.test.ts`).
+Fourth re-review nits (GitHub App path, not used live): a GitHub App token the studio cannot create
+locally (e.g. an unusable private key) says to check the App credential, not "try again", and a token
+GitHub refuses (e.g. 422, repository removed from the installation) says so instead of "did not answer".

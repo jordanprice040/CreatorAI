@@ -527,3 +527,59 @@ test('P22 nits: a secondary rate limit without retry-after, and a read with no a
     /GitHub said: Service Unavailable/,
   );
 });
+
+test('P22 nits: GitHub App token failures say what failed, not "try again"', async (t) => {
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const pem = privateKey.export({ type: 'pkcs1', format: 'pem' }).toString();
+  let mint: {
+    status: number;
+    body: unknown;
+    headers?: Record<string, string>;
+  } = {
+    status: 422,
+    body: {
+      message:
+        'There is at least one repository that does not exist or is not accessible to the parent installation.',
+    },
+  };
+  const gh = await loopbackGitHub((s) =>
+    s.path.endsWith('/access_tokens')
+      ? mint
+      : { status: 500, body: { message: 'should not be reached' } },
+  );
+  t.after(gh.close);
+  const app = (private_key: string) =>
+    new LiveGitHub({
+      credential: {
+        kind: 'app_installation',
+        client_id: 'Iv1.fixture',
+        private_key,
+        installation_id: 77,
+      },
+      apiBase: gh.base,
+    });
+  // A private key that cannot sign: GitHub is never asked, and retrying will not help.
+  const local = await app('not a private key').repositoryRead(repo.github_id);
+  assert.equal(gh.seen.length, 0);
+  assert.equal(local.refusal?.status, null);
+  assert.match(local.refusal!.message, /could not get a GitHub App token/);
+  assert.match(local.refusal!.message, /check the App credential/);
+  assert.doesNotMatch(local.refusal!.message, /Try again|did not answer/);
+  assert.doesNotMatch(local.refusal!.message, /not a private key/);
+  // The repository was removed from the installation: GitHub refused the token (422).
+  const removed = await app(pem).repositoryRead(repo.github_id);
+  assert.equal(removed.refusal?.status, 422);
+  assert.match(removed.refusal!.message, /refused a GitHub App token/);
+  assert.match(removed.refusal!.message, /GitHub said: There is at least one/);
+  assert.doesNotMatch(removed.refusal!.message, /did not answer|Try again/);
+  // A rate-limited token request is still "try again".
+  mint = {
+    status: 403,
+    headers: { 'x-ratelimit-remaining': '0' },
+    body: { message: 'API rate limit exceeded' },
+  };
+  const limited = await app(pem).repositoryRead(repo.github_id);
+  assert.match(limited.refusal!.message, /rate-limiting.*Try again/);
+  // Nothing past the token step was requested.
+  assert.ok(gh.seen.every((s) => s.path.endsWith('/access_tokens')));
+});
