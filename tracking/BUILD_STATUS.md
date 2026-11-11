@@ -879,7 +879,7 @@ row arrives with docs PR #158). Web only; no data, route, gate, scoring or API c
 - L-2 Decide: an option's summary names each choice gates block and its first reason ("Blocked by gates: Select for
   a bounded build (…)") instead of only a count.
 - L-3 Proposals: a section a check blocks (`level: blocker` for that section, e.g. no cited claim, a cited claim
-  missing or stale) gets the attention style, shows "Written, blocked: …" and can be the section that opens.
+  missing or no longer active) gets the attention style, shows "Written, blocked: …" and can be the section that opens.
 - L-4 Decide: "Before you can record" no longer names a new, untouched option twice.
 - L-5 Approvals: the question heading is inside the summary (read once; closed cards keep a heading); "expires"
   shows once.
@@ -892,3 +892,20 @@ row arrives with docs PR #158). Web only; no data, route, gate, scoring or API c
   L-1 and L-4 need a revised alternative after a recorded selection and were checked from the code, not walked.
 - Checks after the fixes (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` and `pnpm format:check` pass;
   `pnpm test:db` 910 tests, 876 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests). Not re-reviewed yet.
+
+### P18 re-review fixes (November 11, same PR #162; re-review `reviews/P18_PR162_REREVIEW_2026-11-10.md`, 3 Lows and a nit)
+
+- R-1 Approvals: a linked decision opens on every return to the page (`useOnShow`), not only when the id changes, so
+  following the same link again after closing the card opens it.
+- R-2 Proposals: opening a different proposal any way (list, Decide's link, an address) clears the section choices;
+  the step from a new draft to its first saved id keeps them.
+- R-3 Decide: summaries name only blocks the person can clear; blocks that follow from the option's kind ("has no
+  software to build", "Custom software is selected for build or validation", "not a response to recommend", "A
+  failed outcome cannot be validated") stay in the dropdown. The alternatives' "N choices blocked" counts the same way.
+- R-4: the L-3 entry above now says "missing or no longer active" (a stale citation is a warning, not a blocker).
+- Evidence: `walk.cjs` re-run (output replaced): R-1 same link after closing opens the card; R-2 after Expand all on
+  one proposal, another opened by address shows its own default (1 of 15 open); R-3 collapsed option summaries
+  52/73/91/52/52 px at 1280 wide (re-review measured about 110 px each before). A second proposal for the walk was
+  created through the API on the throwaway database.
+- Checks (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` and `pnpm format:check` pass; `pnpm test:db` 910
+  tests, 876 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests). `web-session.test.ts` stub gains `useOnShow`.

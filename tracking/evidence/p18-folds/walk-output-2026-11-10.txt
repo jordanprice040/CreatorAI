@@ -1,4 +1,4 @@
-DECIDE height 3685 viewport 900
+DECIDE height 3623 viewport 900
 DECIDE option folds open [ false, false, false, false, false ]
 DECIDE alternative folds open [ false, false, false, false, false ]
 DECIDE claim folds open [ false ]
@@ -21,17 +21,9 @@ POLICY folds open [ false, false, false ]
 POLICY summary v1 Unused first-appointment slots at rural clinics · Nov 10, 10:44 PM · 44b0e184 · Admitting covered steps0 of 40 steps used · ends Nov 11, 2026, 10:55 PM
 ALL decisions open [ true, false, false ]
 L-7 linked decision open after Collapse all true
-PROPOSAL section folds open [
-  false, false, true,
-  false, false, false,
-  false, false, false,
-  false, false, false,
-  false, false, false
-]
-PROPOSAL first summaries Problem and who it affects · required · WrittenFirst-appointment slots go unused when booked patients do not attend, while others wait. Evidence: Rural clinics… || Background · WrittenSelected response: an existing tool — Use the existing tool: The clinics’ scheduling systems send reminders but do not… || Objectives · required · Unknown yetState the outcome this should change, for whom, and how it will be measured. || Evidence · required · Written · 1 cited claim1 supporting claim is cited here; their statements, sources and current evidence status are listed under References.
-PROPOSAL checks visible Not complete yet · 5 written, 10 unknown, 0 not applicable · checks of this draftObjectives is marked unknown.Methods and step-by-step procedure is marked unkno
-PROPOSALS height 2623
-PROPOSALS height with every section open (the old layout) 5880
-L-6 after save: section 6 open true open count 1
+R-1 same link again after closing true
+PROPOSAL none eligible
+R-2 other proposal opens with its own defaults, open count 1 of 15 (fresh first proposal had 1 )
+R-3 collapsed option summary heights [ 52, 73, 91, 52, 52 ]
 EMPTY decide true expand buttons: 0
 EMPTY approvals true decision cards: 0 expand buttons: 0

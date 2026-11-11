@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { usePageActive } from './page-drafts.js';
+import { useOnShow, usePageActive } from './page-drafts.js';
 import { RoutinePolicies } from './routine-policy.js';
 import { runLabel } from './labels.js';
 import { Fold, FoldAll, useFolds, type Folds } from './fold.js';
@@ -736,6 +736,10 @@ export function Oversight({
   useEffect(() => {
     if (focus) decisionFolds.set(focus, true);
   }, [focus]);
+  // Re-review R-1: the page stays mounted with the same id, so also open it on each return.
+  useOnShow(() => {
+    if (focus) decisionFolds.set(focus, true);
+  });
   const policyRun = (runId: string) => {
     const r = runs.find((x) => x.run_id === runId);
     return r ? runLabel(r, runNames) : `run ${runId.slice(0, 8)}`;

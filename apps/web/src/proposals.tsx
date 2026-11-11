@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   CORE_PROPOSAL_SECTIONS,
   PROPOSAL_KINDS,
@@ -310,6 +310,14 @@ export function Proposals({
   // Review L-6: the sections the person opened stay open across saves, which remount the
   // editor; picking another proposal or starting a new one starts afresh.
   const [sectionChoices, setSectionChoices] = useFoldChoices();
+  // Re-review R-2: opening another proposal any way (a link from Decide, an address) starts
+  // afresh too; the step from a new draft ('') to its first saved id keeps the choices.
+  const shownProposal = useRef(focus);
+  useEffect(() => {
+    if (shownProposal.current && focus && shownProposal.current !== focus)
+      setSectionChoices({});
+    if (focus) shownProposal.current = focus;
+  }, [focus]);
 
   async function start(e: Eligible) {
     setError('');
@@ -370,10 +378,7 @@ export function Proposals({
                   <button
                     className={`text${p.id === focus ? ' current' : ''}`}
                     aria-current={p.id === focus ? 'true' : undefined}
-                    onClick={() => {
-                      if (p.id !== focus) setSectionChoices({});
-                      onFocus(p.id);
-                    }}
+                    onClick={() => onFocus(p.id)}
                   >
                     {p.title}
                   </button>{' '}

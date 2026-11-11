@@ -77,6 +77,19 @@ function pendingReviews(
   return out;
 }
 
+/**
+ * Blocks that follow from an option's kind and that no review or score can clear (the
+ * wording of packages/domain/src/selection.ts). Shown in the dropdown, not in summaries.
+ */
+const KIND_BLOCKS = [
+  'has no software to build',
+  'Custom software is selected for build or validation',
+  'outcome is not a response to recommend',
+  'A failed outcome cannot be validated',
+];
+const kindBlock = (reason: string) =>
+  KIND_BLOCKS.some((k) => reason.includes(k));
+
 const FRESH_NOTE: Record<string, string> = {
   current: 'current',
   stale: 'older than the freshness limit',
@@ -465,16 +478,17 @@ export function Compare({
   const rowFolds = useFolds(viewer ? [] : firstNeeding(altIds, needsYou));
   const historyFolds = useFolds([]);
   const blockedCount = (id: string) =>
-    Object.values(suit.get(id)?.gates.blocked ?? {}).filter((x) => x?.length)
-      .length;
-  // Review L-2: which choices gates block, and the first reason for each.
+    Object.values(suit.get(id)?.gates.blocked ?? {}).filter((x) =>
+      x?.some((r) => !kindBlock(r)),
+    ).length;
+  // Review L-2: which choices gates block, and the first reason for each. Re-review R-3:
+  // only reasons the person can clear; a block that follows from the option's kind (e.g.
+  // "has no software to build") stays in the dropdown, not in every summary.
   const blockedText = (id: string) =>
     SelectionDispositionSchema.options
       .flatMap((o) => {
-        const why = suit.get(id)?.gates.blocked[o];
-        return why?.length
-          ? [`${DISPOSITION_NOTE[o]} (${clip(why[0]!, 90)})`]
-          : [];
+        const why = suit.get(id)?.gates.blocked[o]?.find((r) => !kindBlock(r));
+        return why ? [`${DISPOSITION_NOTE[o]} (${clip(why, 90)})`] : [];
       })
       .join('; ');
   return (
@@ -984,7 +998,7 @@ export function Compare({
                               </>
                             )}
                           </span>
-                          {blockedCount(id) > 0 && (
+                          {blockedText(id) && (
                             <span className="fold-line small">
                               Blocked by gates: {blockedText(id)}
                             </span>

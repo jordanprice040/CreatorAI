@@ -26,7 +26,7 @@ const log = (...a) => console.log(...a);
     research = ws('research');
   const go = async (route, id) => {
     await p.goto(`${WEB}/#/${route}?ws=${id}`);
-    await p.waitForTimeout(2500);
+    await p.waitForTimeout(4500);
   };
   const height = () => p.evaluate(() => document.documentElement.scrollHeight);
   const opens = (sel) =>
@@ -205,6 +205,17 @@ const log = (...a) => console.log(...a);
       () => document.querySelector('article.decision > details')?.open,
     ),
   );
+  // Re-review R-1: close it, go to Decide, follow the same link again: it opens again.
+  await p.locator('article.decision > details > summary').first().click();
+  await go('projects/decide', sel);
+  await p.goto(`${WEB}/#/monitor/approvals?ws=${sel}&id=${decId}`);
+  await p.waitForTimeout(2000);
+  log(
+    'R-1 same link again after closing',
+    await p.evaluate(
+      () => document.querySelector('article.decision > details')?.open,
+    ),
+  );
 
   // --- Proposals: start one from the recorded selection ---
   await go('projects/proposals', sel);
@@ -245,6 +256,44 @@ const log = (...a) => console.log(...a);
     );
     await p.screenshot({ path: shot('proposal-new.png'), fullPage: true });
   } else log('PROPOSAL none eligible');
+
+  // Re-review R-2: choices made on one proposal do not carry to another opened by address.
+  const props = await p.evaluate(
+    async (w) =>
+      (await (await fetch(`/api/workspaces/${w}/proposals`)).json()).map(
+        (x) => x.id,
+      ),
+    sel,
+  );
+  if (props.length >= 2) {
+    await go(`projects/proposals`, sel);
+    await p.goto(`${WEB}/#/projects/proposals?ws=${sel}&id=${props[0]}`);
+    await p.waitForTimeout(2000);
+    const fresh = await opens('details.proposal-fold');
+    await p.getByRole('button', { name: 'Expand all' }).first().click();
+    await p.goto(`${WEB}/#/projects/proposals?ws=${sel}&id=${props[1]}`);
+    await p.waitForTimeout(2000);
+    const other = await opens('details.proposal-fold');
+    log(
+      'R-2 other proposal opens with its own defaults, open count',
+      other.filter(Boolean).length,
+      'of',
+      other.length,
+      '(fresh first proposal had',
+      fresh.filter(Boolean).length,
+      ')',
+    );
+  } else log('R-2 needs two proposals, found', props.length);
+  // Re-review R-3: collapsed option summaries on Decide stay short.
+  await go('projects/decide', sel);
+  log(
+    'R-3 collapsed option summary heights',
+    await p.evaluate(() =>
+      [...document.querySelectorAll('details.decide-option > summary')].map(
+        (x) => Math.round(x.getBoundingClientRect().height),
+      ),
+    ),
+  );
 
   // --- Empty lists ---
   await go('projects/decide', research);
