@@ -926,3 +926,18 @@ row arrives with docs PR #158). Web only; no data, route, gate, scoring or API c
   left to start a proposal for.
 - Checks (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` and `pnpm format:check` pass; `pnpm test:db` 912
   tests, 878 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests). Domain selection tests pass with `kindAllows`.
+
+### P18 third re-review fixes (November 11, same PR #162; `reviews/P18_PR162_REREVIEW3_2026-11-11.md`, 1 Low and a nit)
+
+- R4-1 Proposals: the section choices belong to one proposal or to the unsaved draft (`'draft'`). Starting a draft
+  marks them as the draft's; the draft's own first save hands them to its new id; opening any other proposal,
+  including a saved one picked while a draft is open, starts afresh.
+- N-2 Decide: the "Blocked by gates" line uses the dropdown's labels ("Validate before building, Recommend (no new
+  software)").
+- Evidence: new `walk-proposal-choices.cjs` on a fresh `seed-selection` workspace (it records a second recommended
+  option, approving the one selection approval through the API as the owner would on Approvals), output in
+  `walk-proposal-choices-output-2026-11-11.txt`: A's opened sections survive its first save; an unsaved B draft's
+  choices do not carry to A (R4-1, A shows only its default); with A open, B's draft keeps its choices over its
+  first save (R2-1); A picked after B shows its default (R-2). Main walk re-run (output replaced).
+- Checks (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` and `pnpm format:check` pass; `pnpm test:db` 912
+  tests, 878 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests).

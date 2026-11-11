@@ -87,15 +87,6 @@ const FRESH_NOTE: Record<string, string> = {
   claim_changed: 'claim changed since',
   retracted: 'support retracted',
 };
-/** Short names for the one-line "Blocked by gates" summary. */
-const DISPOSITION_SHORT: Record<SelectionDisposition, string> = {
-  select_for_build: 'build',
-  proceed_to_validation: 'validate',
-  recommend_alternative: 'recommend',
-  research_further: 'research further',
-  defer: 'defer',
-  reject: 'reject',
-};
 const DISPOSITION_NOTE: Record<SelectionDisposition, string> = {
   select_for_build: 'Select for a bounded build',
   proceed_to_validation: 'Validate before building',
@@ -484,7 +475,7 @@ export function Compare({
     return SelectionDispositionSchema.options.flatMap((o) => {
       const why = suit.get(id)?.gates.blocked[o];
       return why?.length && kindAllows(kind, o)
-        ? [[DISPOSITION_SHORT[o], why] as const]
+        ? [[DISPOSITION_NOTE[o], why] as const]
         : [];
     });
   };

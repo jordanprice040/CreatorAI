@@ -310,13 +310,15 @@ export function Proposals({
   // Review L-6: the sections the person opened stay open across saves, which remount the
   // editor; picking another proposal or starting a new one starts afresh.
   const [sectionChoices, setSectionChoices] = useFoldChoices();
-  // Re-review R-2: opening another proposal any way (a link from Decide, an address) starts
-  // afresh too; the step from a new draft ('') to its first saved id keeps the choices.
-  const shownProposal = useRef(focus);
+  // Re-review R-2/R2-1/R4-1: the choices belong to one proposal (or to the unsaved draft,
+  // 'draft'). Opening any other proposal, any way, starts afresh; the draft's own first save
+  // hands its choices to the new id.
+  const choicesFor = useRef(focus);
   useEffect(() => {
-    if (shownProposal.current && focus && shownProposal.current !== focus)
-      setSectionChoices({});
-    if (focus) shownProposal.current = focus;
+    if (focus && choicesFor.current !== focus) {
+      if (choicesFor.current) setSectionChoices({});
+      choicesFor.current = focus;
+    }
   }, [focus]);
 
   async function start(e: Eligible) {
@@ -328,8 +330,7 @@ export function Proposals({
       );
       setDraft({ draft: d, eligible: e });
       setSectionChoices({});
-      // Re-review R2-1: the draft's first saved id must not count as "another proposal".
-      shownProposal.current = '';
+      choicesFor.current = 'draft';
       onFocus('');
     } catch (err) {
       setError(message(err));
@@ -407,6 +408,7 @@ export function Proposals({
           saved={(id) => {
             setDraft(null);
             list.reload();
+            choicesFor.current = id;
             onFocus(id);
           }}
         />
