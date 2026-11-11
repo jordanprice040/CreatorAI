@@ -32,6 +32,7 @@ import {
   words,
 } from './oversight.js';
 import {
+  FixOutcome,
   FixButtons,
   FixRow,
   qualifierFor,
@@ -618,6 +619,7 @@ export function AutoAssess({
             </ul>
           )}
           {blockers.length > 0 && <FixRow acts={blockerFixes} fix={fixes} />}
+          <FixOutcome fix={fixes} />
           {owner ? (
             <button
               type="button"

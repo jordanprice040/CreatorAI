@@ -45,7 +45,7 @@ import {
   type View,
 } from './ui.js';
 import { Blocked, type BlockedReason } from './blocked.js';
-import { canQualifyFor, type FixContext } from './fix-buttons.js';
+import { FixOutcome, canQualifyFor, type FixContext } from './fix-buttons.js';
 import { missingTaskFixes } from './fix-here.js';
 import { Routine, WhatWillHappen } from './routine.js';
 import { unwrittenOptions } from './spec-fields.js';
@@ -1710,6 +1710,7 @@ function StartBuild({
         open={open}
         fixes={fixes ?? null}
       />
+      <FixOutcome fix={fixes} />
       <div className="actions">
         <button
           className="primary"

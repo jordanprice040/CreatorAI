@@ -35,6 +35,7 @@ import {
 } from '@creator/contracts';
 import { api, message, refusalsOf, words } from './oversight.js';
 import {
+  FixOutcome,
   FixButtons,
   qualifierFor,
   useQualifyOffers,
@@ -1504,6 +1505,7 @@ export function Submit({
               open={(v) => open(v)}
               fixes={fixes}
             />
+            <FixOutcome fix={fixes} />
             <div id="sub-issues" aria-live="polite">
               {tried && allIssues.length > 0 && (
                 <ul className="small issues">

@@ -829,3 +829,35 @@ test('after P34: the tasks a fix can qualify are exactly QUALIFY_IN_APP, with th
   for (const t of ['research_synthesis', 'candidate_generation', 'scoring'])
     assert.equal(mod.canQualifyFor('discovery')(t), true, t);
 });
+
+test("walk of November 11: a fix's outcome stays on the page for the owner after its buttons go away", async () => {
+  const { mod, react, server } = (await loadButtons()) as unknown as {
+    mod: {
+      announce(base: string, n: { text: string; error: string }): void;
+      FixOutcome(p: unknown): unknown;
+    };
+    react: { createElement: (t: unknown, p: unknown) => unknown };
+    server: { renderToStaticMarkup: (e: unknown) => string };
+  };
+  const draw = (fix: unknown) =>
+    server.renderToStaticMarkup(react.createElement(mod.FixOutcome, { fix }));
+  const owner = { base: 'workspaces/w1', csrf: 'c', owner: true };
+  assert.equal(draw(owner), '');
+  mod.announce('workspaces/w1', {
+    text: 'scoring on m1: qualified (6 of 6 held-out cases passed)',
+    error: '',
+  });
+  assert.match(draw(owner), /role="status".*qualified \(6 of 6 held-out/);
+  // Not for an editor, and not on another workspace.
+  assert.equal(draw({ ...owner, owner: false }), '');
+  assert.equal(draw({ ...owner, base: 'workspaces/w2' }), '');
+  // A failure after a saved step keeps its error beside the text.
+  mod.announce('workspaces/w1', {
+    text: 'Allowed scoring.',
+    error: 'run refused',
+  });
+  assert.match(draw(owner), /Allowed scoring\..*role="alert"[^>]*>run refused/);
+  // Dismissing (an empty note) clears it.
+  mod.announce('workspaces/w1', { text: '', error: '' });
+  assert.equal(draw(owner), '');
+});

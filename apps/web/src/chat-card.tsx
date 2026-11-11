@@ -11,7 +11,12 @@ import { useViewMode } from './view-mode.js';
 import { WhatWillHappen } from './routine.js';
 import type { View } from './pages.js';
 import { loadCard } from './chat-card-load.js';
-import { FixRow, routeFixes, useQualifyOffers } from './fix-buttons.js';
+import {
+  FixOutcome,
+  FixRow,
+  routeFixes,
+  useQualifyOffers,
+} from './fix-buttons.js';
 import {
   FORM_VIEW,
   LABEL,
@@ -463,6 +468,15 @@ export function ActionCard({
                 csrf: session.csrf_token,
                 owner,
                 onDone: () => void read(),
+              }}
+            />
+          )}
+          {draft && (
+            <FixOutcome
+              fix={{
+                base: `workspaces/${workspaceId}`,
+                csrf: session.csrf_token,
+                owner,
               }}
             />
           )}

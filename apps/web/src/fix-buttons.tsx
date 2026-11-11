@@ -68,6 +68,51 @@ export function FixButtons({
   );
 }
 
+/** What the last fix that changed something said, per workspace, until dismissed. */
+type Note = { text: string; error: string };
+const notes = new Map<string, Note>();
+const listeners = new Set<() => void>();
+export function announce(base: string, note: Note) {
+  if (note.text || note.error) notes.set(base, note);
+  else notes.delete(base);
+  for (const f of listeners) f();
+}
+
+/**
+ * The outcome of the last fix pressed here (for example "scoring on gpt-6-astra: qualified (6
+ * of 6 held-out cases passed)"). Drawn by the page where it stays when the refusal and its
+ * buttons go away after the fix worked.
+ */
+export function FixOutcome({ fix }: { fix: FixContext | null | undefined }) {
+  const [, setN] = useState(0);
+  useEffect(() => {
+    const f = () => setN((x) => x + 1);
+    listeners.add(f);
+    return () => {
+      listeners.delete(f);
+    };
+  }, []);
+  const n = fix?.owner ? notes.get(fix.base) : undefined;
+  if (!fix || !n) return null;
+  return (
+    <p className="small fix-outcome" role="status">
+      {n.text}
+      {n.error && (
+        <span className="error" role="alert" style={{ display: 'block' }}>
+          {n.error}
+        </span>
+      )}{' '}
+      <button
+        type="button"
+        className="text"
+        onClick={() => announce(fix.base, { text: '', error: '' })}
+      >
+        Dismiss
+      </button>
+    </p>
+  );
+}
+
 /** The same as a line of its own, under a list of reasons; nothing when there is no fix. */
 export function FixRow({
   acts,
@@ -427,6 +472,11 @@ function FixButton({ act: a, fix }: { act: FixAction; fix: FixContext }) {
     const save = () => {
       saved = true;
     };
+    let failure = '';
+    const fail = (e: string) => {
+      failure = e;
+      setError(e);
+    };
     try {
       switch (a.kind) {
         case 'accept_caps':
@@ -462,7 +512,7 @@ function FixButton({ act: a, fix }: { act: FixAction; fix: FixContext }) {
                 return null;
               }
             },
-            setError,
+            fail,
             // Saved settings make the panel's copy old even when re-accepting then fails
             // (re-review L-1): close it and read again.
             save,
@@ -513,13 +563,19 @@ function FixButton({ act: a, fix }: { act: FixAction; fix: FixContext }) {
           break;
       }
     } catch (e) {
-      setError(message(e));
+      fail(message(e));
     } finally {
       setWorking(false);
-      setOutcome(done.filter(Boolean).join(' '));
+      const text = done.filter(Boolean).join(' ');
+      setOutcome(text);
       // Whatever was saved, the panel's copy of the connection is old now: close it and let
-      // the page read again, even after a later step failed (review L-1).
+      // the page read again, even after a later step failed (review L-1). The read usually
+      // clears the refusal and this button with it, so the outcome is said where the page
+      // keeps it (`FixOutcome`), not on the button (walk of November 11).
       if (saved) {
+        announce(fix.base, { text, error: failure });
+        setOutcome('');
+        setError('');
         setOpen(false);
         fix.onDone?.();
       }

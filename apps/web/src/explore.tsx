@@ -29,6 +29,7 @@ import {
 } from '@creator/contracts';
 import { api, message, refusalsOf, when, words } from './oversight.js';
 import {
+  FixOutcome,
   FixButtons,
   FixRow,
   qualifierFor,
@@ -697,6 +698,7 @@ export function Explore({
               {blockers.length > 0 && (
                 <FixRow acts={blockerFixes} fix={fixes} />
               )}
+              <FixOutcome fix={fixes} />
               {workspace.role !== 'owner' && (
                 <p className="small">Only the workspace owner can explore.</p>
               )}
