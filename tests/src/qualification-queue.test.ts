@@ -7,7 +7,11 @@ import {
   ContractError,
   type PlanConnection,
 } from '@creator/contracts';
-import { ConnectionStore, type CommandContext } from '@creator/db';
+import {
+  ConnectionStore,
+  offeredDiscoveryBenchmarks,
+  type CommandContext,
+} from '@creator/db';
 import {
   MemoryVault,
   PlanConnectionService,
@@ -888,4 +892,96 @@ test('PR #176 review 4 N-A: a locator pass refuses the locator only, web discove
     /already qualified for research synthesis/,
   );
   assert.equal((await queueOf(WEB)).items[0]!.state, 'waiting');
+});
+
+test('ADR-0088 with ADR-0089: a queue takes offered discovery benchmarks by name and keeps scoring roles apart', async (t) => {
+  const db = await freshDatabase(t);
+  if (!db) return;
+  const store = new ConnectionStore(db.pool);
+  await store.ensureActor({
+    id: owner.actorId,
+    kind: 'human',
+    display_name: 'owner',
+  });
+  // A real connection ready to qualify 'm' (the offered discovery benchmarks are real ones);
+  // the verified access row is written directly, as in the P34 tests.
+  const ws = await store.createWorkspace(owner, {
+    name: 'Queue real',
+    record_mode: 'real',
+  });
+  let c = await store.createPlanConnection(owner, ws.id, {
+    label: 'ChatGPT plan',
+    settings: SETTINGS,
+  });
+  await store.attestPlanCredits(owner, ws.id, c.id, {
+    expected_version: c.version,
+    statement: CREDITS_OFF_STATEMENT,
+    checked_on: '2026-11-11',
+  });
+  c = (await store.planConnectionDetail(owner, ws.id, c.id)).connection;
+  await store.acceptPlanCaps(owner, ws.id, c.id, {
+    expected_version: c.version,
+    settings_hash: c.settings_hash,
+  });
+  await db.pool.query(
+    `insert into plan_model_access (connection_id, model_id, path, access, request_id)
+     values ($1, 'm', 'responses', 'verified', $2)`,
+    [c.id, randomUUID()],
+  );
+  const current = async () =>
+    (await store.planConnectionDetail(owner, ws.id, c.id)).connection;
+  const skeptic = offeredDiscoveryBenchmarks().find(
+    (b) => b.task_class === 'scoring',
+  )!;
+  const ASSESS = read(
+    'config/connections/benchmarks/assessment-synthetic-v1.json',
+  );
+  const assess = {
+    manifest: ASSESS,
+    min_held_out_cases: (ASSESS.cases as { split: string }[]).filter(
+      (k) => k.split === 'held_out',
+    ).length,
+    floor: { numerator: 1, denominator: 1 },
+  };
+  const queueOf = async (...items: unknown[]) =>
+    store.startQualificationQueue(owner, ws.id, c.id, {
+      expected_version: (await current()).version,
+      model_id: 'm',
+      items,
+    });
+  await refused(
+    queueOf({ benchmark: 'not-offered-v1' }),
+    'INVALID_CONTRACT',
+    /not a benchmark the app offers/,
+  );
+  // The assessor and the discovery skeptic are both scoring, qualified apart: one queue can
+  // hold both, and the named one is loaded from the frozen file.
+  const both = await queueOf(assess, { benchmark: skeptic.name });
+  assert.deepEqual(
+    both.items.map((i) => [i.task_class, i.manifest_name, i.manifest_hash]),
+    [
+      ['scoring', ASSESS.name, canonicalHash(ASSESS)],
+      ['scoring', skeptic.name, skeptic.manifest_hash],
+    ],
+  );
+  await store.cancelQualificationQueue(owner, ws.id, both.id);
+  // A discovery-skeptic pass refuses the skeptic only; the assessor is still taken.
+  const q = await store.startPlanQualification(owner, ws.id, c.id, {
+    expected_version: (await current()).version,
+    model_id: 'm',
+    benchmark: skeptic.name,
+  });
+  await db.pool.query(
+    `update plan_qualifications set state = 'qualified', decided_at = now() where id = $1`,
+    [q.id],
+  );
+  const after = (await store.planConnectionDetail(owner, ws.id, c.id))
+    .qualifications[0]!;
+  assert.equal(after.admits_discovery, true);
+  await refused(
+    queueOf({ benchmark: skeptic.name }),
+    'INVALID_TRANSITION',
+    /already qualified for scoring \(discovery\)/,
+  );
+  assert.equal((await queueOf(assess)).items[0]!.state, 'waiting');
 });

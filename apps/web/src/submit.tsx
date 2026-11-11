@@ -31,8 +31,7 @@ import {
   type ResponseType,
   type SessionInfo,
   type Workspace,
-  isQualified,
-  forDiscover,
+  isDiscoveryQualified,
 } from '@creator/contracts';
 import { api, message, words } from './oversight.js';
 import { newestFirst } from './versions.js';
@@ -446,7 +445,7 @@ export function Submit({
       models: verifiedModels(p).map((m) => ({
         id: m,
         qualified: DISCOVERY_CLASSES.filter((tc) =>
-          isQualified(forDiscover(p.qualifications), m, tc),
+          isDiscoveryQualified(p.qualifications, m, tc),
         ),
       })),
     })),
@@ -485,8 +484,7 @@ export function Submit({
     model,
     unqualified: model
       ? DISCOVERY_CLASSES.filter(
-          (tc) =>
-            !isQualified(forDiscover(plan?.qualifications ?? []), model, tc),
+          (tc) => !isDiscoveryQualified(plan?.qualifications ?? [], model, tc),
         )
       : [],
     envelopes: c?.envelopes.length ?? 0,

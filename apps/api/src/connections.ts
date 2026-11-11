@@ -121,7 +121,7 @@ const codexTurns = new Map<string, number>();
 
 /** ADR-0042 ChatGPT-plan routes under /api/workspaces/:ws/<collection>. Matched separately. */
 export const CONNECTIONS_ROUTE =
-  /^\/api\/workspaces\/([^/]+)\/(plan-connections|plan-qualifications|plan-qualification-queues)(?:\/([^/]+)(?:\/(settings|accept-caps|credits|credits-withdraw|sign-in|sign-out|verification-grants|verify|availability-recheck|qualifications|requests|reconcile|quota-recheck|codex-builds|build-calls|build-roles-ready|run|finish|claude-code-check|qualification-queues|cancel))?)?$/;
+  /^\/api\/workspaces\/([^/]+)\/(plan-connections|plan-qualifications|plan-qualification-queues|plan-benchmarks)(?:\/([^/]+)(?:\/(settings|accept-caps|credits|credits-withdraw|sign-in|sign-out|verification-grants|verify|availability-recheck|qualifications|requests|reconcile|quota-recheck|codex-builds|build-calls|build-roles-ready|run|finish|claude-code-check|qualification-queues|cancel))?)?$/;
 
 const VerifyBody = z.strictObject({
   grant_id: z.uuid(),
@@ -225,6 +225,11 @@ export async function connectionRoutes(r: {
       );
     return r.service;
   };
+  // ADR-0089 (P34): the discovery benchmarks Qualify a model offers.
+  if (collection === 'plan-benchmarks')
+    return !item && get
+      ? send(200, await store.planBenchmarks(ctx, ws), false)
+      : false;
   if (collection === 'plan-qualifications' && item && get && !action)
     return send(
       200,

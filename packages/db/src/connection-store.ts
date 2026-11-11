@@ -14,9 +14,8 @@ import {
   ReconcilePlanRequestSchema,
   StartPlanQualificationRequestSchema,
   StartQualificationQueueRequestSchema,
+  StartOfferedQualificationRequestSchema,
   latestDecided,
-  forDiscover,
-  forWebDiscovery,
   type QualificationQueue,
   UpdatePlanSettingsRequestSchema,
   WithdrawCreditsRequestSchema,
@@ -90,8 +89,6 @@ import {
 import {
   BUILD_ROLE_PROMPTS,
   BUILD_ROLE_TASK_CLASSES,
-  DISCOVERY_ROLE_VERSION,
-  discoveryRoleInput,
   assessmentRoleInput,
   ASSESSMENT_ROLE_VERSION,
   admissionBlockers,
@@ -143,6 +140,12 @@ import {
   workspaceNote,
   workspaceNotes,
 } from './sidebar-store.js';
+import {
+  admitsDiscovery,
+  currentForDiscoveryRole,
+  offeredDiscoveryBenchmark,
+  offeredDiscoveryBenchmarks,
+} from './discovery-benchmarks.js';
 import {
   buildApprovalBlockers,
   buildApprovalScopeNote,
@@ -277,23 +280,41 @@ interface QueueRow {
   created_by: string;
 }
 const words = (s: string) => s.replace(/_/g, ' ');
+type QueueRole = 'assessment' | 'discovery' | 'web_discovery' | null;
 /**
- * ADR-0086: whether a benchmark is a web discovery one (the lane its qualification counts in).
- * Review 3 of PR #176, N-2: any role version counts, so an outdated web benchmark shares the
- * web lane with the current one instead of being taken for a locator benchmark.
+ * ADR-0089 (after P34): the role a benchmark qualifies, from its checks, as the app's
+ * `manifestRole`: assessment, discovery or web discovery checks, or none (a task class with one
+ * role). Any role version counts (review 3 of PR #176, N-2), so an outdated benchmark shares its
+ * role with the current one.
  */
-const webLane = (manifest: { task_class: string; cases?: unknown }) =>
-  manifest.task_class === WEB_DISCOVERY_TASK_CLASS &&
-  Array.isArray(manifest.cases) &&
-  manifest.cases.length > 0 &&
-  manifest.cases.every((item: { check?: unknown }) => {
-    const parsed = BenchmarkCheckSchema.safeParse(item?.check);
-    return (
-      parsed.success &&
-      (parsed.data.kind === 'web_scout_contract' ||
-        parsed.data.kind === 'web_reader_contract')
-    );
-  });
+const manifestRole = (manifest: { cases?: unknown }): QueueRole => {
+  const cases = Array.isArray(manifest.cases) ? manifest.cases : [];
+  const kinds = new Set(
+    cases.map((item: { check?: unknown }) => {
+      const parsed = BenchmarkCheckSchema.safeParse(item?.check);
+      return parsed.success ? parsed.data.kind : undefined;
+    }),
+  );
+  if (kinds.size === 1 && kinds.has('assessment_contract')) return 'assessment';
+  if (kinds.size === 1 && kinds.has('discovery_contract')) return 'discovery';
+  if (
+    kinds.size > 0 &&
+    [...kinds].every(
+      (k) => k === 'web_scout_contract' || k === 'web_reader_contract',
+    )
+  )
+    return 'web_discovery';
+  return null;
+};
+/** The role a qualification is admitted for (ADR-0089); none for one-role tasks or old prompts. */
+const qualificationRole = (q: PlanQualification): QueueRole =>
+  q.admits_assessment === true
+    ? 'assessment'
+    : q.admits_discovery === true
+      ? 'discovery'
+      : q.admits_web_discovery === true
+        ? 'web_discovery'
+        : null;
 const clip = (s: string) => (s.length > 1200 ? `${s.slice(0, 1199)}…` : s);
 
 /**
@@ -374,6 +395,7 @@ const toQualification = (r: Row): PlanQualification => ({
       currentForAssessmentRole(r) ||
       currentForWebDiscoveryRole(r)),
   admits_assessment: currentForAssessmentRole(r),
+  admits_discovery: admitsDiscovery(r),
   admits_web_discovery: currentForWebDiscoveryRole(r),
 });
 const toRequest = (r: Row): PlanRequest => ({
@@ -498,54 +520,6 @@ export function currentForWebDiscoveryRole(r: Row): boolean {
     stages.add(parsed.data.kind);
   }
   return stages.size === 2;
-}
-
-/** Same discovery prompt binding used for both admission and historical-result labels. */
-function currentForDiscoveryRole(r: Row): boolean {
-  if (
-    !['research_synthesis', 'candidate_generation', 'scoring'].includes(
-      String(r.task_class),
-    )
-  )
-    return true;
-  const manifest = r.manifest as {
-    cases?: { input?: { role: string; text: string }[]; check?: unknown }[];
-  };
-  const required =
-    r.task_class === 'candidate_generation'
-      ? ['propose', 'revise']
-      : r.task_class === 'research_synthesis'
-        ? ['locate']
-        : ['skeptic'];
-  const kinds = new Set<string>();
-  if (!manifest.cases?.length || canonicalHash(manifest) !== r.manifest_hash)
-    return false;
-  for (const item of manifest.cases) {
-    const parsed = BenchmarkCheckSchema.safeParse(item.check);
-    if (!parsed.success || parsed.data.kind !== 'discovery_contract')
-      return false;
-    const check = parsed.data;
-    if (
-      check.context.role_version !== DISCOVERY_ROLE_VERSION ||
-      check.context.packet_hash !== canonicalHash(check.packet)
-    )
-      return false;
-    const expected = discoveryRoleInput(
-      check.task_kind,
-      check.context,
-      check.packet,
-      [],
-    )[0]!.text;
-    if (
-      item.input
-        ?.filter((m) => m.role === 'system')
-        .map((m) => m.text)
-        .join('\n\n') !== expected
-    )
-      return false;
-    kinds.add(check.task_kind);
-  }
-  return required.every((k) => kinds.has(k));
 }
 
 /**
@@ -775,6 +749,20 @@ export class ConnectionStore extends WebDiscoveryStore {
       });
       return this.#connection(c, ws, id);
     });
+  }
+
+  /**
+   * ADR-0089 (P34): the discovery benchmarks Qualify a model offers, newest current manifest per
+   * task class, without the manifests themselves. Any member may read it.
+   */
+  async planBenchmarks(ctxIn: CommandContext, ws: string) {
+    const ctx = normalize(ctxIn);
+    await this.tx((c) => this.role(c, uuid(ws), ctx.actorId, false));
+    return {
+      benchmarks: offeredDiscoveryBenchmarks().map(
+        ({ manifest: _m, ...b }) => b,
+      ),
+    };
   }
 
   async listPlanConnections(
@@ -3752,7 +3740,25 @@ export class ConnectionStore extends WebDiscoveryStore {
     body: unknown,
   ) {
     const ctx = normalize(ctxIn);
-    const req = parse(StartPlanQualificationRequestSchema, body);
+    // ADR-0089: a benchmark named by the app is loaded here from the frozen files, only if
+    // it is the one offered (newest and current for the discovery role); every check below
+    // still applies to it.
+    const named =
+      body && typeof body === 'object' && 'benchmark' in body
+        ? parse(StartOfferedQualificationRequestSchema, body)
+        : null;
+    const req = named
+      ? (() => {
+          const b = offeredDiscoveryBenchmark(named.benchmark);
+          return parse(StartPlanQualificationRequestSchema, {
+            expected_version: named.expected_version,
+            model_id: named.model_id,
+            manifest: b.manifest,
+            min_held_out_cases: b.held_out,
+            floor: { numerator: 1, denominator: 1 },
+          });
+        })()
+      : parse(StartPlanQualificationRequestSchema, body);
     let q: PlanQualification | null = null;
     await this.#ownerChange(
       ctx,
@@ -4005,12 +4011,27 @@ export class ConnectionStore extends WebDiscoveryStore {
     body: unknown,
   ): Promise<QualificationQueue> {
     const ctx = normalize(ctxIn);
-    const req = parse(StartQualificationQueueRequestSchema, body);
+    const parsed = parse(StartQualificationQueueRequestSchema, body);
+    // ADR-0089: a discovery benchmark offered by name is loaded here, as Start does; a name
+    // that is not offered (or no longer current) is refused.
+    const req = {
+      ...parsed,
+      items: parsed.items.map((i) => {
+        if (!('benchmark' in i)) return i;
+        const b = offeredDiscoveryBenchmark(i.benchmark);
+        return {
+          manifest: b.manifest,
+          min_held_out_cases: b.held_out,
+          floor: { numerator: 1, denominator: 1 },
+        };
+      }),
+    };
     const tasks = req.items.map((i) => i.manifest.task_class);
-    // ADR-0086: web discovery and the Discover roles share research synthesis but are
-    // qualified apart, so a task's lane is part of what may appear once.
+    // ADR-0086 and ADR-0089: one task class can serve two roles (scoring: the assessor and the
+    // discovery skeptic; research synthesis: the locator and web discovery), qualified apart,
+    // so a task's role is part of what may appear once.
     const lanes = req.items.map(
-      (i) => `${i.manifest.task_class}:${webLane(i.manifest)}`,
+      (i) => `${i.manifest.task_class}:${manifestRole(i.manifest)}`,
     );
     if (new Set(lanes).size !== lanes.length)
       throw fail(
@@ -4041,13 +4062,12 @@ export class ConnectionStore extends WebDiscoveryStore {
         const links: (string | null)[] = [];
         for (const item of req.items) {
           const tc = item.manifest.task_class;
-          const own = webLane(item.manifest)
-            ? forWebDiscovery(quals)
-            : forDiscover(quals);
+          const role = manifestRole(item.manifest);
+          const own = quals.filter((q) => qualificationRole(q) === role);
           if (latestDecided(own, req.model_id, tc)?.state === 'qualified')
             throw fail(
               'INVALID_TRANSITION',
-              `${req.model_id} is already qualified for ${words(tc)}. A queue only takes tasks not yet qualified; start a re-run of it on its own.`,
+              `${req.model_id} is already qualified for ${words(tc)}${role ? ` (${words(role)})` : ''}. A queue only takes tasks not yet qualified; start a re-run of it on its own.`,
             );
           const started = quals.find(
             (q) =>

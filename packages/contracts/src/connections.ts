@@ -429,6 +429,30 @@ export const StartPlanQualificationRequestSchema = z.strictObject({
   min_held_out_cases: counter.min(3).max(200),
   floor: RateSchema,
 });
+/**
+ * ADR-0089 (P34): start a qualification on a benchmark the studio offers by name (the discovery
+ * benchmarks, served by `GET plan-benchmarks`). The server loads the frozen manifest itself and
+ * refuses a name that is not offered, so a manifest that no longer matches the current role
+ * prompts is never started from the app. The pass bar is fixed: every held-out case.
+ */
+export const StartOfferedQualificationRequestSchema = z.strictObject({
+  expected_version: version,
+  model_id: short,
+  benchmark: z.string().min(1).max(120),
+});
+/** One discovery benchmark the studio offers (ADR-0089); the manifest itself stays on the server. */
+export const DiscoveryBenchmarkSchema = z.strictObject({
+  name: z.string().min(1).max(120),
+  task_class: z.enum(['research_synthesis', 'candidate_generation', 'scoring']),
+  manifest_hash: hash,
+  data_class: z.enum(['synthetic', 'public', 'private_approved']),
+  development: counter,
+  held_out: counter,
+});
+export type DiscoveryBenchmark = z.infer<typeof DiscoveryBenchmarkSchema>;
+export const DiscoveryBenchmarksSchema = z.strictObject({
+  benchmarks: z.array(DiscoveryBenchmarkSchema).max(20),
+});
 export const PlanQualificationSchema = z.strictObject({
   id,
   connection_id: id,
@@ -450,6 +474,12 @@ export const PlanQualificationSchema = z.strictObject({
   admits_assessment: z.boolean().optional(),
   /** ADR-0086: a research-synthesis qualification bound to the web discovery prompts. */
   admits_web_discovery: z.boolean().optional(),
+  /**
+   * ADR-0089 (P34): a research synthesis, candidate generation or scoring qualification bound to
+   * the current discovery role prompts, the only kind discovery admission counts. A scoring
+   * qualification on the assessment benchmark does not admit discovery, nor the reverse.
+   */
+  admits_discovery: z.boolean().optional(),
   /**
    * ADR-0084 (P23): on a started qualification, whether this studio is running its cases now.
    * Read from the server, so a page that was left or reloaded shows a running Run as running.
@@ -480,12 +510,25 @@ export function latestDecided(
   return out;
 }
 /**
- * ADR-0086 (PR #173 review 3 M-1): web discovery and Discover's locator share the task name
- * research_synthesis, and each qualification admits only its own work. Discover, Explore, the
- * chat card and the model picker read `forDiscover`; Search the web reads `forWebDiscovery`.
+ * ADR-0089: whether a model is qualified for a discovery step, counting only qualifications the
+ * server admits discovery with (an assessment scoring qualification does not count).
  */
-export const forDiscover = (qualifications: readonly PlanQualification[]) =>
-  qualifications.filter((q) => q.admits_web_discovery !== true);
+export const isDiscoveryQualified = (
+  qualifications: readonly PlanQualification[],
+  model_id: string,
+  task_class: string,
+) =>
+  latestDecided(
+    qualifications.filter((q) => q.admits_discovery === true),
+    model_id,
+    task_class,
+  )?.state === 'qualified';
+/**
+ * ADR-0086 (PR #173 review 3 M-1): web discovery and Discover's locator share the task name
+ * research_synthesis, and each qualification admits only its own work. Search the web reads
+ * `forWebDiscovery`; Discover, Explore, the chat card and the model picker read
+ * `isDiscoveryQualified` (ADR-0089), which counts only discovery-role qualifications.
+ */
 export const forWebDiscovery = (qualifications: readonly PlanQualification[]) =>
   qualifications.filter((q) => q.admits_web_discovery === true);
 export const isQualified = (
@@ -556,11 +599,15 @@ export const StartQualificationQueueRequestSchema = z.strictObject({
   model_id: short,
   items: z
     .array(
-      z.strictObject({
-        manifest: BenchmarkManifestSchema,
-        min_held_out_cases: counter.min(3).max(200),
-        floor: RateSchema,
-      }),
+      z.union([
+        z.strictObject({
+          manifest: BenchmarkManifestSchema,
+          min_held_out_cases: counter.min(3).max(200),
+          floor: RateSchema,
+        }),
+        // ADR-0089: a discovery benchmark the studio offers, named; the server loads it.
+        z.strictObject({ benchmark: z.string().min(1).max(120) }),
+      ]),
     )
     .min(1)
     .max(QUALIFICATION_QUEUE_MAX_ITEMS),
