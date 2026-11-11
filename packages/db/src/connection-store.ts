@@ -4019,11 +4019,18 @@ export class ConnectionStore extends WebDiscoveryStore {
       items: parsed.items.map((i) => {
         if (!('benchmark' in i)) return i;
         const b = offeredDiscoveryBenchmark(i.benchmark);
-        return {
-          manifest: b.manifest,
-          min_held_out_cases: b.held_out,
-          floor: { numerator: 1, denominator: 1 },
-        };
+        // Review 5 of PR #176, N-4: through the Start request's bounds, as Start does.
+        const { manifest, min_held_out_cases, floor } = parse(
+          StartPlanQualificationRequestSchema,
+          {
+            expected_version: parsed.expected_version,
+            model_id: parsed.model_id,
+            manifest: b.manifest,
+            min_held_out_cases: b.held_out,
+            floor: { numerator: 1, denominator: 1 },
+          },
+        );
+        return { manifest, min_held_out_cases, floor };
       }),
     };
     const tasks = req.items.map((i) => i.manifest.task_class);

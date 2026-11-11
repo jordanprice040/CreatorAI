@@ -727,6 +727,9 @@ function QueueChoices({
           {blocked.length
             ? `; ${blocked.map(words).join(', ')} ${blocked.length === 1 ? 'is' : 'are'} not allowed on this connection`
             : ''}
+          {otherRole.length
+            ? `; ${otherRole.map((c) => offerTask(c)).join(', ')} waits while another role of the same task is started (run or finish that one first)`
+            : ''}
           .
         </p>
       ) : (

@@ -994,3 +994,37 @@ test('P24 with P34: Qualify several offers the discovery benchmarks by name, per
     'the started one is taken over',
   );
 });
+
+test('P24 review 5 N-3: with nothing else to queue, the section still says why a task waits for another role', async () => {
+  const { QualifyModel } = await loadQualify();
+  const page = renderToStaticMarkup(
+    createElement(QualifyModel, {
+      base: 'workspaces/w',
+      connection: {
+        id: randomUUID(),
+        kind: 'chatgpt_plan',
+        version: 3,
+        fixture: false,
+        caps_accepted_at: '2026-11-11T09:00:00.000Z',
+        settings: {
+          allowed_data_classes: ['synthetic', 'public'],
+          allowed_task_classes: ['scoring'],
+          caps: { responses: { request_timeout_ms: 120000 } },
+        },
+      },
+      models: ['gpt-6-astra'],
+      // A discovery-skeptic run is started; the assessor is the only bundled scoring choice.
+      qualifications: [
+        qualification({ task_class: 'scoring', admits_discovery: true }),
+      ],
+      discovery: [],
+      queue: null,
+      busy: false,
+      act: async () => null,
+    }),
+  );
+  assert.match(
+    page,
+    /no task left to qualify here[^<]*scoring for assessments waits while another role of the same task is started/,
+  );
+});
