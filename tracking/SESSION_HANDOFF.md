@@ -1,5 +1,9 @@
 # Session handoff — November 10, 2026
 
+## November 11 handoff — Creator Agent visual assets
+
+The [identity folder](../assets/creator-agent/README.md) includes the mark, theme variants, cover and a usage guide; `SHA256SUMS.txt` binds its bytes. The web shell, desktop status window, Windows icon and NSIS installer images now use it. The installed desktop app picks this up only at Jordan's next upgrade, which is also the first on-screen check of the installer header and sidebar bitmaps. Next eligible product prompt is the P12 discovery follow-up once Jordan selects its scope.
+
 Current source: main `e08e0a4` (PR #150, November 6). Schema **49** (migration 42 is intentionally
 unused, see ADR-0070). No open pull requests on November 10. The installed app is still `f6e2ba0`,
 schema **41** (upgraded November 4); the dev studio on Jordan's PC runs from the worktree

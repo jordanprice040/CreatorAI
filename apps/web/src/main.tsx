@@ -955,9 +955,7 @@ function App() {
                 q: '',
               })}
             >
-              <span className="mark" aria-hidden="true">
-                CA
-              </span>
+              <img className="mark" src="/creator-agent-icon.png" alt="" />
               Creator Agent
             </a>
             <div className="wsbar">
@@ -1095,9 +1093,7 @@ function App() {
             ) : (
               <>
                 <span className="brand">
-                  <span className="mark" aria-hidden="true">
-                    CA
-                  </span>
+                  <img className="mark" src="/creator-agent-icon.png" alt="" />
                   Creator Agent
                 </span>
                 <h1 className="sr-only">Creator Agent local studio</h1>
