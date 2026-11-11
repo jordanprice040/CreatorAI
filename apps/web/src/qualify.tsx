@@ -17,8 +17,9 @@ import { AllowTasks } from './allow-tasks.js';
 import {
   forRole,
   manifestRole,
-  roleOf,
+  qualificationTask,
   roleTask,
+  runningFor,
   type Admits,
 } from './qualification-role.js';
 import { api, words } from './oversight.js';
@@ -221,7 +222,7 @@ export function QualifyModel({
     )) as { state?: string; reason?: string | null } | null;
     if (out?.state)
       setOutcome(
-        `${roleTask(q.task_class, roleOf(q))} on ${q.model_id}: ${words(out.state)}${out.reason ? `. ${out.reason}` : '.'}`,
+        `${qualificationTask(q)} on ${q.model_id}: ${words(out.state)}${out.reason ? `. ${out.reason}` : '.'}`,
       );
   }
   const chosen = list.find((b) => b.name === bench);
@@ -330,7 +331,7 @@ export function QualifyModel({
                     : state.kind === 'other_running'
                       ? // PR #175 review L-1: the server runs one qualification per model and
                         // task class, so the other role's must be run or finished first.
-                        `A ${roleTask(chosen.task_class, roleOf(state.qualification))} qualification of ${pick} is started; run or finish it below first, since one qualification per model and task runs at a time.`
+                        `A ${qualificationTask(state.qualification)} qualification of ${pick} is started; run or finish it below first, since one qualification per model and task runs at a time.`
                       : `Uses up to ${chosen.development + chosen.held_out} plan requests when run. Pass bar: all ${chosen.held_out} held-out cases.`}
                 </p>
               )}
@@ -386,7 +387,7 @@ export function QualifyModel({
         return (
           <div key={q.id} className="qualify-row" role="group">
             <span>
-              {roleTask(q.task_class, roleOf(q))} on {q.model_id} is started.
+              {qualificationTask(q)} on {q.model_id} is started.
               {executing(q) &&
                 ' Running: one plan request per case; this can take several minutes, and it carries on if you leave this page.'}
             </span>
@@ -453,6 +454,7 @@ export function runOutcome(
     model_id: string;
     admits_assessment?: boolean | undefined;
     admits_discovery?: boolean | undefined;
+    prompt_current?: boolean | undefined;
   },
   out: unknown,
 ): string {
@@ -465,7 +467,7 @@ export function runOutcome(
       held_out: { passed: number; total: number };
     };
   };
-  const what = `${roleTask(q.task_class, roleOf(q))} on ${q.model_id}`;
+  const what = `${qualificationTask(q)} on ${q.model_id}`;
   if (o.state === 'stopped')
     return `${what} stopped: ${words(o.reason ?? 'unknown reason')}. Answered cases are kept. Fix the cause and press Run to continue with the rest, or Finish to record the result now.`;
   if (o.state === 'decided' && o.qualification)
@@ -493,16 +495,10 @@ export function benchmarkState(
   admits: Admits = null,
 ): BenchmarkState {
   if (!allowed.includes(task)) return { kind: 'not_allowed' };
-  const started = qualifications.find(
-    (q) =>
-      q.state === 'running' && q.model_id === model && q.task_class === task,
-  );
   // The server runs one qualification per model and task class at a time, whatever its role;
   // one of another role blocks this start and is named as such (PR #175 review L-1).
-  if (started)
-    return roleOf(started) === admits
-      ? { kind: 'started', qualification: started }
-      : { kind: 'other_running', qualification: started };
+  const running = runningFor(qualifications, model, task, admits);
+  if (running.kind !== 'free') return running;
   // Qualified or failed counts only this benchmark's role (ADR-0089), and an untagged one never
   // borrows a tagged role's pass (PR #175 review M-2).
   const latest = latestDecided(forRole(qualifications, admits), model, task);

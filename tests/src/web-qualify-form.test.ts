@@ -7,7 +7,6 @@ import ts from 'typescript';
 import {
   BenchmarkManifestSchema,
   PLAN_RESPONSES_TASK_CLASSES,
-  latestDecided,
   type PlanQualification,
 } from '@creator/contracts';
 import { BUILD_ROLE_PROMPTS, BUILD_ROLE_TASK_CLASSES } from '@creator/domain';
@@ -93,6 +92,14 @@ async function loadRole() {
   const exports = {} as {
     forRole: <T>(qs: readonly T[], admits: string | null) => T[];
     manifestRole: (m: { cases: { check?: unknown }[] }) => string | null;
+    rowLatest: <T>(qs: readonly T[], q: T) => T | null;
+    qualificationTask: (q: object) => string;
+    runningFor: <T>(
+      qs: readonly T[],
+      model: string,
+      task: string,
+      admits: string | null,
+    ) => { kind: string; qualification?: T };
   };
   new Function('require', 'exports', code)(() => ({}), exports);
   return exports;
@@ -509,12 +516,13 @@ test("PR #175 review L-1 and M-2: another role running is named, and no role bor
 });
 
 test('PR #175 review M-1: a discovery pass keeps counting after a failed assessment scoring run', async () => {
-  const { forRole } = await loadRole();
+  const { rowLatest } = await loadRole();
   const pass = qualification({
     task_class: 'scoring',
     state: 'qualified',
     decided_at: '2026-11-11T10:05:00.000Z',
     admits_discovery: true,
+    prompt_current: true,
   });
   const fail = qualification({
     task_class: 'scoring',
@@ -522,18 +530,76 @@ test('PR #175 review M-1: a discovery pass keeps counting after a failed assessm
     created_at: '2026-11-11T11:00:00.000Z',
     decided_at: '2026-11-11T11:05:00.000Z',
     admits_assessment: true,
+    prompt_current: true,
   });
-  // The Qualified tasks list in models.tsx computes each row's newest decided like this.
-  assert.equal(
-    latestDecided(forRole([pass, fail], 'discovery'), 'gpt-6-astra', 'scoring')
-      ?.state,
-    'qualified',
-  );
-  assert.equal(
-    latestDecided([pass, fail], 'gpt-6-astra', 'scoring')?.state,
-    'failed',
-    'without the role filter the failure would withdraw it',
-  );
+  // The newer assessment failure decides the assessment row only.
+  assert.equal(rowLatest([pass, fail], pass)?.id, pass.id);
+  assert.equal(rowLatest([pass, fail], fail)?.id, fail.id);
+  // A newer failure of the same role does withdraw it.
+  const failDiscovery = {
+    ...fail,
+    id: randomUUID(),
+    admits_assessment: undefined,
+    admits_discovery: true,
+  };
+  assert.equal(rowLatest([pass, failDiscovery], pass)?.state, 'failed');
+  // A decided run under an older prompt never decides a current row.
+  const stale = { ...failDiscovery, id: randomUUID(), prompt_current: false };
+  assert.equal(rowLatest([pass, stale], pass)?.id, pass.id);
+  // The Qualified tasks list uses exactly this helper (review N-B: no copied expression).
   const models = await readFile('apps/web/src/models.tsx', 'utf8');
-  assert.match(models, /forRole\(detail\.qualifications, roleOf\(q\)\)/);
+  assert.match(models, /rowLatest\(detail\.qualifications, q\)/);
+});
+
+test('PR #175 re-review N-C: a qualification no role admits because of its prompt says so', async () => {
+  const { qualificationTask } = await loadRole();
+  assert.equal(
+    qualificationTask({ task_class: 'scoring', admits_discovery: true }),
+    'scoring for discovery',
+  );
+  assert.equal(
+    qualificationTask({ task_class: 'scoring', prompt_current: false }),
+    'scoring (older prompt)',
+  );
+  assert.equal(
+    qualificationTask({ task_class: 'specification', prompt_current: true }),
+    'specification',
+  );
+  const qualify = await readFile('apps/web/src/qualify.tsx', 'utf8');
+  assert.match(qualify, /qualificationTask\(/);
+});
+
+test('PR #175 re-review L-A: a start of one role never runs a running qualification of another', async () => {
+  const { runningFor } = await loadRole();
+  const assess = qualification({
+    task_class: 'scoring',
+    admits_assessment: true,
+  });
+  const skeptic = qualification({
+    task_class: 'scoring',
+    admits_discovery: true,
+  });
+  assert.equal(
+    runningFor([], 'gpt-6-astra', 'scoring', 'assessment').kind,
+    'free',
+  );
+  assert.equal(
+    runningFor(
+      [{ ...skeptic, state: 'qualified' }],
+      'gpt-6-astra',
+      'scoring',
+      'assessment',
+    ).kind,
+    'free',
+  );
+  const started = runningFor([assess], 'gpt-6-astra', 'scoring', 'assessment');
+  assert.equal(started.kind, 'started');
+  assert.equal(started.qualification?.id, assess.id);
+  const other = runningFor([skeptic], 'gpt-6-astra', 'scoring', 'assessment');
+  assert.equal(other.kind, 'other_running');
+  assert.equal(other.qualification?.id, skeptic.id);
+  assert.equal(
+    runningFor([skeptic], 'other-model', 'scoring', 'assessment').kind,
+    'free',
+  );
 });

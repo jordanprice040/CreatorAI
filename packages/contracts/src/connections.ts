@@ -479,6 +479,11 @@ export const PlanQualificationSchema = z.strictObject({
    */
   admits_discovery: z.boolean().optional(),
   /**
+   * ADR-0086 (P12): a research synthesis qualification bound to the web discovery prompts. Set
+   * by the server once P12 is in; declared here so the web reads one schema (PR #175 re-review).
+   */
+  admits_web_discovery: z.boolean().optional(),
+  /**
    * ADR-0084 (P23): on a started qualification, whether this studio is running its cases now.
    * Read from the server, so a page that was left or reloaded shows a running Run as running.
    */

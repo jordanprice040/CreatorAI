@@ -3,6 +3,20 @@
 Jordan's typed-OK live qualification of `gpt-6-astra` on the ChatGPT plan connection for the three
 discovery steps, using the frozen benchmarks P34 (PR #175, ADR-0089) offers. ChatGPT plan, $0.
 
+## Current state (end of the session, 2026-11-11 ~16:02Z)
+
+- `gpt-6-astra` is **qualified for all three discovery steps** on the dev studio's ChatGPT plan
+  connection: research_synthesis `cc9e4f2a…`, candidate_generation `cab57f95…`, scoring
+  `7118b6d9…`. Each 2/2 practice and 4/4 held out, 6 plan requests each, **18 requests in all**, $0.
+- The connection allows all eight task classes it can take, and its daily request cap is **70**
+  (raised from 40 on Jordan's typed approval). 49 of 70 requests used in the last 24 h after the
+  runs; 0 in flight, 0 unresolved. Connection version 40.
+- `admits_discovery` is not shown yet, because the dev studio runs the P12 checkout, not P34 code.
+
+The sections below were written as the work went. "Results" and "Remaining" describe the state
+**as of 15:40Z** (only research synthesis run, five task classes allowed, cap 40); the later
+sections record the changes after that.
+
 ## Environment
 
 - Dev studio API on 127.0.0.1:4310, started by `.creator\studio\start-dev-p12.ps1` from
@@ -21,7 +35,7 @@ discovery steps, using the frozen benchmarks P34 (PR #175, ADR-0089) offers. Cha
   `admits_discovery` from the stored manifest and hash, so the result should count under P34 too
   (not verified by running P34 code).
 
-## Results
+## Results (as of 15:40Z)
 
 | Task class | Manifest | Qualification | State | Practice | Held out | Plan requests |
 |---|---|---|---|---|---|---|
@@ -40,13 +54,13 @@ scoring were not run.
 Before this run the newest decided research_synthesis qualification was `6fcf69cb…` (qualified,
 web-discovery-v2, a different manifest hash `d3a87d16…`), so it did not cover this manifest.
 
-## Plan usage
+## Plan usage (as of 15:40Z)
 
 - Before: 31 requests in the last 24 h (daily cap 40), 0 in flight, 0 unresolved.
 - After: 37 requests in the last 24 h, 0 in flight, 0 unresolved.
 - Used: 6 of the 18 allowed.
 
-## Remaining
+## Remaining (as of 15:40Z; the first item was done later, see below)
 
 - Candidate generation and scoring need Jordan to allow those task classes on the plan connection
   (and re-accept caps) before they can be qualified; only 3 requests remain under today's 40/day cap.
