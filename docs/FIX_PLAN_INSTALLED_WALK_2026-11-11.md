@@ -36,7 +36,7 @@ reproduced.
 | 16  | Refusals should offer their fix in place                       | P27                            |
 | 17  | Allow a task from Qualify; qualify all; move it up             | P23, P24                       |
 | 18  | All allowed work on by default; Select all / Deselect all      | P23 + P27 (Decision A: all on) |
-| 19  | Example in the approved model check's Model box                | P26                            |
+| 19  | Example in the approved model check's Model box                | P23 (review N-1; was P26)      |
 | 20  | Copy connections between workspaces                            | P30                            |
 | 21  | Model help per step in Chat; Next step button                  | P31                            |
 | 22  | Automation levels for a project                                | P33 after P13 (Decision B)     |
@@ -67,6 +67,10 @@ web only, no migration expected.
   re-accepts the caps (the version and `caps_accepted_at` move as they do now). No new authority path.
 - Add Select all and Deselect all to the allowed-work task list in Change caps or allowed work. This does not change
   the default (that is Decision A).
+- From P26 (PR #170 and its reviews): the approved model check's Model box gets a placeholder, for example
+  `gpt-6-astra` or `claude-opus-5-5` (item 19), and "Refresh connection status" re-reads the Chat answers card
+  even when the connection list is unchanged (add a refresh counter or the verified models to the card's `stamp`
+  in `models.tsx`). P26 already re-reads the card after any write, so verifying a model updates it.
 - Make the "not qualified" messages name the reason when the task is not allowed on this connection
   (`apps/web/src/chat-card-load.ts:240`, `explore.tsx:299`, `discover-defaults.ts:224`), so Testing's state reads
   "research synthesis is not allowed on this connection, so it can't be qualified" instead of a dead end.
@@ -115,7 +119,8 @@ ADR-0074.
 
 ### Then: small polish and stale state (can run beside P23–P25)
 
-**P26 Stale state and small polish** (items 5, 9, 13, 14, 19). Small; web only.
+**P26 Stale state and small polish** (items 5, 9, 13, 14; item 19 and the Refresh-button reload moved to P23).
+Small; web only. Done in PR #170.
 
 - Chat answers: reload the verified model list on "Refresh connection status" and when a model is verified on any
   connection, not only on Reset fields (`apps/web/src/chat-answers.tsx`, `load()` runs only on workspace or session
@@ -126,7 +131,6 @@ ADR-0074.
   answer, exploration, assessment) and have the indicator read on it.
 - Badge circles: centre the number vertically in every badge and numbered circle (`.nav-count` in `aside.tsx` and
   `main.tsx`, Path step numbers, `.badge` in `apps/web/src/style.css`). Check each at 100% and 125% scaling.
-- Approved model check: placeholder in the Model box, for example `gpt-6-astra` or `claude-opus-5-5`.
 - Gate: browser walk; a test for the chat-answers refresh.
 
 ### Then: fixing a blocked state where it shows
