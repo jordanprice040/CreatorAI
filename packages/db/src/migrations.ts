@@ -2995,6 +2995,53 @@ create table person_preferences (
 );
 `,
   },
+  {
+    // ADR-0083 (P20): action cards in Chat. A card holds the answers for one form, the record
+    // versions it was made from and how its send ended. It is sent by the person's browser
+    // through the form's own routes; the store only checks it is not stale, records who sent it
+    // and counts the audit events that name the send as their cause. Cards go with their
+    // conversation; the audit events stay.
+    version: 53,
+    name: 'chat_actions',
+    sql: `
+create table chat_actions (
+ id uuid primary key,
+ workspace_id uuid not null,
+ conversation_id uuid not null,
+ client_id uuid not null,
+ message_id uuid references chat_messages(id) on delete cascade,
+ answer_id uuid references chat_answers(id) on delete cascade,
+ origin text not null check (origin in ('studio','model')),
+ kind text not null check (kind in ('fund_budget','fetch_source','cite_claim','start_discovery',
+   'answer_decision','score_option','record_choice','save_proposal')),
+ input jsonb not null check (jsonb_typeof(input) = 'object'),
+ subjects jsonb not null check (jsonb_typeof(subjects) = 'array'),
+ state text not null check (state in ('draft','sending','done','refused','partial','unconfirmed',
+   'stale','dismissed')),
+ version integer not null check (version >= 1),
+ reason text check (reason is null or length(reason) <= 2000),
+ outcome jsonb,
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ sent_by uuid references actors(id),
+ sent_at timestamptz,
+ sent_event_id uuid references audit_events(id),
+ finished_at timestamptz,
+ foreign key (workspace_id, conversation_id) references chat_conversations (workspace_id, id)
+   on delete cascade,
+ unique (conversation_id, client_id),
+ check ((origin = 'model') = (answer_id is not null)),
+ check ((state in ('sending','done','refused','partial','unconfirmed'))
+   = (sent_event_id is not null and sent_by is not null and sent_at is not null)),
+ check ((state in ('draft','sending')) = (finished_at is null))
+);
+create index chat_actions_conversation on chat_actions (conversation_id, created_at);
+create unique index chat_actions_one_per_answer on chat_actions (answer_id) where answer_id is not null;
+-- The events a card's send caused are counted by their causation id.
+create index audit_events_by_causation on audit_events (workspace_id, causation_id)
+ where causation_id is not null;
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

@@ -646,6 +646,9 @@ export function createApi(
   const CHAT_ANSWER_ROUTE =
     /^\/api\/workspaces\/([^/]+)\/(chats)\/([^/]+)\/messages\/([^/]+)\/answer$/;
   const CHAT_SETTINGS_ROUTE = /^\/api\/workspaces\/([^/]+)\/(chat-settings)$/;
+  // ADR-0083: action cards in a conversation; their answers, send, outcome and dismissal.
+  const CHAT_ACTION_ROUTE =
+    /^\/api\/workspaces\/([^/]+)\/(chats)\/([^/]+)\/actions(?:\/([^/]+)(?:\/(send|outcome|dismiss))?)?$/;
   // ADR-0081: the person's current connection and model (the picker beside usage).
   const MODEL_CHOICE_ROUTE = /^\/api\/workspaces\/([^/]+)\/(model-choice)$/;
   // ADR-0073: the person's named notes; one note, its rename and its archive switch.
@@ -668,6 +671,7 @@ export function createApi(
       EVIDENCE_SITES_ROUTE.exec(url.pathname) ??
       CHAT_ROUTE.exec(url.pathname) ??
       CHAT_ANSWER_ROUTE.exec(url.pathname) ??
+      CHAT_ACTION_ROUTE.exec(url.pathname) ??
       CHAT_SETTINGS_ROUTE.exec(url.pathname) ??
       MODEL_CHOICE_ROUTE.exec(url.pathname) ??
       NOTES_ROUTE.exec(url.pathname) ??
@@ -923,6 +927,44 @@ export function createApi(
         true,
       );
     }
+    // ADR-0083: action cards. Making, filling in or sending a card starts nothing here: the
+    // browser sends the card's requests through the form's own routes, naming this send.
+    const cardMatch = CHAT_ACTION_ROUTE.exec(url.pathname);
+    if (ws && cardMatch && method === 'POST') {
+      const [, , , conversation, card, step] = cardMatch;
+      const body = await readJson(req);
+      if (!card)
+        return send(
+          201,
+          await store.createChatAction(ctx, ws, conversation!, body),
+          true,
+        );
+      if (!step)
+        return send(
+          200,
+          await store.updateChatAction(ctx, ws, conversation!, card, body),
+          true,
+        );
+      if (step === 'send')
+        return send(
+          200,
+          await store.sendChatAction(ctx, ws, conversation!, card, body),
+          true,
+        );
+      if (step === 'outcome')
+        return send(
+          200,
+          await store.finishChatAction(ctx, ws, conversation!, card, body),
+          true,
+        );
+      return send(
+        200,
+        await store.dismissChatAction(ctx, ws, conversation!, card, body),
+        true,
+      );
+    }
+    if (ws && cardMatch)
+      throw new ContractError('NOT_FOUND', 'Unknown chat card route.');
     // ADR-0055 studio chat: saved conversations and the person's messages. Nothing here calls a
     // model or starts work; the store decides each message's intent with fixed rules.
     if (ws && CHAT_ROUTE.test(url.pathname)) {

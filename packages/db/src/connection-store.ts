@@ -58,6 +58,13 @@ import {
   type WorkspaceNote,
   type WorkspaceNoteList,
   ChatRenameRequestSchema,
+  ChatActionCreateRequestSchema,
+  ChatActionOutcomeRequestSchema,
+  ChatActionUpdateRequestSchema,
+  ChatActionVersionRequestSchema,
+  readProposedAction,
+  type ChatAction,
+  type ChatActionSent,
   chatTitle,
   classifyChat,
   resolveChatContext,
@@ -106,6 +113,14 @@ import {
   toChatAnswer,
   toChatMessage,
 } from './chat-store.js';
+import {
+  cardVersion,
+  chatAction,
+  chatActionEvents,
+  chatActionStale,
+  chatActions,
+  toChatAction,
+} from './chat-action-store.js';
 import { toRun } from './oversight-store.js';
 import {
   activityNow,
@@ -619,6 +634,7 @@ export class ConnectionStore extends PortfolioStore {
         conversation,
         messages: await chatMessages(c, conversation.id),
         answers: await chatAnswers(c, conversation.id),
+        actions: await chatActions(c, conversation.id),
       };
     });
   }
@@ -863,6 +879,340 @@ export class ConnectionStore extends PortfolioStore {
         },
       });
       return { message: toChatMessage(rows[0] as Row), duplicate: false };
+    });
+  }
+
+  /**
+   * ADR-0083 (P20): puts an action card in a conversation. Editors and owners; the card only
+   * holds answers and the versions they were made from, so creating one starts nothing. A
+   * repeated `client_id` returns the card already made.
+   */
+  async createChatAction(
+    ctxIn: CommandContext,
+    ws: string,
+    conversationId: string,
+    raw: unknown,
+  ): Promise<ChatAction> {
+    const ctx = normalize(ctxIn);
+    const req = parse(ChatActionCreateRequestSchema, raw);
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, true);
+      const conversation = await chatConversation(
+        c,
+        uuid(ws),
+        uuid(conversationId),
+        true,
+      );
+      const prior = (
+        await c.query(
+          'select * from chat_actions where conversation_id = $1 and client_id = $2',
+          [conversation.id, req.client_id],
+        )
+      ).rows[0] as Row | undefined;
+      if (prior) {
+        const card = toChatAction(prior);
+        if (card.kind !== req.kind || card.created_by !== ctx.actorId)
+          throw new ContractError(
+            'IDEMPOTENCY_CONFLICT',
+            'This card id was already used for a different card.',
+          );
+        return card;
+      }
+      if (req.message_id) {
+        const m = await c.query(
+          'select 1 from chat_messages where conversation_id = $1 and id = $2',
+          [conversation.id, uuid(req.message_id)],
+        );
+        if (!m.rows.length) throw fail('NOT_FOUND', 'Message not found.');
+      }
+      const id = randomUUID();
+      const { rows } = await c.query(
+        `insert into chat_actions (id, workspace_id, conversation_id, client_id, message_id,
+           origin, kind, input, subjects, state, version, created_by)
+         values ($1, $2, $3, $4, $5, 'studio', $6, $7, $8, 'draft', 1, $9) returning *`,
+        [
+          id,
+          uuid(ws),
+          conversation.id,
+          req.client_id,
+          req.message_id ? uuid(req.message_id) : null,
+          req.kind,
+          JSON.stringify(req.input),
+          JSON.stringify(req.subjects),
+          ctx.actorId,
+        ],
+      );
+      await this.append(c, ctx, {
+        workspaceId: uuid(ws),
+        action: 'chat.action_proposed',
+        subjectKind: 'chat_conversation',
+        subjectId: conversation.id,
+        subjectVersion: null,
+        contentHash: canonicalHash({ kind: req.kind, input: req.input }),
+        payload: { action_id: id, kind: req.kind, origin: 'studio' },
+      });
+      return toChatAction(rows[0] as Row);
+    });
+  }
+
+  /** ADR-0083: saves the answers of a card that is still a draft (guided questions). */
+  async updateChatAction(
+    ctxIn: CommandContext,
+    ws: string,
+    conversationId: string,
+    actionId: string,
+    raw: unknown,
+  ): Promise<ChatAction> {
+    const ctx = normalize(ctxIn);
+    const req = parse(ChatActionUpdateRequestSchema, raw);
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, true);
+      await chatConversation(c, uuid(ws), uuid(conversationId), true);
+      const card = await chatAction(
+        c,
+        uuid(ws),
+        uuid(conversationId),
+        uuid(actionId),
+      );
+      cardVersion(card, req.expected_version);
+      if (card.state !== 'draft')
+        throw fail(
+          'INVALID_TRANSITION',
+          'This card was already sent or put away; ask for a new one.',
+        );
+      const { rows } = await c.query(
+        `update chat_actions set input = $2, subjects = $3, version = version + 1
+         where id = $1 returning *`,
+        [card.id, JSON.stringify(req.input), JSON.stringify(req.subjects)],
+      );
+      return toChatAction(rows[0] as Row);
+    });
+  }
+
+  /**
+   * ADR-0083: the person pressed Send. Refused as stale (and recorded so) when a record the
+   * card was made from changed; otherwise the card moves to `sending` and a
+   * `chat.action_sent` event names the person who sent it. Its id goes with every request the
+   * browser then makes through the form's routes, so the trail links them to this send.
+   */
+  async sendChatAction(
+    ctxIn: CommandContext,
+    ws: string,
+    conversationId: string,
+    actionId: string,
+    raw: unknown,
+  ): Promise<ChatActionSent> {
+    const ctx = normalize(ctxIn);
+    const req = parse(ChatActionVersionRequestSchema, raw);
+    const r = await this.tx(
+      async (c): Promise<{ stale: ChatAction } | { sent: ChatActionSent }> => {
+        await this.role(c, uuid(ws), ctx.actorId, true);
+        await chatConversation(c, uuid(ws), uuid(conversationId), true);
+        const card = await chatAction(
+          c,
+          uuid(ws),
+          uuid(conversationId),
+          uuid(actionId),
+        );
+        cardVersion(card, req.expected_version);
+        if (card.state !== 'draft')
+          throw fail(
+            'INVALID_TRANSITION',
+            card.state === 'sending'
+              ? 'This card is already being sent.'
+              : 'This card was already sent or put away; ask for a new one.',
+          );
+        const stale = await chatActionStale(c, uuid(ws), card.subjects);
+        if (stale) {
+          const { rows } = await c.query(
+            `update chat_actions set state = 'stale', reason = $2, version = version + 1,
+               finished_at = clock_timestamp()
+             where id = $1 returning *`,
+            [card.id, stale.slice(0, 2000)],
+          );
+          await this.append(c, ctx, {
+            workspaceId: uuid(ws),
+            action: 'chat.action_stale',
+            subjectKind: 'chat_conversation',
+            subjectId: card.conversation_id,
+            subjectVersion: null,
+            contentHash: canonicalHash({ id: card.id, stale }),
+            payload: { action_id: card.id, kind: card.kind },
+          });
+          // Committed as stale: the refusal below says why, and nothing was sent.
+          return { stale: toChatAction(rows[0] as Row) };
+        }
+        const eventId = await this.append(c, ctx, {
+          workspaceId: uuid(ws),
+          action: 'chat.action_sent',
+          subjectKind: 'chat_conversation',
+          subjectId: card.conversation_id,
+          subjectVersion: null,
+          contentHash: canonicalHash({ input: card.input }),
+          payload: {
+            action_id: card.id,
+            kind: card.kind,
+            origin: card.origin,
+            answer_id: card.answer_id,
+            subjects: card.subjects.map((s) => ({
+              kind: s.kind,
+              id: s.id,
+              version: s.version,
+            })),
+          },
+        });
+        const { rows } = await c.query(
+          `update chat_actions set state = 'sending', version = version + 1, sent_by = $2,
+             sent_at = clock_timestamp(), sent_event_id = $3
+           where id = $1 returning *`,
+          [card.id, ctx.actorId, eventId],
+        );
+        return {
+          sent: { action: toChatAction(rows[0] as Row), causation_id: eventId },
+        };
+      },
+    );
+    if ('stale' in r)
+      throw new ContractError(
+        'VERSION_CONFLICT',
+        r.stale.reason ?? 'A record this card was made from changed.',
+      );
+    return r.sent;
+  }
+
+  /**
+   * ADR-0083: how a send ended, as the browser saw the form's routes answer. Only the person who
+   * sent it reports it. The store does not take the browser's word alone: it counts the audit
+   * events that name the send as their cause, so "done" means the route recorded something, a
+   * refusal after something was recorded is `partial`, and success with nothing recorded is
+   * `unconfirmed`.
+   */
+  async finishChatAction(
+    ctxIn: CommandContext,
+    ws: string,
+    conversationId: string,
+    actionId: string,
+    raw: unknown,
+  ): Promise<ChatAction> {
+    const ctx = normalize(ctxIn);
+    const req = parse(ChatActionOutcomeRequestSchema, raw);
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, true);
+      await chatConversation(c, uuid(ws), uuid(conversationId), true);
+      const card = await chatAction(
+        c,
+        uuid(ws),
+        uuid(conversationId),
+        uuid(actionId),
+      );
+      if (card.state !== 'sending') return card;
+      if (card.sent_by !== ctx.actorId)
+        throw fail(
+          'ACCESS_DENIED',
+          'Only the person who sent this card records how it ended.',
+        );
+      const events = await chatActionEvents(
+        c,
+        uuid(ws),
+        card.sent_event_id!,
+        ctx.actorId,
+      );
+      const state =
+        req.ok === true
+          ? events > 0
+            ? 'done'
+            : 'unconfirmed'
+          : events > 0
+            ? req.ok === false
+              ? 'partial'
+              : 'unconfirmed'
+            : 'refused';
+      const reason =
+        req.ok === null
+          ? state === 'refused'
+            ? 'The page lost track of this send before any request was recorded. Nothing was saved.'
+            : 'The page lost track of this send after something was recorded. Check the records it names.'
+          : state === 'unconfirmed'
+            ? 'The page reported success, but no recorded event names this send.'
+            : req.message;
+      const outcome = {
+        code: req.code,
+        message: req.message,
+        records: req.records,
+        events,
+      };
+      const { rows } = await c.query(
+        `update chat_actions set state = $2, reason = $3, outcome = $4, version = version + 1,
+           finished_at = clock_timestamp()
+         where id = $1 returning *`,
+        [
+          card.id,
+          state,
+          reason?.slice(0, 2000) ?? null,
+          JSON.stringify(outcome),
+        ],
+      );
+      await this.append(c, ctx, {
+        workspaceId: uuid(ws),
+        action: 'chat.action_finished',
+        subjectKind: 'chat_conversation',
+        subjectId: card.conversation_id,
+        subjectVersion: null,
+        contentHash: canonicalHash({ id: card.id, state, outcome }),
+        payload: {
+          action_id: card.id,
+          kind: card.kind,
+          state,
+          code: req.code,
+          events,
+          records: req.records.map((x) => ({ id: x.id, kind: x.kind })),
+        },
+      });
+      return toChatAction(rows[0] as Row);
+    });
+  }
+
+  /** ADR-0083: puts a draft card away. Nothing was sent. */
+  async dismissChatAction(
+    ctxIn: CommandContext,
+    ws: string,
+    conversationId: string,
+    actionId: string,
+    raw: unknown,
+  ): Promise<ChatAction> {
+    const ctx = normalize(ctxIn);
+    const req = parse(ChatActionVersionRequestSchema, raw);
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, true);
+      await chatConversation(c, uuid(ws), uuid(conversationId), true);
+      const card = await chatAction(
+        c,
+        uuid(ws),
+        uuid(conversationId),
+        uuid(actionId),
+      );
+      cardVersion(card, req.expected_version);
+      if (card.state !== 'draft')
+        throw fail(
+          'INVALID_TRANSITION',
+          'Only a card that was not sent can be put away.',
+        );
+      const { rows } = await c.query(
+        `update chat_actions set state = 'dismissed', version = version + 1,
+           finished_at = clock_timestamp()
+         where id = $1 returning *`,
+        [card.id],
+      );
+      await this.append(c, ctx, {
+        workspaceId: uuid(ws),
+        action: 'chat.action_dismissed',
+        subjectKind: 'chat_conversation',
+        subjectId: card.conversation_id,
+        subjectVersion: null,
+        contentHash: canonicalHash({ id: card.id }),
+        payload: { action_id: card.id, kind: card.kind },
+      });
+      return toChatAction(rows[0] as Row);
     });
   }
 
@@ -1579,6 +1929,46 @@ export class ConnectionStore extends PortfolioStore {
           plan_request_id: outcome.plan_request_id || null,
         },
       });
+      // ADR-0083: an answer may suggest one studio step. It becomes a draft card the person
+      // checks and sends; the model's hints only prefill answers, and nothing is sent here.
+      const proposed = text === null ? null : readProposedAction(text);
+      if (proposed?.found && proposed.ok) {
+        const actionId = randomUUID();
+        const input = {
+          ...(proposed.hints.text ? { hint_text: proposed.hints.text } : {}),
+          ...(proposed.hints.url ? { hint_url: proposed.hints.url } : {}),
+        };
+        await c.query(
+          `insert into chat_actions (id, workspace_id, conversation_id, client_id, message_id,
+             answer_id, origin, kind, input, subjects, state, version, created_by)
+           values ($1, $2, $3, $4, $5, $6, 'model', $7, $8, '[]', 'draft', 1, $9)`,
+          [
+            actionId,
+            uuid(ws),
+            String(cur.conversation_id),
+            randomUUID(),
+            String(cur.message_id),
+            String(cur.id),
+            proposed.kind,
+            JSON.stringify(input),
+            ctx.actorId,
+          ],
+        );
+        await this.append(c, ctx, {
+          workspaceId: uuid(ws),
+          action: 'chat.action_proposed',
+          subjectKind: 'chat_conversation',
+          subjectId: String(cur.conversation_id),
+          subjectVersion: null,
+          contentHash: canonicalHash({ kind: proposed.kind, input }),
+          payload: {
+            action_id: actionId,
+            kind: proposed.kind,
+            origin: 'model',
+            answer_id: String(cur.id),
+          },
+        });
+      }
       return toChatAnswer(rows[0] as Row);
     });
   }

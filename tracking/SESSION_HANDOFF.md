@@ -12,30 +12,30 @@ the record of each package and are appended to, not rewritten.
 
 [November 5 plan](../docs/CREATOR_AGENT_IMPLEMENTATION_PLAN_2026-11-05.md) packages:
 
-| Package | State on main |
-| --- | --- |
-| P00 candidate and repair closure | Done (PR #135; F1/F2 recheck passed) |
-| P01 activity links, P02 sorting and paging | Merged (PR #138) |
-| P03 chat context | Merged (PR #136, fixes #139; ADR-0070, migration 43) |
-| P04 guided Discover | Merged (PR #140; ADR-0071) |
-| P05 workspace files | Merged (PR #141; ADR-0072, migration 45) |
-| P06 named notes | Merged (PR #142; ADR-0073, migration 46) |
-| P07 previews until stopped | Merged (PR #137; ADR-0069, migration 44) |
-| P08 automatic assessments | Merged (PR #144; ADR-0074, migration 47) |
-| P09 why this response, proposals | Merged (PR #148; ADR-0077, migration 49) |
-| P10 scoped routine approvals | Merged (PR #153; ADR-0079, migration 50); no evidence-admission stage yet (P12) |
-| P11 committee staging | Design and tester accounts merged (PRs #135, #143; ADR-0075, migration 48); deploy waits on D1–D9 |
-| P12 online discovery | Not started; needs Jordan's search provider choice |
-| P13 unattended workflow | Not started; needs P10 and P12 |
-| P14 capability inventory and benchmarks | Merged (PRs #135, #145, #146; ADR-0076) |
-| P15 larger software | Slice 1 `static-web/1` merged and recorded qualified on one route (PRs #149, #150; ADR-0078); later slices not started |
-| P16 external runbook export | Merged (PR #152; ADR-0080, no migration) |
-| P17 integrated acceptance | Not started |
-| P18 collapsible options, shorter pages | Not started (added November 10, R20) |
-| P19 Standard/Advanced across the app | Built November 11 on branch `claude/project-thread-xdq8er` (ADR-0082, migration 52), PR #164; independent review and two fix rounds done, ready to merge once the last re-review is clean |
-| P20 whole process from Chat | Not started (added November 10, R22); Jordan approved it November 10; needs an ADR amending ADR-0057/0070 |
-| P21 quick model switch | Not started (added November 10, R23) |
-| P22 live API and GitHub checks | Not started (added November 10, R24–R25); Jordan approved the live API and GitHub tests November 10 |
+| Package                                    | State on main                                                                                                                                                                             |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P00 candidate and repair closure           | Done (PR #135; F1/F2 recheck passed)                                                                                                                                                      |
+| P01 activity links, P02 sorting and paging | Merged (PR #138)                                                                                                                                                                          |
+| P03 chat context                           | Merged (PR #136, fixes #139; ADR-0070, migration 43)                                                                                                                                      |
+| P04 guided Discover                        | Merged (PR #140; ADR-0071)                                                                                                                                                                |
+| P05 workspace files                        | Merged (PR #141; ADR-0072, migration 45)                                                                                                                                                  |
+| P06 named notes                            | Merged (PR #142; ADR-0073, migration 46)                                                                                                                                                  |
+| P07 previews until stopped                 | Merged (PR #137; ADR-0069, migration 44)                                                                                                                                                  |
+| P08 automatic assessments                  | Merged (PR #144; ADR-0074, migration 47)                                                                                                                                                  |
+| P09 why this response, proposals           | Merged (PR #148; ADR-0077, migration 49)                                                                                                                                                  |
+| P10 scoped routine approvals               | Merged (PR #153; ADR-0079, migration 50); no evidence-admission stage yet (P12)                                                                                                           |
+| P11 committee staging                      | Design and tester accounts merged (PRs #135, #143; ADR-0075, migration 48); deploy waits on D1–D9                                                                                         |
+| P12 online discovery                       | Not started; needs Jordan's search provider choice                                                                                                                                        |
+| P13 unattended workflow                    | Not started; needs P10 and P12                                                                                                                                                            |
+| P14 capability inventory and benchmarks    | Merged (PRs #135, #145, #146; ADR-0076)                                                                                                                                                   |
+| P15 larger software                        | Slice 1 `static-web/1` merged and recorded qualified on one route (PRs #149, #150; ADR-0078); later slices not started                                                                    |
+| P16 external runbook export                | Merged (PR #152; ADR-0080, no migration)                                                                                                                                                  |
+| P17 integrated acceptance                  | Not started                                                                                                                                                                               |
+| P18 collapsible options, shorter pages     | Not started (added November 10, R20)                                                                                                                                                      |
+| P19 Standard/Advanced across the app       | Built November 11 on branch `claude/project-thread-xdq8er` (ADR-0082, migration 52), PR #164; independent review and two fix rounds done, ready to merge once the last re-review is clean |
+| P20 whole process from Chat                | Built November 11 on branch `claude/project-thread-b20hlm` (ADR-0083 amending ADR-0057/0070, migration 53), on top of P19's branch; draft PR, independent review next                     |
+| P21 quick model switch                     | Not started (added November 10, R23)                                                                                                                                                      |
+| P22 live API and GitHub checks             | Not started (added November 10, R24–R25); Jordan approved the live API and GitHub tests November 10                                                                                       |
 
 Checks on main `e08e0a4`, November 10 (cloud container, PostgreSQL 16): TypeScript, web typecheck and
 formatting pass; `pnpm test:db` 867 tests, 833 pass, 29 skips, 5 fail (the known wrapper tests that need
@@ -621,7 +621,7 @@ are migration 50 and ADR-0078 (P15 was asked to take those if it needs them).
 - Nothing on Jordan's device or in any studio database records the pilot's status (no runtime consumer of
   `owner-pilot.json`), so no app or database step is needed.
 - Checks (cloud container): typecheck and format check pass; the X10 readiness tests pass; `pnpm readiness
-  pilot-check` reports the gate ready with no refusals. Full suite: see the PR. Next eligible: unchanged (P10 and
+pilot-check` reports the gate ready with no refusals. Full suite: see the PR. Next eligible: unchanged (P10 and
   P16 in their threads; then the installed-app upgrade, P12 once a search provider is chosen).
 
 ## PR #155 review fixes (November 10, no migration or ADR)
@@ -803,6 +803,7 @@ line also appears when every case is held out (N-A). Bundle hash now `8648d257�
 What works and what was checked: see ADR-0082 and the BUILD_STATUS entry.
 
 New code:
+
 - Contracts in `packages/contracts/src/preferences.ts`.
 - Migration 52 `person_preferences`.
 - `ConnectionStore.viewPreference` and `setViewPreference`.
@@ -814,13 +815,45 @@ New code:
   - `shownSections` and `hiddenTabs` in `pages.ts`.
 
 For P20:
+
 - Read the mode with `useViewMode()`.
 - Put new routine fields inside `Routine` and add a row to the form's `WhatWillHappen`.
 - Keep every default out of evidence, grants, qualifications, caps and the private data class.
 
 Overlap with open PRs:
+
 - `build.tsx`, `submit.tsx` and `main.tsx` overlap P21 (PR #161) and P18 (PR #162). Expect small conflicts.
 - Conflicts are also likely in the tracking logs.
 
 Main becomes schema 52 when this merges, after P21's 51. Next free numbers: migration 53 and ADR-0083.
 Next eligible prompts: P20, then P12 and P13 as the plan orders them.
+
+## P20 whole process from Chat (November 11, branch `claude/project-thread-b20hlm`, ADR-0083, migration 53)
+
+Built on P19's branch (PR #164, head `c24bd27`) because it reuses `useViewMode`, `Routine` and `WhatWillHappen`;
+merge main into it once #164 merges.
+
+- Chat holds **action cards** (`chat_actions`, migration 53): budget, fetch a page, record a claim, start a
+  discovery, answer a waiting decision, score an option, record a choice, save a proposal. A card asks the form's
+  questions one at a time (Standard uses P19 routine defaults, Advanced asks them), shows "Still needed", the answers
+  with Change, "What will happen" and exactly the requests Send makes. Send runs those requests from the browser
+  through the forms' own routes, each carrying `X-Causation-Id` (the `chat.action_sent` event) and
+  `X-Correlation-Id` (the card). The store decides done / unconfirmed / refused / partial from the audit events that
+  name the send. A changed, archived or missing subject record (or a decision no longer waiting) makes a card stale
+  before anything is sent.
+- Cards come from "Do it here" on studio replies (`cardForStep`, the Path's own rules), "Do a step here" under the
+  conversation, and model answers: an answer may end with one `<propose_action kind="…">{"text","url"}</propose_action>`
+  (CHAT_INSTRUCTIONS v3); a valid one becomes an origin `model` draft under the answer, anything else makes no card
+  and the answer says why. A model can never suggest answering a decision.
+- Files: `packages/contracts/src/chat-actions.ts`, `packages/db/src/chat-action-store.ts`, store methods in
+  `connection-store.ts`, route in `apps/api/src/index.ts`, `apps/web/src/chat-cards.ts` (pure rules and plans),
+  `chat-card-load.ts` (reads), `chat-card.tsx` (UI and sending), `chat.tsx`, `chat-answers.tsx`, `oversight.tsx`
+  (`api()` `trace` option).
+- Tests: `tests/src/chat-actions.test.ts` (HTTP and store), `tests/src/web-chat-cards.test.ts` (plans checked
+  against the server request schemas), one new case in `chat-answers.test.ts` (model suggestion). Walk evidence in
+  `tracking/evidence/p20-chat-actions/`.
+- Not done: spec freeze, build and runbook export cards; editing an earlier selection; other rubrics; mid-send resume
+  on another device.
+
+Next eligible prompt: independent review of P20 in a new thread (reviewer ports 5183/4330/4340, throwaway DB); then
+the installed app upgrade, then P17.
