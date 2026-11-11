@@ -125,8 +125,10 @@ export class QualificationQueueRunner {
     try {
       for (;;) {
         const next = await store.nextQueuedQualification(id, this.holder);
-        this.#failures.delete(id);
-        if (next.kind === 'end') return;
+        if (next.kind === 'end') {
+          this.#failures.delete(id);
+          return;
+        }
         let reason = 'the run ended without a result';
         try {
           const out = await service.runQualification(
@@ -152,6 +154,9 @@ export class QualificationQueueRunner {
           next.position,
           reason,
         );
+        // Re-review L-2b: only a whole step (start, run, record) clears the failure count, so
+        // an error that recurs when recording a result also stops the queue after three tries.
+        this.#failures.delete(id);
         if (!go || this.#stopped) return;
       }
     } finally {

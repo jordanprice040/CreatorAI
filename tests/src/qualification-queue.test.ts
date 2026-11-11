@@ -725,3 +725,58 @@ test('PR #176 review L-4: a queue cannot start while a Run is going on the conne
   // Once it finished, the queue starts.
   assert.equal((await s.queue(['specification'])).state, 'running');
 });
+
+test('PR #176 re-review L-2b: an error that recurs when recording a result also stops the queue', async (t) => {
+  const s = await setup(t, {
+    responses: [{ kind: 'text', text: 'ok' }, GOOD],
+  });
+  if (!s) return;
+  await s.queue(['summarization']);
+  let runs = 0;
+  const errors: unknown[] = [];
+  const r = new QualificationQueueRunner({
+    store: {
+      leaseQualificationQueue: s.store.leaseQualificationQueue.bind(s.store),
+      renewQualificationQueueLease: s.store.renewQualificationQueueLease.bind(
+        s.store,
+      ),
+      releaseQualificationQueueLease:
+        s.store.releaseQualificationQueueLease.bind(s.store),
+      nextQueuedQualification: s.store.nextQueuedQualification.bind(s.store),
+      abandonQualificationQueue: s.store.abandonQualificationQueue.bind(
+        s.store,
+      ),
+      recordQueuedRun: async () => {
+        throw new Error('cannot record');
+      },
+    },
+    // A run that stops on a provider outcome and leaves the qualification started: each poll
+    // would otherwise run it again.
+    service: {
+      runQualification: async () => {
+        runs++;
+        return { state: 'stopped' as const, reason: 'quota_exhausted' };
+      },
+    },
+    onError: (e) => errors.push(e),
+  });
+  for (let i = 1; i <= 2; i++) {
+    await r.sweep();
+    await r.idle();
+    assert.equal((await s.detailQueue()).state, 'running');
+  }
+  await r.sweep();
+  await r.idle();
+  const q = await s.detailQueue();
+  assert.equal(q.state, 'stopped');
+  assert.match(
+    q.reason ?? '',
+    /could not continue this queue \(cannot record\)/,
+  );
+  assert.equal(q.items[0]!.state, 'stopped');
+  assert.equal(runs, 3, 'run three times, then no more');
+  await r.sweep();
+  await r.idle();
+  assert.equal(runs, 3);
+  assert.equal(errors.length, 3);
+});
