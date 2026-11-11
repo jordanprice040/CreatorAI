@@ -39,7 +39,7 @@ reproduced.
 | 19  | Example in the approved model check's Model box                | P26                            |
 | 20  | Copy connections between workspaces                            | P30                            |
 | 21  | Model help per step in Chat; Next step button                  | P31                            |
-| 22  | Automation levels for a project                                | **Decision B**; design P33     |
+| 22  | Automation levels for a project                                | P33 after P13 (Decision B)     |
 | 23  | Explore for me in the Chat discovery card                      | P31                            |
 | 24  | Simpler GitHub connection (browser sign-in)                    | P32                            |
 | —   | P22 gap: no way to add an OpenAI API key in the installed app  | P28                            |
@@ -215,7 +215,8 @@ ADR-0074.
 4. **P28** (API key) and **P29** (usage window), in parallel.
 5. **P30** (copy connections), then **P31** (Chat card help).
 6. **P32** when Jordan wants it and gives the live OK.
-7. **P33** (automation levels) only after Decision B, and after P12/P13 for the whole-process part.
+7. **P13** as a priority once P12 is merged (Jordan, November 11), ahead of any package above that has not started,
+   then **P33** (automation levels, including the whole process) right after P13.
 
 ## Open decisions for Jordan
 
@@ -254,6 +255,16 @@ Why B1: it reuses the deterministic policy and recording that already exist (a m
 authority), gives Jordan the choices he described, and leaves the whole-process level honestly marked as waiting
 for P13. Either way, study runs keep their frozen condition; an app automation level never changes a study run's
 recorded mode (thesis protocol).
+
+**Jordan, November 11 (typed in the planning thread):** "I would still like to automate the full process, so
+that should be noted to follow P13 and P13 should be considered a priority to be carried out once it is viable to
+do so." Recorded as:
+
+- Whole-process automation is wanted. It is planned as **P33**, directly after P13.
+- **P13 is a priority** as soon as it is viable. It becomes viable when P12 (online discovery, fetching) is merged,
+  and P12 still waits on Jordan's choice of its scope. P13 then starts ahead of the remaining packages in this plan.
+- The partial levels (Automate selection, Automate the rest) follow B1 and are built in P33 with the whole-process
+  level, unless Jordan asks for them earlier.
 
 A smaller choice inside P30 (whether qualifications can be copied between workspaces) is recommended "no" above
 and only needs Jordan's input if he wants it.
