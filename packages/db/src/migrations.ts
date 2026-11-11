@@ -2965,6 +2965,23 @@ create index action_admissions_by_grant on action_admissions (grant_id)
 `,
   },
   {
+    // ADR-0081 (P21): the person's current plan connection and model per workspace, set from
+    // the picker beside the usage indicator. Forms start from it; runs keep their own route.
+    version: 51,
+    name: 'model_choices',
+    sql: `
+create table model_choices (
+ workspace_id uuid not null references workspaces(id),
+ actor_id uuid not null references actors(id),
+ connection_id uuid not null references plan_connections(id),
+ model_id text not null check (length(model_id) between 1 and 200),
+ version integer not null check (version >= 1),
+ updated_at timestamptz not null default clock_timestamp(),
+ primary key (workspace_id, actor_id)
+);
+`,
+  },
+  {
     // ADR-0082 (P19): each person's Standard/Advanced choice, app-wide, so it follows them
     // across browsers and devices. Presentation only: no permission, cap or gate reads it.
     version: 52,

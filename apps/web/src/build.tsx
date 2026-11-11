@@ -1,6 +1,12 @@
 import { SpecForm, type SpecFormMode } from './spec-form.js';
 import { HumilityForm } from './humility.js';
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
 import {
   ArtifactSummarySchema,
   buildDeadlineMs,
@@ -8,6 +14,8 @@ import {
   GrantSchema,
   PlanConnectionSchema,
   PlanModelAccessSchema,
+  PlanQualificationSchema,
+  isQualified,
   PricingSnapshotSchema,
   RunControlSchema,
   SelectionSchema,
@@ -42,6 +50,14 @@ import { unwrittenOptions } from './spec-fields.js';
 import { newestFirst, productVersions } from './versions.js';
 import { recordLabel, runLabel } from './labels.js';
 import { RunbookExport } from './runbook.js';
+import {
+  BUILD_ROLE_CLASSES,
+  builderAfterChoiceChange,
+  planBuilderDefault,
+  taskWords,
+  type Choice,
+} from './model-choice.js';
+import { useModelChoice } from './model-switch.js';
 import {
   artifactForBuild,
   envelopeFor,
@@ -192,7 +208,10 @@ export function BuildView({
     const access = await Promise.all(
       connections.map((c) =>
         api(
-          z.object({ model_access: z.array(PlanModelAccessSchema) }),
+          z.object({
+            model_access: z.array(PlanModelAccessSchema),
+            qualifications: z.array(PlanQualificationSchema),
+          }),
           `${base}/plan-connections/${c.id}`,
         ),
       ),
@@ -211,8 +230,16 @@ export function BuildView({
         model_id: m.model_id,
         label: `${c.label} · ${m.model_id}`,
         connection_label: c.label,
+        plan: c.kind,
         data_classes: c.settings.allowed_data_classes,
         build_timeout_ms: c.settings.caps.codex.build_timeout_ms,
+        // ADR-0081: whether the plan roles can run on this model (both roles qualified).
+        unqualified:
+          m.path === 'responses'
+            ? BUILD_ROLE_CLASSES.filter(
+                (tc) => !isQualified(access[i]!.qualifications, m.model_id, tc),
+              )
+            : [],
       })),
     );
     const now = Date.now();
@@ -256,7 +283,9 @@ export function BuildView({
       artifacts,
     };
   }, [workspace.id]);
-  const d = data.data;
+  // ADR-0081: the current model from the top bar; Build starts from it (StartBuild).
+  const choice = useModelChoice(workspace);
+  const d = data.data ? { ...data.data, choice } : null;
   const writer = workspace.role !== 'viewer';
   const [specForm, setSpecForm] = useState<SpecFormMode | null>(null);
   /** The stored current version of a spec/1 spec: what a revision starts from. */
@@ -854,11 +883,17 @@ type Data = {
     model_id: string;
     label: string;
     connection_label: string;
+    /** Which plan the connection uses, so the option names it (ChatGPT or Claude). */
+    plan: 'chatgpt_plan' | 'claude_code';
     /** What the connection's settings allow; a build of another class is refused. */
     data_classes: readonly ('synthetic' | 'public' | 'private_approved')[];
     /** The connection's Codex build timeout (ADR-0062: no 30-minute maximum). */
     build_timeout_ms: number;
+    /** Plan-role task classes this model is not qualified for (empty for Codex). */
+    unqualified: readonly string[];
   }[];
+  /** ADR-0081: the owner's current model from the top bar, if any. */
+  choice: Choice | null;
   /** Run ids whose standing grants admit plan-role model requests. */
   modelRuns: ReadonlySet<string>;
   artifacts: z.infer<typeof ArtifactSummarySchema>[];
@@ -1177,6 +1212,39 @@ function unbuildable(
   return why.every((w) => w.length) ? why[0]![0]! : null;
 }
 
+/** ADR-0081: offers a plan-role builder qualified for both roles when the shown one is not. */
+function BuilderAlternative({
+  current,
+  builders,
+  fromChoice,
+  use,
+}: {
+  current: Data['builders'][number];
+  builders: Data['builders'];
+  fromChoice: boolean;
+  use: (key: string) => void;
+}) {
+  const ok = builders.filter(
+    (b) => b.kind === 'roles' && b.unqualified.length === 0,
+  );
+  const alt =
+    ok.find((b) => b.connection_id === current.connection_id) ?? ok[0];
+  return (
+    <p className="small model-note model-note-warn" role="note">
+      {current.model_id}
+      {fromChoice ? ' (your current model)' : ''} is not qualified for{' '}
+      {current.unqualified.map(taskWords).join(' and ')}.{' '}
+      {alt ? (
+        <button type="button" className="text" onClick={() => use(alt.key)}>
+          Use {alt.model_id} on {alt.connection_label} instead
+        </button>
+      ) : (
+        `No plan model here is qualified for both ${BUILD_ROLE_CLASSES.map(taskWords).join(' and ')} yet.`
+      )}
+    </p>
+  );
+}
+
 /** The build plan: which run, budget, pricing, humility review and builder; limits in range. */
 function StartBuild({
   taskKey,
@@ -1210,13 +1278,38 @@ function StartBuild({
   const [review, setReview] = useState('');
   // '' until chosen: the $0 plan route when one is verified, else the broker.
   const [builder, setBuilder] = useState('');
+  /** The person picked a builder on this form, so a switch in the top bar leaves it alone. */
+  const [picked, setPicked] = useState(false);
   const [repairs, setRepairs] = useState(1);
-  const planDefault = data.builders.find((b) => b.kind === 'roles');
+  // ADR-0081: the current model's plan-role builder comes first, even when it is not
+  // qualified: the form then says so and offers a qualified one, never switching quietly.
+  const preferred = planBuilderDefault(data.builders, data.choice);
+  const planDefault = preferred.builder;
+  const chosenRoles = preferred.fromChoice ? preferred.builder : undefined;
   // Once the plan route is shown as the default, it counts as chosen: if it later stops being
   // verified, the form says so instead of quietly switching to the metered broker.
   useEffect(() => {
     if (!builder && planDefault) setBuilder(planDefault.key);
   }, [builder, planDefault?.key]);
+  // The current model arriving (it may load after this form, review L-1) or a switch in the
+  // top bar re-defaults a builder the person did not pick here.
+  const choiceKey = data.choice
+    ? `${data.choice.connection_id}:${data.choice.model_id}`
+    : '';
+  // Only a real change of the choice counts (re-review M-1): on mount the default stays locked,
+  // so a locked builder that is no longer verified still says "choose again".
+  const seenChoice = useRef(choiceKey);
+  useEffect(() => {
+    const next = builderAfterChoiceChange({
+      builder,
+      picked,
+      previousChoice: seenChoice.current,
+      choice: choiceKey,
+      defaultKey: planDefault?.key ?? '',
+    });
+    seenChoice.current = choiceKey;
+    if (next !== builder) setBuilder(next);
+  }, [choiceKey]);
   const connection =
     builder && builder !== 'broker'
       ? data.builders.find((b) => b.key === builder)
@@ -1300,6 +1393,19 @@ function StartBuild({
           },
         ]
       : []),
+    // ADR-0081: a plan-role builder whose model is not qualified for both roles is refused
+    // here with the reason, and a qualified one is offered below the builder choice.
+    ...(connection?.kind === 'roles' && connection.unqualified.length
+      ? [
+          {
+            text: `${connection.model_id} is not qualified for ${connection.unqualified.map(taskWords).join(' and ')}, so the plan builder and reviewer can't run on it.`,
+            fix: {
+              view: 'models' as View,
+              label: 'Open Models and connections',
+            },
+          },
+        ]
+      : []),
     ...(lostBuilder
       ? [
           {
@@ -1314,14 +1420,14 @@ function StartBuild({
   ];
 
   // ADR-0082 (P19): the records a build names, picked by default from what can build now.
-  const picked = (chosenHere: string) =>
+  const sourceOf = (chosenHere: string) =>
     chosenHere ? 'changed here' : 'studio default';
   const runName = data.runs.find((r) => r.run_id === runId);
   const recordsSummary = [
     `Run: ${runName ? runLabel(runName, data.names) : 'none'}`,
     `budget: ${data.budgets.find((b) => b.id === budgetId)?.name ?? 'none'}`,
     `review: ${chosen ? recordLabel(chosen) : 'none for this version'}`,
-    picked(run || budget || price || review),
+    sourceOf(run || budget || price || review),
   ].join(' · ');
 
   function submit(e: FormEvent) {
@@ -1427,7 +1533,10 @@ function StartBuild({
       <select
         id="bp-builder"
         value={connection ? connection.key : lostBuilder || 'broker'}
-        onChange={(e) => setBuilder(e.target.value)}
+        onChange={(e) => {
+          setBuilder(e.target.value);
+          setPicked(true);
+        }}
       >
         {lostBuilder && (
           <option value={lostBuilder} disabled>
@@ -1440,12 +1549,46 @@ function StartBuild({
         {data.builders.map((b) => (
           <option key={b.key} value={b.key}>
             {b.kind === 'roles'
-              ? 'Builder and reviewer on ChatGPT plan'
+              ? `Builder and reviewer on ${b.plan === 'claude_code' ? 'Claude' : 'ChatGPT'} plan`
               : 'Codex on ChatGPT plan'}{' '}
             · {b.label}
           </option>
         ))}
       </select>
+      {connection?.kind === 'roles' && connection.unqualified.length > 0 && (
+        <BuilderAlternative
+          current={connection}
+          builders={data.builders}
+          fromChoice={connection === chosenRoles && !picked}
+          use={(key) => {
+            setBuilder(key);
+            setPicked(true);
+          }}
+        />
+      )}
+      {connection?.kind === 'roles' &&
+        connection === chosenRoles &&
+        !picked &&
+        connection.unqualified.length === 0 && (
+          <p className="small model-note">
+            Your current model, from the top bar. Change the builder here for
+            this build only.
+          </p>
+        )}
+      {data.choice &&
+        !preferred.fromChoice &&
+        !picked &&
+        !lostBuilder &&
+        !fixture && (
+          <p className="small model-note">
+            Your current model ({data.choice.model_id}) is not verified on a
+            plan connection here, so this form uses{' '}
+            {connection?.kind === 'roles'
+              ? connection.model_id
+              : 'the builder above'}
+            . Switch models from the top bar.
+          </p>
+        )}
       {connection?.kind === 'codex' && (
         <p className="small">
           This is a live call on your ChatGPT plan. It runs only if a grant you
@@ -1455,15 +1598,16 @@ function StartBuild({
       )}
       {connection?.kind === 'roles' && (
         <p className="small">
-          Live requests on your ChatGPT plan, with no metered spend: up to{' '}
-          {2 + 2 * repairs} builder and reviewer requests, each counted against
-          the plan caps in Settings. One approval covers the whole build, its
-          repair rounds and both roles within that limit. Both roles must be
-          qualified and the run must have room for at least one of each first
-          (repair rounds need more room); if not, the build stops before
-          anything is sent or any approval is used. The budget and pricing
-          chosen above are recorded with the build, but nothing is reserved or
-          charged on this route.
+          Live requests on your{' '}
+          {connection.plan === 'claude_code' ? 'Claude' : 'ChatGPT'} plan, with
+          no metered spend: up to {2 + 2 * repairs} builder and reviewer
+          requests, each counted against the plan caps in Settings. One approval
+          covers the whole build, its repair rounds and both roles within that
+          limit. Both roles must be qualified and the run must have room for at
+          least one of each first (repair rounds need more room); if not, the
+          build stops before anything is sent or any approval is used. The
+          budget and pricing chosen above are recorded with the build, but
+          nothing is reserved or charged on this route.
         </p>
       )}
       <label htmlFor="bp-repairs">Repair rounds after a failed check</label>
