@@ -111,8 +111,30 @@ export type AssessmentPlan =
        * size; null when none is left out (or none could be found).
        */
       cap_for_all: number | null;
+      /**
+       * ADR-0091: per assessed option, the claims linked to the option itself and how many of
+       * them the packet reads.
+       */
+      option_coverage: OptionCoverage[];
     }
   | { ok: false; problem: string; needed: number; input_cap: number };
+
+export type OptionCoverage = {
+  ref: string;
+  alternative_id: string;
+  linked: number;
+  read: number;
+};
+
+/** A claim the assessment may read, as the store gathers it. */
+export type AssessmentInputClaim = {
+  relation: 'supports' | 'contradicts';
+  evidence: ClaimEvidence;
+  /** ADR-0091: the options (alternative ids) this claim is linked to as support. */
+  options?: string[];
+  /** False when the claim is linked to options only, not to the problem. Default true. */
+  problem?: boolean;
+};
 
 type AssessmentInput = {
   problem: {
@@ -132,7 +154,7 @@ type AssessmentInput = {
     tradeoffs: string[];
     uncertainty: string;
   }[];
-  claims: { relation: 'supports' | 'contradicts'; evidence: ClaimEvidence }[];
+  claims: AssessmentInputClaim[];
   now: Date;
   /** The route's per-request input cap (`caps.responses.max_input_chars` on a plan connection). */
   input_cap?: number;
@@ -143,7 +165,9 @@ type AssessmentInput = {
 /**
  * The packet for one problem and how it is split into requests (ADR-0085, amending ADR-0074):
  * its options (current versions), the claims linked to it with their two strongest passages,
- * and the rubrics with their hashes. Each request carries a few options and must fit the
+ * and the rubrics with their hashes. ADR-0091: claims linked to an assessed option are read
+ * too, tagged with that option, and each option's first such claim comes before the problem's
+ * claims so a tight cap still reads something on every option. Each request carries a few options and must fit the
  * route's per-request input cap, counted with the role text. Every request reads the same
  * claim set, so options in different requests are rated on the same evidence: claims are
  * added in the order given while they fit beside the largest request's options, and the
@@ -244,8 +268,29 @@ function planAt(
       };
   }
 
+  // ADR-0091: which assessed options each claim is linked to. A claim linked only to options
+  // past the eighth is not read and not counted.
+  const refOf = new Map(
+    options.map((o) => [o.alternative_id.toLowerCase(), o.ref]),
+  );
+  const tagged = input.claims.flatMap((c) => {
+    const refs = [
+      ...new Set(
+        (c.options ?? []).flatMap((id) => refOf.get(id.toLowerCase()) ?? []),
+      ),
+    ].sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
+    return c.problem === false && !refs.length ? [] : [{ ...c, refs }];
+  });
+  // Coverage first: each option's first claim of its own, then the given order (problem
+  // claims as before). With no option claims the order is unchanged.
+  const firsts = new Set<(typeof tagged)[number]>();
+  for (const o of options) {
+    const own = tagged.find((c) => c.refs.includes(o.ref));
+    if (own) firsts.add(own);
+  }
+  const eligible = [...firsts, ...tagged.filter((c) => !firsts.has(c))];
   // Every candidate claim, rendered once; retracted or changed support is not passed on.
-  const candidates = input.claims.map(({ relation, evidence: e }) => {
+  const candidates = eligible.map(({ relation, evidence: e, refs }) => {
     const rows = e.rows.filter(
       (r) => r.freshness !== 'retracted' && r.freshness !== 'claim_changed',
     );
@@ -260,6 +305,7 @@ function planAt(
       independent_origins: e.independent_origins,
       contrary_origins: e.contrary_origins,
       relation,
+      ...(refs.length ? { options: refs } : {}),
       passages: [...rows]
         .sort((a, b) => Number(b.counted) - Number(a.counted))
         .slice(0, 2)
@@ -331,8 +377,8 @@ function planAt(
   const { batches } = best!;
   let claims = best!.claims;
 
-  const overMax = Math.max(0, input.claims.length - MAX_CLAIMS);
-  const forSize = (n: number) => Math.max(0, input.claims.length - n - overMax);
+  const overMax = Math.max(0, eligible.length - MAX_CLAIMS);
+  const forSize = (n: number) => Math.max(0, eligible.length - n - overMax);
   // One option per request reads the most: its largest request plus every readable claim.
   const estimate_for_all =
     Math.max(...options.map((o) => base([o.ref]))) +
@@ -340,9 +386,9 @@ function planAt(
     candidates
       .slice(0, MAX_CLAIMS)
       .reduce((n, make, i) => n + quoted(make(`C${i + 1}`)) + 1, 0);
-  const notesFor = (n: number) => {
+  const notesFor = (read: AssessmentClaim[]) => {
     const notes: string[] = [];
-    const skipped = forSize(n);
+    const skipped = forSize(read.length);
     if (input.alternatives.length > MAX_ASSESSMENT_OPTIONS)
       notes.push(
         `${input.alternatives.length - MAX_ASSESSMENT_OPTIONS} more options were not assessed: one assessment covers at most ${MAX_ASSESSMENT_OPTIONS}.`,
@@ -355,9 +401,13 @@ function planAt(
       notes.push(
         `${overMax} more linked claim${overMax === 1 ? ' was' : 's were'} not read: one assessment reads at most ${MAX_CLAIMS} claims.`,
       );
-    if (!input.claims.length)
+    if (!eligible.length)
       notes.push(
         'No claim is linked to this problem, so every rating can only be unknown.',
+      );
+    if (read.some((c) => c.options))
+      notes.push(
+        'A claim with an options list is linked to those options rather than only to the problem: it is evidence about them.',
       );
     notes.push(
       'Only evidence already recorded in this workspace was read; the assessor did not search the web or fetch pages.',
@@ -366,7 +416,7 @@ function planAt(
   };
   // The exact check: every request, with its notes, under the cap; drop the last claims if not.
   for (;;) {
-    const packet = shell(claims, notesFor(claims.length));
+    const packet = shell(claims, notesFor(claims));
     const request_chars = batches.map((refs) =>
       assessmentRequestChars(packetForOptions(packet, refs)),
     );
@@ -380,6 +430,12 @@ function planAt(
         claims_left_out: forSize(claims.length),
         claims_over_max: overMax,
         cap_for_all: null,
+        option_coverage: options.map((o) => ({
+          ref: o.ref,
+          alternative_id: o.alternative_id,
+          linked: eligible.filter((c) => c.refs.includes(o.ref)).length,
+          read: claims.filter((c) => c.options?.includes(o.ref)).length,
+        })),
         estimate_for_all,
       };
     if (!claims.length) {

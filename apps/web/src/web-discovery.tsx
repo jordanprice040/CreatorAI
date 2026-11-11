@@ -21,6 +21,7 @@ import {
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
 import { Status, useLoad } from './ui.js';
+import { onWebSearchPrefill } from './web-search-handoff.js';
 
 // P12 "Search the web" (ADR-0086). One search request on the owner's ChatGPT plan connection
 // uses the provider's own web search; the studio records its search calls and sources, fetches
@@ -125,6 +126,24 @@ export function WebDiscover({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [openId, setOpenId] = useState('');
+  // ADR-0091: "Find evidence on the web" from Compare and decide fills this form.
+  const sectionRef = useRef<HTMLElement>(null);
+  useEffect(
+    () =>
+      onWebSearchPrefill((p) => {
+        setQuestion(p.question);
+        setInterests(p.interests);
+        setTimeout(
+          () =>
+            sectionRef.current?.scrollIntoView({
+              behavior: 'smooth',
+              block: 'start',
+            }),
+          50,
+        );
+      }),
+    [],
+  );
 
   const plan =
     c?.details.find((p) => p.connection.id === connectionId) ??
@@ -289,7 +308,7 @@ export function WebDiscover({
 
   const shown = openId || c?.discoveries[0]?.id || '';
   return (
-    <section className="explore" aria-labelledby="web-title">
+    <section className="explore" aria-labelledby="web-title" ref={sectionRef}>
       <h3 id="web-title">Search the web</h3>
       <p>
         One request on your ChatGPT plan searches the web with the provider's

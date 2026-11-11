@@ -613,7 +613,9 @@ test('review fixes: an unlinked claim marks assessments stale; edits move on to 
   assert.ok(sys.length > 0);
   assert.ok(
     sys.every((x) =>
-      x.stale_reasons!.some((r) => /linked to the problem changed/.test(r)),
+      x.stale_reasons!.some((r) =>
+        /linked to the problem or its options changed/.test(r),
+      ),
     ),
   );
 });
@@ -880,4 +882,64 @@ test('P25: the preview sizes requests to the chosen plan connection input cap, a
   );
   const workflows = await s.store.listWorkflows(owner, s.ws.id);
   assert.ok(!workflows.some((w) => w.run_id === runId));
+});
+
+test('ADR-0091: a claim linked to an option is read for that option, and linking one marks the assessment stale', async (t) => {
+  const s = await setup(t, new FixtureAdapter());
+  if (!s) return;
+  await s.assess();
+  assert.ok(rows(await s.report()).every((x) => !x.stale));
+  const before = await s.store.previewAssessment(owner, s.ws.id, s.problem.id);
+  assert.ok(before.option_coverage.every((c) => c.linked === 0));
+  // Move one problem claim onto the second option only.
+  const link = (
+    await s.db.pool.query<{ id: string; from_id: string }>(
+      `select id, from_id from entity_links where workspace_id = $1 and to_id = $2
+         and from_kind = 'claim' and retracted_at is null order by from_id limit 1`,
+      [s.ws.id, s.problem.id],
+    )
+  ).rows[0]!;
+  await s.store.retractLink(owner, s.ws.id, link.id, { reason: 'Test.' });
+  const claim = (await s.store.getEntity(owner, s.ws.id, link.from_id)).entity;
+  const target = before.packet.options[1]!;
+  const alt = (await s.store.getEntity(owner, s.ws.id, target.alternative_id))
+    .entity;
+  await s.store.createLink(owner, s.ws.id, {
+    relation: 'supports',
+    from: { id: claim.id, version: claim.version },
+    to: { id: alt.id, version: alt.version },
+    rationale: 'Evidence about this option (test).',
+  });
+  const after = await s.store.previewAssessment(owner, s.ws.id, s.problem.id);
+  const read = after.packet.claims.find((c) => c.claim_id === claim.id);
+  assert.ok(read, 'the option claim is in the packet');
+  assert.deepEqual(read.options, [target.ref]);
+  assert.equal(read.relation, 'supports');
+  assert.equal(after.packet.claims.length, before.packet.claims.length);
+  assert.deepEqual(
+    after.option_coverage.map((c) => [c.ref, c.linked, c.read]),
+    after.packet.options.map((o) =>
+      o.ref === target.ref ? [o.ref, 1, 1] : [o.ref, 0, 0],
+    ),
+  );
+  // The earlier assessment did not read it as option evidence: stale (the set changed when
+  // the problem link was retracted, and stays changed with the option link).
+  const r = await s.report();
+  assert.ok(
+    rows(r)
+      .filter((x) => x.system)
+      .every((x) => x.stale && /linked/.test(x.stale_reason ?? '')),
+  );
+  // A fresh assessment reads it and is current.
+  const wf = await s.assess();
+  assert.equal(wf.workflow.state, 'succeeded');
+  const r2 = await s.report();
+  assert.ok(rows(r2).filter((x) => x.system && !x.stale).length > 0);
+  // An option claim on an archived option is not read.
+  await s.store.archiveEntity(owner, s.ws.id, alt.id, {
+    expected_version: alt.version,
+    reason: 'Drop this option (test).',
+  });
+  const gone = await s.store.previewAssessment(owner, s.ws.id, s.problem.id);
+  assert.ok(!gone.packet.claims.some((c) => c.claim_id === claim.id));
 });

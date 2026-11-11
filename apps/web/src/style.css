@@ -3062,6 +3062,54 @@ details.routine > summary {
   text-align: left;
 }
 
+/* ADR-0091: linking claims as evidence, the coverage warning before Assess, and why a score
+   is a range. */
+.assess-coverage {
+  display: block;
+}
+.assess-coverage ul {
+  margin: 6px 0;
+  padding-left: 1.2rem;
+}
+.link-claims {
+  margin: 8px 0 12px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--surface-hover);
+  background: var(--surface-sunken);
+  border-radius: var(--radius-sm);
+}
+.link-claims-list {
+  list-style: none;
+  margin: 6px 0;
+  padding: 0;
+}
+.link-claims-list li + li {
+  margin-top: 4px;
+}
+.link-claims label.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-weight: 400;
+}
+.link-claims label.check input {
+  width: auto;
+  margin: 3px 0 0;
+  flex: none;
+}
+.link-claims .actions {
+  margin-top: 8px;
+}
+.range-why p {
+  margin: 4px 0;
+}
+.claim-links {
+  margin: 12px 0;
+}
+.claim-links h4 {
+  margin: 0 0 4px;
+}
+
 /* ADR-0077 (P09): Proposals tab and the "Why this response" panel on Decide. */
 .proposals-layout {
   display: grid;

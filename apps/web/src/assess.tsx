@@ -17,6 +17,7 @@ import {
   latestDecided,
   z,
   type AssessmentPacket,
+  type AssessmentPreview,
   type RankedCandidate,
   type ScorecardBody,
   type SessionInfo,
@@ -27,6 +28,8 @@ import { ApiError, api, message, when, words } from './oversight.js';
 import { newestFirst } from './versions.js';
 import { envelopesFor } from './build-defaults.js';
 import { useLoad, type View } from './ui.js';
+import { LinkClaims } from './link-claims.js';
+import { rangeEnds } from './claim-suggest.js';
 import { preferredRoute } from './model-choice.js';
 import {
   ChoiceNote,
@@ -430,6 +433,19 @@ export function AutoAssess({
               </button>
             </p>
           )}
+          {preview && (
+            <Coverage
+              session={session}
+              workspace={workspace}
+              problem={problem}
+              preview={preview}
+              open={open}
+              onLinked={() => {
+                pv.refresh();
+                onRecorded();
+              }}
+            />
+          )}
           {showSent && preview && (
             <>
               <p className="small">
@@ -618,6 +634,127 @@ export function AutoAssess({
   );
 }
 
+/**
+ * ADR-0091: before assessing, the options with no claim of their own in the packet. Their
+ * ratings rest on the problem's claims alone, so they are likely to come back unknown and
+ * their ranges wide. Each can be fixed in place: link recorded claims, or find evidence on
+ * the web. Assessing anyway stays possible.
+ */
+function Coverage({
+  session,
+  workspace,
+  problem,
+  preview,
+  open,
+  onLinked,
+}: {
+  session: SessionInfo;
+  workspace: Workspace;
+  problem: StoredEntity;
+  preview: AssessmentPreview;
+  open: (view: View, id?: string) => void;
+  onLinked: () => void;
+}) {
+  const [openRef, setOpenRef] = useState('');
+  const canLink = workspace.role !== 'viewer';
+  const bare = preview.option_coverage.filter((c) => c.read === 0);
+  if (!bare.length) return null;
+  const total = preview.packet.options.length;
+  const shared = preview.packet.claims.filter((c) => !c.options).length;
+  const option = (ref: string) =>
+    preview.packet.options.find((o) => o.ref === ref)!;
+  const toggle = (key: string) => setOpenRef((k) => (k === key ? '' : key));
+  return (
+    <div className="notice assess-coverage">
+      <p>
+        <strong>
+          {bare.length === total
+            ? total === 1
+              ? 'The option has no claim of its own.'
+              : `None of the ${total} options has a claim of its own.`
+            : `${bare.length} of ${total} options have no claim of their own.`}
+        </strong>{' '}
+        {shared
+          ? `They are rated only on the ${shared} claim${shared === 1 ? '' : 's'} about the problem, so ratings that evidence does not cover come back unknown and widen their score ranges (as far as 0–100).`
+          : 'With no evidence at all, every rating comes back unknown and every range is 0–100.'}{' '}
+        Link evidence first, or assess anyway.
+      </p>
+      <ul>
+        {bare.map((c) => {
+          const o = option(c.ref);
+          return (
+            <li key={c.ref}>
+              {o.title}
+              <span className="muted">
+                {' '}
+                ·{' '}
+                {c.linked
+                  ? `${c.linked} linked claim${c.linked === 1 ? '' : 's'} left out to fit the input cap`
+                  : 'no linked claim'}
+              </span>
+              {canLink && (
+                <>
+                  {' '}
+                  <button
+                    type="button"
+                    className="text"
+                    aria-expanded={openRef === c.ref}
+                    onClick={() => toggle(c.ref)}
+                  >
+                    {openRef === c.ref ? 'Close' : 'Link claims'}
+                  </button>
+                </>
+              )}
+              {openRef === c.ref && (
+                <LinkClaims
+                  session={session}
+                  workspace={workspace}
+                  target={{
+                    id: o.alternative_id,
+                    version: o.version,
+                    kind: 'alternative',
+                    title: o.title,
+                  }}
+                  problemTitle={problem.title}
+                  onLinked={onLinked}
+                  open={open}
+                />
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {canLink && (
+        <p className="small">
+          Evidence about the problem as a whole?{' '}
+          <button
+            type="button"
+            className="text"
+            aria-expanded={openRef === 'problem'}
+            onClick={() => toggle('problem')}
+          >
+            {openRef === 'problem' ? 'Close' : 'Link claims to the problem'}
+          </button>
+        </p>
+      )}
+      {openRef === 'problem' && (
+        <LinkClaims
+          session={session}
+          workspace={workspace}
+          target={{
+            id: problem.id,
+            version: problem.version,
+            kind: 'problem',
+            title: problem.title,
+          }}
+          onLinked={onLinked}
+          open={open}
+        />
+      )}
+    </div>
+  );
+}
+
 function Run({
   base,
   session,
@@ -751,7 +888,9 @@ function Packet({ packet }: { packet: AssessmentPacket }) {
         <ul>
           {packet.claims.map((c) => (
             <li key={c.ref}>
-              {c.ref} · {words(c.relation)} · {words(c.status)} ·{' '}
+              {c.ref} · {words(c.relation)}
+              {c.options ? ` ${c.options.join(', ')}` : ''} · {words(c.status)}{' '}
+              ·{' '}
               {c.statement.length > 200
                 ? `${c.statement.slice(0, 199)}…`
                 : c.statement}
@@ -846,6 +985,129 @@ export function AssessmentLines({
         );
       })}
     </ul>
+  );
+}
+
+/**
+ * ADR-0091: why an option's score is a range, not a number. Unknown ratings count as 1 at the
+ * low end and 5 at the high end, and the range spans every counted card, so this names the
+ * card behind each end, how many unknowns it holds, and the fix: fill them in (a person's
+ * card replacing the automatic one) or link evidence and assess again. Ranges are not
+ * narrowed by leaving cards out (Jordan, 2026-11-11: "keep it honest").
+ */
+export function RangeWhy({
+  rubric,
+  cand,
+  cards,
+  canEdit,
+  onFill,
+}: {
+  rubric: 'suitability' | 'opportunity';
+  cand: RankedCandidate;
+  cards: StoredEntity[];
+  canEdit: boolean;
+  /** Opens the scoring form: on that automatic card, or on the person's own card. */
+  onFill: (systemId: string | null) => void;
+}) {
+  if (cand.score || !cand.range) return null;
+  const num = (x: { numerator: string; denominator: string }) =>
+    Number(x.numerator) / Number(x.denominator);
+  const unknownOf = (id: string) => {
+    const b = cards.find((c) => c.id === id)?.body as ScorecardBody | undefined;
+    return b
+      ? Object.values(b.ratings).filter((r) => r.rating === null).length
+      : 0;
+  };
+  const rows = cand.scorecards.map((c) => ({
+    ...c,
+    unknown: unknownOf(c.id),
+    counted: !c.stale && !c.superseded_by,
+  }));
+  const ends = rangeEnds(
+    rows.map((r) => ({
+      id: r.id,
+      lower: num(r.lower),
+      upper: num(r.upper),
+      unknown: r.unknown,
+      counted: r.counted,
+    })),
+  );
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const label = (id: string) => {
+    const r = byId.get(id)!;
+    return r.system
+      ? 'the automatic assessment'
+      : r.edit_of
+        ? `${r.reviewer}’s edit`
+        : `${r.reviewer}’s card`;
+  };
+  const describe = (list: { id: string; unknown: number }[], at: 1 | 5) =>
+    list
+      .map(
+        (e) =>
+          `${label(e.id)}${e.unknown ? ` (${e.unknown} unknown rating${e.unknown === 1 ? '' : 's'} counted as ${at} of 5)` : ''}`,
+      )
+      .join(' and ');
+  const name =
+    rubric === 'suitability' ? 'Suitability' : 'Software opportunity';
+  // The cards with unknowns that the person can fill in: an automatic card through an edit
+  // that replaces it, or their own card.
+  const fillable = [
+    ...new Map(
+      [...ends.low, ...ends.high]
+        .filter((e) => e.unknown > 0)
+        .map((e) => [e.id, byId.get(e.id)!]),
+    ).values(),
+  ];
+  const spread =
+    ends.low.length &&
+    ends.high.length &&
+    !ends.low.some((l) => ends.high.some((h) => h.id === l.id));
+  return (
+    <div className="small range-why">
+      <p>
+        <strong>
+          {name} {cand.range.lower.display}–{cand.range.upper.display}
+        </strong>
+        : the low end comes from {describe(ends.low, 1)}; the high end from{' '}
+        {describe(ends.high, 5)}.
+        {spread
+          ? ' The cards disagree, so the range spans both.'
+          : ' Unknown is not a neutral score: each unknown rating could be anything from 1 to 5.'}
+      </p>
+      {canEdit && fillable.length > 0 && (
+        <p>
+          To narrow it, fill in the unknowns you can judge:{' '}
+          {fillable
+            .filter((r) => r.system)
+            .map((r) => (
+              <span key={r.id}>
+                <button
+                  type="button"
+                  className="text"
+                  onClick={() => onFill(r.id)}
+                >
+                  Fill in the automatic assessment’s unknowns
+                </button>{' '}
+                (your edit replaces it; the original stays) ·{' '}
+              </span>
+            ))}
+          {fillable.some((r) => !r.system) && (
+            <>
+              <button
+                type="button"
+                className="text"
+                onClick={() => onFill(null)}
+              >
+                Rate the unknowns on your own card
+              </button>{' '}
+              ·{' '}
+            </>
+          )}
+          or link evidence to this option and assess again.
+        </p>
+      )}
+    </div>
   );
 }
 

@@ -178,7 +178,7 @@ function staleReasons(
       out.push('The rubric changed since this assessment.');
     if (env.linked_hash !== undefined && env.linked_hash !== a.linked_hash)
       out.push(
-        'Evidence linked to the problem changed since this assessment (a claim was linked or unlinked).',
+        'Evidence linked to the problem or its options changed since this assessment (a claim was linked or unlinked).',
       );
     if (ev)
       for (const e of a.evidence) {

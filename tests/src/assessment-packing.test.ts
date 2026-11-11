@@ -277,3 +277,84 @@ test('one option that does not fit alone is refused with what it needs and where
   assert.doesNotMatch(api.problem, /cap under Models/);
   assert.match(api.problem, /Shorten its rationale or trade-offs\.$/);
 });
+
+test('ADR-0091: claims linked to an option are read, tagged with it, and come first so a tight cap still covers each option', () => {
+  const base = large(24_000);
+  const extra = option(9, 'build', true);
+  const plan = buildAssessmentPacket({
+    ...base,
+    alternatives: [...base.alternatives, extra],
+    claims: [
+      ...base.claims.slice(0, 10),
+      // Option-only claims: one on O5, one on O6 and O2, one on the ninth (not assessed).
+      {
+        relation: 'supports' as const,
+        evidence: claimEvidence(31, 600),
+        options: [uid(2005)],
+        problem: false,
+      },
+      {
+        relation: 'supports' as const,
+        evidence: claimEvidence(32, 600),
+        options: [uid(2006).toUpperCase(), uid(2002)],
+        problem: false,
+      },
+      {
+        relation: 'supports' as const,
+        evidence: claimEvidence(33, 600),
+        options: [extra.id],
+        problem: false,
+      },
+    ],
+  });
+  assert.ok(plan.ok);
+  AssessmentPacketSchema.parse(plan.packet);
+  // Each option's first own claim in option order, then the problem's claims.
+  assert.deepEqual(
+    plan.packet.claims
+      .slice(0, 2)
+      .map((c) => [c.claim_id, c.options, c.relation]),
+    [
+      [uid(1032), ['O2', 'O6'], 'supports'],
+      [uid(1031), ['O5'], 'supports'],
+    ],
+  );
+  assert.ok(plan.packet.claims.slice(2).every((c) => c.options === undefined));
+  // The ninth option's claim is neither read nor counted as left out.
+  assert.ok(!plan.packet.claims.some((c) => c.claim_id === uid(1033)));
+  assert.equal(plan.packet.claims.length + plan.claims_left_out, 12);
+  assert.ok(plan.packet.notes.some((n) => /with an options list/.test(n)));
+  const cov = Object.fromEntries(
+    plan.option_coverage.map((c) => [c.ref, [c.linked, c.read]]),
+  );
+  assert.deepEqual(cov, {
+    O1: [0, 0],
+    O2: [1, 1],
+    O3: [0, 0],
+    O4: [0, 0],
+    O5: [1, 1],
+    O6: [1, 1],
+    O7: [0, 0],
+    O8: [0, 0],
+  });
+  // A claim linked to the problem and an option keeps its problem relation and its tag.
+  const both = buildAssessmentPacket({
+    ...small(),
+    claims: [
+      {
+        relation: 'contradicts' as const,
+        evidence: claimEvidence(1),
+        options: [uid(2002)],
+      },
+    ],
+  });
+  assert.ok(both.ok);
+  assert.deepEqual(
+    both.packet.claims.map((c) => [c.relation, c.options]),
+    [['contradicts', ['O2']]],
+  );
+  assert.deepEqual(
+    both.option_coverage.map((c) => c.read),
+    [0, 1],
+  );
+});
