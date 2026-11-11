@@ -26,6 +26,7 @@ import {
 } from './ui.js';
 import { useOnShow } from './page-active.js';
 import { newestFirst } from './versions.js';
+import { Fold, FoldAll, useFolds, type Folds } from './fold.js';
 
 const GATE_LABEL: Record<string, string> = {
   clear: 'clear',
@@ -33,11 +34,16 @@ const GATE_LABEL: Record<string, string> = {
   not_assessed: 'not assessed',
 };
 
+/** P18: a ranking folded to one line: size, leader, open gates and shortlist stability. */
 export function Ranking({
+  id,
+  folds,
   title,
   ranking,
   names,
 }: {
+  id: string;
+  folds: Folds;
   title: string;
   ranking: RubricRanking;
   names: Map<string, string>;
@@ -45,11 +51,38 @@ export function Ranking({
   const changed = ranking.sensitivity.scenarios.filter(
     (s) => s.shortlist_changed,
   );
+  const top = ranking.candidates.find((c) => c.rank === 1);
+  const openGates = ranking.candidates.filter(
+    (c) =>
+      c.gates.ethics_access !== 'clear' ||
+      !['not_applicable', 'passing'].includes(c.gates.humility),
+  ).length;
+  const n = ranking.candidates.length;
   return (
-    <>
-      <h3>
-        {title} <small>· {ranking.rubric_version}</small>
-      </h3>
+    <Fold
+      id={id}
+      folds={folds}
+      summary={
+        <>
+          <span className="fold-title">{title}</span>{' '}
+          <small>· {ranking.rubric_version}</small>
+          <span className="fold-line small">
+            {n} candidate{n === 1 ? '' : 's'}
+            {top
+              ? ` · first: ${clip(top.alternative.title, 60)} (${top.score?.display ?? words(top.status)})`
+              : n
+                ? ' · none fully scored'
+                : ''}
+            {openGates > 0 &&
+              ` · ${openGates} with a gate not clear (no score clears a gate)`}
+            {ranking.sensitivity.baseline.length > 0 &&
+              (ranking.sensitivity.stable
+                ? ' · shortlist stable'
+                : ' · shortlist sensitive to weights')}
+          </span>
+        </>
+      }
+    >
       {ranking.candidates.length === 0 ? (
         <p className="small">No candidates in this ranking.</p>
       ) : (
@@ -142,7 +175,7 @@ export function Ranking({
             ? 'the shortlist did not change.'
             : `the shortlist changes under ${changed.map((s) => s.name).join(', ')}.`}
       </p>
-    </>
+    </Fold>
   );
 }
 
@@ -274,6 +307,16 @@ function FreezeSpec({
       </div>
     </form>
   );
+}
+
+/** "· 3 unchanged, 1 changed, 1 removed" for a folded task list. */
+function taskCounts(spec: SpecStatus): string {
+  const n = new Map<string, number>();
+  for (const t of spec.tasks) n.set(t.status, (n.get(t.status) ?? 0) + 1);
+  if (spec.removed_tasks.length) n.set('removed', spec.removed_tasks.length);
+  return n.size
+    ? `· ${[...n].map(([k, v]) => `${v} ${words(k)}`).join(', ')}`
+    : '';
 }
 
 /**
@@ -411,6 +454,13 @@ export function Scoring({
   }
   const names = new Map(alternatives.map((a) => [a.id, a.title]));
   const fixture = current.record_mode === 'fixture';
+  // P18: rankings, selections and the open spec's task list fold to one line each. An open
+  // spec that is not frozen shows its tasks, since freezing them is the step waiting.
+  const rankFolds = useFolds([]);
+  const selectionFolds = useFolds([]);
+  const taskFolds = useFolds(
+    spec && !spec.frozen_current ? [`tasks:${spec.spec.id}`] : [],
+  );
 
   return (
     <section className="panel records" aria-labelledby="sel-title">
@@ -459,12 +509,24 @@ export function Scoring({
       )}
       {report && (
         <>
+          <div className="fold-head">
+            <h3>Rankings</h3>
+            <FoldAll
+              ids={['opportunity', 'suitability']}
+              folds={rankFolds}
+              label="rankings"
+            />
+          </div>
           <Ranking
+            id="opportunity"
+            folds={rankFolds}
             title="Software opportunity"
             ranking={report.opportunity}
             names={names}
           />
           <Ranking
+            id="suitability"
+            folds={rankFolds}
             title="Solution suitability (all responses)"
             ranking={report.suitability}
             names={names}
@@ -478,45 +540,70 @@ export function Scoring({
       )}
       {report && (
         <>
-          <h3>Selections</h3>
+          <div className="fold-head">
+            <h3>Selections</h3>
+            <FoldAll
+              ids={selections.map((s) => s.id)}
+              folds={selectionFolds}
+              label="selections"
+            />
+          </div>
           {selections.length === 0 ? (
             <p className="small">No selection recorded for this problem.</p>
           ) : (
             <ol className="selections">
               {selections.map((s) => (
                 <li key={s.id}>
-                  <strong>{s.current ? 'Current' : 'Replaced'}</strong> ·{' '}
-                  {when(s.created_at)} · {s.rationale}
-                  <ul>
-                    {s.dispositions.map((d) => (
-                      <li key={d.alternative.id}>
-                        <span className="kind">{words(d.disposition)}</span>{' '}
-                        {clip(
-                          names.get(d.alternative.id.toLowerCase()) ??
-                            d.alternative.id.slice(0, 8),
-                          80,
-                        )}
+                  <Fold
+                    id={s.id}
+                    folds={selectionFolds}
+                    summary={
+                      <>
+                        <strong>{s.current ? 'Current' : 'Replaced'}</strong> ·{' '}
+                        {when(s.created_at)} ·{' '}
+                        <span className="fold-title">
+                          {clip(s.rationale, 120)}
+                        </span>{' '}
                         <small>
-                          {' '}
-                          — {d.reasons.join(' ')} Reverse if: {d.reverse_if}
+                          · {s.dispositions.length} option
+                          {s.dispositions.length === 1 ? '' : 's'}
+                          {s.overrides.length > 0 ? ' · with override' : ''}
                         </small>
-                      </li>
+                      </>
+                    }
+                  >
+                    <p className="small">{s.rationale}</p>
+                    <ul>
+                      {s.dispositions.map((d) => (
+                        <li key={d.alternative.id}>
+                          <span className="kind">{words(d.disposition)}</span>{' '}
+                          {clip(
+                            names.get(d.alternative.id.toLowerCase()) ??
+                              d.alternative.id.slice(0, 8),
+                            80,
+                          )}
+                          <small>
+                            {' '}
+                            — {d.reasons.join(' ')} Reverse if: {d.reverse_if}
+                          </small>
+                        </li>
+                      ))}
+                    </ul>
+                    {s.overrides.map((o) => (
+                      <p
+                        key={`${o.alternative}-${o.ranking}`}
+                        className="override"
+                      >
+                        Override of the {o.ranking} ranking: advanced at
+                        original rank {o.original_rank ?? 'unranked'} (
+                        {o.original_score ?? 'no score'}) over{' '}
+                        {o.outranked_by
+                          .map((b) => `rank ${b.rank} (${b.score})`)
+                          .join(', ')}
+                        . Reason: {s.override_reason}
+                      </p>
                     ))}
-                  </ul>
-                  {s.overrides.map((o) => (
-                    <p
-                      key={`${o.alternative}-${o.ranking}`}
-                      className="override"
-                    >
-                      Override of the {o.ranking} ranking: advanced at original
-                      rank {o.original_rank ?? 'unranked'} (
-                      {o.original_score ?? 'no score'}) over{' '}
-                      {o.outranked_by
-                        .map((b) => `rank ${b.rank} (${b.score})`)
-                        .join(', ')}
-                      . Reason: {s.override_reason}
-                    </p>
-                  ))}
+                  </Fold>
                 </li>
               ))}
             </ol>
@@ -553,19 +640,30 @@ export function Scoring({
                   : 'not frozen'}
             </strong>
           </p>
-          <ul>
-            {spec.tasks.map((t) => (
-              <li key={t.key}>
-                <span className={`kind task-${t.status}`}>{t.status}</span>{' '}
-                {t.key} · {t.title}
-              </li>
-            ))}
-            {spec.removed_tasks.map((k) => (
-              <li key={k}>
-                <span className="kind task-removed">removed</span> {k}
-              </li>
-            ))}
-          </ul>
+          <Fold
+            id={`tasks:${spec.spec.id}`}
+            folds={taskFolds}
+            summary={
+              <>
+                <span className="fold-title">Tasks ({spec.tasks.length})</span>{' '}
+                <small>{taskCounts(spec)}</small>
+              </>
+            }
+          >
+            <ul>
+              {spec.tasks.map((t) => (
+                <li key={t.key}>
+                  <span className={`kind task-${t.status}`}>{t.status}</span>{' '}
+                  {t.key} · {t.title}
+                </li>
+              ))}
+              {spec.removed_tasks.map((k) => (
+                <li key={k}>
+                  <span className="kind task-removed">removed</span> {k}
+                </li>
+              ))}
+            </ul>
+          </Fold>
           {spec.problems.length > 0 && (
             <p className="error">
               Task graph: {spec.problems.map((p) => p.detail).join(' ')}

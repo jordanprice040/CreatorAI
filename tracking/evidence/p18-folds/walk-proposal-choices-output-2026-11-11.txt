@@ -1,0 +1,11 @@
+SETUP selection Waiting for your approval.Needs a person: outside grant.Open the decisionI approved it: submit again
+SETUP approve 200 Allow candidate.select on problem v1?
+SETUP selection again Selection recorded. It now appears in the history below and in Activity.
+READY options 2
+A draft open sections [ 1, 2 ]
+A after first save (should match the draft) [ 1, 2 ]
+R4-1 unsaved B draft open sections [ 1, 2, 7 ]
+R4-1 A picked after the draft (A default only) [ 2 ]
+R2-1 B draft open sections [ 1, 2, 5 ]
+R2-1 B after first save (same as draft) [ 1, 2, 5 ]
+R-2 A picked after B (A default only) [ 2 ]

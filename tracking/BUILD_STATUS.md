@@ -29,13 +29,13 @@ the record of each package and are appended to, not rewritten.
 | P13 unattended workflow | Not started; needs P10 and P12 |
 | P14 capability inventory and benchmarks | Merged (PRs #135, #145, #146; ADR-0076) |
 | P15 larger software | Slice 1 `static-web/1` merged and recorded qualified on one route (PRs #149, #150; ADR-0078); later slices not started |
-| P16 external runbook export | Merged (PR #152; ADR-0080, no migration) |
+| P16 external runbook export | Merged (PR #152; ADR-0080, no migration); wording follow-up merged (PR #163) |
 | P17 integrated acceptance | Not started |
-| P18 collapsible options, shorter pages | Not started (added November 10, R20) |
+| P18 collapsible options, shorter pages | Merged (PR #162; no migration or ADR) |
 | P19 Standard/Advanced across the app | Built November 11 on branch `claude/project-thread-xdq8er` (ADR-0082, migration 52), PR #164; independent review and two fix rounds done, ready to merge once the last re-review is clean |
 | P20 whole process from Chat | Not started (added November 10, R22); Jordan approved it November 10; needs an ADR amending ADR-0057/0070 |
-| P21 quick model switch | Not started (added November 10, R23) |
-| P22 live API and GitHub checks | Live checks passed November 10–11 (R24, R25); PR #160 in review |
+| P21 quick model switch | Merged (PR #161; ADR-0081, migration 51) |
+| P22 live API and GitHub checks | Merged (PR #160); live checks passed November 10–11 (R24, R25) |
 
 Checks on main `e08e0a4`, November 10 (cloud container, PostgreSQL 16): TypeScript, web typecheck and
 formatting pass; `pnpm test:db` 867 tests, 833 pass, 29 skips, 5 fail (the known wrapper tests that need
@@ -944,6 +944,143 @@ locally (e.g. an unusable private key) says to check the App credential, not "tr
 GitHub refuses (e.g. 422, repository removed from the installation) says so instead of "did not answer".
 Fifth re-review: a 404 from the App token step is a refusal, not "no such pull request" (L-1); a 401 there
 points at the App id or private key; a 5xx or a 201 without a token names the token step.
+
+## P18 collapsible options and shorter pages (November 10, branch `claude/project-thread-d4dxg5`, no migration or ADR)
+
+R20 and part of R12 from the [November 10 check](../docs/CREATOR_AGENT_IMPLEMENTATION_PLAN_2026-11-05.md) (the P18
+row arrives with docs PR #158). Web only; no data, route, gate, scoring or API change.
+
+- New `apps/web/src/fold.tsx` (`Fold`, `FoldAll`, `useFolds`) and `fold-state.ts` (pure rules: `foldIsOpen`,
+  `chooseAll`, `firstNeeding`, `nameList`). Each item is a native `<details>`/`<summary>`, so Enter/Space and screen
+  readers' expanded state work without extra code; closed content stays in the page, so typed fields keep their
+  values. Open state lives in the page component, and pages stay mounted while hidden, so it lasts while the app is
+  open. Expand all / Collapse all shows for lists of two or more.
+- Projects › Decide: claims, alternatives, the Decide form's options and the selection history each show one line
+  (alternatives: kind, title, scores, ethics and humility gates, how many choices gates block; options: chosen
+  disposition, what still needs the person, blocked choices). Only the first option that needs the person
+  (flagged, new, reasons written for another choice, or incomplete) opens by default; an option being edited stays
+  open. The line above Record now names the options it waits on, including the new case "give a disposition, reason
+  and would reverse if for N options (…)", so no reason a Record is disabled sits only inside a closed option.
+- Scores and specs: the two rankings (summary: candidates, first place, gates not clear, shortlist stability), the
+  selections and the open spec's task list fold; an unfrozen spec opens its tasks. Spec blockers and task-graph
+  problems stay outside the fold.
+- Proposals: the 15 editor sections fold (label, required, state, cited claims, first words); the first required
+  section not written opens; checks and blockers stay above the sections.
+- Monitor › Approvals: decision cards fold, every pending (and linked) decision is open, answered and closed ones
+  fold; "cannot be approved: the target changed" shows in the summary. Routine approval policies fold (a paused one
+  opens); the policy's error stays outside the fold.
+- Evidence (`tracking/evidence/p18-folds/`, throwaway PostgreSQL 16 database with the four seed workspaces, 1280×900):
+  page height before → after: Decide 6,480 → 3,563 px; Scores and specs 2,588 → 1,082 px (one screen); a new
+  proposal with all 15 sections open 5,880 → 2,623 px collapsed. `walk.cjs` output in `walk-output-2026-11-10.txt`:
+  Enter opens and Space closes an option from the keyboard; Expand/Collapse all; an emptied reason in a closed option
+  shows in its summary and in "Before you can record", Record disabled; open state and the typed (empty) field kept
+  after leaving for Scores and back; a freeze raised an approval whose card opened by default; empty Decide and
+  Approvals show their empty messages with no Expand/Collapse buttons. Before/after screenshots in `screens/`.
+- Gate: Scores and specs fits one screen. On Decide the collapsed alternatives and the collapsed options each fit in
+  about one screen, but the whole page is still about four screens (problem statement, automatic assessment, the
+  scoring form and "Why this response" are unchanged). Folding those is left to P19/P17.
+- Not done: Decide's assumption list, Proposals' review list and the Approvals runs and standing-policy lists stay
+  as they were (each is already one line per item). The decision card's `time_spent_ms` still counts from when the
+  card was shown, as before; pending cards open by default, so the measure is unchanged for them. Not independently
+  reviewed.
+- Checks (cloud container, PostgreSQL 16, no CI: Actions has no minutes): `pnpm typecheck` and `pnpm format:check`
+  pass; `pnpm test:db` 903 tests, 869 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests); `pnpm
+  test:dev-safety` 22 tests, 19 pass, 3 skip. New `tests/src/web-folds.test.ts` (4 tests); `web-session.test.ts`
+  stubs the new `./fold.js` import of `oversight.tsx`. The Windows CI job did not run.
+
+### P18 review fixes (November 10, same PR #162; review `reviews/P18_PR162_REVIEW_2026-11-10.md`, no High or Medium, 7 Lows)
+
+- L-1 Decide: the option that opens by default follows what is still unreviewed (`unreviewed`, stale reasons,
+  incomplete), not "changed since your decision", so after one changed option is reviewed the next one opens.
+- L-2 Decide: an option's summary names each choice gates block and its first reason ("Blocked by gates: Select for
+  a bounded build (…)") instead of only a count.
+- L-3 Proposals: a section a check blocks (`level: blocker` for that section, e.g. no cited claim, a cited claim
+  missing or no longer active) gets the attention style, shows "Written, blocked: …" and can be the section that opens.
+- L-4 Decide: "Before you can record" no longer names a new, untouched option twice.
+- L-5 Approvals: the question heading is inside the summary (read once; closed cards keep a heading); "expires"
+  shows once.
+- L-6 Proposals: section open/closed choices are held by the Proposals page (`useFoldChoices`, a new optional
+  argument of `useFolds`), so a save that remounts the editor keeps them; another proposal or a new draft starts
+  afresh.
+- L-7 Approvals: following a link to a decision opens its card even after Collapse all.
+- Evidence: `walk.cjs` re-run (output replaced): L-5 heading once inside the summary, L-7 linked card open after
+  Collapse all, L-6 the opened section still open after "Save proposal"; L-2 shows in the blocked summary line.
+  L-1 and L-4 need a revised alternative after a recorded selection and were checked from the code, not walked.
+- Checks after the fixes (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` and `pnpm format:check` pass;
+  `pnpm test:db` 910 tests, 876 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests). Not re-reviewed yet.
+
+### P18 re-review fixes (November 11, same PR #162; re-review `reviews/P18_PR162_REREVIEW_2026-11-10.md`, 3 Lows and a nit)
+
+- R-1 Approvals: a linked decision opens on every return to the page (`useOnShow`), not only when the id changes, so
+  following the same link again after closing the card opens it.
+- R-2 Proposals: opening a different proposal any way (list, Decide's link, an address) clears the section choices;
+  the step from a new draft to its first saved id keeps them.
+- R-3 Decide: summaries name only blocks the person can clear; blocks that follow from the option's kind ("has no
+  software to build", "Custom software is selected for build or validation", "not a response to recommend", "A
+  failed outcome cannot be validated") stay in the dropdown. The alternatives' "N choices blocked" counts the same way.
+- R-4: the L-3 entry above now says "missing or no longer active" (a stale citation is a warning, not a blocker).
+- Evidence: `walk.cjs` re-run (output replaced): R-1 same link after closing opens the card; R-2 after Expand all on
+  one proposal, another opened by address shows its own default (1 of 15 open); R-3 collapsed option summaries
+  52/73/91/52/52 px at 1280 wide (re-review measured about 110 px each before). A second proposal for the walk was
+  created through the API on the throwaway database.
+- Checks (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` and `pnpm format:check` pass; `pnpm test:db` 910
+  tests, 876 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests). `web-session.test.ts` stub gains `useOnShow`.
+
+### P18 second re-review fixes (November 11, same PR #162; `reviews/P18_PR162_REREVIEW2_2026-11-11.md`, 3 Lows and a nit)
+
+- R2-1 Proposals: starting a new draft while another proposal is open resets the remembered proposal, so the draft's
+  first save keeps the sections the person opened.
+- R3-1 Decide: a choice the option's kind rules out is left out of the summary and the "N choices blocked" count,
+  whatever its other reasons. N-1: the rule is now one function, `kindAllows` in `packages/contracts/src/selection.ts`,
+  used by the domain's kind blocks (`packages/domain/src/selection.ts`) and by the web, instead of matching the
+  domain's wording; tested in `tests/src/web-folds.test.ts`.
+- R3-2 Decide: the "Blocked by gates" line groups choices by reason ("Discovery disposition: duplicate. (blocks
+  validate, recommend)"), so a shared reason is written once.
+- Evidence: walk re-run (output replaced). Collapsed option summaries 52/73/73/52/52 px at 1280 and 110/129/111/110/91
+  px at 390 (the change-process option with a duplicate discovery went from 91 to 73 px at 1280). The revised-option
+  case (ethics not assessed) and R2-1 were checked from the code; the walk data has no revised option and no option
+  left to start a proposal for.
+- Checks (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` and `pnpm format:check` pass; `pnpm test:db` 912
+  tests, 878 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests). Domain selection tests pass with `kindAllows`.
+
+### P18 third re-review fixes (November 11, same PR #162; `reviews/P18_PR162_REREVIEW3_2026-11-11.md`, 1 Low and a nit)
+
+- R4-1 Proposals: the section choices belong to one proposal or to the unsaved draft (`'draft'`). Starting a draft
+  marks them as the draft's; the draft's own first save hands them to its new id; opening any other proposal,
+  including a saved one picked while a draft is open, starts afresh.
+- N-2 Decide: the "Blocked by gates" line uses the dropdown's labels ("Validate before building, Recommend (no new
+  software)").
+- Evidence: new `walk-proposal-choices.cjs` on a fresh `seed-selection` workspace (it records a second recommended
+  option, approving the one selection approval through the API as the owner would on Approvals), output in
+  `walk-proposal-choices-output-2026-11-11.txt`: A's opened sections survive its first save; an unsaved B draft's
+  choices do not carry to A (R4-1, A shows only its default); with A open, B's draft keeps its choices over its
+  first save (R2-1); A picked after B shows its default (R-2). Main walk re-run (output replaced).
+- Checks (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` and `pnpm format:check` pass; `pnpm test:db` 912
+  tests, 878 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests).
+
+### P18 fourth re-review fixes (November 11, same PR #162; fourth re-review at `6549579`, 1 Low and a nit)
+
+- R5-1 tracking: SESSION_HANDOFF's table no longer says P18 is "Not started", and its P18 entry now covers the review
+  rounds (shared `kindAllows`, the per-proposal fold choices, Approvals opening the focused decision, how to run
+  `walk-proposal-choices.cjs`, and the Decide sections left unfolded for P19/P17).
+- N-3 Decide: the blocked line reads "<reason> Blocks: Validate before building, Recommend (no new software)." with no
+  nested brackets.
+- Merged main (P21, #161); conflicts were only in BUILD_STATUS.md and SESSION_HANDOFF.md.
+- Checks (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` and `pnpm format:check` pass; `pnpm test:db` 919
+  tests, 885 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests).
+
+### P18 fifth re-review nits (November 11, same PR #162; `reviews/P18_PR162_REREVIEW5_2026-11-11.md`, review-clean, 2 nits)
+
+- N-4 Decide: two blocking reasons on one option are joined with a space, not ".;".
+- N-5 tracking: both status tables mark P21 merged (PR #161) and the P16 wording follow-up merged (PR #163).
+- Merged main again (#163); conflicts were only in BUILD_STATUS.md and SESSION_HANDOFF.md.
+- Checks (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` and `pnpm format:check` pass; `pnpm test:db` 919
+  tests, 885 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests).
+
+### P18 sixth re-review nit (November 11, same PR #162; `reviews/P18_PR162_REREVIEW6.md`, review-clean, 2 optional nits)
+
+- N-6 tracking: SESSION_HANDOFF's P18 review-rounds paragraph now covers re-reviews 5 and 6. Text only; no code
+  changed since `029f684`, so its checks stand. N-7 (P19 and P22 rows) is left to those threads.
 
 ## P19 Standard and Advanced (November 11, branch `claude/project-thread-xdq8er`, ADR-0082, migration 52)
 

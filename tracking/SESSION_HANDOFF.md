@@ -29,13 +29,13 @@ the record of each package and are appended to, not rewritten.
 | P13 unattended workflow | Not started; needs P10 and P12 |
 | P14 capability inventory and benchmarks | Merged (PRs #135, #145, #146; ADR-0076) |
 | P15 larger software | Slice 1 `static-web/1` merged and recorded qualified on one route (PRs #149, #150; ADR-0078); later slices not started |
-| P16 external runbook export | Merged (PR #152; ADR-0080, no migration) |
+| P16 external runbook export | Merged (PR #152; ADR-0080, no migration); wording follow-up merged (PR #163) |
 | P17 integrated acceptance | Not started |
-| P18 collapsible options, shorter pages | Not started (added November 10, R20) |
+| P18 collapsible options, shorter pages | Merged (PR #162; no migration or ADR) |
 | P19 Standard/Advanced across the app | Built November 11 on branch `claude/project-thread-xdq8er` (ADR-0082, migration 52), PR #164; independent review and two fix rounds done, ready to merge once the last re-review is clean |
 | P20 whole process from Chat | Not started (added November 10, R22); Jordan approved it November 10; needs an ADR amending ADR-0057/0070 |
-| P21 quick model switch | Not started (added November 10, R23) |
-| P22 live API and GitHub checks | Live checks passed November 10–11 (R24, R25); PR #160 in review |
+| P21 quick model switch | Merged (PR #161; ADR-0081, migration 51) |
+| P22 live API and GitHub checks | Merged (PR #160); live checks passed November 10–11 (R24, R25) |
 
 Checks on main `e08e0a4`, November 10 (cloud container, PostgreSQL 16): TypeScript, web typecheck and
 formatting pass; `pnpm test:db` 867 tests, 833 pass, 29 skips, 5 fail (the known wrapper tests that need
@@ -832,6 +832,32 @@ locally (e.g. an unusable private key) says to check the App credential, not "tr
 GitHub refuses (e.g. 422, repository removed from the installation) says so instead of "did not answer".
 Fifth re-review: a 404 from the App token step is a refusal, not "no such pull request" (L-1); a 401 there
 points at the App id or private key; a 5xx or a 201 without a token names the token step.
+
+## P18 collapsible options (November 10, branch `claude/project-thread-d4dxg5`, no migration or ADR)
+
+See the BUILD_STATUS entry "P18 collapsible options and shorter pages". Shared pieces for later pages (P19, P17):
+`Fold`, `FoldAll` and `useFolds` in `apps/web/src/fold.tsx`, rules in `fold-state.ts` (tested in
+`tests/src/web-folds.test.ts`). Rule for any new fold: the reason an action is blocked goes in the summary or
+outside the fold, never only inside it; open by default only what needs the person (`firstNeeding`), and mark an
+item open once the person edits it so it does not close under them. Walk scripts:
+`tracking/evidence/p18-folds/walk.cjs` and `heights.mjs` (set `WALK_CODE` to the throwaway API's
+`CREATOR_DEV_LOGIN_CODE`; web on 5183). P18 takes no migration or ADR number; P21 (parallel thread) takes migration 51 and
+ADR-0081, so check main before allocating. Next eligible prompt after review: P19 (Standard and Advanced across
+the app), which can fold Decide's remaining long sections.
+
+Review rounds on PR #162 (November 10–11; reports in the project's `reviews/P18_PR162_*`): first review 7 Lows,
+then re-reviews 1–4 (R-1..R-4, R2-1/R3-1/R3-2/N-1, R4-1/N-2, R5-1/N-3), all fixed; re-review 5 was review-clean
+with nits N-4/N-5 (fixed at `029f684`); re-review 6 was review-clean with nit N-6 (this paragraph, fixed) and N-7
+(P19/P22 table rows, left to their own threads). Details in BUILD_STATUS under the P18 entry. Things a later thread should know:
+- `kindAllows(kind, disposition)` in `packages/contracts/src/selection.ts` is the one rule for which dispositions an
+  option's kind can ever take. The domain's kind blocks use it; Decide's summaries leave those choices out.
+- Proposal section choices are held by the Proposals page and belong to one proposal or the unsaved draft
+  (`choicesFor` ref in `proposals.tsx`); `useFolds(attention, held)` takes parent-held choices.
+- Approvals opens a linked decision on focus change and on every return to the page (`useOnShow`).
+- `walk-proposal-choices.cjs` needs a fresh `seed-selection` workspace (`WALK_WS`); it records one selection and
+  approves it through the API on the throwaway database.
+- Still not done: Decide's problem statement, automatic assessment, scoring form and "Why this response" are not
+  folded (page about 4 screens); left to P19/P17. CI did not run (no Actions minutes).
 
 ## P19 Standard and Advanced (November 11, branch `claude/project-thread-xdq8er`, ADR-0082, migration 52)
 
