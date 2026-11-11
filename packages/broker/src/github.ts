@@ -50,11 +50,15 @@ export interface RepositoryRead {
   refusal: ReadRefusal | null;
 }
 const rateLimited = (r: GitHubResponse) =>
-  // A secondary rate limit may come without `retry-after`; GitHub's message names it.
-  (r.status === 403 || r.status === 429) &&
-  (r.headers['x-ratelimit-remaining'] === '0' ||
-    r.headers['retry-after'] !== undefined ||
-    /rate limit/i.test(r.message));
+  // 429 is always a rate limit. A 403 is one only with a sign of it; a secondary rate limit may
+  // come without `retry-after`, but GitHub's message names it.
+  r.status === 429 ||
+  (r.status === 403 &&
+    (r.headers['x-ratelimit-remaining'] === '0' ||
+      r.headers['retry-after'] !== undefined ||
+      /rate limit/i.test(r.message)));
+const RATE_LIMITED =
+  'GitHub is rate-limiting this credential; nothing was read. Try again later.';
 /**
  * Re-review 4 and 5 nits: a response that never got past the GitHub App token step says so,
  * whichever read it was for. Null when the response is from the read itself.
@@ -63,9 +67,7 @@ const tokenStepWording = (r: GitHubResponse): string | null => {
   if (r.stage === 'studio')
     return 'The studio could not get a GitHub App token, so GitHub was not asked; check the App credential (App id and private key).';
   if (r.stage !== 'app_token') return null;
-  // A 429 to the token request is a rate limit even without rate-limit headers.
-  if (rateLimited(r) || r.status === 429)
-    return 'GitHub is rate-limiting this credential; nothing was read. Try again later.';
+  if (rateLimited(r)) return RATE_LIMITED;
   if (r.status === 401)
     return 'GitHub did not accept the studio’s GitHub App sign-in: the App id or private key may be wrong, or the key revoked. Nothing was read.';
   if (r.status !== null && r.status >= 400 && r.status < 500)
@@ -95,7 +97,7 @@ export const repositoryRefusal = (r: GitHubResponse): ReadRefusal => {
     (r.status === 200
       ? 'GitHub’s reply about this repository could not be read; nothing was read. Try again later.'
       : rateLimited(r)
-        ? 'GitHub is rate-limiting this credential; nothing was read. Try again later.'
+        ? RATE_LIMITED
         : r.status === 401 || r.status === 403 || r.status === 404
           ? 'GitHub did not show this repository to the connection’s credential: the token may be expired or revoked, or its access to the repository removed.'
           : 'GitHub did not answer the repository read; nothing was read. Try again later.');
@@ -113,12 +115,12 @@ const readRefusal = (
   step: ReadRefusal['step'],
   r: GitHubResponse,
 ): ReadRefusal => {
-  const token = tokenStepWording(r);
+  const wording = tokenStepWording(r) ?? (rateLimited(r) ? RATE_LIMITED : null);
   return {
     step,
     status: r.status,
-    message: (token
-      ? `${token}${refusalDetail(r)}`
+    message: (wording
+      ? `${wording}${refusalDetail(r)}`
       : r.message || (r.status === null ? 'no response' : `HTTP ${r.status}`)
     ).slice(0, 300),
   };

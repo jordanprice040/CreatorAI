@@ -688,3 +688,26 @@ test('P22 re-review 6: a 429 at the App token step is a rate limit; its reply is
   );
   assert.ok(gh.seen.every((s) => s.path.endsWith('/access_tokens')));
 });
+
+test('P22 re-review 7: a 429 on the pull or statuses read itself says rate-limited', async (t) => {
+  const gh = await loopbackGitHub((s) =>
+    s.path.endsWith(`/commits/${SHA}/status`) || s.path.endsWith('/pulls/1')
+      ? { status: 429, body: {} }
+      : { status: 404, body: { message: 'Not Found' } },
+  );
+  t.after(gh.close);
+  const a = new LiveGitHub({
+    credential: { kind: 'fine_grained_pat', token: 'pat-secret' },
+    apiBase: gh.base,
+  });
+  const pull = await a.pullRead(repo, 1);
+  assert.equal(pull.refusal?.status, 429);
+  assert.match(pull.refusal!.message, /rate-limiting.*Try again/);
+  const c = await a.checks(repo, SHA);
+  assert.deepEqual(
+    c.refusals.map((r) => `${r.step}:${r.status}`),
+    ['statuses:429'],
+  );
+  assert.match(c.refusals[0]!.message, /rate-limiting.*Try again/);
+  assert.doesNotMatch(c.refusals[0]!.message, /^HTTP 429$/);
+});
