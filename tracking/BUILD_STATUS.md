@@ -843,3 +843,47 @@ incremental. 0 URLs overlap with the Claude Code run. Guarded fetch: 2/15 usable
 Reddit empty shells). Fetching remains the bottleneck; no search API is justified by these
 results. See [section 13](../docs/SEARCH_ROUTE_INVESTIGATION_2026-11-10.md) and
 `tracking/evidence/search-route-test-2026-11-10/plan-route/`. No ADR or migration.
+
+## P21 current-model switch (November 10, 2026, ADR-0081, migration 51; branch `claude/project-thread-6af37w`)
+
+- What works: a "Model" button beside the usage indicator (owners only) lists every verified model on the
+  workspace's plan connections, says which tasks each is qualified for (Chat, Explore, Discover, Assess, Build),
+  and switches the owner's current model. The choice is stored server-side per person and workspace
+  (`model_choices`, `GET/POST /api/workspaces/:ws/model-choice`), versioned and audited; only verified models
+  are accepted. Explore, Discover, Assess, Build (plan-role builder), the Chat answers setting and Qualify start
+  from it unless changed on the form. A form whose task the current model is not qualified for keeps it, shows
+  the reason and offers a qualified alternative as a button; it never switches quietly. A saved chat setting
+  follows the switch (audited, `via: model_switch`). Runs, builds, qualifications and chat answers already
+  started keep their recorded route.
+- Evidence: `tests/src/model-choice.test.ts` (form rules, Build default, store: owner only, verified only,
+  version conflict, audit, chat follows, earlier answer keeps its model, API route with CSRF and strict body).
+  Browser walk on a throwaway database: `tracking/evidence/p21-model-switch/` (two switches move Explore,
+  Discover, Assess and chat; a form pick wins locally; no page errors). The walk found and fixed a duplicate
+  React key that rendered the picker many times.
+- Checks (cloud container, PostgreSQL 16, no CI): `pnpm test:db` 903 tests, 869 pass, 29 skip, 5 fail (the known
+  no-`pwsh` wrapper tests); after the last web edits, `pnpm typecheck`, `pnpm format:check`, `pnpm test:dev-safety`
+  (19 pass, 3 skip) and the model-choice, storage and chat-answers suites (22 pass) were rerun and pass.
+- Not done: Build and Qualify not walked in a browser (fixture workspaces have no plan builders and fixture
+  connections cannot be qualified; Build's default is unit-tested); no CLI command; not independently reviewed.
+
+### P21 review fixes (November 10, same PR #161; review `/mnt/project-files/reviews/P21_MODEL_SWITCH_REVIEW_2026-11-10.md`, 0 High/Medium, 6 Low)
+
+- L-1: Build re-defaults its builder whenever the current model arrives or changes and nothing was picked on the
+  form, so a choice that loads after Build's data is still used. L-2: the first-ever switch checks the version in the
+  write itself (`on conflict … where version = expected`), so of two concurrent first switches one is refused as
+  `VERSION_CONFLICT` and leaves no audit row. L-3: with no current model, Build defaults to a builder qualified for
+  both roles before an unqualified one. L-4: tests that a tester is refused on `/model-choice` (read and switch) and
+  that a discovery started before a switch finishes on its recorded model. L-5: `model_choice` activity rows open
+  Models. L-6: the picker text names Qualify. Also (on main before this PR): the Build option names the Claude plan for
+  a Claude Code connection instead of always "ChatGPT plan".
+- L-1 is fixed in the form's effect and was not re-walked in a browser (fixture workspaces list no plan builders).
+- Checks (cloud container, PostgreSQL 16, no CI): typecheck and format pass; `pnpm test:db` 912 tests, 878 pass, 29 skip,
+  5 fail (the known no-`pwsh` wrapper tests); dev-safety 19 pass, 3 skip.
+- Re-review fixes: M-1, Build's choice-change effect no longer runs its reset on mount, so a lost locked builder
+  still shows "Chosen plan model unavailable: choose again" (the pure rule `builderAfterChoiceChange`, whose unit
+  test covers an unchanged choice keeping a lost builder; no component test). L-1: the help text under a Claude Code builder says "Claude plan". Checks: typecheck
+  and format pass; `pnpm test:db` 913 tests, 879 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests).
+- Second re-review Lows: L-1, when the current model is not verified on a plan connection here and nothing was
+  picked, Build says so and names the model it uses instead, like Explore, Discover and Assess. L-2: the wording above.
+- Third re-review Lows: that note is not shown beside "Chosen plan model unavailable: choose again" (nothing runs
+  until a builder is chosen) or in a fixture workspace (Build lists no plan builders there).

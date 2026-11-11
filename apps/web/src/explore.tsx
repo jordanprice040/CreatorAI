@@ -28,6 +28,13 @@ import { api, message, when, words } from './oversight.js';
 import { newestFirst } from './versions.js';
 import { envelopesFor } from './build-defaults.js';
 import { Empty, Status, useLoad, type View } from './ui.js';
+import { preferredRoute } from './model-choice.js';
+import {
+  ChoiceNote,
+  responsesModels,
+  routePlans,
+  useModelChoice,
+} from './model-switch.js';
 
 // C53 "Explore for me" (ADR-0065). No theme: the studio reads claims already recorded here
 // and one explorer request proposes a short list of evidenced problems. Application rules
@@ -161,17 +168,34 @@ export function Explore({
   const [openId, setOpenId] = useState('');
 
   const c = ctx.data;
-  const plan = connectionId
-    ? c?.details.find((p) => p.connection.id === connectionId)
-    : c?.details[0];
+  // ADR-0081: with nothing picked here, start from the current model in the top bar.
+  const choice = useModelChoice(workspace);
+  const first = c?.details[0];
+  const route = preferredRoute(
+    routePlans(c?.details ?? [], [EXPLORATION_TASK_CLASS], dataClass),
+    choice,
+    [EXPLORATION_TASK_CLASS],
+    {
+      connection: first?.connection.id ?? '',
+      model: first ? (responsesModels(first)[0] ?? '') : '',
+    },
+  );
+  const plan = c?.details.find(
+    (p) => p.connection.id === (connectionId || route.connection),
+  );
   const verified =
     plan?.model_access.filter(
       (a) => a.path === 'responses' && a.access === 'verified',
     ) ?? [];
   const model =
     (verified.some((a) => a.model_id === planModel) ? planModel : '') ||
+    (plan && plan.connection.id === route.connection ? route.model : '') ||
     verified[0]?.model_id ||
     '';
+  const routeShown =
+    !connectionId && !planModel
+      ? route
+      : { ...route, fromChoice: false, choiceUnavailable: false };
   const envelope = c?.envelopes[0];
   const price = c?.pricing[0];
   const timeout =
@@ -555,6 +579,21 @@ export function Explore({
                       </select>
                     </div>
                   </div>
+                )}
+                {resourceKind === 'subscription' && (
+                  <ChoiceNote
+                    route={routeShown}
+                    choice={choice}
+                    task="Explore"
+                    labelOf={(id) =>
+                      c.details.find((p) => p.connection.id === id)?.connection
+                        .label ?? id
+                    }
+                    onUse={(conn, m) => {
+                      setConnectionId(conn);
+                      setPlanModel(m);
+                    }}
+                  />
                 )}
                 <label htmlFor="x-class">Evidence sharing class</label>
                 <select

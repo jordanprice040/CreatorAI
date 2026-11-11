@@ -644,6 +644,8 @@ export function createApi(
   const CHAT_ANSWER_ROUTE =
     /^\/api\/workspaces\/([^/]+)\/(chats)\/([^/]+)\/messages\/([^/]+)\/answer$/;
   const CHAT_SETTINGS_ROUTE = /^\/api\/workspaces\/([^/]+)\/(chat-settings)$/;
+  // ADR-0081: the person's current connection and model (the picker beside usage).
+  const MODEL_CHOICE_ROUTE = /^\/api\/workspaces\/([^/]+)\/(model-choice)$/;
   // ADR-0073: the person's named notes; one note, its rename and its archive switch.
   const NOTES_ROUTE =
     /^\/api\/workspaces\/([^/]+)\/(notes)(?:\/([^/]+)(?:\/(rename|archive))?)?$/;
@@ -664,6 +666,7 @@ export function createApi(
       CHAT_ROUTE.exec(url.pathname) ??
       CHAT_ANSWER_ROUTE.exec(url.pathname) ??
       CHAT_SETTINGS_ROUTE.exec(url.pathname) ??
+      MODEL_CHOICE_ROUTE.exec(url.pathname) ??
       NOTES_ROUTE.exec(url.pathname) ??
       FILES_ROUTE.exec(url.pathname) ??
       ACTIVITY_NOW_ROUTE.exec(url.pathname);
@@ -686,6 +689,7 @@ export function createApi(
       SETTINGS_SPENDING_ROUTE,
       SETTINGS_LIMITS_ROUTE,
       CONNECTIONS_ROUTE,
+      MODEL_CHOICE_ROUTE,
       GITHUB_ROUTE,
       PAYMENTS_ROUTE,
       MARKETING_ROUTE,
@@ -870,6 +874,17 @@ export function createApi(
       if (method === 'GET')
         return send(200, await store.activityNow(ctx, ws), false);
       throw new ContractError('NOT_FOUND', 'Unknown activity route.');
+    }
+    if (ws && MODEL_CHOICE_ROUTE.test(url.pathname)) {
+      if (method === 'GET')
+        return send(200, await store.modelChoice(ctx, ws), false);
+      if (method === 'POST')
+        return send(
+          200,
+          await store.setModelChoice(ctx, ws, await readJson(req)),
+          true,
+        );
+      throw new ContractError('NOT_FOUND', 'Unknown model choice route.');
     }
     if (ws && CHAT_SETTINGS_ROUTE.test(url.pathname)) {
       if (method === 'GET')
