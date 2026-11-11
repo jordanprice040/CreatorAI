@@ -22,6 +22,7 @@ import {
   FEEDBACK_REVISION_STALE,
   feedbackReason,
   nextKey,
+  SPEC_DEFAULTS,
   argsShowable,
   storedKeys,
   type DataClass,
@@ -30,6 +31,7 @@ import {
   type SpecContentShape,
   type SpecDraft,
 } from './spec-fields.js';
+import { Routine, WhatWillHappen } from './routine.js';
 
 const METHODS: { value: Method; label: string }[] = [
   { value: 'automated_test', label: 'Automated test (cases below)' },
@@ -96,15 +98,17 @@ export function SpecForm({
   /** Where a feedback revision that went stale sends the owner instead. */
   openBuild?: () => void;
 }) {
-  const [d, setD] = useState<SpecDraft>(() =>
+  // The draft the form opened with, so the folds can say what was changed here.
+  const [start] = useState<SpecDraft>(() =>
     mode.kind === 'revise'
       ? draftFromContent(
           mode.entity.title,
           mode.entity.body as unknown as SpecContentShape,
           (step) => formatBrowserStep(step as BrowserStep),
         )
-      : emptySpecDraft(mode.prefill),
+      : emptySpecDraft({ ...mode.prefill, maintainer: session.display_name }),
   );
+  const [d, setD] = useState<SpecDraft>(() => structuredClone(start));
   const fromFeedback = mode.kind === 'revise' ? mode.feedback : undefined;
   const [reason, setReason] = useState(() =>
     fromFeedback ? feedbackReason(fromFeedback.text) : '',
@@ -278,6 +282,36 @@ export function SpecForm({
     </p>
   );
 
+  // ADR-0082 (P19): routine values and where they came from, for the folds' summaries. A new
+  // spec starts from studio defaults; a revision starts from the stored version.
+  const origin =
+    mode.kind === 'revise'
+      ? `as in v${mode.spec.spec.version}`
+      : 'studio defaults';
+  const sameTask = (t: SpecDraft['tasks'][number]) => {
+    const was = start.tasks.find((x) => x.key === t.key);
+    return was
+      ? was.role === t.role &&
+          was.file_scope === t.file_scope &&
+          was.depends_on.join() === t.depends_on.join()
+      : t.role === SPEC_DEFAULTS.role &&
+          !t.file_scope.trim() &&
+          !t.depends_on.length;
+  };
+  const taskSummary = (t: SpecDraft['tasks'][number]) => {
+    const scope = t.file_scope.trim()
+      ? `${t.file_scope.split('\n').filter((l) => l.trim()).length} path(s)`
+      : 'any path';
+    const waits = t.depends_on.length
+      ? `waits for ${t.depends_on.join(', ')}`
+      : 'waits for none';
+    const was = start.tasks.some((x) => x.key === t.key);
+    return `${t.key} routine: ${t.role || 'no role'} · ${scope} · ${waits} · ${sameTask(t) ? (was ? origin : 'studio defaults') : 'changed here'}`;
+  };
+  const sameUpkeep =
+    JSON.stringify([d.data_contracts, d.risks, d.maintenance]) ===
+    JSON.stringify([start.data_contracts, start.risks, start.maintenance]);
+  const upkeepSummary = `Data, risks and upkeep: ${d.data_contracts.length === 0 ? 'no data contracts' : `${d.data_contracts.length} data contract(s)`} · ${d.risks.length === 0 ? 'no risks listed' : `${d.risks.length} risk(s)`} · maintained by ${d.maintenance.owner.trim() || 'nobody yet'}, reviewed ${d.maintenance.review_interval.trim().toLowerCase() || 'never'} · ${sameUpkeep ? origin : 'changed here'}`;
   return (
     <form
       className="spec-form"
@@ -703,34 +737,72 @@ export function SpecForm({
             {box(`tasks.${i}.title`, 'Title', t.title, (v) =>
               set((x) => (x.tasks[i]!.title = v)),
             )}
-            <div className="inline-form">
-              <label htmlFor={`sf-tasks.${i}.role`} className="inline">
-                Role
-              </label>
-              <select
-                id={`sf-tasks.${i}.role`}
-                value={t.role}
-                {...aria(`tasks.${i}.role`)}
-                onChange={(e) =>
-                  set((x) => (x.tasks[i]!.role = e.target.value as Role))
-                }
-              >
-                <option value="">Choose</option>
-                {ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {err(`tasks.${i}.role`)}
-            {box(
-              `tasks.${i}.file_scope`,
-              'Paths it may change (one per line, like src)',
-              t.file_scope,
-              (v) => set((x) => (x.tasks[i]!.file_scope = v)),
-              { rows: 2, mono: true },
-            )}
+            <Routine
+              summary={taskSummary(t)}
+              open={[
+                `tasks.${i}.role`,
+                `tasks.${i}.file_scope`,
+                `tasks.${i}.depends_on`,
+              ].some((k) => Boolean(errors[k]))}
+            >
+              <div className="inline-form">
+                <label htmlFor={`sf-tasks.${i}.role`} className="inline">
+                  Role
+                </label>
+                <select
+                  id={`sf-tasks.${i}.role`}
+                  value={t.role}
+                  {...aria(`tasks.${i}.role`)}
+                  onChange={(e) =>
+                    set((x) => (x.tasks[i]!.role = e.target.value as Role))
+                  }
+                >
+                  <option value="">Choose</option>
+                  {ROLES.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {err(`tasks.${i}.role`)}
+              {box(
+                `tasks.${i}.file_scope`,
+                'Paths it may change (one per line, like src)',
+                t.file_scope,
+                (v) => set((x) => (x.tasks[i]!.file_scope = v)),
+                { rows: 2, mono: true },
+              )}
+              {taskKeys.length > 1 && (
+                <div
+                  role="group"
+                  aria-label={`Tasks ${t.key} waits for`}
+                  className="sf-picks"
+                >
+                  <span className="small">Waits for:</span>
+                  {taskKeys
+                    .filter((k) => k !== t.key)
+                    .map((k) => (
+                      <label key={k}>
+                        <input
+                          type="checkbox"
+                          checked={t.depends_on.includes(k)}
+                          onChange={(e) =>
+                            set((x) => {
+                              const a = x.tasks[i]!.depends_on;
+                              x.tasks[i]!.depends_on = e.target.checked
+                                ? [...a, k]
+                                : a.filter((y) => y !== k);
+                            })
+                          }
+                        />
+                        {k}
+                      </label>
+                    ))}
+                </div>
+              )}
+              {err(`tasks.${i}.depends_on`)}
+            </Routine>
             <div
               role="group"
               aria-label={`Checks ${t.key} delivers`}
@@ -757,35 +829,6 @@ export function SpecForm({
               ))}
             </div>
             {err(`tasks.${i}.acceptance`)}
-            {taskKeys.length > 1 && (
-              <div
-                role="group"
-                aria-label={`Tasks ${t.key} waits for`}
-                className="sf-picks"
-              >
-                <span className="small">Waits for:</span>
-                {taskKeys
-                  .filter((k) => k !== t.key)
-                  .map((k) => (
-                    <label key={k}>
-                      <input
-                        type="checkbox"
-                        checked={t.depends_on.includes(k)}
-                        onChange={(e) =>
-                          set((x) => {
-                            const a = x.tasks[i]!.depends_on;
-                            x.tasks[i]!.depends_on = e.target.checked
-                              ? [...a, k]
-                              : a.filter((y) => y !== k);
-                          })
-                        }
-                      />
-                      {k}
-                    </label>
-                  ))}
-              </div>
-            )}
-            {err(`tasks.${i}.depends_on`)}
             {box(`tasks.${i}.deliverable`, 'Deliverable', t.deliverable, (v) =>
               set((x) => (x.tasks[i]!.deliverable = v)),
             )}
@@ -817,7 +860,7 @@ export function SpecForm({
                 x.tasks.push({
                   key: newTask,
                   title: '',
-                  role: '',
+                  role: SPEC_DEFAULTS.role,
                   file_scope: '',
                   depends_on: [],
                   acceptance: [],
@@ -831,123 +874,133 @@ export function SpecForm({
         )}
       </fieldset>
 
-      <fieldset>
-        <legend>Data, risks and upkeep</legend>
-        {d.data_contracts.map((c, i) => (
-          <div key={i} className="sf-item">
-            <strong>Data {i + 1}</strong>
-            {box(`data_contracts.${i}.name`, 'Name', c.name, (v) =>
-              set((x) => (x.data_contracts[i]!.name = v)),
-            )}
-            {box(
-              `data_contracts.${i}.description`,
-              'Description',
-              c.description,
-              (v) => set((x) => (x.data_contracts[i]!.description = v)),
-            )}
-            <div className="inline-form">
-              <label
-                htmlFor={`sf-data_contracts.${i}.data_class`}
-                className="inline"
-              >
-                Data class
-              </label>
-              <select
-                id={`sf-data_contracts.${i}.data_class`}
-                value={c.data_class}
-                {...aria(`data_contracts.${i}.data_class`)}
-                onChange={(e) =>
-                  set(
-                    (x) =>
-                      (x.data_contracts[i]!.data_class = e.target
-                        .value as DataClass),
-                  )
-                }
-              >
-                <option value="">Choose</option>
-                {CLASSES.map((k) => (
-                  <option key={k.value} value={k.value}>
-                    {k.label}
-                  </option>
-                ))}
-              </select>
+      <Routine
+        summary={upkeepSummary}
+        open={Object.keys(errors).some(
+          (k) =>
+            k.startsWith('data_contracts') ||
+            k.startsWith('risks') ||
+            k.startsWith('maintenance'),
+        )}
+      >
+        <fieldset>
+          <legend>Data, risks and upkeep</legend>
+          {d.data_contracts.map((c, i) => (
+            <div key={i} className="sf-item">
+              <strong>Data {i + 1}</strong>
+              {box(`data_contracts.${i}.name`, 'Name', c.name, (v) =>
+                set((x) => (x.data_contracts[i]!.name = v)),
+              )}
+              {box(
+                `data_contracts.${i}.description`,
+                'Description',
+                c.description,
+                (v) => set((x) => (x.data_contracts[i]!.description = v)),
+              )}
+              <div className="inline-form">
+                <label
+                  htmlFor={`sf-data_contracts.${i}.data_class`}
+                  className="inline"
+                >
+                  Data class
+                </label>
+                <select
+                  id={`sf-data_contracts.${i}.data_class`}
+                  value={c.data_class}
+                  {...aria(`data_contracts.${i}.data_class`)}
+                  onChange={(e) =>
+                    set(
+                      (x) =>
+                        (x.data_contracts[i]!.data_class = e.target
+                          .value as DataClass),
+                    )
+                  }
+                >
+                  <option value="">Choose</option>
+                  {CLASSES.map((k) => (
+                    <option key={k.value} value={k.value}>
+                      {k.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="text"
+                  onClick={() => drop((x) => remove(x.data_contracts, i))}
+                >
+                  Remove
+                </button>
+              </div>
+              {err(`data_contracts.${i}.data_class`)}
+            </div>
+          ))}
+          {d.data_contracts.length < 20 && (
+            <button
+              type="button"
+              className="secondary"
+              onClick={() =>
+                set((x) =>
+                  x.data_contracts.push({
+                    name: '',
+                    description: '',
+                    data_class: '',
+                  }),
+                )
+              }
+            >
+              Add data it uses
+            </button>
+          )}
+          {d.risks.map((r, i) => (
+            <div key={i} className="sf-item">
+              <strong>Risk {i + 1}</strong>
+              {box(`risks.${i}.risk`, 'Risk', r.risk, (v) =>
+                set((x) => (x.risks[i]!.risk = v)),
+              )}
+              {box(`risks.${i}.mitigation`, 'Mitigation', r.mitigation, (v) =>
+                set((x) => (x.risks[i]!.mitigation = v)),
+              )}
               <button
                 type="button"
                 className="text"
-                onClick={() => drop((x) => remove(x.data_contracts, i))}
+                onClick={() => drop((x) => remove(x.risks, i))}
               >
                 Remove
               </button>
             </div>
-            {err(`data_contracts.${i}.data_class`)}
-          </div>
-        ))}
-        {d.data_contracts.length < 20 && (
-          <button
-            type="button"
-            className="secondary"
-            onClick={() =>
-              set((x) =>
-                x.data_contracts.push({
-                  name: '',
-                  description: '',
-                  data_class: '',
-                }),
-              )
-            }
-          >
-            Add data it uses
-          </button>
-        )}
-        {d.risks.map((r, i) => (
-          <div key={i} className="sf-item">
-            <strong>Risk {i + 1}</strong>
-            {box(`risks.${i}.risk`, 'Risk', r.risk, (v) =>
-              set((x) => (x.risks[i]!.risk = v)),
-            )}
-            {box(`risks.${i}.mitigation`, 'Mitigation', r.mitigation, (v) =>
-              set((x) => (x.risks[i]!.mitigation = v)),
-            )}
+          ))}
+          {d.risks.length < 20 && (
             <button
               type="button"
-              className="text"
-              onClick={() => drop((x) => remove(x.risks, i))}
+              className="secondary"
+              onClick={() =>
+                set((x) => x.risks.push({ risk: '', mitigation: '' }))
+              }
             >
-              Remove
+              Add a risk
             </button>
-          </div>
-        ))}
-        {d.risks.length < 20 && (
-          <button
-            type="button"
-            className="secondary"
-            onClick={() =>
-              set((x) => x.risks.push({ risk: '', mitigation: '' }))
-            }
-          >
-            Add a risk
-          </button>
-        )}
-        {box(
-          'maintenance.owner',
-          'Who maintains it',
-          d.maintenance.owner,
-          (v) => set((x) => (x.maintenance.owner = v)),
-        )}
-        {box(
-          'maintenance.obligations',
-          'Upkeep obligations (one per line)',
-          d.maintenance.obligations,
-          (v) => set((x) => (x.maintenance.obligations = v)),
-          { rows: 2 },
-        )}
-        {box(
-          'maintenance.review_interval',
-          'How often it is reviewed',
-          d.maintenance.review_interval,
-          (v) => set((x) => (x.maintenance.review_interval = v)),
-        )}
-      </fieldset>
+          )}
+          {box(
+            'maintenance.owner',
+            'Who maintains it',
+            d.maintenance.owner,
+            (v) => set((x) => (x.maintenance.owner = v)),
+          )}
+          {box(
+            'maintenance.obligations',
+            'Upkeep obligations (one per line)',
+            d.maintenance.obligations,
+            (v) => set((x) => (x.maintenance.obligations = v)),
+            { rows: 2 },
+          )}
+          {box(
+            'maintenance.review_interval',
+            'How often it is reviewed',
+            d.maintenance.review_interval,
+            (v) => set((x) => (x.maintenance.review_interval = v)),
+          )}
+        </fieldset>
+      </Routine>
 
       {notes.length > 0 && (
         <div className="notice" role="status">
@@ -983,6 +1036,28 @@ export function SpecForm({
           )}
         </p>
       )}
+      <WhatWillHappen
+        items={[
+          {
+            label: 'Spec',
+            value:
+              mode.kind === 'create'
+                ? `Saves “${d.title.trim() || 'this spec'}” as a draft spec, version 1`
+                : `Saves version ${mode.spec.spec.version + 1} of ${mode.spec.spec.title}${mode.spec.frozen_current ? '; the frozen version stays as it was' : ''}`,
+          },
+          {
+            label: 'Contents',
+            value: `${d.flows.length} flow${d.flows.length === 1 ? '' : 's'}, ${d.checks.length} acceptance check${d.checks.length === 1 ? '' : 's'}, ${d.tasks.length} task${d.tasks.length === 1 ? '' : 's'}`,
+          },
+          { label: 'Upkeep', value: upkeepSummary },
+          {
+            label: 'Next',
+            value:
+              'Freeze it under Scores and specs; nothing is built until a frozen version has a humility review and you start a build',
+          },
+        ]}
+        note="Nothing is saved until you press the button below, and the server checks the spec again."
+      />
       <div className="actions">
         <button type="submit" disabled={busy || done || stale}>
           {mode.kind === 'create' ? 'Save spec' : 'Save new version'}

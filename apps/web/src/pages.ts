@@ -155,9 +155,12 @@ export function placeLabel(view: View, from?: View): string {
 }
 
 /** The tab row of a page: one entry per tab, a shared group counting once. */
-export function tabsOf(page: Page): { label: string; sections: Section[] }[] {
+export function tabsOf(
+  page: Page,
+  sections: readonly Section[] = page.sections,
+): { label: string; sections: Section[] }[] {
   const tabs: { label: string; sections: Section[] }[] = [];
-  for (const s of page.sections) {
+  for (const s of sections) {
     const label = s.group ?? s.label;
     const tab = tabs.find((t) => t.label === label);
     if (tab) tab.sections.push(s);
@@ -204,4 +207,45 @@ export function routeHash(r: Route): string {
   if (r.q) p.set('q', r.q);
   const qs = p.toString();
   return `#/${pageOf(r.view).key}/${sectionOf(r.view).slug}${qs ? `?${qs}` : ''}`;
+}
+
+/**
+ * ADR-0082 (P19): the tabs Standard leaves out of the navigation because few people need them
+ * day to day. Their routes still open (links, addresses, Chat buttons), and an open one is
+ * listed while it is open. Advanced lists every tab.
+ */
+export const ADVANCED_ONLY: readonly View[] = [
+  'payments',
+  'marketing',
+  'portfolio',
+  'operations',
+  'studies',
+];
+
+/** The sections of a page the navigation lists in this view mode, with `current` always kept. */
+export function shownSections(
+  page: Page,
+  standard: boolean,
+  current?: View,
+): Section[] {
+  return page.sections.filter(
+    (s) => !standard || s.view === current || !ADVANCED_ONLY.includes(s.view),
+  );
+}
+
+/** The tab names a page hides in Standard right now (a shared group named once). */
+export function hiddenTabs(
+  page: Page,
+  standard: boolean,
+  current?: View,
+): string[] {
+  if (!standard) return [];
+  const shown = shownSections(page, true, current);
+  const names: string[] = [];
+  for (const s of page.sections)
+    if (!shown.includes(s)) {
+      const n = s.group ?? s.label;
+      if (!names.includes(n)) names.push(n);
+    }
+  return names;
 }

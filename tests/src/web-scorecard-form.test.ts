@@ -115,9 +115,15 @@ test('nothing is pre-picked: an empty form names every judgment still to make', 
     target_users: 'Gamers',
     measurable_outcome: 'Missed inputs per minute',
   });
-  // Only text the discovery record states is filled in.
+  // Only text the discovery record states is filled in; every other check starts as the
+  // honest "unknown" (ADR-0082), never as an answer.
   assert.equal(d.checks.target_users, 'Gamers');
   assert.equal(d.checks.measurable_outcome, 'Missed inputs per minute');
+  assert.equal(d.checks.current_workaround, 'unknown');
+  assert.equal(d.checks.contrary_evidence, 'unknown');
+  assert.equal(d.checks.validation_plan, 'unknown');
+  assert.equal(d.checks.maintenance, 'unknown');
+  assert.equal(d.influence.rating, '', 'software influence is a judgment');
   const out = f.draftToBody(d, o);
   assert.equal(out.body, null);
   for (const k of o.criteria) assert.ok(out.errors![`ratings.${k}.rating`]);

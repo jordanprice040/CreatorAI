@@ -79,11 +79,26 @@ test('a new draft starts from the record text only and names every missing part'
     'non_goals',
     'checks.0.statement',
     'checks.0.method',
-    'tasks.0.role',
-    'tasks.0.acceptance',
+    'tasks.0.title',
+    'tasks.0.deliverable',
     'maintenance.owner',
   ])
     assert.ok(out.errors![k], `expected an error for ${k}`);
+  // ADR-0082 (P19): routine values start from visible defaults; what the work must do does not.
+  assert.equal(d.tasks[0]!.role, 'builder');
+  assert.deepEqual(d.tasks[0]!.acceptance, ['A1']);
+  assert.equal(d.maintenance.review_interval, 'Every 3 months');
+  for (const k of ['tasks.0.role', 'tasks.0.acceptance'])
+    assert.equal(out.errors![k], undefined, `${k} has a default`);
+  assert.equal(d.checks[0]!.method, '', 'how a check is checked is chosen');
+  assert.equal(d.scope, '');
+});
+
+test('the spec author is the default maintainer, and only when named', async () => {
+  const f = await load();
+  const d = f.emptySpecDraft({ maintainer: '  Jordan  ' });
+  assert.equal(d.maintenance.owner, 'Jordan');
+  assert.equal(f.emptySpecDraft().maintenance.owner, '');
 });
 
 test('a hand-filled draft parses with the server schema; output keeps its newline and empty arguments', async () => {

@@ -1,0 +1,64 @@
+import { useId, type ReactNode } from 'react';
+import { useViewMode } from './view-mode.js';
+
+// ADR-0082 (P19): the two pieces every Standard form uses. A routine group folds under a
+// one-line summary of its current values and where they came from; "What will happen" lists,
+// before the button, what pressing it does. Advanced shows the same groups open. Neither
+// changes what the form submits, and the server checks every request as before.
+
+/**
+ * A routine group: folded under its summary in Standard, open in Advanced. `open` forces it
+ * open (a field inside needs fixing).
+ */
+export function Routine({
+  summary,
+  open,
+  children,
+}: {
+  summary: string;
+  open?: boolean;
+  children: ReactNode;
+}) {
+  const { standard } = useViewMode();
+  if (!standard) return <>{children}</>;
+  return (
+    <details className="routine" open={open || undefined}>
+      <summary>{summary}</summary>
+      {children}
+    </details>
+  );
+}
+
+export type Happening = { label: string; value: string; source?: string };
+
+/** What pressing the form's button will do, shown before it in both modes. */
+export function WhatWillHappen({
+  items,
+  note,
+}: {
+  items: readonly Happening[];
+  /** One closing line; defaults to the usual "nothing happens until you press it". */
+  note?: string;
+}) {
+  const id = useId();
+  return (
+    <section className="what-happens" aria-labelledby={id}>
+      <h4 id={id}>What will happen</h4>
+      <dl>
+        {items.map((i) => (
+          <div key={i.label}>
+            <dt>{i.label}</dt>
+            <dd>
+              {i.value}
+              {i.source && <span className="source"> · {i.source}</span>}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <p className="small">
+        {note ??
+          'Nothing happens until you press the button below, and the server checks it again. Defaults never add evidence, permissions, qualifications or higher caps.'}
+      </p>
+    </section>
+  );
+}

@@ -32,7 +32,7 @@ the record of each package and are appended to, not rewritten.
 | P16 external runbook export | Merged (PR #152; ADR-0080, no migration) |
 | P17 integrated acceptance | Not started |
 | P18 collapsible options, shorter pages | Not started (added November 10, R20) |
-| P19 Standard/Advanced across the app | Not started (added November 10, R21 and rest of R10–R12) |
+| P19 Standard/Advanced across the app | Built November 11 on branch `claude/project-thread-xdq8er` (ADR-0082, migration 52), awaiting independent review |
 | P20 whole process from Chat | Not started (added November 10, R22); Jordan approved it November 10; needs an ADR amending ADR-0057/0070 |
 | P21 quick model switch | Not started (added November 10, R23) |
 | P22 live API and GitHub checks | Not started (added November 10, R24–R25); Jordan approved the live API and GitHub tests November 10 |
@@ -843,3 +843,40 @@ incremental. 0 URLs overlap with the Claude Code run. Guarded fetch: 2/15 usable
 Reddit empty shells). Fetching remains the bottleneck; no search API is justified by these
 results. See [section 13](../docs/SEARCH_ROUTE_INVESTIGATION_2026-11-10.md) and
 `tracking/evidence/search-route-test-2026-11-10/plan-route/`. No ADR or migration.
+
+## P19 Standard and Advanced (November 11, branch `claude/project-thread-xdq8er`, ADR-0082, migration 52)
+
+- What works:
+  - Each person has one Standard/Advanced choice, stored on the server (`person_preferences`, `GET`/`POST
+    /api/me/view-mode`, versioned). The choice follows the person to other browsers and devices. A person who
+    never chose sees Standard, unless their browser held the older Discover "Show all fields" choice. The switch is
+    in the sidebar, on Settings and on Discover.
+  - Standard hides Launch, Workers and Study (also Maintain and Payments, Marketing and Portfolio when present) from
+    the tabs and sidebar targets, with an "in Advanced" button. Their routes still open.
+  - Standard folds routine fields behind a visible summary of the defaults on these forms: evidence cite, Discover,
+    scorecard, humility review, spec (per task, plus data, risks and upkeep) and Start build. Each start or save on
+    them shows "What will happen" first.
+  - Defaults fill only routine values: scorecard checks default to "unknown", a new spec defaults to builder role,
+    acceptance A1, maintainer, obligations and review interval, and a new budget defaults to "Studio budget" with
+    cap 100 in fixture mode only (real budgets prefill 0.00). Defaults never add evidence, grants, qualifications or
+    the private data class, and never raise a cap.
+  - A "Getting started" card on Chat and Path walks a new workspace through five steps: evidence, budget, discover,
+    score, choose. It can be hidden per workspace.
+  - Advanced shows every tab and field with no folds. No server gate changed.
+- Checks run (cloud container, PostgreSQL 16, no CI: no Actions minutes): `pnpm typecheck` passes;
+  `pnpm format:check` passes; `pnpm test:db` 911 tests, 876 pass, 29 skip, 6 fail: the 5 known no-`pwsh` wrapper tests and the
+  schema-number check in `storage.test.ts`, which still expected 50. That check now expects 52, and
+  `storage.test.js` was rerun with 8 of 8 passing. New tests: `tests/src/view-mode.test.ts` (API and database:
+  per-person storage, 401/403/409/400, other-actor isolation, concurrent saves; tab hiding; mode resolution;
+  Getting started steps), plus default checks in the scorecard and spec form tests.
+  - Browser walk (`tracking/evidence/p19-standard-advanced/`): a new owner in Standard went from evidence to a
+    scored option, a recorded choice and a saved proposal with no Advanced click and no CLI. Advanced parity and the
+    cross-browser switch were checked in a second browser. An earlier walk on a `cli seed-selection` workspace
+    reached Start build, and the request stopped at the admission gate as before.
+- Not done:
+  - The Decide selection form and the Proposals form are not folded, because P18 (PR #162) rewrites `compare.tsx`
+    and `proposals.tsx`.
+  - Hiding Getting started is per browser.
+  - P20 (ADR-0057/0070 amendment) not started.
+  - Pre-existing 404 `problems//explanation` from the Proposals explanation panel (P18's file).
+  - Not independently reviewed.

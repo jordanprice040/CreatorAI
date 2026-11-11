@@ -46,6 +46,8 @@ import {
   ChatCreateRequestSchema,
   ChatMessageRequestSchema,
   ChatSettingsRequestSchema,
+  SetViewPreferenceRequestSchema,
+  type ViewPreference,
   WorkspaceNoteRequestSchema,
   NoteArchiveRequestSchema,
   NoteCreateRequestSchema,
@@ -1013,6 +1015,61 @@ export class ConnectionStore extends PortfolioStore {
   }
 
   /** ADR-0057: the workspace's chat-answer setting; members may read it. */
+  /**
+   * ADR-0082 (P19): the signed-in person's Standard/Advanced choice. Any signed-in person
+   * (owner or tester) reads and sets only their own; it is presentation, never authority.
+   */
+  async viewPreference(ctxIn: CommandContext): Promise<ViewPreference> {
+    const ctx = normalize(ctxIn);
+    const { rows } = await this.pool.query(
+      `select view_mode, version, updated_at from person_preferences where actor_id = $1`,
+      [ctx.actorId],
+    );
+    const r = rows[0] as Row | undefined;
+    return r
+      ? {
+          view_mode: r.view_mode as ViewPreference['view_mode'],
+          version: Number(r.version),
+          updated_at: iso(r.updated_at),
+        }
+      : { view_mode: 'standard', version: 0, updated_at: null };
+  }
+
+  /** A stale `expected_version` (another tab or device changed it) is refused. */
+  async setViewPreference(
+    ctxIn: CommandContext,
+    raw: unknown,
+  ): Promise<ViewPreference> {
+    const ctx = normalize(ctxIn);
+    const req = parse(SetViewPreferenceRequestSchema, raw);
+    return this.tx(async (c) => {
+      const { rows } = await c.query(
+        `select version from person_preferences where actor_id = $1 for update`,
+        [ctx.actorId],
+      );
+      const current = rows[0] ? Number((rows[0] as Row).version) : 0;
+      if (current !== req.expected_version)
+        throw fail(
+          'VERSION_CONFLICT',
+          'Your view choice changed in another window; reload and try again.',
+        );
+      const { rows: out } = await c.query(
+        `insert into person_preferences (actor_id, view_mode, version)
+         values ($1, $2, 1)
+         on conflict (actor_id) do update set view_mode = excluded.view_mode,
+           version = person_preferences.version + 1, updated_at = clock_timestamp()
+         returning view_mode, version, updated_at`,
+        [ctx.actorId, req.view_mode],
+      );
+      const r = out[0] as Row;
+      return {
+        view_mode: r.view_mode as ViewPreference['view_mode'],
+        version: Number(r.version),
+        updated_at: iso(r.updated_at),
+      };
+    });
+  }
+
   async chatSettings(ctxIn: CommandContext, ws: string): Promise<ChatSettings> {
     const ctx = normalize(ctxIn);
     return this.tx(async (c) => {

@@ -6,6 +6,7 @@ import {
   OverviewSchema,
   PlanConnectionSchema,
   PricingSnapshotSchema,
+  ProposalSummarySchema,
   SpecStatusSchema,
   StoredEntitySchema,
   z,
@@ -72,6 +73,7 @@ async function readFacts(
     products,
     artifacts,
     plans,
+    proposals,
   ] = await Promise.all([
     api(OverviewSchema, `${base}/overview`),
     api(z.array(PricingSnapshotSchema), `${base}/pricing`),
@@ -91,6 +93,7 @@ async function readFacts(
       : api(z.array(PlanConnectionSchema), `${base}/plan-connections`).catch(
           () => null,
         ),
+    api(z.array(ProposalSummarySchema), `${base}/proposals`).catch(() => null),
   ]);
   // Freeze state for the specs changed most recently; a long tail of old specs adds nothing.
   const recent = [...specs]
@@ -169,6 +172,7 @@ async function readFacts(
         }
       : null,
     artifacts: artifacts.length,
+    ...(proposals ? { proposals: proposals.length } : {}),
     planConnections: plans ? plans.length : null,
   };
 }

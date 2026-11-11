@@ -23,6 +23,7 @@ import {
   type HumilityBodyShape,
   type HumilityDraft,
 } from './humility-fields.js';
+import { Routine, WhatWillHappen } from './routine.js';
 
 const ETHICS: { value: EthicalStatus; label: string }[] = [
   { value: 'none_identified', label: 'None identified' },
@@ -119,6 +120,15 @@ export function HumilityForm({
     claims.map((c) => refKey({ id: c.claim.id, version: c.claim.version })),
   );
 
+  // ADR-0082 (P19): optional lists fold in Standard; a field with a problem opens its fold.
+  const has = (...keys: string[]) => keys.some((k) => Boolean(errors[k]));
+  const listed = (...texts: string[]) => {
+    const n = texts
+      .flatMap((t) => t.split('\n'))
+      .filter((l) => l.trim()).length;
+    return n === 0 ? 'none listed' : `${n} listed`;
+  };
+
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError('');
@@ -196,15 +206,20 @@ export function HumilityForm({
           (v) => set((x) => (x.supported = v)),
           3,
         )}
-        {box('inferred', 'Inferred', d.inferred, (v) =>
-          set((x) => (x.inferred = v)),
-        )}
-        {box('disputed', 'Disputed', d.disputed, (v) =>
-          set((x) => (x.disputed = v)),
-        )}
-        {box('unknown', 'Unknown', d.unknown, (v) =>
-          set((x) => (x.unknown = v)),
-        )}
+        <Routine
+          summary={`Inferred, disputed and unknown points (optional): ${listed(d.inferred, d.disputed, d.unknown)}`}
+          open={has('inferred', 'disputed', 'unknown')}
+        >
+          {box('inferred', 'Inferred', d.inferred, (v) =>
+            set((x) => (x.inferred = v)),
+          )}
+          {box('disputed', 'Disputed', d.disputed, (v) =>
+            set((x) => (x.disputed = v)),
+          )}
+          {box('unknown', 'Unknown', d.unknown, (v) =>
+            set((x) => (x.unknown = v)),
+          )}
+        </Routine>
       </fieldset>
       <fieldset>
         <legend>The options compared</legend>
@@ -312,12 +327,17 @@ export function HumilityForm({
         {box('human_part', 'What people would still do', d.human_part, (v) =>
           set((x) => (x.human_part = v)),
         )}
-        {box(
-          'burden_risks',
-          'Burdens and risks it adds (one per line)',
-          d.burden_risks,
-          (v) => set((x) => (x.burden_risks = v)),
-        )}
+        <Routine
+          summary={`Burdens and risks it adds (optional): ${listed(d.burden_risks)}`}
+          open={has('burden_risks')}
+        >
+          {box(
+            'burden_risks',
+            'Burdens and risks it adds (one per line)',
+            d.burden_risks,
+            (v) => set((x) => (x.burden_risks = v)),
+          )}
+        </Routine>
         {box(
           'disconfirming_test',
           'A test that could show it is the wrong choice',
@@ -387,12 +407,17 @@ export function HumilityForm({
           d.rationale,
           (v) => set((x) => (x.rationale = v)),
         )}
-        {box(
-          'dissent',
-          'Disagreements to keep on record (one per line, optional)',
-          d.dissent,
-          (v) => set((x) => (x.dissent = v)),
-        )}
+        <Routine
+          summary={`Disagreements to keep on record (optional): ${listed(d.dissent)}`}
+          open={has('dissent')}
+        >
+          {box(
+            'dissent',
+            'Disagreements to keep on record (one per line, optional)',
+            d.dissent,
+            (v) => set((x) => (x.dissent = v)),
+          )}
+        </Routine>
       </fieldset>
       {parsed.body && (
         <div className={`notice${preview.length ? '' : ' ok'}`} role="status">
@@ -425,6 +450,23 @@ export function HumilityForm({
           {error}
         </p>
       )}
+      <WhatWillHappen
+        items={[
+          {
+            label: 'Review',
+            value: `Saves your humility review of ${clip(subject.label, 80)} v${subject.version}${d.disposition ? `, recommending ${words(d.disposition)}` : ''}`,
+          },
+          {
+            label: 'Build',
+            value: !parsed.body
+              ? 'Decided once every required field is filled'
+              : preview.length
+                ? 'Does not admit a build by itself (reasons above)'
+                : `Admits a build of this exact version only; a new version needs a new review`,
+          },
+        ]}
+        note="Nothing is saved until you press the button below. The disposition, every viability call and the ethics status are only what you picked."
+      />
       <div className="actions">
         <button type="submit" disabled={busy}>
           Save humility review

@@ -74,7 +74,12 @@ claims already recorded in the workspace. Configure the run, pricing, envelope a
 scoped authority before starting bounded discovery. Watch Monitor › Runs, answer
 covered questions under Monitor › Approvals, and use Decide and Scores and specs to
 record a choice and freeze a plan. Addresses from before the page map (`#/runs?ws=…`)
-still open the same screen.
+still open the same screen. Each person chooses Standard (the default) or Advanced at the
+foot of the page list or on Settings, and the choice is saved for them on the server
+(ADR-0082). Standard folds routine fields behind their defaults, shows "What will happen"
+before each start, and leaves Launch, Workers and Study out of the tab rows (their addresses
+still open); Advanced opens every field and lists every tab. A new workspace shows a
+"Getting started" path on Chat and Path.
 
 The [archived milestone command reference](LOCAL_DEVELOPMENT_HISTORY.md) retains
 record, grant, budget, workflow, source, discovery and selection examples. It

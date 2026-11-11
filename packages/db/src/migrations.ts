@@ -2964,6 +2964,20 @@ create index action_admissions_by_grant on action_admissions (grant_id)
   where grant_id is not null;
 `,
   },
+  {
+    // ADR-0082 (P19): each person's Standard/Advanced choice, app-wide, so it follows them
+    // across browsers and devices. Presentation only: no permission, cap or gate reads it.
+    version: 52,
+    name: 'person_preferences',
+    sql: `
+create table person_preferences (
+ actor_id uuid primary key references actors(id),
+ view_mode text not null check (view_mode in ('standard', 'advanced')),
+ version integer not null check (version >= 1),
+ updated_at timestamptz not null default clock_timestamp()
+);
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

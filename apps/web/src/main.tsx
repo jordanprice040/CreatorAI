@@ -40,6 +40,11 @@ import {
   type View,
 } from './ui.js';
 import { useTheme } from './theme.js';
+import {
+  ViewModeContext,
+  ViewModeSwitch,
+  useViewModeState,
+} from './view-mode.js';
 import './style.css';
 import { PageDrafts } from './page-drafts.js';
 import { forgetSort } from './list-sort.js';
@@ -48,8 +53,9 @@ import { NextStep, useStudioFacts } from './next-step.js';
 import { useActivityDots } from './activity-dots.js';
 import { dotText, type MarkedView } from './activity-marks.js';
 import { PathView } from './path.js';
+import { FirstRun } from './first-run.js';
 import { nextStep } from './next-rules.js';
-import { routeHash } from './pages.js';
+import { hiddenTabs, routeHash, shownSections } from './pages.js';
 import { Chat } from './chat.js';
 import type { Prefill } from './prefill.js';
 
@@ -354,18 +360,25 @@ function PageTabs({
   ws,
   open,
   unseen,
+  standard,
+  showAll,
 }: {
   view: View;
   ws: string;
   open: (view: View) => void;
+  /** ADR-0082: Standard leaves the rarely used tabs out of the row (their routes still open). */
+  standard: boolean;
+  showAll: () => void;
   /** Tabs with something new since they were last open (activity dots). */
   unseen: readonly MarkedView[];
 }) {
   const page = pageOf(view);
-  const tabs = tabsOf(page);
+  const tabs = tabsOf(page, shownSections(page, standard, view));
+  const hidden = hiddenTabs(page, standard, view);
   const active = tabs.find((t) => t.sections.some((s) => s.view === view));
   // A page with one screen (Chat) needs no tab row.
-  if (tabs.length === 1 && tabs[0]!.sections.length === 1) return null;
+  if (tabs.length === 1 && tabs[0]!.sections.length === 1 && !hidden.length)
+    return null;
   const link = (
     target: View,
     label: string,
@@ -401,6 +414,18 @@ function PageTabs({
             )}
           </li>
         ))}
+        {hidden.length > 0 && (
+          <li className="tabs-more">
+            <button
+              type="button"
+              className="text small"
+              title="Advanced lists every tab and opens every setting. Change it any time at the foot of the page list."
+              onClick={showAll}
+            >
+              {hidden.join(', ')} in Advanced
+            </button>
+          </li>
+        )}
       </ul>
       {active && active.sections.length > 1 && (
         <ul className="subtabs" aria-label={`${active.label} sections`}>
@@ -427,6 +452,11 @@ function App() {
   const [persistent, setPersistent] = useState<boolean | null>(null);
   const auth = useSession(persistent === true);
   const { route, go, lastIn } = useRoute();
+  // ADR-0082 (P19): the person's Standard/Advanced choice, for the whole studio.
+  const viewMode = useViewModeState(
+    auth.session?.actor_id ?? '',
+    auth.session?.csrf_token ?? '',
+  );
   const [workspaces, setWorkspaces] = useState<Workspace[] | null>(null);
   const [wsError, setWsError] = useState('');
   async function checkHealth() {
@@ -657,19 +687,39 @@ function App() {
     switch (pageRoute.view) {
       case 'chat':
         return (
-          <Chat
-            key={workspace.id}
-            session={s}
-            workspace={workspace}
-            facts={facts}
-            focus={pageRoute.id}
-            onFocus={focus}
-            open={(view) => open(view)}
-            fill={fill}
-          />
+          <>
+            <FirstRun
+              key={`first-run-${workspace.id}`}
+              facts={facts}
+              actor={s.actor_id}
+              ws={workspace.id}
+              open={(view) => open(view)}
+            />
+            <Chat
+              key={workspace.id}
+              session={s}
+              workspace={workspace}
+              facts={facts}
+              focus={pageRoute.id}
+              onFocus={focus}
+              open={(view) => open(view)}
+              fill={fill}
+            />
+          </>
         );
       case 'path':
-        return <PathView facts={facts} open={open} />;
+        return (
+          <>
+            <FirstRun
+              key={`first-run-${workspace.id}`}
+              facts={facts}
+              actor={s.actor_id}
+              ws={workspace.id}
+              open={(view) => open(view)}
+            />
+            <PathView facts={facts} open={open} />
+          </>
+        );
       case 'portfolio':
         return (
           <Portfolio key={workspace.id} workspace={workspace} session={s} />
@@ -865,298 +915,313 @@ function App() {
     </button>
   );
   return (
-    <div
-      className={inStudio ? 'shell' : 'shell single'}
-      data-aside={
-        inStudio && workspace && auth.session
-          ? aside.mode === 'docked'
-            ? aside.isOpen
-              ? 'docked'
-              : 'rail'
-            : aside.mode
-          : undefined
-      }
-    >
-      <a
-        className="skip"
-        href="#content"
-        onClick={(e) => {
-          // The hash holds the route, so focus the content instead of navigating.
-          e.preventDefault();
-          document.getElementById('content')?.focus();
-        }}
+    <ViewModeContext.Provider value={viewMode}>
+      <div
+        className={inStudio ? 'shell' : 'shell single'}
+        data-aside={
+          inStudio && workspace && auth.session
+            ? aside.mode === 'docked'
+              ? aside.isOpen
+                ? 'docked'
+                : 'rail'
+              : aside.mode
+            : undefined
+        }
       >
-        Skip to content
-      </a>
-      {inStudio && workspace && (
-        <aside
-          id="sidebar"
-          className="sidebar"
-          data-open={menuOpen ? 'true' : undefined}
+        <a
+          className="skip"
+          href="#content"
+          onClick={(e) => {
+            // The hash holds the route, so focus the content instead of navigating.
+            e.preventDefault();
+            document.getElementById('content')?.focus();
+          }}
         >
-          <a
-            className="brand"
-            href={routeHash({
-              view: 'overview',
-              ws: workspace.id,
-              id: '',
-              q: '',
-            })}
+          Skip to content
+        </a>
+        {inStudio && workspace && (
+          <aside
+            id="sidebar"
+            className="sidebar"
+            data-open={menuOpen ? 'true' : undefined}
           >
-            <span className="mark" aria-hidden="true">
-              CA
-            </span>
-            Creator Agent
-          </a>
-          <div className="wsbar">
-            <label htmlFor="ws">Workspace</label>
-            <select
-              id="ws"
-              value={workspace.id}
-              title={workspaceLabel(workspace, workspaces!)}
-              onChange={(e) => {
-                setMenuOpen(false);
-                go({ ws: e.target.value, id: '' });
-              }}
-            >
-              {workspaces!.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {workspaceLabel(w, workspaces!)}
-                </option>
-              ))}
-            </select>
-            <NewWorkspace
-              csrf={auth.session!.csrf_token}
-              created={(w) => void loadWorkspaces(w.id)}
-            />
-          </div>
-          <nav aria-label="Pages">
-            <ul className="page-nav">
-              {PAGES.map((page) => {
-                const target = lastIn(page.key) ?? page.sections[0]!.view;
-                const here = pageOf(route.view).key === page.key;
-                const waiting =
-                  page.key === 'monitor' && facts ? facts.pending : 0;
-                const ready = page.key === 'projects' && newStep;
-                // On the page itself its tab row carries the dots instead.
-                const news = here
-                  ? ''
-                  : dotText(
-                      page.sections.map((x) => x.view),
-                      unseen,
-                    );
-                return (
-                  <li key={page.key}>
-                    <a
-                      href={routeHash({
-                        view: target,
-                        ws: workspace.id,
-                        id: '',
-                        q: '',
-                      })}
-                      aria-current={here ? 'page' : undefined}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setMenuOpen(false);
-                        open(target);
-                      }}
-                    >
-                      <span>{page.label}</span>
-                      {waiting > 0 && (
-                        <span
-                          className="nav-count"
-                          title={`${waiting} waiting for you`}
-                        >
-                          {waiting}
-                          <span className="sr-only"> waiting for you</span>
-                        </span>
-                      )}
-                      {(ready || news) && (
-                        <ActivityDot
-                          text={[
-                            ready ? 'The path has a new step for you' : '',
-                            news,
-                          ]
-                            .filter(Boolean)
-                            .join('; ')}
-                        />
-                      )}
-                    </a>
-                  </li>
-                );
+            <a
+              className="brand"
+              href={routeHash({
+                view: 'overview',
+                ws: workspace.id,
+                id: '',
+                q: '',
               })}
-            </ul>
-          </nav>
-          <div className="sidebar-foot">
-            {themeButton}
-            <span>Local control</span>
-            <span>Models are used only through connections you approve.</span>
-          </div>
-        </aside>
-      )}
-      {inStudio && menuOpen && (
-        <div
-          className="scrim"
-          aria-hidden="true"
-          onClick={() => setMenuOpen(false)}
-        />
-      )}
-      <div className="column">
-        {signedIn && auth.error && (
-          <p role="alert" className="error">
-            {auth.error}
-          </p>
-        )}
-        <header className="topbar">
-          {inStudio ? (
-            <>
-              <button
-                className="ghost icon-button menu-button"
-                aria-expanded={menuOpen}
-                aria-controls="sidebar"
-                aria-label={menuOpen ? 'Close navigation' : 'Open navigation'}
-                onClick={() => setMenuOpen((v) => !v)}
-              >
-                <Icon name={menuOpen ? 'close' : 'menu'} />
-              </button>
-              <p className="crumbs">
-                {pageLabel === label ? (
-                  <strong>{label}</strong>
-                ) : (
-                  <>
-                    <span>{pageLabel}</span>
-                    <span aria-hidden="true">/</span>
-                    <strong>{label}</strong>
-                  </>
-                )}
-              </p>
-              <h1 className="sr-only">Creator Agent: {label}</h1>
-            </>
-          ) : (
-            <>
-              <span className="brand">
-                <span className="mark" aria-hidden="true">
-                  CA
-                </span>
-                Creator Agent
-              </span>
-              <h1 className="sr-only">Creator Agent local studio</h1>
-            </>
-          )}
-          <div className="topbar-end">
-            <span
-              role="status"
-              className={`conn conn-${tone}`}
-              title={healthDetail || undefined}
             >
-              <span className="dot" aria-hidden="true" />
-              {health}
-            </span>
-            {!persistent && persistent !== null && (
-              <button className="secondary" onClick={() => void checkHealth()}>
-                Check connection
-              </button>
-            )}
-            {signedIn && (
-              <span className="who">
-                {auth.session!.display_name} ·{' '}
-                {auth.managed
-                  ? 'this computer'
-                  : auth.session!.method === 'dev_local'
-                    ? 'local development'
-                    : auth.session!.account === 'tester'
-                      ? 'tester account'
-                      : 'OIDC'}{' '}
-                <button className="text" onClick={() => void auth.signOut()}>
-                  Sign out
-                </button>
+              <span className="mark" aria-hidden="true">
+                CA
               </span>
-            )}
-            {inStudio && signedIn && workspace && (
-              <UsageIndicator key={workspace.id} workspace={workspace} />
-            )}
-            {inStudio && workspace && auth.session && (
-              <AsideButton aside={aside} />
-            )}
-            {!inStudio && themeButton}
-          </div>
-        </header>
-        {workspace?.record_mode === 'fixture' && signedIn && (
-          <p className="mode-banner" role="note">
-            <Icon name="info" />
-            <span>
-              <strong>Fixture mode.</strong> Synthetic records and a
-              deterministic model adapter. Amounts are simulated units, not
-              money. Nothing here is real research or a real recommendation.
-            </span>
-          </p>
+              Creator Agent
+            </a>
+            <div className="wsbar">
+              <label htmlFor="ws">Workspace</label>
+              <select
+                id="ws"
+                value={workspace.id}
+                title={workspaceLabel(workspace, workspaces!)}
+                onChange={(e) => {
+                  setMenuOpen(false);
+                  go({ ws: e.target.value, id: '' });
+                }}
+              >
+                {workspaces!.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {workspaceLabel(w, workspaces!)}
+                  </option>
+                ))}
+              </select>
+              <NewWorkspace
+                csrf={auth.session!.csrf_token}
+                created={(w) => void loadWorkspaces(w.id)}
+              />
+            </div>
+            <nav aria-label="Pages">
+              <ul className="page-nav">
+                {PAGES.map((page) => {
+                  const listed = shownSections(page, viewMode.standard);
+                  const last = lastIn(page.key);
+                  // Standard opens a page on a listed tab, unless the person was last on another.
+                  const target =
+                    last &&
+                    (listed.some((x) => x.view === last) || !viewMode.standard)
+                      ? last
+                      : (listed[0] ?? page.sections[0]!).view;
+                  const here = pageOf(route.view).key === page.key;
+                  const waiting =
+                    page.key === 'monitor' && facts ? facts.pending : 0;
+                  const ready = page.key === 'projects' && newStep;
+                  // On the page itself its tab row carries the dots instead.
+                  const news = here
+                    ? ''
+                    : dotText(
+                        page.sections.map((x) => x.view),
+                        unseen,
+                      );
+                  return (
+                    <li key={page.key}>
+                      <a
+                        href={routeHash({
+                          view: target,
+                          ws: workspace.id,
+                          id: '',
+                          q: '',
+                        })}
+                        aria-current={here ? 'page' : undefined}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setMenuOpen(false);
+                          open(target);
+                        }}
+                      >
+                        <span>{page.label}</span>
+                        {waiting > 0 && (
+                          <span
+                            className="nav-count"
+                            title={`${waiting} waiting for you`}
+                          >
+                            {waiting}
+                            <span className="sr-only"> waiting for you</span>
+                          </span>
+                        )}
+                        {(ready || news) && (
+                          <ActivityDot
+                            text={[
+                              ready ? 'The path has a new step for you' : '',
+                              news,
+                            ]
+                              .filter(Boolean)
+                              .join('; ')}
+                          />
+                        )}
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </nav>
+            <div className="sidebar-foot">
+              <ViewModeSwitch compact />
+              {themeButton}
+              <span>Local control</span>
+              <span>Models are used only through connections you approve.</span>
+            </div>
+          </aside>
         )}
-        <main id="content" tabIndex={-1}>
-          <DesktopApp.Provider value={auth.managed}>
-            {inStudio && workspace && (
+        {inStudio && menuOpen && (
+          <div
+            className="scrim"
+            aria-hidden="true"
+            onClick={() => setMenuOpen(false)}
+          />
+        )}
+        <div className="column">
+          {signedIn && auth.error && (
+            <p role="alert" className="error">
+              {auth.error}
+            </p>
+          )}
+          <header className="topbar">
+            {inStudio ? (
               <>
-                <NextStep
-                  facts={facts}
-                  view={route.view}
-                  open={(view) => open(view)}
-                />
-                <PageTabs
-                  view={route.view}
-                  ws={workspace.id}
-                  open={(view) => open(view)}
-                  unseen={unseen}
-                />
+                <button
+                  className="ghost icon-button menu-button"
+                  aria-expanded={menuOpen}
+                  aria-controls="sidebar"
+                  aria-label={menuOpen ? 'Close navigation' : 'Open navigation'}
+                  onClick={() => setMenuOpen((v) => !v)}
+                >
+                  <Icon name={menuOpen ? 'close' : 'menu'} />
+                </button>
+                <p className="crumbs">
+                  {pageLabel === label ? (
+                    <strong>{label}</strong>
+                  ) : (
+                    <>
+                      <span>{pageLabel}</span>
+                      <span aria-hidden="true">/</span>
+                      <strong>{label}</strong>
+                    </>
+                  )}
+                </p>
+                <h1 className="sr-only">Creator Agent: {label}</h1>
+              </>
+            ) : (
+              <>
+                <span className="brand">
+                  <span className="mark" aria-hidden="true">
+                    CA
+                  </span>
+                  Creator Agent
+                </span>
+                <h1 className="sr-only">Creator Agent local studio</h1>
               </>
             )}
-            {inStudio && auth.session ? (
-              <PageDrafts
-                key={`${auth.session.csrf_token}:${workspace?.id}`}
-                route={route}
-                render={(page) => <PageLoad>{body(page)}</PageLoad>}
-                onReset={(page) => {
-                  // P01 (R06): filters kept in the address and remembered sorts reset with
-                  // the fields, so Reset stays reset after navigation and reload.
-                  if (page.view === 'search') {
-                    forgetSort('search', page.ws);
-                    go({ q: '' }, true, 'search');
-                  } else if (page.view === 'activity')
-                    go({ q: '', id: '' }, true, 'activity');
-                  else if (page.view === 'catalog') {
-                    forgetSort('library', page.ws);
-                    if (page.id.startsWith('kind:'))
-                      go({ id: '' }, true, 'catalog');
-                  }
-                }}
-              />
-            ) : (
-              <PageLoad>{body()}</PageLoad>
-            )}
-          </DesktopApp.Provider>
-        </main>
-        {!inStudio && (
-          <footer className="foot">
-            <span>Local control</span>
-            <span>Models are used only through connections you approve.</span>
-          </footer>
+            <div className="topbar-end">
+              <span
+                role="status"
+                className={`conn conn-${tone}`}
+                title={healthDetail || undefined}
+              >
+                <span className="dot" aria-hidden="true" />
+                {health}
+              </span>
+              {!persistent && persistent !== null && (
+                <button
+                  className="secondary"
+                  onClick={() => void checkHealth()}
+                >
+                  Check connection
+                </button>
+              )}
+              {signedIn && (
+                <span className="who">
+                  {auth.session!.display_name} ·{' '}
+                  {auth.managed
+                    ? 'this computer'
+                    : auth.session!.method === 'dev_local'
+                      ? 'local development'
+                      : auth.session!.account === 'tester'
+                        ? 'tester account'
+                        : 'OIDC'}{' '}
+                  <button className="text" onClick={() => void auth.signOut()}>
+                    Sign out
+                  </button>
+                </span>
+              )}
+              {inStudio && signedIn && workspace && (
+                <UsageIndicator key={workspace.id} workspace={workspace} />
+              )}
+              {inStudio && workspace && auth.session && (
+                <AsideButton aside={aside} />
+              )}
+              {!inStudio && themeButton}
+            </div>
+          </header>
+          {workspace?.record_mode === 'fixture' && signedIn && (
+            <p className="mode-banner" role="note">
+              <Icon name="info" />
+              <span>
+                <strong>Fixture mode.</strong> Synthetic records and a
+                deterministic model adapter. Amounts are simulated units, not
+                money. Nothing here is real research or a real recommendation.
+              </span>
+            </p>
+          )}
+          <main id="content" tabIndex={-1}>
+            <DesktopApp.Provider value={auth.managed}>
+              {inStudio && workspace && (
+                <>
+                  <NextStep
+                    facts={facts}
+                    view={route.view}
+                    open={(view) => open(view)}
+                  />
+                  <PageTabs
+                    view={route.view}
+                    ws={workspace.id}
+                    open={(view) => open(view)}
+                    unseen={unseen}
+                    standard={viewMode.standard}
+                    showAll={() => viewMode.set('advanced')}
+                  />
+                </>
+              )}
+              {inStudio && auth.session ? (
+                <PageDrafts
+                  key={`${auth.session.csrf_token}:${workspace?.id}`}
+                  route={route}
+                  render={(page) => <PageLoad>{body(page)}</PageLoad>}
+                  onReset={(page) => {
+                    // P01 (R06): filters kept in the address and remembered sorts reset with
+                    // the fields, so Reset stays reset after navigation and reload.
+                    if (page.view === 'search') {
+                      forgetSort('search', page.ws);
+                      go({ q: '' }, true, 'search');
+                    } else if (page.view === 'activity')
+                      go({ q: '', id: '' }, true, 'activity');
+                    else if (page.view === 'catalog') {
+                      forgetSort('library', page.ws);
+                      if (page.id.startsWith('kind:'))
+                        go({ id: '' }, true, 'catalog');
+                    }
+                  }}
+                />
+              ) : (
+                <PageLoad>{body()}</PageLoad>
+              )}
+            </DesktopApp.Provider>
+          </main>
+          {!inStudio && (
+            <footer className="foot">
+              <span>Local control</span>
+              <span>Models are used only through connections you approve.</span>
+            </footer>
+          )}
+        </div>
+        {inStudio && workspace && auth.session && (
+          <FileDrop
+            workspace={workspace}
+            csrf={auth.session.csrf_token}
+            open={(view, id) => open(view, id)}
+          />
+        )}
+        {inStudio && workspace && auth.session && (
+          <RightSidebar
+            workspace={workspace}
+            actor={auth.session.actor_id}
+            csrf={auth.session.csrf_token}
+            aside={aside}
+            open={(view, id) => open(view, id)}
+          />
         )}
       </div>
-      {inStudio && workspace && auth.session && (
-        <FileDrop
-          workspace={workspace}
-          csrf={auth.session.csrf_token}
-          open={(view, id) => open(view, id)}
-        />
-      )}
-      {inStudio && workspace && auth.session && (
-        <RightSidebar
-          workspace={workspace}
-          actor={auth.session.actor_id}
-          csrf={auth.session.csrf_token}
-          aside={aside}
-          open={(view, id) => open(view, id)}
-        />
-      )}
-    </div>
+    </ViewModeContext.Provider>
   );
 }
 const root = document.getElementById('root');

@@ -101,6 +101,9 @@ export const CHECK_LABELS: Record<keyof ScorecardDraft['checks'], string> = {
   maintenance: 'Who keeps it running, and how',
 };
 
+/** The default answer of a check nobody has answered yet. */
+export const CHECK_DEFAULT = 'unknown';
+
 export const refKey = (r: Ref) => `${r.id.toLowerCase()}@${r.version}`;
 const parseRef = (k: string): Ref => {
   const at = k.lastIndexOf('@');
@@ -119,13 +122,18 @@ export function emptyDraft(
     influence: { rating: '', note: '' },
     ethics: { status: '', note: '' },
     access: { status: '', note: '' },
+    // ADR-0082 (P19): a check the record does not answer starts as "unknown", the answer the
+    // form already asks for when you do not know. Every rating, gate and confidence stays unpicked.
     checks: {
-      target_users: (prefill.target_users ?? '').slice(0, SHORT),
-      current_workaround: '',
-      contrary_evidence: '',
-      measurable_outcome: (prefill.measurable_outcome ?? '').slice(0, SHORT),
-      validation_plan: '',
-      maintenance: '',
+      target_users: (prefill.target_users || CHECK_DEFAULT).slice(0, SHORT),
+      current_workaround: CHECK_DEFAULT,
+      contrary_evidence: CHECK_DEFAULT,
+      measurable_outcome: (prefill.measurable_outcome || CHECK_DEFAULT).slice(
+        0,
+        SHORT,
+      ),
+      validation_plan: CHECK_DEFAULT,
+      maintenance: CHECK_DEFAULT,
     },
     alternatives_checked: [],
   };

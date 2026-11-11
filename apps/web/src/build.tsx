@@ -37,6 +37,7 @@ import {
   type View,
 } from './ui.js';
 import { Blocked, type BlockedReason } from './blocked.js';
+import { Routine, WhatWillHappen } from './routine.js';
 import { unwrittenOptions } from './spec-fields.js';
 import { newestFirst, productVersions } from './versions.js';
 import { recordLabel, runLabel } from './labels.js';
@@ -1312,6 +1313,17 @@ function StartBuild({
       : []),
   ];
 
+  // ADR-0082 (P19): the records a build names, picked by default from what can build now.
+  const picked = (chosenHere: string) =>
+    chosenHere ? 'changed here' : 'studio default';
+  const runName = data.runs.find((r) => r.run_id === runId);
+  const recordsSummary = [
+    `Run: ${runName ? runLabel(runName, data.names) : 'none'}`,
+    `budget: ${data.budgets.find((b) => b.id === budgetId)?.name ?? 'none'}`,
+    `review: ${chosen ? recordLabel(chosen) : 'none for this version'}`,
+    picked(run || budget || price || review),
+  ].join(' · ');
+
   function submit(e: FormEvent) {
     e.preventDefault();
     if (missing.length || blockers.length || refusedClass || !chosen) return;
@@ -1347,68 +1359,70 @@ function StartBuild({
   }
   return (
     <form className="cite" onSubmit={submit}>
-      <label htmlFor="bp-run">Run</label>
-      <select
-        id="bp-run"
-        value={runId}
-        onChange={(e) => setRun(e.target.value)}
-      >
-        {data.runs.length === 0 && <option value="">No active run</option>}
-        {data.runs.map((r) => (
-          <option key={r.run_id} value={r.run_id}>
-            {`${runLabel(r, data.names)}${
-              connection?.kind === 'roles' && !data.modelRuns.has(r.run_id)
-                ? ' · no model grant'
-                : ''
-            }`}
-          </option>
-        ))}
-      </select>
-      <label htmlFor="bp-budget">Budget</label>
-      <select
-        id="bp-budget"
-        value={budgetId}
-        onChange={(e) => setBudget(e.target.value)}
-      >
-        {data.budgets.length === 0 && (
-          <option value="">No active budget</option>
-        )}
-        {data.budgets.map((b) => (
-          <option key={b.id} value={b.id}>
-            {b.name}
-          </option>
-        ))}
-      </select>
-      <label htmlFor="bp-price">Pricing</label>
-      <select
-        id="bp-price"
-        value={priceId}
-        onChange={(e) => setPrice(e.target.value)}
-      >
-        {data.pricing.length === 0 && (
-          <option value="">No pricing snapshot</option>
-        )}
-        {data.pricing.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.body.provider}/{p.body.model_id}
-          </option>
-        ))}
-      </select>
-      <label htmlFor="bp-review">Humility review</label>
-      <select
-        id="bp-review"
-        value={chosen?.id ?? ''}
-        onChange={(e) => setReview(e.target.value)}
-      >
-        {reviews.length === 0 && (
-          <option value="">None for this version</option>
-        )}
-        {reviews.map((r) => (
-          <option key={r.id} value={r.id} title={r.title}>
-            {recordLabel(r)}
-          </option>
-        ))}
-      </select>
+      <Routine summary={recordsSummary}>
+        <label htmlFor="bp-run">Run</label>
+        <select
+          id="bp-run"
+          value={runId}
+          onChange={(e) => setRun(e.target.value)}
+        >
+          {data.runs.length === 0 && <option value="">No active run</option>}
+          {data.runs.map((r) => (
+            <option key={r.run_id} value={r.run_id}>
+              {`${runLabel(r, data.names)}${
+                connection?.kind === 'roles' && !data.modelRuns.has(r.run_id)
+                  ? ' · no model grant'
+                  : ''
+              }`}
+            </option>
+          ))}
+        </select>
+        <label htmlFor="bp-budget">Budget</label>
+        <select
+          id="bp-budget"
+          value={budgetId}
+          onChange={(e) => setBudget(e.target.value)}
+        >
+          {data.budgets.length === 0 && (
+            <option value="">No active budget</option>
+          )}
+          {data.budgets.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </select>
+        <label htmlFor="bp-price">Pricing</label>
+        <select
+          id="bp-price"
+          value={priceId}
+          onChange={(e) => setPrice(e.target.value)}
+        >
+          {data.pricing.length === 0 && (
+            <option value="">No pricing snapshot</option>
+          )}
+          {data.pricing.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.body.provider}/{p.body.model_id}
+            </option>
+          ))}
+        </select>
+        <label htmlFor="bp-review">Humility review</label>
+        <select
+          id="bp-review"
+          value={chosen?.id ?? ''}
+          onChange={(e) => setReview(e.target.value)}
+        >
+          {reviews.length === 0 && (
+            <option value="">None for this version</option>
+          )}
+          {reviews.map((r) => (
+            <option key={r.id} value={r.id} title={r.title}>
+              {recordLabel(r)}
+            </option>
+          ))}
+        </select>
+      </Routine>
       <label htmlFor="bp-builder">Builder</label>
       <select
         id="bp-builder"
@@ -1470,6 +1484,32 @@ function StartBuild({
           grants must cover it, or the build stops before anything is sent.
         </p>
       )}
+      <WhatWillHappen
+        items={[
+          {
+            label: 'Build',
+            value: `Builds task ${taskKey} of spec v${specVersion}, then an independent review and the frozen checks run on the result`,
+          },
+          {
+            label: 'Builder',
+            value: connection
+              ? connection.kind === 'roles'
+                ? `Builder and reviewer on your ChatGPT plan (${connection.label}), no metered spend`
+                : `Codex on your ChatGPT plan (${connection.label}); a grant you approve must cover it`
+              : fixture
+                ? 'Fixture builder (simulated, no model call)'
+                : 'Model broker (metered, reserved from the budget first)',
+          },
+          {
+            label: 'Limits',
+            value: `At most ${2 + 2 * repairs} model requests, ${repairs} repair round${repairs === 1 ? '' : 's'} after a failed check`,
+            source: repairs === 1 ? 'studio default' : 'changed here',
+          },
+          { label: 'Records', value: recordsSummary },
+          { label: 'Data class', value: words(dataClass) },
+        ]}
+        note="Nothing is sent until you press Start build, and the server checks the run, grants, budget, review and every cap again. Defaults never add a grant or raise a cap."
+      />
       <Blocked
         action="build this task from this spec version"
         reasons={[

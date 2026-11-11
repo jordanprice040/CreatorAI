@@ -29,6 +29,7 @@ import { recordLabel, runLabel } from './labels.js';
 import { runNames } from './ui.js';
 import { REASON_MAX } from './owner-actions.js';
 import { ReasonForm } from './reason-form.js';
+import { Routine, WhatWillHappen } from './routine.js';
 
 type Passage = SourceDetail['passages'][number];
 const squash = (s: string) => s.replace(/\s+/g, ' ').trim();
@@ -598,6 +599,12 @@ export function Evidence({
  * Records a claim's evidence from one stored passage, for a new claim or an existing one.
  * The server checks that a supporting or contradicting quote occurs verbatim in the passage.
  */
+const STANCE_TEXT: Record<Exclude<SupportStance, 'inaccessible'>, string> = {
+  supports: 'supports the claim',
+  contradicts: 'contradicts the claim',
+  does_not_support: 'does not support it',
+};
+
 function CiteForm({
   passage,
   claims,
@@ -647,6 +654,9 @@ function CiteForm({
     (quoted || q) && q.length < 8 && 'a quote of at least 8 characters',
     !rationale.trim() && 'why it bears on the claim',
   ].filter(Boolean);
+  // ADR-0082 (P19): the one routine choice here. Basis and stance stay open: they say what the
+  // evidence is, so a default must never decide them unseen.
+  const routineSummary = `Kind of evidence: ${TYPE_LABEL[type]} · ${type === 'source_assertion' ? 'studio default' : 'changed here'}`;
   // The server's check (quoteInPassage): the quote must occur in the passage, spaces aside.
   const verbatim = !q || squash(passage.excerpt ?? '').includes(q);
 
@@ -775,18 +785,20 @@ function CiteForm({
         <option value="contradicts">contradicts the claim</option>
         <option value="does_not_support">does not support it</option>
       </select>
-      <label htmlFor="cite-type">Kind of evidence</label>
-      <select
-        id="cite-type"
-        value={type}
-        onChange={(e) => setType(e.target.value as SupportType)}
-      >
-        {Object.entries(TYPE_LABEL).map(([k, v]) => (
-          <option key={k} value={k}>
-            {v}
-          </option>
-        ))}
-      </select>
+      <Routine summary={routineSummary}>
+        <label htmlFor="cite-type">Kind of evidence</label>
+        <select
+          id="cite-type"
+          value={type}
+          onChange={(e) => setType(e.target.value as SupportType)}
+        >
+          {Object.entries(TYPE_LABEL).map(([k, v]) => (
+            <option key={k} value={k}>
+              {v}
+            </option>
+          ))}
+        </select>
+      </Routine>
       <label htmlFor="cite-quote">
         Quote{quoted ? '' : ' (optional)'}. Shorten it to the words that bear on
         the claim, exactly as they appear in the passage.
@@ -808,6 +820,21 @@ function CiteForm({
       {missing.length > 0 && (
         <p className="small">Still needed: {missing.join(', ')}.</p>
       )}
+      <WhatWillHappen
+        items={[
+          {
+            label: 'Claim',
+            value: existing
+              ? `Adds evidence to “${recordLabel(existing, 80)}”`
+              : `Saves a new claim${statement.trim() ? `: “${statement.trim().slice(0, 80)}”` : ''}`,
+          },
+          {
+            label: 'Evidence',
+            value: `¶${passage.locator.paragraph} of this source, marked as it ${STANCE_TEXT[stance]}${q ? ', quoting the words above' : ''}`,
+          },
+        ]}
+        note="Only the passage you chose is attached, and the server checks that the quote is in it. Nothing is fetched or sent anywhere."
+      />
       <div className="actions">
         <button className="primary" disabled={busy || missing.length > 0}>
           {busy ? 'Saving…' : 'Save evidence'}

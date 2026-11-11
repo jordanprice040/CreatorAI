@@ -636,6 +636,8 @@ export function createApi(
   };
   const SETTINGS_SPENDING_ROUTE = /^\/api\/settings\/spending$/;
   const SETTINGS_LIMITS_ROUTE = /^\/api\/settings\/spending-limits$/;
+  // ADR-0082 (P19): the signed-in person's own Standard/Advanced choice (no workspace).
+  const VIEW_PREFERENCE_ROUTE = /^\/api\/me\/view-mode$/;
   const USAGE_ROUTE = /^\/api\/workspaces\/([^/]+)\/(usage)$/;
   const EVIDENCE_SITES_ROUTE = /^\/api\/workspaces\/([^/]+)\/(evidence-sites)$/;
   const CHAT_ROUTE =
@@ -659,6 +661,7 @@ export function createApi(
       PORTFOLIO_ROUTE.exec(url.pathname) ??
       SETTINGS_SPENDING_ROUTE.exec(url.pathname) ??
       SETTINGS_LIMITS_ROUTE.exec(url.pathname) ??
+      VIEW_PREFERENCE_ROUTE.exec(url.pathname) ??
       USAGE_ROUTE.exec(url.pathname) ??
       EVIDENCE_SITES_ROUTE.exec(url.pathname) ??
       CHAT_ROUTE.exec(url.pathname) ??
@@ -947,6 +950,18 @@ export function createApi(
         return send(200, await store.deleteChat(ctx, ws, item), true);
       }
       throw new ContractError('NOT_FOUND', 'Unknown chat route.');
+    }
+    // Any signed-in person, tester or owner, reads and sets only their own view choice.
+    if (VIEW_PREFERENCE_ROUTE.test(url.pathname)) {
+      if (method === 'GET')
+        return send(200, await store.viewPreference(ctx), false);
+      if (method === 'POST')
+        return send(
+          200,
+          await store.setViewPreference(ctx, await readJson(req)),
+          true,
+        );
+      throw new ContractError('NOT_FOUND', 'Unknown view preference route.');
     }
     // Narrower per-run and per-model limits under that ceiling (ADR-0044); same audience.
     if (SETTINGS_LIMITS_ROUTE.test(url.pathname)) {

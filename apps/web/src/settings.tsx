@@ -1,3 +1,4 @@
+import { ViewModeSwitch } from './view-mode.js';
 import { useEffect, useState, type FormEvent } from 'react';
 import {
   RuntimeCeilingSchema,
@@ -117,6 +118,16 @@ export function Settings({
   return (
     <section className="panel" aria-labelledby="settings-title">
       <h2 id="settings-title">Settings</h2>
+      <h3>Studio view</h3>
+      <p className="small">
+        Your own choice, saved for you on this studio so it follows you to other
+        browsers and the desktop app. Standard folds routine settings behind
+        their defaults (shown in each fold&apos;s summary) and lists the
+        everyday tabs; Launch, Workers and Study still open from links. Advanced
+        opens every setting and lists every tab. Both send the same requests,
+        and the server checks them the same way.
+      </p>
+      <ViewModeSwitch />
       <h3>Overall spending ceiling</h3>
       <p>
         The most Creator Agent may spend on real model and tool calls, across

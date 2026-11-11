@@ -32,7 +32,7 @@ the record of each package and are appended to, not rewritten.
 | P16 external runbook export | Merged (PR #152; ADR-0080, no migration) |
 | P17 integrated acceptance | Not started |
 | P18 collapsible options, shorter pages | Not started (added November 10, R20) |
-| P19 Standard/Advanced across the app | Not started (added November 10, R21 and rest of R10–R12) |
+| P19 Standard/Advanced across the app | Built November 11 on branch `claude/project-thread-xdq8er` (ADR-0082, migration 52), awaiting independent review |
 | P20 whole process from Chat | Not started (added November 10, R22); Jordan approved it November 10; needs an ADR amending ADR-0057/0070 |
 | P21 quick model switch | Not started (added November 10, R23) |
 | P22 live API and GitHub checks | Not started (added November 10, R24–R25); Jordan approved the live API and GitHub tests November 10 |
@@ -765,3 +765,30 @@ incremental. 0 URLs overlap with the Claude Code run. Guarded fetch: 2/15 usable
 Reddit empty shells). Fetching remains the bottleneck; no search API is justified by these
 results. See [section 13](../docs/SEARCH_ROUTE_INVESTIGATION_2026-11-10.md) and
 `tracking/evidence/search-route-test-2026-11-10/plan-route/`. No ADR or migration.
+
+## P19 Standard and Advanced (November 11, branch `claude/project-thread-xdq8er`, ADR-0082, migration 52)
+
+What works and what was checked: see ADR-0082 and the BUILD_STATUS entry.
+
+New code:
+- Contracts in `packages/contracts/src/preferences.ts`.
+- Migration 52 `person_preferences`.
+- `ConnectionStore.viewPreference` and `setViewPreference`.
+- Route `/api/me/view-mode`.
+- Web:
+  - `view-mode.tsx` and `view-mode-rules.ts` (the context, the switch and the mode resolution).
+  - `routine.tsx` (the `Routine` fold and `WhatWillHappen`).
+  - `first-run.tsx` and `first-run-rules.ts`.
+  - `shownSections` and `hiddenTabs` in `pages.ts`.
+
+For P20:
+- Read the mode with `useViewMode()`.
+- Put new routine fields inside `Routine` and add a row to the form's `WhatWillHappen`.
+- Keep every default out of evidence, grants, qualifications, caps and the private data class.
+
+Overlap with open PRs:
+- `build.tsx`, `submit.tsx` and `main.tsx` overlap P21 (PR #161) and P18 (PR #162). Expect small conflicts.
+- Conflicts are also likely in the tracking logs.
+
+Main becomes schema 52 when this merges, after P21's 51. Next free numbers: migration 53 and ADR-0083.
+Next eligible prompts: P20, then P12 and P13 as the plan orders them.
