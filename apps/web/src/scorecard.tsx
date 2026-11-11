@@ -229,7 +229,8 @@ export function ScoreOption({
       ? { 'aria-invalid': true, 'aria-describedby': `sc-${k}-error` }
       : {};
 
-  // ADR-0082 (P19): the checks are routine: unanswered ones say "unknown" until changed.
+  // ADR-0082 (P19): four checks are routine and fold, starting as "unknown" until changed; the
+  // two judgment checks (OPEN_CHECKS) stay visible and start empty, so they need an answer.
   const checkField = (k: keyof ScorecardDraft['checks']) => (
     <div key={k}>
       <label htmlFor={`sc-check-${k}`}>
@@ -924,7 +925,7 @@ export function ScoreOption({
               },
               { label: 'Checks', value: checksSummary },
             ]}
-            note="Nothing is saved until you press the button below. Ratings, gates and confidence are only what you picked; the defaults fill nothing but unanswered checks with “unknown”."
+            note="Nothing is saved until you press the button below. Ratings, gates and confidence are only what you picked; the defaults fill only the four routine checks with “unknown”, and what argues against it needs your own answer."
           />
           <div className="actions">
             <button type="submit" disabled={busy}>

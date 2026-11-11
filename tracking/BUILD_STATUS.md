@@ -979,3 +979,6 @@ line also appears when every case is held out (N-A). Bundle hash now `8648d257â€
 - Checks after the re-review fixes (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` and `pnpm format:check`
   pass; `pnpm test:db` 920 tests, 886 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests). The browser walk
   (which now answers the two judgment checks) was rerun on a fresh database and passed; evidence refreshed.
+- Second re-review nits (`reviews/P19_PR164_REREVIEW2.md`): N-C the scorecard's "What will happen" note and N-D the
+  comment above the check fields now say only the four routine checks default to "unknown". Text only; typecheck,
+  format and the scorecard form tests pass.
