@@ -830,3 +830,5 @@ read with no answer is worded as the studio's own error rather than "GitHub said
 Fourth re-review nits (GitHub App path, not used live): a GitHub App token the studio cannot create
 locally (e.g. an unusable private key) says to check the App credential, not "try again", and a token
 GitHub refuses (e.g. 422, repository removed from the installation) says so instead of "did not answer".
+Fifth re-review: a 404 from the App token step is a refusal, not "no such pull request" (L-1); a 401 there
+points at the App id or private key; a 5xx or a 201 without a token names the token step.

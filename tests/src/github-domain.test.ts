@@ -583,3 +583,60 @@ test('P22 nits: GitHub App token failures say what failed, not "try again"', asy
   // Nothing past the token step was requested.
   assert.ok(gh.seen.every((s) => s.path.endsWith('/access_tokens')));
 });
+
+test('P22 re-review 5: the App token step is named, and its 404 is never "no such pull request"', async (t) => {
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const pem = privateKey.export({ type: 'pkcs1', format: 'pem' }).toString();
+  let mint: { status: number; body: unknown } = {
+    status: 404,
+    body: { message: 'Not Found' },
+  };
+  const gh = await loopbackGitHub((s) =>
+    s.path.endsWith('/access_tokens')
+      ? mint
+      : { status: 500, body: { message: 'should not be reached' } },
+  );
+  t.after(gh.close);
+  const a = new LiveGitHub({
+    credential: {
+      kind: 'app_installation',
+      client_id: 'Iv1.fixture',
+      private_key: pem,
+      installation_id: 77,
+    },
+    apiBase: gh.base,
+  });
+  // L-1: the installation is gone (404 on the token request): a refusal, not "no pull request".
+  const gone = await a.pullRead(repo, 1);
+  assert.equal(gone.pull, null);
+  assert.equal(gone.refusal?.step, 'pull');
+  assert.equal(gone.refusal?.status, 404);
+  assert.match(gone.refusal!.message, /refused a GitHub App token/);
+  // Nit 1: a 401 at the token step points at the App credential.
+  mint = {
+    status: 401,
+    body: { message: 'A JSON web token could not be decoded' },
+  };
+  const badKey = await a.repositoryRead(repo.github_id);
+  assert.match(badKey.refusal!.message, /App id or private key may be wrong/);
+  assert.doesNotMatch(badKey.refusal!.message, /no longer be installed/);
+  // Nit 2: a 5xx, or a 201 without a token, names the token step, not the read.
+  for (const m of [
+    { status: 502, body: { message: 'Bad Gateway' } },
+    { status: 201, body: {} },
+  ]) {
+    mint = m;
+    for (const r of [
+      (await a.repositoryRead(repo.github_id)).refusal!,
+      (await a.checks(repo, SHA)).refusals[0]!,
+    ]) {
+      assert.equal(r.status, m.status);
+      assert.match(
+        r.message,
+        /did not give a GitHub App token \(the token step failed\)/,
+      );
+      assert.doesNotMatch(r.message, /repository read/);
+    }
+  }
+  assert.ok(gh.seen.every((s) => s.path.endsWith('/access_tokens')));
+});

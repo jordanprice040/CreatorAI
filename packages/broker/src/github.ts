@@ -55,42 +55,59 @@ export interface RepositoryRead {
  * status GitHub answers without the repository (5xx, no response) mean "try again"; only a
  * plain 401, 403 or 404 points at the credential; a 200 whose body is unusable is said as such.
  */
-export const repositoryRefusal = (r: GitHubResponse): ReadRefusal => {
+const rateLimited = (r: GitHubResponse) =>
   // A secondary rate limit may come without `retry-after`; GitHub's message names it.
-  const limited =
-    (r.status === 403 || r.status === 429) &&
-    (r.headers['x-ratelimit-remaining'] === '0' ||
-      r.headers['retry-after'] !== undefined ||
-      /rate limit/i.test(r.message));
-  const ours =
-    r.stage === 'studio'
-      ? 'The studio could not get a GitHub App token for this repository, so GitHub was not asked; check the App credential (App id and private key).'
-      : r.stage === 'app_token' &&
-          r.status !== null &&
-          !limited &&
-          r.status >= 400 &&
-          r.status < 500
-        ? 'GitHub refused a GitHub App token for this repository: the App may no longer be installed on it, or the installation was removed or suspended. Nothing was read.'
-        : r.status === 200
-          ? 'GitHub’s reply about this repository could not be read; nothing was read. Try again later.'
-          : limited
-            ? 'GitHub is rate-limiting this credential; nothing was read. Try again later.'
-            : r.status === 401 || r.status === 403 || r.status === 404
-              ? 'GitHub did not show this repository to the connection’s credential: the token may be expired or revoked, or its access to the repository removed.'
-              : 'GitHub did not answer the repository read; nothing was read. Try again later.';
-  // With no HTTP answer the detail is the studio's own (a timeout, a reset); otherwise it is
-  // GitHub's own message.
-  const detail = !r.message
+  (r.status === 403 || r.status === 429) &&
+  (r.headers['x-ratelimit-remaining'] === '0' ||
+    r.headers['retry-after'] !== undefined ||
+    /rate limit/i.test(r.message));
+/**
+ * Re-review 4 and 5 nits: a response that never got past the GitHub App token step says so,
+ * whichever read it was for. Null when the response is from the read itself.
+ */
+const tokenStepWording = (r: GitHubResponse): string | null => {
+  if (r.stage === 'studio')
+    return 'The studio could not get a GitHub App token, so GitHub was not asked; check the App credential (App id and private key).';
+  if (r.stage !== 'app_token') return null;
+  if (rateLimited(r))
+    return 'GitHub is rate-limiting this credential; nothing was read. Try again later.';
+  if (r.status === 401)
+    return 'GitHub did not accept the studio’s GitHub App sign-in: the App id or private key may be wrong, or the key revoked. Nothing was read.';
+  if (r.status !== null && r.status >= 400 && r.status < 500)
+    return 'GitHub refused a GitHub App token for this repository: the App may no longer be installed on it, or the installation was removed or suspended. Nothing was read.';
+  return 'GitHub did not give a GitHub App token (the token step failed); nothing was read. Try again later.';
+};
+// With no HTTP answer the detail is the studio's own (a timeout, a reset); otherwise it is
+// GitHub's own message.
+const refusalDetail = (r: GitHubResponse) =>
+  !r.message
     ? ''
     : r.status === null
       ? r.stage === 'studio'
         ? ` Studio error: ${r.message}`
         : ` Studio error, no answer from GitHub: ${r.message}`
       : ` GitHub said: ${r.message}`;
+/**
+ * Re-review N-L1 and N2-L1: the repository lookup keeps GitHub's real status and own message.
+ * A rate limit (403 or 429 with `x-ratelimit-remaining: 0`, `retry-after` or a rate-limit
+ * message) and any other status GitHub answers without the repository (5xx, no response) mean
+ * "try again"; only a plain 401, 403 or 404 points at the credential; a 200 whose body is
+ * unusable is said as such.
+ */
+export const repositoryRefusal = (r: GitHubResponse): ReadRefusal => {
+  const ours =
+    tokenStepWording(r) ??
+    (r.status === 200
+      ? 'GitHub’s reply about this repository could not be read; nothing was read. Try again later.'
+      : rateLimited(r)
+        ? 'GitHub is rate-limiting this credential; nothing was read. Try again later.'
+        : r.status === 401 || r.status === 403 || r.status === 404
+          ? 'GitHub did not show this repository to the connection’s credential: the token may be expired or revoked, or its access to the repository removed.'
+          : 'GitHub did not answer the repository read; nothing was read. Try again later.');
   return {
     step: 'repository',
     status: r.status,
-    message: `${ours}${detail}`.slice(0, 300),
+    message: `${ours}${refusalDetail(r)}`.slice(0, 300),
   };
 };
 export interface PullRead {
@@ -100,13 +117,17 @@ export interface PullRead {
 const readRefusal = (
   step: ReadRefusal['step'],
   r: GitHubResponse,
-): ReadRefusal => ({
-  step,
-  status: r.status,
-  message: (
-    r.message || (r.status === null ? 'no response' : `HTTP ${r.status}`)
-  ).slice(0, 300),
-});
+): ReadRefusal => {
+  const token = tokenStepWording(r);
+  return {
+    step,
+    status: r.status,
+    message: (token
+      ? `${token}${refusalDetail(r)}`
+      : r.message || (r.status === null ? 'no response' : `HTTP ${r.status}`)
+    ).slice(0, 300),
+  };
+};
 export interface GitHubAdapter {
   readonly live: boolean;
   identity(): Promise<{
@@ -897,7 +918,9 @@ export class LiveGitHub implements GitHubAdapter {
     const d = r.data;
     const head = d?.head as Record<string, unknown> | undefined;
     const base = d?.base as Record<string, unknown> | undefined;
-    if (r.status === 404) return { pull: null, refusal: null };
+    // A 404 from the App token step is not "no such pull request" (re-review 5, L-1).
+    if (r.status === 404 && r.stage === undefined)
+      return { pull: null, refusal: null };
     if (r.status !== 200 || !d || typeof head?.sha !== 'string')
       return { pull: null, refusal: readRefusal('pull', r) };
     const pull: PullObservation = {
