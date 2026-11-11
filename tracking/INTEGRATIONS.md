@@ -1,5 +1,41 @@
 # Integration readiness
 
+## P22 live connection checks: API key route and GitHub — November 10, 2026
+
+Jordan gave the typed OK for live API and GitHub tests on November 10 (22:40 UTC). Owner steps:
+[docs/LIVE_CONNECTION_CHECKS.md](../docs/LIVE_CONNECTION_CHECKS.md).
+
+Built in this package (then run live, below):
+
+- **API key route Test connection** on Models and connections: one "Reply with exactly: ok" request
+  (≤256 output tokens) under its own run, one `model.generate` grant (≤$0.05, 30 minutes, synthetic),
+  and a $0.05 run budget lent by an existing funded budget; the ceiling, spend limits, grant and
+  budget admit it as any paid call. Afterwards the run budget is closed, the grant revoked and the run
+  cancelled. `GET /api/broker/status` now also names the live model (`live_model_id`). Checked against
+  a loopback Responses server through the real API routes (one call, cost settled from the documented
+  price, unspent amount returned, nothing sent without the grant or after cancel).
+- **GitHub read-only checks read**: `GET …/github-repositories/{id}/checks?pr=<n>` (owner only),
+  `pnpm cli github-checks`, and a form on each repository row. It reads the pull request's head and
+  its checks and journals nothing. Fixture-tested.
+- GitHub credential chosen by Jordan: a fine-grained token limited to one owner-created private
+  repository `creator-agent-p22-trial`. Repository creation by the studio is not part of this trial;
+  Jordan asked for a later trial with a token that can create repositories once the rest works.
+
+Live results (date, model or repository, cost, outcome). Each row is added when it runs, including a
+failure. The API key route row is the first live call on the metered OpenAI route; the cost is computed
+from the documented price (retrieved 2026-10-18), not read from an OpenAI invoice.
+
+Finding (review L-6, fixed in PR #160): a successful plan availability recheck was recorded but Models and
+connections showed only the original verified time; the rechecks above were read back from the database.
+The page now shows each model's last availability recheck with its time and result.
+
+| Check | When (UTC) | Target | Cost | Result |
+| --- | --- | --- | --- | --- |
+| API key route, Test connection | 2026-11-10 23:16 | openai/gpt-6-astra (dev studio, real workspace) | $0.00036 charged ($0.014275 reserved), documented price | **Connected**: replied “ok”; reservation settled ([screenshot](evidence/p22/api-key-test-connection-2026-11-10.png)) |
+| ChatGPT plan route, one approved model check | 2026-11-11 00:11:36 and 00:12:19 | gpt-6-astra | $0 (plan requests) | **Available**: both availability rechecks completed (2 characters). A third approval naming `claude-sonnet-5-5` on this connection was rejected `model_not_found` (00:13:13), as expected for a Claude model on the ChatGPT route; recorded access unchanged |
+| Claude Code route, one approved model check | 2026-11-11 00:13:36 | claude-sonnet-5-5 | $0 (plan request) | **Available**: availability recheck completed (2 characters) |
+| GitHub verify, branch, push, PR, read checks | 2026-11-10 23:18–23:21 | jordanprice040/creator-agent-p22-trial (id 1453277093), fine-grained token | $0 | **All succeeded**: verify matched the owner; 2 pushes, 1 branch, PR #1 opened (not merged); checks read returned an empty list and check runs not readable with this token. The read at that time could not tell an empty statuses list from a refused statuses read (review M-1, fixed since: refusals are now reported), so "no statuses" is likely (Commit statuses read was granted and the repository has no CI) but not proven ([record](evidence/p22/github-trial-2026-11-10.md)) |
+
 ## ChatGPT plan route search test — November 10, 2026
 
 Jordan asked for it at 22:19 UTC and approved the dev-connection change at 22:42 UTC. PR #157

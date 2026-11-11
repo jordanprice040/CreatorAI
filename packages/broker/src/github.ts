@@ -33,7 +33,114 @@ export interface GitHubResponse {
   headers: Record<string, string>;
   data: Record<string, unknown> | null;
   message: string;
+  /**
+   * Set when the call never got past the GitHub App token step: `app_token` is GitHub's answer
+   * to the installation-token request; `studio` is a local failure (e.g. a private key that
+   * cannot sign), so GitHub was never asked.
+   */
+  stage?: 'app_token' | 'studio';
 }
+export interface ReadRefusal {
+  step: 'repository' | 'pull' | 'check_runs' | 'statuses';
+  status: number | null;
+  message: string;
+}
+export interface RepositoryRead {
+  repository: RepoObservation | null;
+  refusal: ReadRefusal | null;
+}
+const rateLimited = (r: GitHubResponse) =>
+  // 429 is always a rate limit. A 403 is one only with a sign of it; a secondary rate limit may
+  // come without `retry-after`, but GitHub's message names it.
+  r.status === 429 ||
+  (r.status === 403 &&
+    (r.headers['x-ratelimit-remaining'] === '0' ||
+      r.headers['retry-after'] !== undefined ||
+      /rate limit/i.test(r.message)));
+// `notRead` says what this refusal left unread: "nothing was read" for the repository lookup,
+// one part (e.g. "the commit statuses were not read") for a step of the checks read.
+const rateLimitedWording = (notRead: string) =>
+  `GitHub is rate-limiting this credential; ${notRead}. Try again later.`;
+const sentence = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+/**
+ * Re-review 4 and 5 nits: a response that never got past the GitHub App token step says so,
+ * whichever read it was for. Null when the response is from the read itself.
+ */
+const tokenStepWording = (
+  r: GitHubResponse,
+  notRead: string,
+): string | null => {
+  if (r.stage === 'studio')
+    return 'The studio could not get a GitHub App token, so GitHub was not asked; check the App credential (App id and private key).';
+  if (r.stage !== 'app_token') return null;
+  if (rateLimited(r)) return rateLimitedWording(notRead);
+  if (r.status === 401)
+    return `GitHub did not accept the studio’s GitHub App sign-in: the App id or private key may be wrong, or the key revoked. ${sentence(notRead)}.`;
+  if (r.status !== null && r.status >= 400 && r.status < 500)
+    return `GitHub refused a GitHub App token for this repository: the App may no longer be installed on it, or the installation was removed or suspended. ${sentence(notRead)}.`;
+  return `GitHub did not give a GitHub App token (the token step failed); ${notRead}. Try again later.`;
+};
+// With no HTTP answer the detail is the studio's own (a timeout, a reset); otherwise it is
+// GitHub's own message.
+const refusalDetail = (r: GitHubResponse) =>
+  !r.message
+    ? ''
+    : r.status === null
+      ? r.stage === 'studio'
+        ? ` Studio error: ${r.message}`
+        : ` Studio error, no answer from GitHub: ${r.message}`
+      : ` GitHub said: ${r.message}`;
+/**
+ * Re-review N-L1 and N2-L1: the repository lookup keeps GitHub's real status and own message.
+ * A rate limit (any 429, or a 403 with `x-ratelimit-remaining: 0`, `retry-after` or a
+ * rate-limit message) and any other status GitHub answers without the repository (5xx, no
+ * response) mean "try again"; only a plain 401, 403 or 404 points at the credential; a 200
+ * whose body is unusable is said as such.
+ */
+export const repositoryRefusal = (r: GitHubResponse): ReadRefusal => {
+  const ours =
+    tokenStepWording(r, 'nothing was read') ??
+    (r.status === 200
+      ? 'GitHub’s reply about this repository could not be read; nothing was read. Try again later.'
+      : rateLimited(r)
+        ? rateLimitedWording('nothing was read')
+        : r.status === 401 || r.status === 403 || r.status === 404
+          ? 'GitHub did not show this repository to the connection’s credential: the token may be expired or revoked, or its access to the repository removed.'
+          : 'GitHub did not answer the repository read; nothing was read. Try again later.');
+  return {
+    step: 'repository',
+    status: r.status,
+    message: `${ours}${refusalDetail(r)}`.slice(0, 300),
+  };
+};
+export interface PullRead {
+  pull: PullObservation | null;
+  refusal: ReadRefusal | null;
+}
+const READ_PART: Record<ReadRefusal['step'], string> = {
+  repository: 'the repository',
+  pull: 'the pull request',
+  check_runs: 'the check runs',
+  statuses: 'the commit statuses',
+};
+const readRefusal = (
+  step: ReadRefusal['step'],
+  r: GitHubResponse,
+): ReadRefusal => {
+  // Re-review 8: the other step's results may still be shown, so say only this part was unread.
+  const notRead = `${READ_PART[step]} ${step === 'check_runs' || step === 'statuses' ? 'were' : 'was'} not read`;
+  const wording =
+    tokenStepWording(r, notRead) ??
+    (rateLimited(r) ? rateLimitedWording(notRead) : null);
+  return {
+    step,
+    status: r.status,
+    message: (wording
+      ? `${wording}${refusalDetail(r)}`
+      : r.message || (r.status === null ? 'no response' : `HTTP ${r.status}`)
+    ).slice(0, 300),
+  };
+};
 export interface GitHubAdapter {
   readonly live: boolean;
   identity(): Promise<{
@@ -80,10 +187,21 @@ export interface GitHubAdapter {
   ): Promise<GitHubResponse>;
   findOpenPull(repo: RepoRef, head: string): Promise<number | null>;
   pull(repo: RepoRef, number: number): Promise<PullObservation | null>;
+  /**
+   * P22 review M-1: the same read, keeping why it failed. `refusal` is null for a pull request
+   * that was read and for a plain 404 (no such pull request); any other failure is a refusal.
+   */
+  pullRead(repo: RepoRef, number: number): Promise<PullRead>;
+  repositoryRead(id: number): Promise<RepositoryRead>;
   checks(
     repo: RepoRef,
     sha: string,
-  ): Promise<{ checks: CheckObservation[]; check_runs_readable: boolean }>;
+  ): Promise<{
+    checks: CheckObservation[];
+    check_runs_readable: boolean;
+    /** A check-runs or statuses read GitHub did not answer with 200; the list is then partial. */
+    refusals: ReadRefusal[];
+  }>;
   merge(
     repo: RepoRef,
     number: number,
@@ -370,15 +488,47 @@ export class FixtureGitHub implements GitHubAdapter {
     );
   }
   async pull(repo: RepoRef, number: number) {
-    if (this.#revoked) return null;
+    return (await this.pullRead(repo, number)).pull;
+  }
+  async repositoryRead(id: number): Promise<RepositoryRead> {
+    if (this.#revoked)
+      return {
+        repository: null,
+        refusal: repositoryRefusal({
+          status: 401,
+          headers: {},
+          data: null,
+          message: 'Bad credentials',
+        }),
+      };
+    const r = await this.repositoryById(id);
+    return r
+      ? { repository: r, refusal: null }
+      : {
+          repository: null,
+          refusal: repositoryRefusal({
+            status: 404,
+            headers: {},
+            data: null,
+            message: 'Not Found',
+          }),
+        };
+  }
+  async pullRead(repo: RepoRef, number: number): Promise<PullRead> {
+    if (this.#revoked)
+      return {
+        pull: null,
+        refusal: { step: 'pull', status: 401, message: 'Bad credentials' },
+      };
     const p = this.#visible(repo.github_id)?.pulls.get(number);
-    return p ? { ...p } : null;
+    return { pull: p ? { ...p } : null, refusal: null };
   }
   async checks(repo: RepoRef, sha: string) {
     const r = this.#visible(repo.github_id);
     return {
       checks: (r?.checks ?? []).filter((c) => c.head_sha === sha),
       check_runs_readable: true,
+      refusals: [] as ReadRefusal[],
     };
   }
   merge(repo: RepoRef, number: number, sha: string) {
@@ -547,7 +697,16 @@ export class LiveGitHub implements GitHubAdapter {
       );
     } catch (e) {
       const r = (e as { response?: GitHubResponse }).response;
-      return r ?? err(null, 'installation token unavailable');
+      if (r) return { ...r, stage: 'app_token' };
+      // Only the error's code, never its text, so nothing from the key can reach a message.
+      const code = (e as { code?: unknown }).code;
+      return {
+        ...err(
+          null,
+          `installation token unavailable (${typeof code === 'string' ? code.slice(0, 80) : 'local error'})`,
+        ),
+        stage: 'studio',
+      };
     }
     return this.#call(method, path, `Bearer ${token}`, body);
   }
@@ -608,6 +767,16 @@ export class LiveGitHub implements GitHubAdapter {
       permissions: { metadata: 'read' },
     });
     return r.status === 200 ? this.#repoObs(r.data) : null;
+  }
+  async repositoryRead(id: number): Promise<RepositoryRead> {
+    const r = await this.#rest('GET', `/repositories/${id}`, {
+      repo: id,
+      permissions: { metadata: 'read' },
+    });
+    const repository = r.status === 200 ? this.#repoObs(r.data) : null;
+    return repository
+      ? { repository, refusal: null }
+      : { repository: null, refusal: repositoryRefusal(r) };
   }
   async repositoryByName(fullName: string) {
     const r = await this.#rest('GET', `/repos/${fullName}`, {
@@ -751,6 +920,9 @@ export class LiveGitHub implements GitHubAdapter {
     return typeof items[0]?.number === 'number' ? items[0].number : null;
   }
   async pull(repo: RepoRef, number: number): Promise<PullObservation | null> {
+    return (await this.pullRead(repo, number)).pull;
+  }
+  async pullRead(repo: RepoRef, number: number): Promise<PullRead> {
     const r = await this.#rest(
       'GET',
       `/repos/${repo.full_name}/pulls/${number}`,
@@ -759,8 +931,12 @@ export class LiveGitHub implements GitHubAdapter {
     const d = r.data;
     const head = d?.head as Record<string, unknown> | undefined;
     const base = d?.base as Record<string, unknown> | undefined;
-    if (r.status !== 200 || !d || typeof head?.sha !== 'string') return null;
-    return {
+    // A 404 from the App token step is not "no such pull request" (re-review 5, L-1).
+    if (r.status === 404 && r.stage === undefined)
+      return { pull: null, refusal: null };
+    if (r.status !== 200 || !d || typeof head?.sha !== 'string')
+      return { pull: null, refusal: readRefusal('pull', r) };
+    const pull: PullObservation = {
       number,
       state: d.state === 'open' ? 'open' : 'closed',
       merged: d.merged === true,
@@ -772,9 +948,11 @@ export class LiveGitHub implements GitHubAdapter {
           ? d.merge_commit_sha
           : null,
     };
+    return { pull, refusal: null };
   }
   async checks(repo: RepoRef, sha: string) {
     const out: CheckObservation[] = [];
+    const refusals: ReadRefusal[] = [];
     // Fine-grained personal access tokens cannot call the Checks API (GitHub docs,
     // "Fine-grained personal access tokens limitations"); they read commit statuses only.
     const readable = this.opts.credential.kind === 'app_installation';
@@ -784,7 +962,10 @@ export class LiveGitHub implements GitHubAdapter {
         `/repos/${repo.full_name}/commits/${sha}/check-runs?filter=latest&per_page=100`,
         { repo: repo.github_id, permissions: { checks: 'read' } },
       );
-      for (const c of (r.data?.check_runs ?? []) as Record<string, unknown>[])
+      if (r.status !== 200) refusals.push(readRefusal('check_runs', r));
+      // A failed token step's reply is not a check-runs answer; never read it as one.
+      const runs = r.stage === undefined ? (r.data?.check_runs ?? []) : [];
+      for (const c of runs as Record<string, unknown>[])
         if (typeof c.name === 'string' && c.head_sha === sha)
           out.push({
             name: c.name,
@@ -804,7 +985,8 @@ export class LiveGitHub implements GitHubAdapter {
       `/repos/${repo.full_name}/commits/${sha}/status`,
       { repo: repo.github_id, permissions: { statuses: 'read' } },
     );
-    if (s.data?.sha === sha)
+    if (s.status !== 200) refusals.push(readRefusal('statuses', s));
+    if (s.stage === undefined && s.data?.sha === sha)
       for (const st of (s.data?.statuses ?? []) as Record<string, unknown>[])
         if (typeof st.context === 'string')
           out.push({
@@ -815,7 +997,7 @@ export class LiveGitHub implements GitHubAdapter {
             conclusion:
               st.state === 'pending' ? null : String(st.state ?? 'error'),
           });
-    return { checks: out, check_runs_readable: readable };
+    return { checks: out, check_runs_readable: readable, refusals };
   }
   merge(
     repo: RepoRef,

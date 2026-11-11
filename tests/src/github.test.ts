@@ -406,6 +406,21 @@ test('X04 owner verification, scope limits, push, review, checks and exact-head 
   assert.equal(state(await merge(c2)), 'refused:check_pending');
   gh.setCheck(repo.github_id, c2, 'ci', 'failure');
   assert.equal(state(await merge(c2)), 'refused:check_failed');
+  // P22: the owner can read the pull request's head and checks without journaling anything;
+  // other members cannot use the connection's credential to read.
+  const opsBefore = (await store.listGitHubOperations(owner, ws)).length;
+  const read = await svc.pullChecks(owner, ws, repo.id, number);
+  assert.equal(read.pull?.head_sha, c2);
+  assert.deepEqual(
+    read.checks.map((x) => `${x.name}:${x.conclusion}`),
+    ['ci:failure'],
+  );
+  assert.equal((await store.listGitHubOperations(owner, ws)).length, opsBefore);
+  await assert.rejects(svc.pullChecks(agent, ws, repo.id, number), /owner/i);
+  const missing = await svc.pullChecks(owner, ws, repo.id, 9999);
+  assert.equal(missing.pull, null);
+  assert.deepEqual(missing.refusals, []);
+  assert.deepEqual(read.refusals, []);
   gh.setCheck(repo.github_id, c2, 'ci', 'success');
   // Someone pushes after review: the reviewed head is stale, and so are its approval and checks.
   const c3 = local.commit('src/app.txt', 'v3');
@@ -718,6 +733,14 @@ test('X04 revocation, expiry, lost scope and verified, deduplicated webhooks', a
     sha: c1,
     base_sha: null,
   };
+  // Re-review N-L1: the owner's checks read reports the refused repository read with its
+  // status, instead of throwing "not found".
+  const unread = await svc.pullChecks(owner, ws, repoC.id, 1);
+  assert.equal(unread.pull, null);
+  assert.deepEqual(
+    unread.refusals.map((r) => `${r.step}:${r.status}`),
+    ['repository:401'],
+  );
   const denied = await svc.operate(agent, ws, op(conn2, run, push));
   // The repository read fails first under a revoked credential, so nothing is sent.
   assert.equal(state(denied), 'refused:repository_unreadable');

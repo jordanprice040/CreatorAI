@@ -32,6 +32,7 @@ import {
 } from './caps-fields.js';
 import { ChatAnswersCard } from './chat-answers.js';
 import { OpenRequests } from './open-requests.js';
+import { ApiKeyCheck } from './api-key-check-panel.js';
 
 // §2.2 Models and connections. Sign-in, model access and task qualification are shown as
 // separate states; nothing here can enable credits or a paid fallback. A Claude Code
@@ -295,13 +296,8 @@ export function Models({
         onChanged={() => void load().catch((e) => setError(message(e)))}
       />
       <h3>Other routes</h3>
-      <ul>
-        <li>
-          OpenAI API key: used only when the API's live opt-in and a verified
-          model registry entry are set. This screen does not change it.
-        </li>
-        <li>Local models (Ollama): not available yet.</li>
-      </ul>
+      <ApiKeyCheck workspace={workspace} session={session} />
+      <p>Local models (Ollama): not available yet.</p>
       <h3>Plan connections</h3>
       <p>
         These use the usage included in a plan you already pay for, with no
@@ -895,7 +891,21 @@ export function Models({
             <ul>
               {detail.model_access.map((a) => (
                 <li key={`${a.model_id}-${a.path}`}>
-                  {a.model_id} · {a.path} · {a.access}
+                  {a.model_id} · {a.path} · {a.access} ·{' '}
+                  {new Date(a.verified_at).toLocaleString()}
+                  {(() => {
+                    // P22 review L-6: a recheck keeps the original record, so say when it ran.
+                    const r = detail.last_rechecks.find(
+                      (x) => x.model_id === a.model_id && x.path === a.path,
+                    );
+                    return r
+                      ? ` · last availability recheck ${new Date(r.finished_at).toLocaleString()}: ${
+                          r.state === 'completed'
+                            ? 'available'
+                            : `${r.state}${r.reason_code ? ` (${r.reason_code})` : ''}`
+                        }`
+                      : '';
+                  })()}
                 </li>
               ))}
             </ul>

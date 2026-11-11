@@ -5,7 +5,7 @@ import type { CommandContext, GitHubStore } from '@creator/db';
 
 /** X04 routes under /api/workspaces/:ws/github-*. Matched separately from RECORD_ROUTE. */
 export const GITHUB_ROUTE =
-  /^\/api\/workspaces\/([^/]+)\/(github-connections|github-repositories|github-operations|github-reviews)(?:\/([^/]+)(?:\/(verify|revoke|reconcile|deliveries))?)?$/;
+  /^\/api\/workspaces\/([^/]+)\/(github-connections|github-repositories|github-operations|github-reviews)(?:\/([^/]+)(?:\/(verify|revoke|reconcile|deliveries|checks))?)?$/;
 /** GitHub delivers here (through the owner's local forwarder; the API binds to loopback). */
 export const GITHUB_WEBHOOK_ROUTE = /^\/api\/github\/webhooks\/([^/]+)$/;
 const MAX_WEBHOOK = 1024 * 1024;
@@ -20,6 +20,7 @@ export async function githubRoutes(r: {
   action: string | undefined;
   method: string;
   body: () => Promise<unknown>;
+  query?: URLSearchParams;
   send: (status: number, value: unknown, mutated: boolean) => Promise<boolean>;
 }): Promise<boolean> {
   const { store, service, ctx, ws, collection, item, action, method, send } = r;
@@ -55,6 +56,16 @@ export async function githubRoutes(r: {
     case 'github-repositories':
       if (!item && get)
         return send(200, await store.listGitHubRepositories(ctx, ws), false);
+      // P22: read-only; ?pr=<number>.
+      if (item && action === 'checks' && get) {
+        const pr = Number(r.query?.get('pr') ?? '');
+        if (!Number.isSafeInteger(pr) || pr < 1)
+          throw new ContractError(
+            'INVALID_CONTRACT',
+            'Name the pull request number as ?pr=<number>.',
+          );
+        return send(200, await service.pullChecks(ctx, ws, item, pr), false);
+      }
       break;
     case 'github-operations':
       if (!item && get)

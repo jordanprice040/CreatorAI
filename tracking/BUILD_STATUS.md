@@ -35,7 +35,7 @@ the record of each package and are appended to, not rewritten.
 | P19 Standard/Advanced across the app | Not started (added November 10, R21 and rest of R10–R12) |
 | P20 whole process from Chat | Not started (added November 10, R22); Jordan approved it November 10; needs an ADR amending ADR-0057/0070 |
 | P21 quick model switch | Not started (added November 10, R23) |
-| P22 live API and GitHub checks | Not started (added November 10, R24–R25); Jordan approved the live API and GitHub tests November 10 |
+| P22 live API and GitHub checks | Live checks passed November 10–11 (R24, R25); PR #160 in review |
 
 Checks on main `e08e0a4`, November 10 (cloud container, PostgreSQL 16): TypeScript, web typecheck and
 formatting pass; `pnpm test:db` 867 tests, 833 pass, 29 skips, 5 fail (the known wrapper tests that need
@@ -62,7 +62,8 @@ Open items:
 ## Next eligible prompt
 
 P10 and P16 merged on November 10 (main `cb12eeb`; next free migration 51, ADR-0081). Jordan's 25 revision notes
-were checked against main on November 10 (12 done, 7 partial, 6 not done; table in the
+were checked against main on November 10 (12 done, 7 partial, 6 not done; 14 done, 6 partial, 5 not done after P22's
+live checks; table in the
 [plan's November 10 section](../docs/CREATOR_AGENT_IMPLEMENTATION_PLAN_2026-11-05.md#november-10-check-of-jordans-revision-notes-and-added-packages-p18p22)),
 which added P18–P22. Next: P18 and P21 (small, UI only, can run in parallel); P22 (live tests approved November 10);
 then P19; P12 once Jordan picks the next step from the search route investigation (PR #157, merged); P13; P20; later P15 slices; P17.
@@ -909,3 +910,37 @@ changed (N3). Re-review fixes (report `reviews/P16_PR163_REREVIEW_2026-11-11.md`
 ASSUMPTIONS.md line with REVIEW.md (L-A) and commits the final REVIEW.md marks whenever there are findings, fixed or
 not (L-B); "other cases exist that you cannot see" appears only when cases are held out (L-C); the "cases govern"
 line also appears when every case is held out (N-A). Bundle hash now `8648d257…`.
+
+## P22 live connection checks (November 10, 2026, no migration, no ADR)
+
+Jordan's typed OK (November 10, 22:40 UTC) covers live API and GitHub tests. Added: a "Test
+connection" for the metered OpenAI API key route on Models and connections (one bounded request
+under its own run, grant and $0.05 run budget; closed, revoked and cancelled afterwards;
+`apps/web/src/api-key-check.ts`, `api-key-check-panel.tsx`), `live_model_id` on
+`GET /api/broker/status`, and a read-only GitHub pull-request checks read
+(`GET …/github-repositories/{id}/checks?pr=<n>`, `pnpm cli github-checks`, a form per repository).
+Owner steps: [docs/LIVE_CONNECTION_CHECKS.md](../docs/LIVE_CONNECTION_CHECKS.md). GitHub credential
+(Jordan's choice): a fine-grained token limited to one owner-created private repository
+`creator-agent-p22-trial`; a later trial with a repository-creating token is recorded as a follow-up.
+Local checks: new loopback API test `tests/src/api-key-check-api.test.ts`, unit tests
+`tests/src/web-api-key-check.test.ts`, GitHub fixture assertions in `tests/src/github.test.ts`.
+Live results (tracking/INTEGRATIONS.md, "P22 live connection checks"): API key route connected
+(`gpt-6-astra`, $0.00036, November 10 23:16 UTC); GitHub scoped trial succeeded (verify, branch, two
+pushes, PR #1 in `creator-agent-p22-trial`, checks read); ChatGPT and Claude Code availability rechecks
+passed at $0 (November 11). The dev studio now runs from `C:\dev\creator_agent_p22`
+(`.creator\studio\start-dev-p22.ps1`); `creator_studio` was backed up and migrated 49 → 50.
+Review of PR #160 (1 Medium, 6 Lows) fixed in the same PR: refused GitHub reads are reported as
+refusals (M-1); the panel says "outcome unknown, reconcile" when no answer arrives, archives a run
+record whose registration failed, and its clean-up is tested end to end through `runCheck` (L-3–L-5);
+Models and connections shows each model's last availability recheck (L-6). Re-review Lows fixed: the
+checks read's repository lookup keeps GitHub's real status, and a rate-limit 403 says "try again", not
+"token expired". Owner clean-up: Jordan revoked the "P22 trial" connection on November 11 (01:43 UTC)
+and reported the token deleted; the trial repository is his to keep or delete. Nits fixed at Jordan's
+request (November 11): a secondary rate limit without `retry-after` is recognised by GitHub's message, a
+read with no answer is worded as the studio's own error rather than "GitHub said", and `checksSummary`
+(now in `apps/web/src/github-checks.ts`) has unit tests (`tests/src/web-github-checks.test.ts`).
+Fourth re-review nits (GitHub App path, not used live): a GitHub App token the studio cannot create
+locally (e.g. an unusable private key) says to check the App credential, not "try again", and a token
+GitHub refuses (e.g. 422, repository removed from the installation) says so instead of "did not answer".
+Fifth re-review: a 404 from the App token step is a refusal, not "no such pull request" (L-1); a 401 there
+points at the App id or private key; a 5xx or a 201 without a token names the token step.

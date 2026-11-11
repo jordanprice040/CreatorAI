@@ -109,13 +109,15 @@ hour. Sources: [pull requests](https://docs.github.com/en/rest/pulls/pulls),
 
 API under `/api/workspaces/{ws}/`: `github-connections` (GET, POST),
 `github-connections/{id}` (GET), `…/verify`, `…/revoke` (POST), `…/deliveries` (GET),
-`github-repositories` (GET), `github-operations` (GET, POST), `github-operations/{id}`
+`github-repositories` (GET), `github-repositories/{id}/checks?pr=<n>` (GET, owner only,
+read-only: the pull request's current head and the checks GitHub reports on it; P22),
+`github-operations` (GET, POST), `github-operations/{id}`
 (GET), `…/reconcile` (POST), `github-reviews` (POST). Webhooks:
 `POST /api/github/webhooks/{connection-id}`. The API listens on loopback only, so
 GitHub deliveries need a local forwarder; none is set up.
 
 CLI: `github-connect`, `github-connections`, `github-verify`, `github-revoke`,
-`github-deliveries`, `github-repos`, `github-op`, `github-ops`, `github-reconcile`,
+`github-deliveries`, `github-repos`, `github-checks`, `github-op`, `github-ops`, `github-reconcile`,
 `github-review` (`pnpm cli` prints usage). An operation request:
 
 ```json
@@ -134,7 +136,9 @@ Other `params` kinds: `branch_create` (repository_id, branch, from_sha), `push`
 (head_branch, base_branch, title, body), `pr_merge` (pr_number, reviewed_head_sha,
 merge_method `merge` or `squash`).
 
-## Turning on live use (owner steps, not done)
+## Turning on live use (owner steps)
+
+The P22 live trial and its exact steps are in [LIVE_CONNECTION_CHECKS.md](LIVE_CONNECTION_CHECKS.md).
 
 1. Choose the credential: a GitHub App installed on selected repositories (recommended:
    it can read check runs and tokens are short-lived) or a fine-grained token limited to
