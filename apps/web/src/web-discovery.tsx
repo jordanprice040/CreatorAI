@@ -202,7 +202,7 @@ export function WebDiscover({
       : []),
     ...(plan && model && !webQualified(plan, model)
       ? [
-          `${model} is not qualified for web discovery (the web-discovery-v1 benchmark). Qualify it under Models and connections first.`,
+          `${model} is not qualified for web discovery (the web-discovery-v2 benchmark). Qualify it under Models and connections first.`,
         ]
       : []),
     ...(current?.data?.fetching_available === false

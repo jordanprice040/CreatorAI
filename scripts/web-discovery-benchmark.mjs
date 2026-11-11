@@ -1,4 +1,4 @@
-// Writes config/connections/benchmarks/web-discovery-v1.json (ADR-0086, P12). Run after
+// Writes config/connections/benchmarks/web-discovery-v2.json (ADR-0086, P12). Run after
 // `pnpm build:code`: node scripts/web-discovery-benchmark.mjs
 // Scout cases search the live web through the plan connection's own web search and are graded
 // on what the provider reported (a search happened, enough leads from its own source list, from
@@ -112,9 +112,11 @@ const cases = [
     3,
     3,
   ),
+  // v1's held-out scout cases were opened to diagnose the November 11 live failure, so they
+  // are practice now (ADR-0052); the held-out scout cases below are new in v2.
   scout(
-    'scout-held-gap',
-    'held_out',
+    'scout-dev-gap',
+    'development',
     {
       question:
         'Is there independent evidence on whether shared volunteer calendars reduce no-shows?',
@@ -123,8 +125,8 @@ const cases = [
     2,
   ),
   scout(
-    'scout-held-cross-field',
-    'held_out',
+    'scout-dev-cross-field',
+    'development',
     {
       interests: ['aviation checklists', 'home medication management'],
     },
@@ -132,13 +134,45 @@ const cases = [
     2,
   ),
   scout(
-    'scout-held-clinics',
-    'held_out',
+    'scout-dev-clinics',
+    'development',
     {
       interests: ['appointment no-shows'],
       target_groups: ['small clinics'],
       excluded_hosts: ['*.facebook.com'],
       exclusions: ['cryptocurrency'],
+    },
+    3,
+    2,
+  ),
+  scout(
+    'scout-held-donations',
+    'held_out',
+    {
+      question:
+        'What do small charities report about keeping track of donated goods?',
+    },
+    3,
+    2,
+  ),
+  scout(
+    'scout-held-allotments',
+    'held_out',
+    {
+      interests: ['community garden plot waiting lists'],
+      target_groups: ['neighbourhood associations'],
+      excluded_hosts: ['*.pinterest.com'],
+    },
+    3,
+    2,
+  ),
+  scout(
+    'scout-held-school-transport',
+    'held_out',
+    {
+      interests: ['school bus route changes', 'after-school pickup'],
+      target_groups: ['parents'],
+      exclusions: ['real estate'],
     },
     3,
     2,
@@ -246,21 +280,21 @@ const cases = [
 
 const manifest = BenchmarkManifestSchema.parse({
   format: 'route-benchmark/1',
-  name: 'web-discovery-v1',
+  name: 'web-discovery-v2',
   fixture: false,
   task_class: 'research_synthesis',
   data_class: 'public',
   cases,
   provenance:
-    'ADR-0086 (P12), November 11, 2026. Scout cases search the live web and are graded on the provider-reported search calls and sources, never on exact URLs; the development scout cases reuse the November 10 search-route test queries. Reader cases are synthetic packets written for this benchmark, graded by the studio quote check. Not a study instrument.',
+    'ADR-0086 (P12), November 11, 2026; v2 after the live v1 check (scout prompt states field limits, role version 2; the three v1 held-out scout cases became practice and three new held-out scout cases were added). Scout cases search the live web and are graded on the provider-reported search calls and sources, never on exact URLs; the development scout cases reuse the November 10 search-route test queries. Reader cases are synthetic packets written for this benchmark, graded by the studio quote check. Not a study instrument.',
 });
 writeFileSync(
   new URL(
-    '../config/connections/benchmarks/web-discovery-v1.json',
+    '../config/connections/benchmarks/web-discovery-v2.json',
     import.meta.url,
   ),
   `${JSON.stringify(manifest, null, 2)}\n`,
 );
 console.log(
-  `web-discovery-v1: ${cases.length} cases, ${cases.filter((c) => c.split === 'held_out').length} held out`,
+  `web-discovery-v2: ${cases.length} cases, ${cases.filter((c) => c.split === 'held_out').length} held out`,
 );

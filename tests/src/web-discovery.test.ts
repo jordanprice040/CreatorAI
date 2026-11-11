@@ -129,6 +129,18 @@ test('only URLs the provider search listed are fetched; exclusions, repeats and 
       ['invalid_url', 'model_suggested'],
     ],
   );
+  // Live check, November 11: one over-long "why" is clipped, not a rejected answer.
+  const long = checkScoutOutput(
+    {
+      summary: 'S'.repeat(1500),
+      leads: [lead('https://a.org/1', 'T'.repeat(400), 'W'.repeat(413))],
+    },
+    [call(['https://a.org/1'])],
+    scope(),
+  );
+  assert.ok(long.ok);
+  assert.equal(long.ok && long.leads[0]!.why.length, 300);
+  assert.equal(long.ok && long.leads[0]!.disposition, 'selected');
   // Re-review R-4: a search source reported over http is fetched at its https form.
   const plain = checkScoutOutput(
     { summary: 'Searched.', leads: [lead('https://g.org/plain')] },
@@ -422,7 +434,7 @@ test('the bundled benchmark binds both stages to the current prompts and grades 
     JSON.parse(
       readFileSync(
         new URL(
-          '../../config/connections/benchmarks/web-discovery-v1.json',
+          '../../config/connections/benchmarks/web-discovery-v2.json',
           import.meta.url,
         ),
         'utf8',
@@ -754,7 +766,7 @@ async function setup(t: test.TestContext) {
   const manifest = JSON.parse(
     readFileSync(
       new URL(
-        '../../config/connections/benchmarks/web-discovery-v1.json',
+        '../../config/connections/benchmarks/web-discovery-v2.json',
         import.meta.url,
       ),
       'utf8',

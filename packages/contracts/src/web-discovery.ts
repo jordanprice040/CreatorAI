@@ -10,7 +10,6 @@ import { EvidenceSiteHostSchema, RetrievalStateSchema } from './research.js';
 // owner or, where the run's routine approval policy covers the evidence stage, by that policy.
 // No search or browser API is used, and nothing here spends money.
 const short = z.string().trim().min(1).max(300);
-const para = z.string().trim().min(1).max(1200);
 const term = z.string().trim().min(1).max(80);
 
 export const WEB_DISCOVERY_POLICY_VERSION = 'web-discovery/1.0' as const;
@@ -71,16 +70,28 @@ export type StartWebDiscoveryRequest = z.infer<
   typeof StartWebDiscoveryRequestSchema
 >;
 
+/**
+ * A model's free text, clipped instead of refused (live check, November 11: one 314-character
+ * "why" rejected a whole search answer). The prompt states the limits; this is the backstop.
+ */
+const clipped = (n: number) =>
+  z
+    .string()
+    .trim()
+    .min(1)
+    .max(4000)
+    .transform((s) => (s.length > n ? `${s.slice(0, n - 1)}…` : s));
+
 /** What the search request answers: candidate pages, each with why it may hold evidence. */
 export const ScoutOutputSchema = z.strictObject({
-  summary: para,
+  summary: clipped(1200),
   leads: z
     .array(
       z.strictObject({
         url: z.string().trim().min(1).max(2000),
-        title: short,
-        why: short,
-        query: short.nullable(),
+        title: clipped(300),
+        why: clipped(300),
+        query: clipped(300).nullable(),
       }),
     )
     .max(20),
