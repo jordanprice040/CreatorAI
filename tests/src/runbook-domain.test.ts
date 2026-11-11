@@ -249,6 +249,11 @@ test('an unfrozen, replaced or stack-less spec says so instead of looking ready'
   }
   const none = softwareRunbook(j);
   assert.equal(none.manifest.recipe, 'none');
+  // With no held-out case, the reviewer is not told hidden cases exist.
+  assert.doesNotMatch(
+    textOf(none.files, 'prompts/05-review-and-repair.md'),
+    /Other cases exist/,
+  );
   // With no case to compare, REQUIREMENTS.md says nothing about cases governing.
   assert.doesNotMatch(
     textOf(none.files, 'REQUIREMENTS.md'),
@@ -302,8 +307,13 @@ test('a receiver with only the bundle can finish every step as written', () => {
   assert.match(review, /If it has no findings, the repair part is empty/);
   assert.match(
     review,
-    /If you fixed anything, commit that update to REVIEW\.md last/,
+    /Commit REVIEW\.md, with any line you added to ASSUMPTIONS\.md/,
   );
+  assert.match(
+    review,
+    /If REVIEW\.md has any findings, commit that update to it last/,
+  );
+  assert.match(review, /Other cases exist that you cannot see/);
   assert.doesNotMatch(review, /`review\/`/);
   assert.match(review, /leave that review as it is/);
   const t3 = textOf(files, 'prompts/04-t3-review-against-the-scope.md');
@@ -1033,6 +1043,11 @@ test('a check with only held-out cases is the owner’s to run, and a review nev
     a.cases?.length
       ? { ...a, cases: a.cases.map((x) => ({ ...x, held_out: true })) }
       : a,
+  );
+  // Every case held out: the hidden cases still govern over the general measure.
+  assert.match(
+    textOf(softwareRunbook(m).files, 'REQUIREMENTS.md'),
+    /What a case expects is exact/,
   );
   assert.match(
     textOf(softwareRunbook(m).files, 'README.md'),

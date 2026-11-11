@@ -783,4 +783,7 @@ govern" line appears only when a check has visible cases (L1); the STACK.md sent
 not every suggestion, and the static-web server note says it is only a way to try the page (L2); prompt 05 Part 1 may
 add an ASSUMPTIONS.md line as the contract allows (L3); prompt 05 no longer names `review/` (N1); the commit order
 reads right with no findings (N2); the synthetic spec is now version 3 with a new placeholder hash, since its text
-changed (N3). Bundle hash now `9ddeb6ac…`.
+changed (N3). Re-review fixes (report `reviews/P16_PR163_REREVIEW_2026-11-11.md`): prompt 05 commits a Part 1
+ASSUMPTIONS.md line with REVIEW.md (L-A) and commits the final REVIEW.md marks whenever there are findings, fixed or
+not (L-B); "other cases exist that you cannot see" appears only when cases are held out (L-C); the "cases govern"
+line also appears when every case is held out (N-A). Bundle hash now `8648d257…`.

@@ -905,7 +905,10 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
   req.push('', '## Acceptance checks', '');
   req.push(
     'Each check has a key (A1, A2, ...). A check passes only when it is run and observed to pass.',
-    ...(checks.some((a) => a.cases.length || a.browser_cases.length)
+    ...(checks.some(
+      (a) =>
+        a.cases.length || a.browser_cases.length || a.held_out_cases_withheld,
+    )
       ? [
           'What a case expects is exact. Where it differs from the general measure of its check (a refusal case, for example), the case governs; report the mismatch, do not change either.',
         ]
@@ -1442,7 +1445,7 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
     ],
     artifacts: [
       'A `REVIEW.md` in the project: findings by severity with file and line, and for each the fix or the reason it stays.',
-      '`REVIEW.md` committed on its own first; then, only if something is fixed, one commit per repaired finding and a last commit that marks each finding in `REVIEW.md`.',
+      '`REVIEW.md` committed first, with any line Part 1 added to `ASSUMPTIONS.md`; then one commit per repaired finding; then, if there were any findings, a last commit that marks each one in `REVIEW.md`.',
     ],
     gate: [
       ...(runner ? [`\`${runner}\` ends with 0 failed.`] : []),
@@ -1456,7 +1459,11 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
       'line as the contract allows):',
       '1. Read REQUIREMENTS.md, then the code and its history.',
       '2. For each acceptance check, decide whether the code truly does what the statement',
-      '   says, not only what the visible cases test. Other cases exist that you cannot see.',
+      ...(heldOut
+        ? [
+            '   says, not only what the visible cases test. Other cases exist that you cannot see.',
+          ]
+        : ['   says, not only what the cases test.']),
       '3. Look for: behaviour outside the scope, a non-goal that was built, a changed check,',
       '   input that crashes it, data the spec does not allow, anything a risk in',
       '   REQUIREMENTS.md warned about.',
@@ -1466,7 +1473,8 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
       '   Read ASSUMPTIONS.md if it exists: a reading there that looks wrong is a finding.',
       '   A mistake in an earlier task’s review is a finding too; leave that review as it is.',
       '4. Write REVIEW.md: findings, most serious first, each with file and line.',
-      '   Commit REVIEW.md on its own. If it has no findings, the repair part is empty.',
+      '   Commit REVIEW.md, with any line you added to ASSUMPTIONS.md, before any fix.',
+      '   If it has no findings, the repair part is empty.',
       '',
       'Part 2, repair:',
       '5. Fix each finding inside the scope of the task that owns the file. One commit each.',
@@ -1476,7 +1484,7 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
         ? [`6. After each fix run: ${runner}`]
         : ['6. After each fix, repeat every check.']),
       '7. Mark each finding fixed, or say why it stays and what the owner must decide.',
-      '   If you fixed anything, commit that update to REVIEW.md last.',
+      '   If REVIEW.md has any findings, commit that update to it last.',
       '',
       'Do not review your own work and call it independent. If this session wrote the',
       'code, say so in REVIEW.md.',

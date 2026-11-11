@@ -174,8 +174,8 @@
     },
     {
       "path": "prompts/05-review-and-repair.md",
-      "bytes": 3319,
-      "sha256": "989189c9a3bd324bd0e7e83f254258068e7d8b62773dc5c4e88e379444d5ca21"
+      "bytes": 3406,
+      "sha256": "f724c7f706cf87622029719de41139d409347dafb77892f2956fe9a8b3bb7767"
     },
     {
       "path": "prompts/06-verify-and-hand-over.md",
@@ -188,5 +188,5 @@
       "sha256": "16f53ed6cfa9c6a5a6c95614f73be5b616b96837eb1d71fbb97b917277a60959"
     }
   ],
-  "bundle_hash": "9ddeb6acf477ab3630d7c00a7477a9aec6e1ad51d34af6498b9f39cf40168da2"
+  "bundle_hash": "8648d257ed35a92bb9c91887946dfb2ec8675d0f43aa01c9a4f579137f7b1c7f"
 }

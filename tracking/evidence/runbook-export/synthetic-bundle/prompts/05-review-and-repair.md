@@ -19,7 +19,7 @@ Paste the whole of [CONTRACT.md](../CONTRACT.md) first, then the block under “
 ## Expected artifacts
 
 - A `REVIEW.md` in the project: findings by severity with file and line, and for each the fix or the reason it stays.
-- `REVIEW.md` committed on its own first; then, only if something is fixed, one commit per repaired finding and a last commit that marks each finding in `REVIEW.md`.
+- `REVIEW.md` committed first, with any line Part 1 added to `ASSUMPTIONS.md`; then one commit per repaired finding; then, if there were any findings, a last commit that marks each one in `REVIEW.md`.
 
 ## Completion gate
 
@@ -48,7 +48,8 @@ line as the contract allows):
    Read ASSUMPTIONS.md if it exists: a reading there that looks wrong is a finding.
    A mistake in an earlier task’s review is a finding too; leave that review as it is.
 4. Write REVIEW.md: findings, most serious first, each with file and line.
-   Commit REVIEW.md on its own. If it has no findings, the repair part is empty.
+   Commit REVIEW.md, with any line you added to ASSUMPTIONS.md, before any fix.
+   If it has no findings, the repair part is empty.
 
 Part 2, repair:
 5. Fix each finding inside the scope of the task that owns the file. One commit each.
@@ -56,7 +57,7 @@ Part 2, repair:
    A wrong line in ASSUMPTIONS.md is corrected in place, saying what it said before.
 6. After each fix run: python3 <bundle>/checks/run_checks.py
 7. Mark each finding fixed, or say why it stays and what the owner must decide.
-   If you fixed anything, commit that update to REVIEW.md last.
+   If REVIEW.md has any findings, commit that update to it last.
 
 Do not review your own work and call it independent. If this session wrote the
 code, say so in REVIEW.md.

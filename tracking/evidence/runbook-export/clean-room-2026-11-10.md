@@ -117,7 +117,7 @@ R1, R6 and R8 are spec wording in the synthetic fixture. R2–R5 and R7 are expo
 
 ## Fixes for R1–R8 (2026-11-11, follow-up PR)
 
-Regenerated bundle hash `9ddeb6ac…` (after the PR review fixes; the synthetic spec is now version 3). Not re-consumed in a clean room; the wording was checked by tests only.
+Regenerated bundle hash `8648d257…` (after the PR review fixes; the synthetic spec is now version 3). Not re-consumed in a clean room; the wording was checked by tests only.
 
 | Gap | Where | Fix |
 | --- | --- | --- |
