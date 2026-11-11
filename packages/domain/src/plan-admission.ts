@@ -266,6 +266,7 @@ export function qualificationDecision(q: {
     q.floor.numerator * q.held_out.total;
   return {
     qualified: ok,
-    reason: `${q.held_out.passed}/${q.held_out.total} held-out cases accepted against a floor of ${q.floor.numerator}/${q.floor.denominator} (absolute, not baseline-relative).`,
+    // Live check, November 11: "a floor of 1/1" read as one case; say how many were needed.
+    reason: `${q.held_out.passed}/${q.held_out.total} held-out cases accepted; ${Math.ceil((q.floor.numerator * q.held_out.total) / q.floor.denominator)} of ${q.held_out.total} were needed (absolute, not baseline-relative).`,
   };
 }

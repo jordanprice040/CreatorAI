@@ -263,6 +263,11 @@ export const PassageSchema = z.strictObject({
   passage_hash: hash,
   /** Heuristic label for text that reads like instructions. It changes nothing it touches. */
   instruction_like: z.boolean(),
+  /**
+   * ADR-0086: page furniture (navigation, sign-in, sharing, interface labels, text outside the
+   * marked article). Kept and citable, but listed after the page text and left out of reading.
+   */
+  boilerplate: z.boolean(),
 });
 export type Passage = z.infer<typeof PassageSchema>;
 

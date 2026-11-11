@@ -13,11 +13,13 @@ import specification from '../../../config/connections/benchmarks/specification-
 import summarization from '../../../config/connections/benchmarks/summarization-synthetic-v1.json';
 import builder from '../../../config/connections/benchmarks/t12-builder-v1.json';
 import reviewer from '../../../config/connections/benchmarks/t12-reviewer-v2.json';
+import webDiscovery from '../../../config/connections/benchmarks/web-discovery-v2.json';
 import { AllowTasks } from './allow-tasks.js';
 import {
   forRole,
   manifestRole,
   qualificationTask,
+  roleOf,
   roleTask,
   runningFor,
   type Admits,
@@ -38,6 +40,7 @@ export const BENCHMARKS = [
   builder,
   reviewer,
   assessment,
+  webDiscovery,
 ].map((m) => ({
   manifest: m,
   name: m.name,
@@ -377,12 +380,15 @@ export function QualifyModel({
         </>
       )}
       {running.map((q) => {
-        // The offered benchmark with this manifest, else one of this task class: a
+        // The offered benchmark with this manifest, else one of this task class and role: a
         // qualification started elsewhere may use another manifest, so the count is an upper
-        // bound only (L-2).
+        // bound only (L-2; PR #173 review 5 N-2: web discovery and the locator are both
+        // research synthesis).
         const b =
           list.find((x) => x.manifest_hash === q.manifest_hash) ??
-          list.find((x) => x.task_class === q.task_class);
+          list.find(
+            (x) => x.task_class === q.task_class && x.admits === roleOf(q),
+          );
         const n = b ? b.development + b.held_out : null;
         return (
           <div key={q.id} className="qualify-row" role="group">

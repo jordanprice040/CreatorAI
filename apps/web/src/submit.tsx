@@ -39,6 +39,7 @@ import { envelopesFor } from './build-defaults.js';
 import { money } from './budgets.js';
 import { ThemeIntent } from './theme-intent.js';
 import { Explore, type ExploredPick } from './explore.js';
+import { WebDiscover } from './web-discovery.js';
 import { Empty, Status, runNames, useLoad, type View } from './ui.js';
 import { runLabel } from './labels.js';
 import { preferredRoute } from './model-choice.js';
@@ -888,6 +889,11 @@ export function Submit({
               'No theme yet: the studio looks for problems in your recorded evidence.',
             ],
             [
+              'web-title',
+              'Search the web',
+              'Find new evidence online: checked quotes from real pages become claims.',
+            ],
+            [
               'theme-intent-title',
               'Start with a theme',
               'A rough idea saved as a draft to plan later.',
@@ -923,6 +929,11 @@ export function Submit({
         workspace={workspace}
         onUse={takePick}
         open={open}
+      />
+      <WebDiscover
+        key={`web-${workspace.id}`}
+        session={session}
+        workspace={workspace}
       />
       <ThemeIntent key={workspace.id} session={session} workspace={workspace} />
       <h3 id="discover">Discover from existing claims</h3>

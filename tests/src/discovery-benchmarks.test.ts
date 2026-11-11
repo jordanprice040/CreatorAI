@@ -246,6 +246,33 @@ test('ADR-0089: start a discovery qualification by name; stale names, fixture mi
     ],
   );
   await refused(start(research.name, seen), /ADR-0052/);
+  // PR #173 review 4 item 6: web discovery is research synthesis too, but its held-out keys are
+  // its own, so a view of the web benchmark under another prompt never refuses the locator.
+  const web = BenchmarkManifestSchema.parse(
+    JSON.parse(
+      readFileSync(
+        new URL('config/connections/benchmarks/web-discovery-v2.json', root),
+        'utf8',
+      ),
+    ),
+  );
+  assert.equal(web.task_class, 'research_synthesis');
+  const webKeys = heldOutKeys(web.cases);
+  await db.pool.query(
+    `insert into plan_connection_events (id, connection_id, kind, body, actor_id)
+     values ($1,$2,'qualification_held_out_viewed',$3,$4)`,
+    [
+      randomUUID(),
+      conn.id,
+      {
+        task_class: 'research_synthesis',
+        prompt_hash: 'e'.repeat(64),
+        held_out: webKeys,
+        held_out_prompts: webKeys.map(() => 'e'.repeat(64)),
+      },
+      owner.actorId,
+    ],
+  );
   const q = await start(research.name);
   assert.equal(q.state, 'running');
   assert.equal(q.task_class, 'research_synthesis');

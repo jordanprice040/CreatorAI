@@ -11,6 +11,7 @@ import {
   type EvidenceSiteChange,
   type EvidenceSiteMode,
   type ClaimSupport,
+  type ClaimSupportRequest,
   type Passage,
   type Retention,
   type Retrieval,
@@ -26,6 +27,7 @@ import {
   quoteInPassage,
   urlKey,
 } from '@creator/domain';
+import { webDiscoveryFetchRefusal } from './web-discovery-gates.js';
 import { WorkflowStore } from './workflow-store.js';
 import {
   contentHashOf,
@@ -51,7 +53,16 @@ export interface ExtractedDocument {
   text_hash: string;
   /** Hash of whitespace- and case-normalized text, used to find reposts. */
   fingerprint: string;
-  paragraphs: { text: string; start: number; end: number }[];
+  /**
+   * `boilerplate` (ADR-0086): page furniture (site chrome, text outside the marked article,
+   * interface labels). Offsets and the text hash still cover every paragraph.
+   */
+  paragraphs: {
+    text: string;
+    start: number;
+    end: number;
+    boilerplate?: boolean;
+  }[];
   instruction_like: boolean;
 }
 type Hop = { url: string; status: number };
@@ -65,6 +76,11 @@ export interface FetchMeta {
   maxFetchesPerRun: number;
   /** An in-flight attempt older than this is presumed lost (crash) when replayed or swept. */
   staleAfterMs: number;
+  /**
+   * ADR-0086: a page chosen by this web discovery. Its start is the owner's one approval for
+   * its fetches, so the fetch is covered when the discovery is fetching and lists this URL.
+   */
+  webDiscoveryId?: string | null;
 }
 export type RetrievalFinish =
   | {
@@ -156,6 +172,7 @@ function toPassage(r: Row): Passage {
     excerpt_truncated: Boolean(r.excerpt_truncated),
     passage_hash: String(r.passage_hash),
     instruction_like: Boolean(r.instruction_like),
+    boilerplate: Boolean(r.boilerplate),
   };
 }
 function toSupport(r: Row): ClaimSupport {
@@ -355,6 +372,36 @@ export class ResearchStore extends WorkflowStore {
               `This run already used its ${meta.maxFetchesPerRun} fetches.`,
             ),
           };
+        if (meta.webDiscoveryId) {
+          const refused = await webDiscoveryFetchRefusal(
+            c,
+            ws,
+            runId,
+            ctx.actorId,
+            meta.webDiscoveryId,
+            req.url,
+          );
+          if (refused)
+            return {
+              kind: 'done' as const,
+              retrieval: await insert('denied', refused.code, refused.text),
+            };
+          const retrieval = await insert(
+            'in_flight',
+            'admitted',
+            `Covered by the owner's start of web discovery ${meta.webDiscoveryId.toLowerCase()}; fetching under the source policy.`,
+          );
+          const prior = await c.query<{ n: string }>(
+            `select count(*) as n from source_retrievals where workspace_id = $1 and url_key = $2
+               and state in ('fetched', 'inaccessible', 'removed')`,
+            [ws, meta.urlKey],
+          );
+          return {
+            kind: 'go' as const,
+            retrieval,
+            prior: Number(prior.rows[0]?.n ?? 0),
+          };
+        }
         // The URL hash rides in the binding's spec slot, so an approve-once grant covers
         // exactly this URL and nothing else.
         const admission = await this.admitIn(
@@ -663,12 +710,22 @@ export class ResearchStore extends WorkflowStore {
       version = 1;
     }
     if (f.state === 'fetched') {
-      const passages = f.doc.paragraphs
+      // ADR-0086 (walkthrough item 15): page text first, furniture only in the room left, so
+      // a page's navigation and labels never use up its passage limit.
+      const indexed = f.doc.paragraphs.map((p, paragraph) => ({
+        ...p,
+        paragraph,
+      }));
+      const passages = [
+        ...indexed.filter((p) => !p.boilerplate),
+        ...indexed.filter((p) => p.boilerplate),
+      ]
         .slice(0, f.max_passages)
         .map((p, i) => ({
           id: randomUUID(),
           ordinal: i,
-          paragraph: i,
+          paragraph: p.paragraph,
+          boilerplate: Boolean(p.boilerplate),
           char_start: p.start,
           char_end: p.end,
           excerpt:
@@ -683,12 +740,12 @@ export class ResearchStore extends WorkflowStore {
       await c.query(
         `insert into source_passages (id, workspace_id, source_id, source_version, ordinal,
            paragraph, char_start, char_end, text_hash, excerpt, excerpt_truncated, passage_hash,
-           instruction_like, retrieval_id)
+           instruction_like, retrieval_id, boilerplate)
          select x.id, $1, $2, $3, x.ordinal, x.paragraph, x.char_start, x.char_end, $4,
-           x.excerpt, x.excerpt_truncated, x.passage_hash, x.instruction_like, $5
+           x.excerpt, x.excerpt_truncated, x.passage_hash, x.instruction_like, $5, x.boilerplate
          from jsonb_to_recordset($6::jsonb) as x(id uuid, ordinal int, paragraph int,
            char_start int, char_end int, excerpt text, excerpt_truncated boolean,
-           passage_hash char(64), instruction_like boolean)`,
+           passage_hash char(64), instruction_like boolean, boilerplate boolean)`,
         [
           ws,
           sourceId,
@@ -811,117 +868,7 @@ export class ResearchStore extends WorkflowStore {
         { op: 'claim_support', claimId, req },
         async (c) => {
           await this.role(c, ws, ctx.actorId, true);
-          const claimRow = (
-            await c.query(
-              `select * from entities where workspace_id = $1 and id = $2 and kind = 'claim' for share`,
-              [ws, claimId],
-            )
-          ).rows[0] as Row | undefined;
-          if (!claimRow) throw fail('NOT_FOUND', 'Claim not found.');
-          const claim = toEntity(claimRow);
-          if (claim.status !== 'active')
-            throw fail(
-              'INVALID_TRANSITION',
-              `A ${claim.status} claim takes no new evidence.`,
-            );
-          if (claim.version !== req.claim_version)
-            throw fail(
-              'VERSION_CONFLICT',
-              `The claim is at v${claim.version}; assess that version.`,
-            );
-          let source: StoredEntity;
-          let passage: Row | null = null;
-          if (req.evidence === 'passage') {
-            passage =
-              ((
-                await c.query(
-                  'select * from source_passages where workspace_id = $1 and id = $2',
-                  [ws, req.passage_id.toLowerCase()],
-                )
-              ).rows[0] as Row | undefined) ?? null;
-            if (!passage) throw fail('NOT_FOUND', 'Passage not found.');
-            source = await this.lockSource(c, ws, String(passage.source_id));
-            if (Number(passage.source_version) !== source.version)
-              throw fail(
-                'VERSION_CONFLICT',
-                `That passage is from source v${String(passage.source_version)}; the source is now v${source.version}. Assess the current version.`,
-              );
-            if (req.stance !== 'does_not_support') {
-              if (passage.excerpt === null)
-                throw fail(
-                  'EVIDENCE_MISMATCH',
-                  'No excerpt is kept for this passage (hash-only retention or redaction), so a quote cannot be verified.',
-                );
-              if (!quoteInPassage(String(passage.excerpt), req.quote ?? ''))
-                throw fail(
-                  'EVIDENCE_MISMATCH',
-                  'The quote does not occur in the stored passage. Cite text the source actually contains.',
-                );
-            }
-          } else {
-            source = await this.lockSource(c, ws, req.source_id.toLowerCase());
-            if (source.version !== req.source_version)
-              throw fail(
-                'VERSION_CONFLICT',
-                `The source is at v${source.version}.`,
-              );
-            if (source.body?.retrieval_status === 'available')
-              throw fail(
-                'INVALID_CONTRACT',
-                'This source is available; cite one of its passages instead.',
-              );
-          }
-          const stance =
-            req.evidence === 'passage' ? req.stance : ('inaccessible' as const);
-          const linkId =
-            stance === 'supports' || stance === 'contradicts'
-              ? await this.linkIn(
-                  c,
-                  ctx,
-                  ws,
-                  stance,
-                  source,
-                  claim,
-                  req.rationale.slice(0, 500),
-                )
-              : null;
-          const { rows } = await c.query(
-            `insert into claim_support (id, workspace_id, claim_id, claim_version, source_id,
-               source_version, passage_id, stance, support_type, quote, rationale, link_id, asserted_by)
-             values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) returning *`,
-            [
-              randomUUID(),
-              ws,
-              claim.id,
-              claim.version,
-              source.id,
-              source.version,
-              passage ? passage.id : null,
-              stance,
-              req.evidence === 'passage' ? req.support_type : null,
-              req.evidence === 'passage' ? req.quote : null,
-              req.rationale,
-              linkId,
-              ctx.actorId,
-            ],
-          );
-          const support = toSupport(rows[0] as Row);
-          await this.append(c, ctx, {
-            workspaceId: ws,
-            action: 'claim.support_recorded',
-            subjectKind: 'claim_support',
-            subjectId: support.id,
-            subjectVersion: null,
-            contentHash: null,
-            payload: {
-              stance,
-              support_type: support.support_type,
-              claim_version: claim.version,
-              source_version: source.version,
-            },
-            relatedIds: [claim.id, source.id],
-          });
-          return support;
+          return this.addClaimSupportIn(c, ctx, ws, claimId, req);
         },
       );
     } catch (e) {
@@ -932,6 +879,124 @@ export class ResearchStore extends WorkflowStore {
         );
       throw e;
     }
+  }
+
+  /** One support row in the caller's transaction (ADR-0086 adds claims and support together). */
+  protected async addClaimSupportIn(
+    c: PoolClient,
+    ctx: CommandContext,
+    ws: string,
+    claimId: string,
+    req: ClaimSupportRequest,
+  ): Promise<ClaimSupport> {
+    const claimRow = (
+      await c.query(
+        `select * from entities where workspace_id = $1 and id = $2 and kind = 'claim' for share`,
+        [ws, claimId],
+      )
+    ).rows[0] as Row | undefined;
+    if (!claimRow) throw fail('NOT_FOUND', 'Claim not found.');
+    const claim = toEntity(claimRow);
+    if (claim.status !== 'active')
+      throw fail(
+        'INVALID_TRANSITION',
+        `A ${claim.status} claim takes no new evidence.`,
+      );
+    if (claim.version !== req.claim_version)
+      throw fail(
+        'VERSION_CONFLICT',
+        `The claim is at v${claim.version}; assess that version.`,
+      );
+    let source: StoredEntity;
+    let passage: Row | null = null;
+    if (req.evidence === 'passage') {
+      passage =
+        ((
+          await c.query(
+            'select * from source_passages where workspace_id = $1 and id = $2',
+            [ws, req.passage_id.toLowerCase()],
+          )
+        ).rows[0] as Row | undefined) ?? null;
+      if (!passage) throw fail('NOT_FOUND', 'Passage not found.');
+      source = await this.lockSource(c, ws, String(passage.source_id));
+      if (Number(passage.source_version) !== source.version)
+        throw fail(
+          'VERSION_CONFLICT',
+          `That passage is from source v${String(passage.source_version)}; the source is now v${source.version}. Assess the current version.`,
+        );
+      if (req.stance !== 'does_not_support') {
+        if (passage.excerpt === null)
+          throw fail(
+            'EVIDENCE_MISMATCH',
+            'No excerpt is kept for this passage (hash-only retention or redaction), so a quote cannot be verified.',
+          );
+        if (!quoteInPassage(String(passage.excerpt), req.quote ?? ''))
+          throw fail(
+            'EVIDENCE_MISMATCH',
+            'The quote does not occur in the stored passage. Cite text the source actually contains.',
+          );
+      }
+    } else {
+      source = await this.lockSource(c, ws, req.source_id.toLowerCase());
+      if (source.version !== req.source_version)
+        throw fail('VERSION_CONFLICT', `The source is at v${source.version}.`);
+      if (source.body?.retrieval_status === 'available')
+        throw fail(
+          'INVALID_CONTRACT',
+          'This source is available; cite one of its passages instead.',
+        );
+    }
+    const stance =
+      req.evidence === 'passage' ? req.stance : ('inaccessible' as const);
+    const linkId =
+      stance === 'supports' || stance === 'contradicts'
+        ? await this.linkIn(
+            c,
+            ctx,
+            ws,
+            stance,
+            source,
+            claim,
+            req.rationale.slice(0, 500),
+          )
+        : null;
+    const { rows } = await c.query(
+      `insert into claim_support (id, workspace_id, claim_id, claim_version, source_id,
+               source_version, passage_id, stance, support_type, quote, rationale, link_id, asserted_by)
+             values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) returning *`,
+      [
+        randomUUID(),
+        ws,
+        claim.id,
+        claim.version,
+        source.id,
+        source.version,
+        passage ? passage.id : null,
+        stance,
+        req.evidence === 'passage' ? req.support_type : null,
+        req.evidence === 'passage' ? req.quote : null,
+        req.rationale,
+        linkId,
+        ctx.actorId,
+      ],
+    );
+    const support = toSupport(rows[0] as Row);
+    await this.append(c, ctx, {
+      workspaceId: ws,
+      action: 'claim.support_recorded',
+      subjectKind: 'claim_support',
+      subjectId: support.id,
+      subjectVersion: null,
+      contentHash: null,
+      payload: {
+        stance,
+        support_type: support.support_type,
+        claim_version: claim.version,
+        source_version: source.version,
+      },
+      relatedIds: [claim.id, source.id],
+    });
+    return support;
   }
 
   private async lockSource(c: PoolClient, ws: string, sourceId: string) {

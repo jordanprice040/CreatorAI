@@ -99,6 +99,25 @@ export class SourceBroker {
     return settingsPolicy(saved, this.policies.live);
   }
 
+  /**
+   * PR #173 review N-6: how many pages one run may fetch in this workspace now (the fixture
+   * policy for a fixture workspace), or null when no fetch is allowed at all.
+   */
+  async fetchCapFor(
+    ctx: CommandContext,
+    ws: string,
+  ): Promise<{ cap: number | null; live: boolean }> {
+    const fixture = await this.store.isFixtureWorkspace(ctx, ws);
+    const policy = fixture
+      ? this.policies.fixture
+      : await this.policyFor(ctx, ws);
+    return {
+      cap: policy?.max_fetches_per_run ?? null,
+      // Re-review R-5: false when this studio has no live fetcher at all.
+      live: fixture || this.adapters.live !== null,
+    };
+  }
+
   /** What Settings shows: the list in force, where it came from, and its change history. */
   async evidenceSites(ctx: CommandContext, ws: string): Promise<EvidenceSites> {
     const [saved, history] = await Promise.all([
@@ -146,6 +165,8 @@ export class SourceBroker {
     ws: string,
     runId: string,
     raw: unknown,
+    /** ADR-0086: a page a web discovery chose; its start covers this fetch. */
+    opts: { webDiscoveryId?: string } = {},
   ): Promise<Retrieval> {
     const req = parse(SourceFetchRequestSchema, raw);
     const fixture = await this.store.isFixtureWorkspace(ctx, ws);
@@ -175,6 +196,7 @@ export class SourceBroker {
             : null,
       maxFetchesPerRun: policy?.max_fetches_per_run ?? 0,
       staleAfterMs: (policy?.timeout_ms ?? 60_000) * 2 + 60_000,
+      webDiscoveryId: opts.webDiscoveryId ?? null,
     });
     if (begun.kind === 'done') return begun.retrieval;
     if (!adapter || !policy || !verdict?.ok)

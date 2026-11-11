@@ -472,17 +472,14 @@ export const PlanQualificationSchema = z.strictObject({
   prompt_current: z.boolean().optional(),
   /** ADR-0074 review L-4: a scoring qualification that admits automatic assessments. */
   admits_assessment: z.boolean().optional(),
+  /** ADR-0086: a research-synthesis qualification bound to the web discovery prompts. */
+  admits_web_discovery: z.boolean().optional(),
   /**
    * ADR-0089 (P34): a research synthesis, candidate generation or scoring qualification bound to
    * the current discovery role prompts, the only kind discovery admission counts. A scoring
    * qualification on the assessment benchmark does not admit discovery, nor the reverse.
    */
   admits_discovery: z.boolean().optional(),
-  /**
-   * ADR-0086 (P12): a research synthesis qualification bound to the web discovery prompts. Set
-   * by the server once P12 is in; declared here so the web reads one schema (PR #175 re-review).
-   */
-  admits_web_discovery: z.boolean().optional(),
   /**
    * ADR-0084 (P23): on a started qualification, whether this studio is running its cases now.
    * Read from the server, so a page that was left or reloaded shows a running Run as running.
@@ -526,6 +523,16 @@ export const isDiscoveryQualified = (
     model_id,
     task_class,
   )?.state === 'qualified';
+/**
+ * ADR-0086 (PR #173 review 3 M-1) with ADR-0089: web discovery and Discover's locator share the
+ * task name research_synthesis, and each qualification admits only its own work. Discover reads
+ * `forDiscover` (the discovery-role qualifications, as `isDiscoveryQualified` counts them);
+ * Search the web reads `forWebDiscovery`.
+ */
+export const forDiscover = (qualifications: readonly PlanQualification[]) =>
+  qualifications.filter((q) => q.admits_discovery === true);
+export const forWebDiscovery = (qualifications: readonly PlanQualification[]) =>
+  qualifications.filter((q) => q.admits_web_discovery === true);
 export const isQualified = (
   qualifications: readonly PlanQualification[],
   model_id: string,
