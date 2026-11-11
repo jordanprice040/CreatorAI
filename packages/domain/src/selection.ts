@@ -100,6 +100,17 @@ export interface CandidateInput {
   discovery: string | null;
   humility: HumilityState;
   humility_reasons: readonly string[];
+  /** ADR-0090: the owner's gate confirmations on this alternative (any version), newest last. */
+  confirmations?: readonly {
+    id: string;
+    alternative_version: number;
+    gate: 'ethics' | 'access';
+    reason: string;
+    concerns: readonly string[];
+    created_at: string;
+  }[];
+  /** ADR-0090: the owner's auto-clear rule, when it is on. */
+  auto_clear?: { version: number; at: string } | null;
 }
 const SOFTWARE_KINDS = ['build', 'hybrid'];
 const HARD_DISCOVERY_BLOCKS = [
@@ -133,6 +144,8 @@ interface ParseEnv {
   evidence?: EvidenceVersions | undefined;
   /** The current hash of the claims linked to the problem (review M-1). */
   linked_hash?: string | undefined;
+  /** ADR-0090: the current team profile version (0: none saved); without it, not checked. */
+  team_version?: number | undefined;
 }
 const shortId = (id: string) => id.slice(0, 8);
 /** Why a card no longer rates what is current: option, cited evidence, problem, rubric, packet. */
@@ -179,6 +192,13 @@ function staleReasons(
     if (env.linked_hash !== undefined && env.linked_hash !== a.linked_hash)
       out.push(
         'Evidence linked to the problem changed since this assessment (a claim was linked or unlinked).',
+      );
+    if (
+      env.team_version !== undefined &&
+      env.team_version !== (a.team_version ?? 0)
+    )
+      out.push(
+        'The team profile changed since this assessment; assess again so it reads the current one.',
       );
     if (ev)
       for (const e of a.evidence) {
@@ -249,25 +269,139 @@ const counted = (p: Parsed) => !!p.body && !p.stale && !p.superseded_by;
 const ratingsOf = (b: ScorecardBody) =>
   Object.fromEntries(Object.entries(b.ratings).map(([k, v]) => [k, v.rating]));
 
+/** A card's identity as a confirmation names it. */
+export const cardKey = (id: string, version: number) =>
+  `${id.toLowerCase()}@${version}`;
+const GATE_WORD = { ethics: 'Ethics', access: 'Access' } as const;
+const clipNote = (s: string, n: number) =>
+  s.length > n ? `${s.slice(0, n - 1)}…` : s;
+
+/**
+ * One gate (ethics or access) for one candidate (ADR-0074, ADR-0090). A person's concern always
+ * stands. A concern the automatic assessment raised stands until the owner confirms the gate on
+ * this option version, having seen exactly the concerns raised now; a concern raised after the
+ * confirmation makes it stale. A system card alone never clears a gate: without a person's card
+ * or the owner's confirmation the gate is not assessed.
+ */
+export function gateState(
+  c: CandidateInput,
+  cards: readonly {
+    input: { id: string; version: number };
+    body: ScorecardBody;
+    system: boolean;
+  }[],
+
+  gate: 'ethics' | 'access',
+) {
+  const concerns = cards
+    .filter((p) => p.body.gates[gate].status === 'unresolved')
+    .map((p) => ({
+      scorecard: cardKey(p.input.id, p.input.version),
+      by: p.system ? ('system' as const) : ('person' as const),
+      reviewer: p.body.reviewer.label,
+      note: p.body.gates[gate].note,
+    }))
+    .sort((a, b) => (a.scorecard < b.scorecard ? -1 : 1));
+  const systemKeys = concerns
+    .filter((x) => x.by === 'system')
+    .map((x) => x.scorecard);
+  const mine = (c.confirmations ?? []).filter((x) => x.gate === gate);
+  const latest = mine[mine.length - 1] ?? null;
+  let stale: string | null = null;
+  let confirmation: (typeof mine)[number] | null = null;
+  if (latest) {
+    if (latest.alternative_version !== c.alternative.version)
+      stale = `Confirmed on version ${latest.alternative_version}; the option is now version ${c.alternative.version}.`;
+    else if (systemKeys.some((k) => !latest.concerns.includes(k)))
+      stale =
+        'A newer automatic assessment raised a concern after this confirmation.';
+    else confirmation = latest;
+  }
+  const people = cards.filter((p) => !p.system);
+  const system = cards.filter((p) => p.system);
+  // The owner's rule clears only what every current automatic assessment looked at with the
+  // team profile in hand and found no concern in; a gate nobody raised is not auto-cleared
+  // unless such an assessment exists.
+  const teamVersions = [
+    ...new Set(system.map((p) => p.body.assessment?.team_version ?? 0)),
+  ];
+  const ruleClears =
+    !!c.auto_clear &&
+    !concerns.length &&
+    system.length > 0 &&
+    teamVersions.every((v) => v >= 1);
+  const state:
+    'clear' | 'confirmed' | 'auto_cleared' | 'unresolved' | 'not_assessed' =
+    concerns.some((x) => x.by === 'person')
+      ? 'unresolved'
+      : confirmation
+        ? 'confirmed'
+        : concerns.length
+          ? 'unresolved'
+          : people.length
+            ? 'clear'
+            : ruleClears
+              ? 'auto_cleared'
+              : 'not_assessed';
+  return {
+    gate,
+    state,
+    concerns,
+    confirmation: confirmation
+      ? {
+          by: 'owner' as const,
+          id: confirmation.id,
+          rule_version: null,
+          reason: confirmation.reason,
+          created_at: confirmation.created_at,
+        }
+      : state === 'auto_cleared' && c.auto_clear
+        ? {
+            by: 'rule' as const,
+            id: null,
+            rule_version: c.auto_clear.version,
+            reason: `Cleared by your auto-clear rule: the automatic assessment read your team profile (version ${teamVersions.join(', ')}) and raised no ${gate} concern.`,
+            created_at: c.auto_clear.at,
+          }
+        : null,
+    stale_confirmation: stale,
+  };
+}
+
 function gatesFor(c: CandidateInput, cards: Parsed[], opportunity: string) {
-  const current = cards.filter(counted);
-  // ADR-0074: a system assessment can raise an ethics or access concern but never clear one.
-  const people = current.filter((p) => !p.system);
-  const ethics = current.some(
-    (p) =>
-      p.body!.gates.ethics.status === 'unresolved' ||
-      p.body!.gates.access.status === 'unresolved',
-  )
+  const current = cards.filter(counted) as (Parsed & { body: ScorecardBody })[];
+  const details = (['ethics', 'access'] as const).map((g) =>
+    gateState(c, current, g),
+  );
+  const ethics = details.some((d) => d.state === 'unresolved')
     ? ('unresolved' as const)
-    : people.length === 0
+    : details.some((d) => d.state === 'not_assessed')
       ? ('not_assessed' as const)
       : ('clear' as const);
+  // Say which gate, who raised it and what it said, so the person knows what to resolve.
   const ethicsReason =
     ethics === 'unresolved'
-      ? 'An ethics or access question is unresolved; it is a gate, not a score.'
+      ? clipNote(
+          'An ethics or access question is unresolved (a gate, not a score). ' +
+            details
+              .filter((d) => d.state === 'unresolved')
+              .map((d) => {
+                const x =
+                  d.concerns.find((k) => k.by === 'person') ?? d.concerns[0]!;
+                const who =
+                  x.by === 'system' ? 'automatic assessment' : x.reviewer;
+                const more =
+                  d.concerns.length > 1
+                    ? ` (+${d.concerns.length - 1} more)`
+                    : '';
+                return `${GATE_WORD[d.gate]} (${clipNote(who, 40)}): ${clipNote(x.note, 160)}${more}`;
+              })
+              .join(' '),
+          300,
+        )
       : ethics === 'not_assessed'
         ? current.length
-          ? 'Only the automatic assessment looked at ethics and access; a person must confirm them (edit the assessment or score the option).'
+          ? 'Only the automatic assessment looked at ethics and access; a person must confirm them (Confirm on the option, edit the assessment or score it).'
           : 'Ethics and access have not been assessed on the current version.'
         : null;
   const blocked: Partial<Record<SelectionDisposition, string[]>> = {};
@@ -334,6 +468,7 @@ function gatesFor(c: CandidateInput, cards: Parsed[], opportunity: string) {
     discovery: disc,
     humility: c.humility,
     blocked,
+    gate_details: details,
   };
 }
 
@@ -589,6 +724,8 @@ export function selectionReport(input: {
   evidence?: EvidenceVersions;
   /** The current hash of the problem's linked claims; without it linking is not checked. */
   linked_hash?: string;
+  /** ADR-0090: the current team profile version; without it the profile is not checked. */
+  team_version?: number;
 }): SelectionReport {
   const candidates = [...input.candidates].sort((a, b) =>
     a.alternative.id < b.alternative.id ? -1 : 1,
@@ -600,6 +737,7 @@ export function selectionReport(input: {
         problem: input.problem,
         evidence: input.evidence,
         linked_hash: input.linked_hash,
+        team_version: input.team_version,
       }),
     ]),
   );
