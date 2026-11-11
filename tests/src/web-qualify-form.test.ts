@@ -558,7 +558,7 @@ test('P24: Qualify several says before it starts when the queue needs more than 
   assert.match(fresh, /Qualify all \(6, up to 45 plan requests\)/);
   assert.match(
     fresh,
-    /Qualify all needs up to 45 plan requests, more than this connection&#x27;s cap of 40 a day/,
+    /Qualify all needs up to 45 plan requests, more than this connection&#x27;s cap of 40 in any 24 hours/,
   );
   assert.doesNotMatch(html(45), /more than this connection/);
 });

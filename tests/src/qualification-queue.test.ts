@@ -845,3 +845,47 @@ test('PR #176 review 3 L-1 and N-2: research synthesis is queued per lane, locat
     'waiting',
   );
 });
+
+test('PR #176 review 4 N-A: a locator pass refuses the locator only, web discovery still accepted', async (t) => {
+  const s = await setup(t, { responses: [{ kind: 'text', text: 'ok' }, GOOD] });
+  if (!s) return;
+  const WEB = {
+    ...read('config/connections/benchmarks/web-discovery-v2.json'),
+    fixture: true,
+  };
+  const LOC = read(
+    'config/connections/benchmarks/discovery-research14-v2/research_synthesis.json',
+  );
+  const queueOf = async (m: Record<string, unknown>, held = 3) =>
+    s.store.startQualificationQueue(owner, s.ws.id, s.conn.id, {
+      expected_version: (await s.current()).version,
+      model_id: 'm',
+      items: [
+        {
+          manifest: m,
+          min_held_out_cases: held,
+          floor: { numerator: 1, denominator: 1 },
+        },
+      ],
+    });
+  await s.queue(['research_synthesis']);
+  const r = s.runner();
+  await r.sweep();
+  await r.idle();
+  const [q] = await s.quals();
+  assert.equal(q!.state, 'qualified');
+  // The current Discover locator benchmark, given to the decided row: a recognised locator pass.
+  await s.db.pool.query(
+    `update plan_qualifications set manifest = $2, manifest_hash = $3 where id = $1`,
+    [q!.id, LOC, canonicalHash(LOC)],
+  );
+  const after = (await s.quals())[0]!;
+  assert.equal(after.prompt_current, true);
+  assert.equal(after.admits_web_discovery, false);
+  await refused(
+    queueOf({ ...LOC, name: 'loc-copy' }, 4),
+    'INVALID_TRANSITION',
+    /already qualified for research synthesis/,
+  );
+  assert.equal((await queueOf(WEB)).items[0]!.state, 'waiting');
+});

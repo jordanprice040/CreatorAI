@@ -603,6 +603,7 @@ function QueueChoices({
   const requests = (l: QueueChoice[]) => l.reduce((n, c) => n + c.requests, 0);
   // The warning is about what Qualify selected would send, or Qualify all when none is ticked.
   const over = picked.length ? picked : eligible;
+  const overCap = dailyCap !== null && requests(over) > dailyCap;
   return (
     <div className="qualify-several" role="group" aria-labelledby={`qs-${id}`}>
       <p id={`qs-${id}`}>
@@ -677,15 +678,16 @@ function QueueChoices({
               requests)
             </button>
           </div>
-          {dailyCap !== null && requests(over) > dailyCap && (
+          {overCap && (
             <p className="small" role="note">
               {over === picked
                 ? 'The selected tasks need'
                 : 'Qualify all needs'}{' '}
               up to {requests(over)} plan requests, more than this
-              connection&apos;s cap of {dailyCap} a day, so the queue stops at
-              the cap partway through. Its answered cases are kept: queue the
-              rest the next day to finish it.
+              connection&apos;s cap of {dailyCap} in any 24 hours, so the queue
+              stops at the cap partway through. Its answered cases are kept:
+              queue the rest once requests free up, 24 hours after each was
+              sent.
             </p>
           )}
           {requestsLeft !== null && (
@@ -693,7 +695,7 @@ function QueueChoices({
               {Math.max(0, requestsLeft)} plan request
               {requestsLeft === 1 ? '' : 's'} left in this connection&apos;s
               24-hour cap
-              {requestsLeft < requests(eligible)
+              {!overCap && requestsLeft < requests(eligible)
                 ? '; a queue that needs more stops at the cap, and its answered cases are kept'
                 : ''}
               .
