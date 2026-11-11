@@ -1561,6 +1561,16 @@ function StartBuild({
             this build only.
           </p>
         )}
+      {data.choice && !preferred.fromChoice && !picked && (
+        <p className="small model-note">
+          Your current model ({data.choice.model_id}) is not verified on a plan
+          connection here, so this form uses{' '}
+          {connection?.kind === 'roles'
+            ? connection.model_id
+            : 'the builder above'}
+          . Switch models from the top bar.
+        </p>
+      )}
       {connection?.kind === 'codex' && (
         <p className="small">
           This is a live call on your ChatGPT plan. It runs only if a grant you

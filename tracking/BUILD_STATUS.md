@@ -880,6 +880,8 @@ results. See [section 13](../docs/SEARCH_ROUTE_INVESTIGATION_2026-11-10.md) and
 - Checks (cloud container, PostgreSQL 16, no CI): typecheck and format pass; `pnpm test:db` 912 tests, 878 pass, 29 skip,
   5 fail (the known no-`pwsh` wrapper tests); dev-safety 19 pass, 3 skip.
 - Re-review fixes: M-1, Build's choice-change effect no longer runs its reset on mount, so a lost locked builder
-  still shows "Chosen plan model unavailable: choose again" (rule `builderAfterChoiceChange`, with a test for a
-  lost default on a mounted form). L-1: the help text under a Claude Code builder says "Claude plan". Checks: typecheck
+  still shows "Chosen plan model unavailable: choose again" (the pure rule `builderAfterChoiceChange`, whose unit
+  test covers an unchanged choice keeping a lost builder; no component test). L-1: the help text under a Claude Code builder says "Claude plan". Checks: typecheck
   and format pass; `pnpm test:db` 913 tests, 879 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests).
+- Second re-review Lows: L-1, when the current model is not verified on a plan connection here and nothing was
+  picked, Build says so and names the model it uses instead, like Explore, Discover and Assess. L-2: the wording above.
