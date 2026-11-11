@@ -29,7 +29,7 @@
       "key": "A1",
       "method": "automated_test",
       "statement": "The number of whitespace-separated words is printed.",
-      "measure": "Standard output is the count and a line end; exit code 0.",
+      "measure": "Standard output is the count and a line end; exit code 0. An unknown option gives no output and exit code 2.",
       "cases": [
         {
           "args": [],
@@ -77,7 +77,7 @@
       "key": "A3",
       "method": "manual_review",
       "statement": "The program does nothing the scope does not list.",
-      "measure": "A reviewer reads the source and finds no file or network use.",
+      "measure": "A reviewer reads the source and finds no reading or writing of files and no network use. Finding the program’s own folder to import its modules does not count as file use.",
       "cases": [],
       "browser_cases": [],
       "not_run_reason": "no executable case; a person judges it"

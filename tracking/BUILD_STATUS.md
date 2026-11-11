@@ -888,6 +888,28 @@ results. See [section 13](../docs/SEARCH_ROUTE_INVESTIGATION_2026-11-10.md) and
 - Third re-review Lows: that note is not shown beside "Chosen plan model unavailable: choose again" (nothing runs
   until a builder is chosen) or in a fixture workspace (Build lists no plan builders there).
 
+## P16 runbook wording follow-up — November 11, 2026
+
+Jordan approved a follow-up PR for the eight Low wording gaps (R1–R8) the separate prompt 05 reviewer found in
+the synthetic bundle ([report](evidence/runbook-export/clean-room-2026-11-10.md), third run). Exporter template
+changes in `packages/domain/src/runbook.ts`: REQUIREMENTS.md says exact cases govern over a check's general measure
+(R1); contract rule 9 settles readings where neither choice refuses or refusing has no defined exit code (R5); rule
+10 lets only the review-and-repair step correct an ASSUMPTIONS.md line (R2); prompt 05 keeps past task reviews as
+written (R3) and states what Part 1 may change and the commit order (R4); STACK.md says the notes under a proposed
+stack are binding on that stack (R7). Fixture spec changes in `runbook-fixture.ts` (R1 A1 measure, R6 README
+mitigation, R8 A3 measure). Bundle regenerated; `node scripts/p16-runbook-example.mjs` verifies
+it. New assertions in `tests/src/runbook-domain.test.ts`. No ADR or migration. Not re-consumed in a clean room.
+
+Review fixes (PR #163 review; report in the project files at `reviews/P16_PR163_REVIEW_2026-11-11.md`): the "cases
+govern" line appears only when a check has visible cases (L1); the STACK.md sentence now covers what a note requires,
+not every suggestion, and the static-web server note says it is only a way to try the page (L2); prompt 05 Part 1 may
+add an ASSUMPTIONS.md line as the contract allows (L3); prompt 05 no longer names `review/` (N1); the commit order
+reads right with no findings (N2); the synthetic spec is now version 3 with a new placeholder hash, since its text
+changed (N3). Re-review fixes (report `reviews/P16_PR163_REREVIEW_2026-11-11.md`): prompt 05 commits a Part 1
+ASSUMPTIONS.md line with REVIEW.md (L-A) and commits the final REVIEW.md marks whenever there are findings, fixed or
+not (L-B); "other cases exist that you cannot see" appears only when cases are held out (L-C); the "cases govern"
+line also appears when every case is held out (N-A). Bundle hash now `8648d257…`.
+
 ## P19 Standard and Advanced (November 11, branch `claude/project-thread-xdq8er`, ADR-0082, migration 52)
 
 - What works:
@@ -927,3 +949,17 @@ results. See [section 13](../docs/SEARCH_ROUTE_INVESTIGATION_2026-11-10.md) and
 - After merging main with P21 (#161) into the branch: `pnpm typecheck` and `pnpm format:check` pass;
   `pnpm test:db` 918 tests, 884 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests). The browser walk was
   rerun on a fresh database at schema 52 and passed as before.
+
+### P19 review fixes (November 11, same PR #164; review `reviews/P19_PR164_REVIEW.md`, 1 Medium, 2 Low, 5 nits)
+
+- M-1: Start build's "What will happen" names the builder's plan (Claude or ChatGPT) through `builderSummary` in
+  `build-defaults.ts`; it said "ChatGPT plan" for a Claude Code builder after the P21 merge.
+- L-1: the scorecard's "Evidence against it" and "What they do today" stay outside the Standard fold, under "What
+  argues against it"; the fold's summary counts the other four checks.
+- L-2: the view-choice upsert updates only the expected version, so a simultaneous first save is refused with
+  `VERSION_CONFLICT` (it used to become version 2). The new race test failed before the fix and passes after it.
+- Nits: N-1 three doc comments moved back to their declarations; N-2 a tab group kept in the row by its open section
+  names its hidden sections ("Campaigns, Maintain in Advanced"); N-3 `Routine` opens on an error and never closes a
+  fold the person opened; N-4 the budget default note shows only while the filled-in cap is untouched. N-5 (the
+  provider re-indents `main.tsx`) is left as merged, as the review allows; undoing it now would only add churn
+  against P18.
