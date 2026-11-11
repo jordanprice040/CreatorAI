@@ -49,12 +49,6 @@ export interface RepositoryRead {
   repository: RepoObservation | null;
   refusal: ReadRefusal | null;
 }
-/**
- * Re-review N-L1 and N2-L1: the repository lookup keeps GitHub's real status and own message.
- * A rate limit (403 or 429 with `x-ratelimit-remaining: 0`, `retry-after` or a rate-limit message) and any other
- * status GitHub answers without the repository (5xx, no response) mean "try again"; only a
- * plain 401, 403 or 404 points at the credential; a 200 whose body is unusable is said as such.
- */
 const rateLimited = (r: GitHubResponse) =>
   // A secondary rate limit may come without `retry-after`; GitHub's message names it.
   (r.status === 403 || r.status === 429) &&
@@ -69,7 +63,8 @@ const tokenStepWording = (r: GitHubResponse): string | null => {
   if (r.stage === 'studio')
     return 'The studio could not get a GitHub App token, so GitHub was not asked; check the App credential (App id and private key).';
   if (r.stage !== 'app_token') return null;
-  if (rateLimited(r))
+  // A 429 to the token request is a rate limit even without rate-limit headers.
+  if (rateLimited(r) || r.status === 429)
     return 'GitHub is rate-limiting this credential; nothing was read. Try again later.';
   if (r.status === 401)
     return 'GitHub did not accept the studio’s GitHub App sign-in: the App id or private key may be wrong, or the key revoked. Nothing was read.';
@@ -950,7 +945,9 @@ export class LiveGitHub implements GitHubAdapter {
         { repo: repo.github_id, permissions: { checks: 'read' } },
       );
       if (r.status !== 200) refusals.push(readRefusal('check_runs', r));
-      for (const c of (r.data?.check_runs ?? []) as Record<string, unknown>[])
+      // A failed token step's reply is not a check-runs answer; never read it as one.
+      const runs = r.stage === undefined ? (r.data?.check_runs ?? []) : [];
+      for (const c of runs as Record<string, unknown>[])
         if (typeof c.name === 'string' && c.head_sha === sha)
           out.push({
             name: c.name,
@@ -971,7 +968,7 @@ export class LiveGitHub implements GitHubAdapter {
       { repo: repo.github_id, permissions: { statuses: 'read' } },
     );
     if (s.status !== 200) refusals.push(readRefusal('statuses', s));
-    if (s.data?.sha === sha)
+    if (s.stage === undefined && s.data?.sha === sha)
       for (const st of (s.data?.statuses ?? []) as Record<string, unknown>[])
         if (typeof st.context === 'string')
           out.push({

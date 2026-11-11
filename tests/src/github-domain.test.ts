@@ -640,3 +640,51 @@ test('P22 re-review 5: the App token step is named, and its 404 is never "no suc
   }
   assert.ok(gh.seen.every((s) => s.path.endsWith('/access_tokens')));
 });
+
+test('P22 re-review 6: a 429 at the App token step is a rate limit; its reply is never read as checks', async (t) => {
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const pem = privateKey.export({ type: 'pkcs1', format: 'pem' }).toString();
+  let mint: { status: number; body: unknown } = { status: 429, body: {} };
+  const gh = await loopbackGitHub((s) =>
+    s.path.endsWith('/access_tokens')
+      ? mint
+      : { status: 500, body: { message: 'should not be reached' } },
+  );
+  t.after(gh.close);
+  const a = new LiveGitHub({
+    credential: {
+      kind: 'app_installation',
+      client_id: 'Iv1.fixture',
+      private_key: pem,
+      installation_id: 77,
+    },
+    apiBase: gh.base,
+  });
+  // A bare 429, no rate-limit headers or message.
+  const limited = await a.repositoryRead(repo.github_id);
+  assert.equal(limited.refusal?.status, 429);
+  assert.match(limited.refusal!.message, /rate-limiting.*Try again/);
+  // A token reply without a token, shaped like check results, gives no checks.
+  mint = {
+    status: 201,
+    body: {
+      sha: SHA,
+      check_runs: [
+        {
+          name: 'ci',
+          head_sha: SHA,
+          status: 'completed',
+          conclusion: 'success',
+        },
+      ],
+      statuses: [{ context: 'lint', state: 'success' }],
+    },
+  };
+  const c = await a.checks(repo, SHA);
+  assert.deepEqual(c.checks, []);
+  assert.deepEqual(
+    c.refusals.map((r) => `${r.step}:${r.status}`),
+    ['check_runs:201', 'statuses:201'],
+  );
+  assert.ok(gh.seen.every((s) => s.path.endsWith('/access_tokens')));
+});
