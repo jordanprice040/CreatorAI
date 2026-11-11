@@ -33,6 +33,7 @@ import { api } from './oversight.js';
 import { newestFirst } from './versions.js';
 import { envelopesFor } from './build-defaults.js';
 import { runNames } from './ui.js';
+import { missingTaskTexts } from './discover-defaults.js';
 import type {
   CardData,
   CardKind,
@@ -239,17 +240,11 @@ export async function loadCard(
       // instead of a plain "not qualified" with no way forward.
       const allowed = d.connection.settings
         .allowed_task_classes as readonly string[];
-      const notAllowed = missing.filter((tc) => !allowed.includes(tc));
-      const unqualified = missing.filter((tc) => allowed.includes(tc));
-      const names = (xs: readonly string[]) =>
-        xs.map((m) => m.replaceAll('_', ' ')).join(', ');
-      if (notAllowed.length)
+      const blockers = missingTaskTexts(model, missing, allowed);
+      out.routeBlockers.push(...blockers);
+      if (blockers.length)
         out.routeBlockers.push(
-          `${names(notAllowed)} ${notAllowed.length === 1 ? 'is' : 'are'} not allowed on this connection, so ${model} can't be qualified for ${notAllowed.length === 1 ? 'it' : 'them'} yet. Allow ${notAllowed.length === 1 ? 'it' : 'them'} under Models and connections (Allow all tasks, or Allow this task in Qualify a model).`,
-        );
-      if (unqualified.length)
-        out.routeBlockers.push(
-          `${model} is not qualified for ${names(unqualified)}. Qualify it under Models and connections, pick a qualified model beside the usage indicator, or use Discover.`,
+          'Or pick a model qualified for every discovery step beside the usage indicator, or start the discovery from Discover.',
         );
       if (out.routeBlockers.length === 0)
         out.route = {

@@ -3671,8 +3671,11 @@ export class ConnectionStore extends PortfolioStore {
           typeof StartPlanQualificationRequestSchema
         >['manifest'],
         attempted_cases: done.rows.map((x) => String(x.case_id)),
-        in_flight_cases: done.rows.filter((x) => x.state === 'in_flight')
-          .length,
+        // In flight or with no known outcome: finishing refuses both, so Run must too
+        // (review of PR #172, L-2).
+        unresolved_cases: done.rows.filter(
+          (x) => x.state === 'in_flight' || x.state === 'unknown',
+        ).length,
       };
     });
   }
@@ -3681,12 +3684,12 @@ export class ConnectionStore extends PortfolioStore {
    * ADR-0084 (P23): claims the Run of one qualification for this process, or refuses. Call it
    * with what `planQualificationManifest` just read, and call the returned release when the
    * loop ends. Refuses a qualification that is already being run here, one with a case still
-   * in flight (a run in another studio process, or one cut off by a restart), and one that has
-   * already finished.
+   * in flight or of unknown outcome (a run in another studio process, an answer cut off, or one
+   * cut off by a restart), and one that has already finished.
    */
   claimQualificationRun(read: {
     qualification: PlanQualification;
-    in_flight_cases: number;
+    unresolved_cases: number;
   }): () => void {
     const key = String(uuid(read.qualification.id));
     if (this.#runningQualifications.has(key))
@@ -3696,10 +3699,10 @@ export class ConnectionStore extends PortfolioStore {
       );
     if (read.qualification.state !== 'running')
       throw fail('INVALID_TRANSITION', 'The qualification already finished.');
-    if (read.in_flight_cases > 0)
+    if (read.unresolved_cases > 0)
       throw fail(
         'INVALID_TRANSITION',
-        'A case of this qualification is still in flight, from another window or from before the studio restarted. Wait for it to finish, or close it under Running now once it can be closed, then press Run again.',
+        'A case of this qualification is still in flight or has no known outcome (sent from another window, cut off, or from before the studio restarted). Close it under Running now once it can be closed, then press Run again.',
       );
     this.#runningQualifications.add(key);
     return () => {
@@ -3707,13 +3710,23 @@ export class ConnectionStore extends PortfolioStore {
     };
   }
 
-  /** Tallies recorded signals and decides; cases that never ran count as not accepted. */
+  /**
+   * Tallies recorded signals and decides; cases that never ran count as not accepted. While a
+   * Run loop holds the qualification, only that loop may finish it (`fromRun`); a Finish from
+   * another window is refused (review of PR #172, N-1).
+   */
   async finishPlanQualification(
     ctxIn: CommandContext,
     ws: string,
     qid: string,
+    fromRun = false,
   ) {
     const ctx = normalize(ctxIn);
+    if (!fromRun && this.#runningQualifications.has(String(uuid(qid))))
+      throw fail(
+        'INVALID_TRANSITION',
+        'This qualification is running. Wait for the Run to finish; it records the result itself once every case has an answer.',
+      );
     return this.tx(async (c) => {
       await this.role(c, uuid(ws), ctx.actorId, true);
       const { rows } = await c.query(

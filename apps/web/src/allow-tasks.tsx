@@ -15,30 +15,72 @@ import {
  * when they were not, they stay unaccepted. Nothing is sent before the person confirms, and
  * the server still refuses anyone but the owner and any task the connection kind cannot take.
  */
+type Act = (
+  path: string,
+  body: unknown,
+  timeoutMs?: number,
+  local?: (error: string) => void,
+) => Promise<unknown>;
+type AllowConnection = Pick<
+  PlanConnection,
+  'id' | 'kind' | 'version' | 'settings' | 'caps_accepted_at'
+>;
+
+/**
+ * The requests one allow press makes: the settings with `after` as the allowed tasks, then,
+ * only when the caps were accepted before, accept-caps for the version and hash that save
+ * returned. Errors go to `report`, which must outlive the button: saving reloads the page,
+ * the task is then allowed and the button is gone before the second answer arrives (review of
+ * PR #172, L-1). Resolves to whether every step succeeded.
+ */
+export async function allowTaskSequence(
+  c: AllowConnection,
+  after: readonly string[],
+  act: Act,
+  report: (error: string) => void,
+): Promise<boolean> {
+  const p = `plan-connections/${c.id}`;
+  const saved = (await act(
+    `${p}/settings`,
+    {
+      expected_version: c.version,
+      settings: { ...c.settings, allowed_task_classes: [...after] },
+    },
+    undefined,
+    report,
+  )) as { version?: number; settings_hash?: string } | null;
+  if (!saved?.version || !saved.settings_hash) return false;
+  if (c.caps_accepted_at === null) return true;
+  const ok = await act(
+    `${p}/accept-caps`,
+    { expected_version: saved.version, settings_hash: saved.settings_hash },
+    undefined,
+    (e) =>
+      report(
+        `The tasks were allowed, but the caps were not accepted again, so model calls on this connection are blocked: ${e} Press "Accept these caps and allowed work" under Models and connections.`,
+      ),
+  );
+  return Boolean(ok);
+}
+
 export function AllowTasks({
   connection: c,
   tasks,
   label,
   busy,
   act,
+  onError,
 }: {
-  connection: Pick<
-    PlanConnection,
-    'id' | 'kind' | 'version' | 'settings' | 'caps_accepted_at'
-  >;
+  connection: AllowConnection;
   /** The tasks to add; ones the connection already allows or its kind cannot take are ignored. */
   tasks: readonly string[];
   label: string;
   busy: boolean;
-  act: (
-    path: string,
-    body: unknown,
-    timeoutMs?: number,
-    local?: (error: string) => void,
-  ) => Promise<unknown>;
+  act: Act;
+  /** Where a refusal is shown; it must outlive this button (see `allowTaskSequence`). */
+  onError: (error: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [error, setError] = useState('');
   const [working, setWorking] = useState(false);
   const before = c.settings.allowed_task_classes;
   const after = orderedClasses(taskChoicesFor(c.kind), [...before, ...tasks]);
@@ -48,34 +90,11 @@ export function AllowTasks({
   );
   if (changes.length === 0) return null;
   const accepted = c.caps_accepted_at !== null;
-  const p = `plan-connections/${c.id}`;
   async function allow() {
-    setError('');
+    onError('');
     setWorking(true);
     try {
-      const saved = (await act(
-        `${p}/settings`,
-        {
-          expected_version: c.version,
-          settings: { ...c.settings, allowed_task_classes: after },
-        },
-        undefined,
-        setError,
-      )) as { version?: number; settings_hash?: string } | null;
-      if (!saved?.version || !saved.settings_hash) return;
-      if (accepted) {
-        const ok = await act(
-          `${p}/accept-caps`,
-          {
-            expected_version: saved.version,
-            settings_hash: saved.settings_hash,
-          },
-          undefined,
-          setError,
-        );
-        if (!ok) return;
-      }
-      setOpen(false);
+      if (await allowTaskSequence(c, after, act, onError)) setOpen(false);
     } finally {
       setWorking(false);
     }
@@ -105,10 +124,7 @@ export function AllowTasks({
             type="button"
             className="text"
             disabled={working}
-            onClick={() => {
-              setOpen(false);
-              setError('');
-            }}
+            onClick={() => setOpen(false)}
           >
             Cancel
           </button>
@@ -122,12 +138,6 @@ export function AllowTasks({
         >
           {label}
         </button>
-      )}
-      {error && (
-        <span className="error" role="alert">
-          {' '}
-          {error}
-        </span>
       )}
     </span>
   );

@@ -51,6 +51,12 @@ type Mod = {
     dataClass: string,
     taskClasses: string[],
   ): { connection: string; model: string };
+  missingTaskTexts(
+    subject: string,
+    missing: string[],
+    allowed: string[],
+  ): string[];
+  QUALIFY_IN_APP: string[];
   discoverSetupBlockers(input: Record<string, unknown>): {
     text: string;
     fix?: { view: string };
@@ -202,7 +208,7 @@ test('setup blockers name the step and the tab that fixes it; defaults never cle
     unq.map((b) => b.text),
     [
       'This connection does not permit the selected evidence sharing class.',
-      'The model is not qualified for scoring.',
+      'The model is not qualified for scoring. Qualify the model for scoring under Models and connections › Qualify a model.',
     ],
   );
   // P23 item 8: a task the connection does not allow is named as that, with its fix.
@@ -219,9 +225,12 @@ test('setup blockers name the step and the tab that fixes it; defaults never cle
   assert.deepEqual(
     notAllowed.map((b) => [b.text, b.fix?.view]),
     [
-      ['The model is not qualified for research synthesis.', 'models'],
       [
-        "scoring is not allowed on this connection, so the model can't be qualified for it yet. Allow it under Models and connections, then qualify it.",
+        "Scoring is not allowed on this connection, so the model can't be qualified for it yet. Allow it under Models and connections (Allow all tasks, or tick it in Change caps or allowed work). Qualify the model for scoring under Models and connections › Qualify a model.",
+        'models',
+      ],
+      [
+        "The model is not qualified for research synthesis. The app can't qualify research synthesis yet: its benchmark runs only from the command line (pnpm cli plan-qualify).",
         'models',
       ],
     ],
@@ -290,4 +299,41 @@ test("Discover's model access names the plan the connection runs on", async () =
     'ChatGPT or Claude plan',
   );
   assert.equal(m.plansOffered([]), 'Subscription plan');
+});
+
+test('PR #172 review M-1: "not qualified" texts point only at fixes that exist', async () => {
+  const m = await load<Mod>('discover-defaults.ts');
+  // The Chat discovery card on a connection allowing only summarization: the discovery roles
+  // can be allowed in the app, but only scoring can be qualified there.
+  const card = m.missingTaskTexts(
+    'gpt-6-astra',
+    ['research_synthesis', 'candidate_generation', 'scoring'],
+    ['summarization'],
+  );
+  assert.equal(card.length, 1);
+  assert.match(
+    card[0]!,
+    /^Research synthesis, candidate generation, scoring are not allowed on this connection/,
+  );
+  assert.match(card[0]!, /Allow all tasks, or tick them in Change caps/);
+  assert.match(
+    card[0]!,
+    /Qualify gpt-6-astra for scoring under Models and connections › Qualify a model\./,
+  );
+  assert.match(
+    card[0]!,
+    /can't qualify research synthesis, candidate generation yet: their benchmarks run only from the command line/,
+  );
+  assert.doesNotMatch(card.join(' '), /Allow this task/);
+  // Explore for me once research synthesis is allowed: never sent to Qualify a model for it.
+  const explore = m.missingTaskTexts(
+    'gpt-6-astra',
+    ['research_synthesis'],
+    ['research_synthesis'],
+  );
+  assert.deepEqual(explore, [
+    "gpt-6-astra is not qualified for research synthesis. The app can't qualify research synthesis yet: its benchmark runs only from the command line (pnpm cli plan-qualify).",
+  ]);
+  assert.doesNotMatch(explore[0]!, /Qualify a model/);
+  assert.deepEqual(m.missingTaskTexts('m', [], ['scoring']), []);
 });

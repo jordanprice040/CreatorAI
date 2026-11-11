@@ -839,6 +839,11 @@ test('ADR-0084: a second Run of a qualification that is running is refused and n
     store: new ConnectionStore(s.db.pool),
   });
   await refused(other.runQualification(owner, ws.id, q.id), /still in flight/);
+  // Review of PR #172 N-1: a Finish from another window cannot cut the running loop short.
+  await refused(
+    store.finishPlanQualification(owner, ws.id, q.id),
+    /is running/,
+  );
   hold = false;
   release();
   const done = await first;
@@ -866,6 +871,59 @@ test('ADR-0084: a second Run of a qualification that is running is refused and n
     /already finished/,
   );
   assert.equal(fake.responseRequests.length, after);
+});
+
+test('PR #172 review L-2: a case with no known outcome stops the next Run before anything is sent', async (t) => {
+  // The first answer verifies the model; the next is cut off, so its outcome stays unknown.
+  const s = await setup(t, {
+    responses: [
+      { kind: 'text', text: 'ok' },
+      { kind: 'cut', text: 'partial' },
+    ],
+  });
+  if (!s) return;
+  const { store, service, ws, fake } = s;
+  await s.signIn();
+  const c = await s.ready();
+  const grant = await store.createPlanVerificationGrant(owner, ws.id, c.id, {
+    expected_version: c.version,
+    model_id: 'm',
+    path: 'responses',
+    expires_in_minutes: 5,
+  });
+  await service.verifyModel(owner, ws.id, c.id, {
+    id: grant.id,
+    model_id: 'm',
+  });
+  const q = await store.startPlanQualification(owner, ws.id, c.id, {
+    expected_version: (await s.current()).version,
+    model_id: 'm',
+    manifest: read('config/routing/benchmark.fixture.json'),
+    min_held_out_cases: 8,
+    floor: { numerator: 7, denominator: 8 },
+  });
+  const first = await service.runQualification(owner, ws.id, q.id);
+  assert.equal(first.state, 'stopped');
+  const states = await s.db.pool.query(
+    'select state from plan_requests where qualification_id = $1',
+    [q.id],
+  );
+  assert.deepEqual(
+    states.rows.map((r) => r.state),
+    ['unknown'],
+  );
+  // Before the fix, this Run skipped the case, sent the rest and then failed on finish with
+  // "A qualification case is still unresolved." (Jordan's item 10).
+  const sent = fake.responseRequests.length;
+  await assert.rejects(
+    service.runQualification(owner, ws.id, q.id),
+    (e: unknown) =>
+      e instanceof ContractError &&
+      e.code === 'INVALID_TRANSITION' &&
+      /no known outcome/.test(e.message) &&
+      /Running now/.test(e.message),
+  );
+  assert.equal(fake.responseRequests.length, sent, 'nothing more was sent');
 });
 
 test('provider refusals are recorded as eligibility and quota states and stop admission', async (t) => {

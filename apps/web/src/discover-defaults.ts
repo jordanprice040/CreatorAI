@@ -221,15 +221,15 @@ export function discoverSetupBlockers(input: {
           text: 'This connection has no verified model yet.',
           fix: models,
         });
-      for (const tc of input.unqualified)
-        out.push({
-          text:
-            input.plan.allowedTaskClasses &&
-            !input.plan.allowedTaskClasses.includes(tc)
-              ? `${tc.replaceAll('_', ' ')} is not allowed on this connection, so the model can't be qualified for it yet. Allow it under Models and connections, then qualify it.`
-              : `The model is not qualified for ${tc.replaceAll('_', ' ')}.`,
-          fix: models,
-        });
+      // P23 item 8: a task the connection does not allow is named as such, and each fix
+      // named is one that exists (review of PR #172, M-1).
+      for (const text of missingTaskTexts(
+        'the model',
+        input.unqualified,
+        // Without the allowed list, every missing task is read as allowed.
+        input.plan.allowedTaskClasses ?? input.unqualified,
+      ))
+        out.push({ text, fix: models });
     }
     return out;
   }
@@ -278,3 +278,80 @@ export function plansOffered(kinds: readonly string[]) {
   if (names.length === 1) return names[0]!;
   return names.map((n) => n.replace(' plan', '')).join(' or ') + ' plan';
 }
+
+/**
+ * Task classes that Models and connections › Qualify a model has a bundled benchmark for, so the
+ * app itself can qualify them (a test keeps this equal to the section's BENCHMARKS). The
+ * discovery roles research synthesis and candidate generation are not here: their benchmarks
+ * run only from the command line for now (review of PR #172, M-1).
+ */
+export const QUALIFY_IN_APP: readonly string[] = [
+  'specification',
+  'summarization',
+  'patch_build',
+  'independent_review',
+  'scoring',
+];
+
+/**
+ * P23 item 8: what a model missing tasks needs, in words that point only at fixes that exist.
+ * `notAllowed` are tasks the connection does not allow (so they can't be qualified yet);
+ * `unqualified` are allowed tasks the model is not qualified for. `subject` is the model's
+ * name or "the model".
+ */
+export function taskBlockerTexts(
+  subject: string,
+  notAllowed: readonly string[],
+  unqualified: readonly string[],
+): string[] {
+  const out: string[] = [];
+  const names = (xs: readonly string[]) =>
+    xs.map((x) => x.replaceAll('_', ' ')).join(', ');
+  const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+  const qualifyHow = (xs: readonly string[]) => {
+    const inApp = xs.filter((x) => QUALIFY_IN_APP.includes(x));
+    const cli = xs.filter((x) => !QUALIFY_IN_APP.includes(x));
+    return [
+      ...(inApp.length
+        ? [
+            `Qualify ${subject} for ${names(inApp)} under Models and connections › Qualify a model.`,
+          ]
+        : []),
+      ...(cli.length
+        ? [
+            `The app can't qualify ${names(cli)} yet: ${cli.length === 1 ? 'its benchmark runs' : 'their benchmarks run'} only from the command line (pnpm cli plan-qualify).`,
+          ]
+        : []),
+    ].join(' ');
+  };
+  if (notAllowed.length) {
+    const one = notAllowed.length === 1;
+    out.push(
+      sentence(
+        `${names(notAllowed)} ${one ? 'is' : 'are'} not allowed on this connection, so ${subject} can't be qualified for ${one ? 'it' : 'them'} yet. Allow ${one ? 'it' : 'them'} under Models and connections (Allow all tasks, or tick ${one ? 'it' : 'them'} in Change caps or allowed work). ${qualifyHow(notAllowed)}`,
+      ),
+    );
+  }
+  if (unqualified.length)
+    out.push(
+      // A model id keeps its own case; only "the model" starts with a capital.
+      `${subject.startsWith('the ') ? sentence(subject) : subject} is not qualified for ${names(unqualified)}. ${qualifyHow(unqualified)}`,
+    );
+  return out;
+}
+
+/**
+ * The same, from the tasks a model is missing and what the connection allows: the Chat
+ * discovery card, Discover › Explore for me and Discover's setup blockers all call this, so
+ * one test pins their wording (review of PR #172, N-3).
+ */
+export const missingTaskTexts = (
+  subject: string,
+  missing: readonly string[],
+  allowed: readonly string[],
+): string[] =>
+  taskBlockerTexts(
+    subject,
+    missing.filter((tc) => !allowed.includes(tc)),
+    missing.filter((tc) => allowed.includes(tc)),
+  );

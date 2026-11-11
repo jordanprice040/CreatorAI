@@ -298,12 +298,20 @@ export function Models({
       <ChatAnswersCard
         workspace={workspace}
         session={session}
-        stamp={`${refreshes}#${list
-          .map(
-            (x) =>
-              `${x.id}:${x.version}:${x.caps_accepted_at ?? ''}:${x.sign_in.state}:${x.credits.state}`,
-          )
-          .join('|')}`}
+        // What changes this stamp makes the card reload its connection details: a connection's
+        // version, caps acceptance, sign-in or credits, or a Refresh press. Empty while there is
+        // nothing to read and Refresh was not pressed, so the card's own first read is not
+        // repeated (review of PR #172, N-4).
+        stamp={
+          list.length || refreshes
+            ? `${refreshes}#${list
+                .map(
+                  (x) =>
+                    `${x.id}:${x.version}:${x.caps_accepted_at ?? ''}:${x.sign_in.state}:${x.credits.state}`,
+                )
+                .join('|')}`
+            : ''
+        }
         onChanged={() => void load().catch((e) => setError(message(e)))}
       />
       <h3>Other routes</h3>
@@ -502,6 +510,7 @@ export function Models({
                       label="Allow all tasks"
                       busy={busy || !session}
                       act={act}
+                      onError={setError}
                     />
                   </>
                 )}

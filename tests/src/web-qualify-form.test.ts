@@ -64,6 +64,20 @@ test('every benchmark the app offers would pass the server checks it can know ab
         );
   }
   assert.ok(!files.some((f) => f.endsWith('t12-reviewer-v1.json')));
+  // Refusal texts send people to Qualify a model only for these tasks (PR #172 review M-1).
+  const defaults = await readFile('apps/web/src/discover-defaults.ts', 'utf8');
+  const listed = /QUALIFY_IN_APP: readonly string\[\] = \[([^\]]*)\]/.exec(
+    defaults,
+  )![1]!;
+  const inApp = [...listed.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]!).sort();
+  const offered = await Promise.all(
+    files.map(
+      async (f) =>
+        (JSON.parse(await readFile(f, 'utf8')) as { task_class: string })
+          .task_class,
+    ),
+  );
+  assert.deepEqual(inApp, [...new Set(offered)].sort());
 });
 
 // qualify.tsx with its sibling import stubbed; the benchmark files and React load for real.

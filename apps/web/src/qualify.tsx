@@ -212,6 +212,7 @@ export function QualifyModel({
                     label="Allow this task"
                     busy={locked}
                     act={act}
+                    onError={setError}
                   />
                 </p>
               ) : (
@@ -391,7 +392,8 @@ function benchmarkTag(s: BenchmarkState): string {
     case 'started':
       return ' · started';
     case 'qualified':
-      return ` · qualified ${decidedWords(s.latest)}`;
+      // Short, so the option fits the select; the line below it has the score (PR #172 N-2).
+      return ` · qualified${s.latest.decided_at ? ` ${new Date(s.latest.decided_at).toLocaleDateString()}` : ''}`;
     case 'failed':
       return ' · last run failed';
     default:

@@ -201,6 +201,21 @@ ADR-0074.
   too heavy for one person.
 - Live trial needs Jordan's typed OK and a new private test repository, as in P22.
 
+**P34 Qualify the discovery roles in the app** (found by the PR #172 review, M-1; added November 11). Medium; web
+and config, ADR (number from main).
+
+- Today Models and connections › Qualify a model offers benchmarks only for specification, summarization, the
+  builder and reviewer roles and scoring (the assessment benchmark). Research synthesis and candidate generation,
+  which Discover › Explore for me and the Chat discovery card need, can be qualified only with
+  `pnpm cli plan-qualify` and the `config/connections/benchmarks/discovery-*` manifests, so a new connection in the
+  installed app cannot use discovery at all. Since P23 the refusals say so plainly instead of pointing at a button.
+- Choose which frozen discovery manifest the app offers for each of the two tasks (the role-currency checks in
+  `currentForDiscoveryRole` already bind a qualification to the current role prompts), add them to the Qualify
+  section's benchmark list and to `QUALIFY_IN_APP` (`apps/web/src/discover-defaults.ts`, kept equal by a test), and
+  keep their held-out cases out of anything the app shows before a run.
+- Gate: the web tests for the benchmark list and refusal texts; a live qualification on Jordan's connection needs his
+  typed OK (it spends plan requests). Belongs before the next user test, since P12 and P13 build on discovery.
+
 ### Elsewhere
 
 - Item 15 (fetched passages are page furniture) belongs to P12 online discovery; the search route investigation
@@ -216,6 +231,8 @@ ADR-0074.
 4. **P28** (API key) and **P29** (usage window), in parallel.
 5. **P30** (copy connections), then **P31** (Chat card help).
 6. **P32** when Jordan wants it and gives the live OK.
+   **P34** (qualify the discovery roles in the app) can start any time after P23 and is needed before the next user
+   test, since Explore for me and P12/P13 depend on qualified discovery roles.
 7. **P12** (online discovery) through the model connections, then **P13** as a priority once P12 is merged (Jordan,
    November 11), then **P33** (automation levels, including the whole process) right after P13.
 

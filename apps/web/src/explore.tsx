@@ -29,6 +29,7 @@ import { newestFirst } from './versions.js';
 import { envelopesFor } from './build-defaults.js';
 import { Empty, Status, useLoad, type View } from './ui.js';
 import { preferredRoute } from './model-choice.js';
+import { missingTaskTexts } from './discover-defaults.js';
 import {
   ChoiceNote,
   responsesModels,
@@ -295,14 +296,13 @@ export function Explore({
               q.task_class === EXPLORATION_TASK_CLASS &&
               q.state === 'qualified',
           )
-            ? [
-                // P23 item 8: name the reason when the task is not allowed here at all.
-                plan.connection.settings.allowed_task_classes.includes(
-                  EXPLORATION_TASK_CLASS,
-                )
-                  ? `${model} is not qualified for research synthesis (the discovery locator's qualification). Qualify it under Models and connections first.`
-                  : `Research synthesis is not allowed on this connection, so ${model} can't be qualified for it yet. Allow it under Models and connections (Allow all tasks, or Allow this task in Qualify a model), then qualify it.`,
-              ]
+            ? // P23 item 8: name the reason when the task is not allowed here at all,
+              // and only fixes that exist (review of PR #172, M-1).
+              missingTaskTexts(
+                model,
+                [EXPLORATION_TASK_CLASS],
+                plan.connection.settings.allowed_task_classes,
+              )
             : []),
         ]
       : [

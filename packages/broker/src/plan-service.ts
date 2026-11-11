@@ -1354,6 +1354,7 @@ export class PlanConnectionService {
         ctx,
         ws,
         qid,
+        true,
       ),
     };
   }
