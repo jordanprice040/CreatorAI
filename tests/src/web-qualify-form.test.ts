@@ -110,6 +110,7 @@ async function loadQualify() {
       model: string,
       task: string,
       allowed: readonly string[],
+      web?: boolean,
     ) => { kind: string };
     QualifyModel: (props: Record<string, unknown>) => unknown;
   };
@@ -189,6 +190,43 @@ test('P23: a benchmark says whether its task is not allowed, started, qualified 
       .kind,
     'started',
     'an open qualification of the same model and task is run, not started twice',
+  );
+  // PR #173 review 4 L-B: web discovery and the locator are both research synthesis; each
+  // benchmark shows only its own kind of result.
+  const rs = ['research_synthesis'];
+  const locate = qualification({
+    task_class: 'research_synthesis',
+    state: 'qualified',
+    decided_at: '2026-11-11T10:05:00.000Z',
+  });
+  const webFail = qualification({
+    task_class: 'research_synthesis',
+    state: 'failed',
+    admits_web_discovery: true,
+    created_at: '2026-11-11T11:00:00.000Z',
+    decided_at: '2026-11-11T11:05:00.000Z',
+  });
+  assert.equal(
+    benchmarkState([locate], 'gpt-6-astra', 'research_synthesis', rs, true)
+      .kind,
+    'new',
+    'a locate pass does not show the web benchmark as qualified',
+  );
+  assert.equal(
+    benchmarkState([locate, webFail], 'gpt-6-astra', 'research_synthesis', rs)
+      .kind,
+    'qualified',
+    'a newer failed web run does not replace the locate result',
+  );
+  assert.equal(
+    benchmarkState(
+      [locate, webFail],
+      'gpt-6-astra',
+      'research_synthesis',
+      rs,
+      true,
+    ).kind,
+    'failed',
   );
 });
 

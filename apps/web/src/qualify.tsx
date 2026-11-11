@@ -2,6 +2,8 @@ import { useState } from 'react';
 import {
   PlanQualificationResultsSchema,
   latestDecided,
+  forDiscover,
+  forWebDiscovery,
   planWaitMs,
   type PlanConnection,
   type PlanQualification,
@@ -36,6 +38,8 @@ export const BENCHMARKS = [
   task_class: m.task_class,
   held_out: m.cases.filter((c) => c.split === 'held_out').length,
   development: m.cases.filter((c) => c.split !== 'held_out').length,
+  // ADR-0086: shares research synthesis with the discovery locator but admits only web discovery.
+  web: m.name.startsWith('web-discovery-'),
 }));
 
 /** Start, run and finish a qualification of one verified model on one bundled benchmark. */
@@ -144,7 +148,13 @@ export function QualifyModel({
     models[0] ||
     '';
   const state = chosen
-    ? benchmarkState(qualifications, pick, chosen.task_class, allowed)
+    ? benchmarkState(
+        qualifications,
+        pick,
+        chosen.task_class,
+        allowed,
+        chosen.web,
+      )
     : null;
   return (
     <fieldset>
@@ -196,7 +206,13 @@ export function QualifyModel({
                   {words(b.task_class)} · {b.name} ({b.development} practice +{' '}
                   {b.held_out} held out)
                   {benchmarkTag(
-                    benchmarkState(qualifications, pick, b.task_class, allowed),
+                    benchmarkState(
+                      qualifications,
+                      pick,
+                      b.task_class,
+                      allowed,
+                      b.web,
+                    ),
                   )}
                 </option>
               ))}
@@ -374,14 +390,20 @@ export function benchmarkState(
   model: string,
   task: string,
   allowed: readonly string[],
+  web = false,
 ): BenchmarkState {
   if (!allowed.includes(task)) return { kind: 'not_allowed' };
-  const started = qualifications.find(
+  // PR #173 review 4 L-B: a web-discovery benchmark reads only web records, and the others
+  // never read them, though both are research synthesis.
+  const own = web
+    ? forWebDiscovery(qualifications)
+    : forDiscover(qualifications);
+  const started = own.find(
     (q) =>
       q.state === 'running' && q.model_id === model && q.task_class === task,
   );
   if (started) return { kind: 'started', qualification: started };
-  const latest = latestDecided(qualifications, model, task);
+  const latest = latestDecided(own, model, task);
   if (latest?.state === 'qualified' || latest?.state === 'failed')
     return { kind: latest.state, latest };
   return { kind: 'new' };

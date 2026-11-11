@@ -6,6 +6,7 @@ import {
   BenchmarkManifestSchema,
   CREDITS_OFF_STATEMENT,
   ContractError,
+  ReaderOutputSchema,
   WebDiscoveryScopeSchema,
   WebDiscoverySchema,
   forDiscover,
@@ -178,6 +179,25 @@ test('only URLs the provider search listed are fetched; exclusions, repeats and 
     scope(),
   );
   assert.equal(lone.ok && lone.summary, 'Half \uFFFD of an emoji.');
+  // Review 4 N-D: the reading answer's stored text is made well formed too.
+  const read = ReaderOutputSchema.parse({
+    claims: [
+      {
+        title: 'T \ud83d',
+        statement: 'S \udc00',
+        basis: 'observation',
+        uncertainty: 'U',
+        evidence: [
+          { ref: 'S1.P1', stance: 'supports', quote: 'quote \ud83d here' },
+        ],
+      },
+    ],
+    not_covered: ['gap \ud83d'],
+  });
+  assert.equal(read.claims[0]!.title, 'T \uFFFD');
+  assert.equal(read.claims[0]!.statement, 'S \uFFFD');
+  assert.equal(read.claims[0]!.evidence[0]!.quote, 'quote \uFFFD here');
+  assert.equal(read.not_covered[0], 'gap \uFFFD');
   // Re-review R-4: a search source reported over http is fetched at its https form.
   const plain = checkScoutOutput(
     { summary: 'Searched.', leads: [lead('https://g.org/plain')] },

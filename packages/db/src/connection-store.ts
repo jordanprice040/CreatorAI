@@ -3724,15 +3724,26 @@ export class ConnectionStore extends WebDiscoveryStore {
         // ADR-0052: held-out cases whose results someone has viewed no longer test a prompt
         // revised after that view. Retrying the same prompt on them stays allowed.
         const views = await c.query(
-          `select e.body, e.created_at from plan_connection_events e
+          `select e.body, e.created_at, q.manifest from plan_connection_events e
              join plan_connections p on p.id = e.connection_id
+             left join plan_qualifications q on q.id::text = e.body->>'qualification_id'
             where p.workspace_id = $1 and e.kind = $2 and e.body->>'task_class' = $3
             order by e.created_at`,
           [conn.workspace_id, HELD_OUT_VIEWED, tc],
         );
         for (const v of views.rows as Row[]) {
+          // PR #173 review 4 L-A: a view's keys are recomputed from the benchmark it showed, so
+          // views recorded under an older key format are checked like new ones.
+          const shown = (v.manifest as { cases?: ManifestCase[] } | null)
+            ?.cases;
           const seen = heldOutSeen(
-            v.body as Parameters<typeof heldOutSeen>[0],
+            shown
+              ? {
+                  prompt_hash: promptHash(shown),
+                  held_out: heldOutKeys(shown),
+                  held_out_prompts: heldOutPrompts(shown),
+                }
+              : (v.body as Parameters<typeof heldOutSeen>[0]),
             req.manifest.cases,
           );
           if (seen)

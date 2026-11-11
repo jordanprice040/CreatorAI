@@ -71,6 +71,19 @@ export type StartWebDiscoveryRequest = z.infer<
 >;
 
 /**
+ * PR #173 review 3 L-2 / review 4 N-D: a lone half of a surrogate pair becomes U+FFFD, since
+ * PostgreSQL refuses it in stored JSON. Applied to every model-written string that is stored.
+ */
+const wellFormed = (s: string) =>
+  s.replace(
+    /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,
+    '\uFFFD',
+  );
+/** Model text, trimmed, bounded and well formed. */
+const modelText = (min: number, max: number) =>
+  z.string().trim().min(min).max(max).transform(wellFormed);
+
+/**
  * A model's free text, clipped instead of refused (live check, November 11: one 314-character
  * "why" rejected a whole search answer). The prompt states the limits; this is the backstop.
  */
@@ -90,10 +103,7 @@ const clipped = (n: number) =>
         if (last >= 0xd800 && last <= 0xdbff) cut -= 1;
         out = `${out.slice(0, cut)}…`;
       }
-      return out.replace(
-        /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,
-        '\uFFFD',
-      );
+      return wellFormed(out);
     });
 
 /** What the search request answers: candidate pages, each with why it may hold evidence. */
@@ -212,16 +222,16 @@ export const ReaderOutputSchema = z.strictObject({
   claims: z
     .array(
       z.strictObject({
-        title: z.string().trim().min(1).max(200),
-        statement: z.string().trim().min(1).max(1200),
+        title: modelText(1, 200),
+        statement: modelText(1, 1200),
         basis: z.enum(['observation', 'inference']),
-        uncertainty: short,
+        uncertainty: modelText(1, 300),
         evidence: z
           .array(
             z.strictObject({
               ref: passageRef,
               stance: z.enum(['supports', 'contradicts']),
-              quote: z.string().trim().min(8).max(1000),
+              quote: modelText(8, 1000),
             }),
           )
           .min(1)
@@ -229,7 +239,7 @@ export const ReaderOutputSchema = z.strictObject({
       }),
     )
     .max(12),
-  not_covered: z.array(short).max(8),
+  not_covered: z.array(modelText(1, 300)).max(8),
 });
 export type ReaderOutput = z.infer<typeof ReaderOutputSchema>;
 
