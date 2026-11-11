@@ -474,6 +474,20 @@ test('each route qualifies only on its own benchmark; the confirmation says what
     ),
     /not accepted yet; accept them first/,
   );
+  // A benchmark no longer offered says so, rather than an empty panel (fourth review L-1).
+  assert.equal(
+    mod.confirmText(
+      {
+        kind: 'qualify',
+        connection_id: c.id,
+        model_id: 'm1',
+        task_class: 'scoring',
+        role: 'discovery',
+      },
+      detail(accepted),
+    ),
+    'The app no longer offers a benchmark for scoring; reload the page.',
+  );
   // Only the owner sees a fix; the buttons are drawn from the actions, not from any text.
   const acts = [{ kind: 'accept_caps', connection_id: c.id }];
   const fix = { base: 'workspaces/w', csrf: 't', owner: false };
@@ -746,6 +760,12 @@ test('P34 handover: discovery fixes qualify on the benchmarks the server offers,
     model_id: 'gpt-6-astra',
     benchmark: 'plan-discovery-semantics-v2-candidate_generation',
   });
+  // A failed re-read keeps the list read before (fourth review L-1).
+  const kept = offers.served;
+  offers.served = null;
+  await mod.loadOffers('workspaces/w', true);
+  assert.equal(mod.canQualifyFor('discovery')('candidate_generation'), true);
+  offers.served = kept;
   // Scoring keeps one benchmark per route: discovery's skeptic and the bundled assessment one.
   assert.equal(
     mod.benchmarkFor('scoring', 'discovery')!.name,

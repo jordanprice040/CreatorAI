@@ -234,7 +234,8 @@ const reading = new Map<string, Promise<void>>();
 
 /**
  * Read the server's discovery offers for a workspace (once per workspace, or again with
- * `fresh`, since the server refuses a name it no longer offers). Failures offer none.
+ * `fresh`, since the server refuses a name it no longer offers). A failed read keeps the list
+ * read before for that workspace (fourth review L-1), or offers none.
  */
 export function loadOffers(base: string, fresh = false): Promise<void> {
   if (!fresh && offered?.base === base) return Promise.resolve();
@@ -242,7 +243,9 @@ export function loadOffers(base: string, fresh = false): Promise<void> {
   if (pending) return pending;
   const p = api(ServerOffersSchema, `${base}/plan-benchmarks`)
     .then((r) => serverOffers(r.benchmarks))
-    .catch((): QualifyOffer[] => [])
+    .catch((): readonly QualifyOffer[] =>
+      offered?.base === base ? offered.list : [],
+    )
     .then((list) => {
       offered = { base, list };
     })
@@ -388,7 +391,7 @@ function FixButton({ act: a, fix }: { act: FixAction; fix: FixContext }) {
     saved: () => void,
   ): Promise<{ text: string; qualified: boolean }> {
     const b = benchmarkFor(task, role);
-    if (!b) return { text: '', qualified: false };
+    if (!b) throw new Error(noBenchmark(task));
     const d = await read();
     if (d.connection.fixture)
       throw new Error('A fixture connection is not qualified in the app.');
@@ -612,6 +615,10 @@ const confirmButton = (a: FixAction) =>
       : 'Allow';
 
 /** Whether the fix can still do something, read from the connection just now. */
+/** Said when a benchmark the fix was drawn for is no longer offered (fourth review L-1). */
+const noBenchmark = (task: string) =>
+  `The app no longer offers a benchmark for ${words(task)}; reload the page.`;
+
 function ready(a: FixAction, d: PlanConnectionDetail): boolean {
   const c = d.connection;
   switch (a.kind) {
@@ -628,6 +635,7 @@ function ready(a: FixAction, d: PlanConnectionDetail): boolean {
       );
     case 'qualify':
       return (
+        Boolean(benchmarkFor(a.task_class, a.role)) &&
         !c.fixture &&
         (c.settings.allowed_task_classes as readonly string[]).includes(
           a.task_class,
@@ -669,7 +677,7 @@ export function confirmText(a: FixAction, d: PlanConnectionDetail): string {
     const b = benchmarkFor(task, role);
     return b
       ? `Qualifying ${model} for ${words(task)} runs ${b.name}: up to ${b.development + b.held_out} plan requests, counted against this connection's caps, $0 on a plan. Pass bar: all ${b.held_out} held-out cases.`
-      : '';
+      : noBenchmark(task);
   };
   switch (a.kind) {
     case 'accept_caps':

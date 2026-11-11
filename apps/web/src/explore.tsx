@@ -292,10 +292,9 @@ export function Explore({
     data_class: dataClass,
     limits,
   };
-  // As the server admits it (P27 review L-4): the newest decided qualification under the
-  // current discovery prompt counts, so a later failure withdraws a pass (ADR-0052), and a
-  // web-discovery qualification does not (ADR-0086). With P34 (#175) this is
-  // `isDiscoveryQualified(plan.qualifications, model, EXPLORATION_TASK_CLASS)`.
+  // As the server admits Explore (P27 review L-4): the discovery role's newest decided
+  // qualification counts, so a later failure withdraws a pass (ADR-0052), and a
+  // web-discovery qualification does not count (ADR-0086).
   const explorationQualified = Boolean(
     plan &&
     isQualified(
