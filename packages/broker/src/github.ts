@@ -57,22 +57,28 @@ const rateLimited = (r: GitHubResponse) =>
     (r.headers['x-ratelimit-remaining'] === '0' ||
       r.headers['retry-after'] !== undefined ||
       /rate limit/i.test(r.message)));
-const RATE_LIMITED =
-  'GitHub is rate-limiting this credential; nothing was read. Try again later.';
+// `notRead` says what this refusal left unread: "nothing was read" for the repository lookup,
+// one part (e.g. "the commit statuses were not read") for a step of the checks read.
+const rateLimitedWording = (notRead: string) =>
+  `GitHub is rate-limiting this credential; ${notRead}. Try again later.`;
+const sentence = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 /**
  * Re-review 4 and 5 nits: a response that never got past the GitHub App token step says so,
  * whichever read it was for. Null when the response is from the read itself.
  */
-const tokenStepWording = (r: GitHubResponse): string | null => {
+const tokenStepWording = (
+  r: GitHubResponse,
+  notRead: string,
+): string | null => {
   if (r.stage === 'studio')
     return 'The studio could not get a GitHub App token, so GitHub was not asked; check the App credential (App id and private key).';
   if (r.stage !== 'app_token') return null;
-  if (rateLimited(r)) return RATE_LIMITED;
+  if (rateLimited(r)) return rateLimitedWording(notRead);
   if (r.status === 401)
-    return 'GitHub did not accept the studio’s GitHub App sign-in: the App id or private key may be wrong, or the key revoked. Nothing was read.';
+    return `GitHub did not accept the studio’s GitHub App sign-in: the App id or private key may be wrong, or the key revoked. ${sentence(notRead)}.`;
   if (r.status !== null && r.status >= 400 && r.status < 500)
-    return 'GitHub refused a GitHub App token for this repository: the App may no longer be installed on it, or the installation was removed or suspended. Nothing was read.';
-  return 'GitHub did not give a GitHub App token (the token step failed); nothing was read. Try again later.';
+    return `GitHub refused a GitHub App token for this repository: the App may no longer be installed on it, or the installation was removed or suspended. ${sentence(notRead)}.`;
+  return `GitHub did not give a GitHub App token (the token step failed); ${notRead}. Try again later.`;
 };
 // With no HTTP answer the detail is the studio's own (a timeout, a reset); otherwise it is
 // GitHub's own message.
@@ -86,18 +92,18 @@ const refusalDetail = (r: GitHubResponse) =>
       : ` GitHub said: ${r.message}`;
 /**
  * Re-review N-L1 and N2-L1: the repository lookup keeps GitHub's real status and own message.
- * A rate limit (403 or 429 with `x-ratelimit-remaining: 0`, `retry-after` or a rate-limit
- * message) and any other status GitHub answers without the repository (5xx, no response) mean
- * "try again"; only a plain 401, 403 or 404 points at the credential; a 200 whose body is
- * unusable is said as such.
+ * A rate limit (any 429, or a 403 with `x-ratelimit-remaining: 0`, `retry-after` or a
+ * rate-limit message) and any other status GitHub answers without the repository (5xx, no
+ * response) mean "try again"; only a plain 401, 403 or 404 points at the credential; a 200
+ * whose body is unusable is said as such.
  */
 export const repositoryRefusal = (r: GitHubResponse): ReadRefusal => {
   const ours =
-    tokenStepWording(r) ??
+    tokenStepWording(r, 'nothing was read') ??
     (r.status === 200
       ? 'GitHub’s reply about this repository could not be read; nothing was read. Try again later.'
       : rateLimited(r)
-        ? RATE_LIMITED
+        ? rateLimitedWording('nothing was read')
         : r.status === 401 || r.status === 403 || r.status === 404
           ? 'GitHub did not show this repository to the connection’s credential: the token may be expired or revoked, or its access to the repository removed.'
           : 'GitHub did not answer the repository read; nothing was read. Try again later.');
@@ -111,11 +117,21 @@ export interface PullRead {
   pull: PullObservation | null;
   refusal: ReadRefusal | null;
 }
+const READ_PART: Record<ReadRefusal['step'], string> = {
+  repository: 'the repository',
+  pull: 'the pull request',
+  check_runs: 'the check runs',
+  statuses: 'the commit statuses',
+};
 const readRefusal = (
   step: ReadRefusal['step'],
   r: GitHubResponse,
 ): ReadRefusal => {
-  const wording = tokenStepWording(r) ?? (rateLimited(r) ? RATE_LIMITED : null);
+  // Re-review 8: the other step's results may still be shown, so say only this part was unread.
+  const notRead = `${READ_PART[step]} ${step === 'check_runs' || step === 'statuses' ? 'were' : 'was'} not read`;
+  const wording =
+    tokenStepWording(r, notRead) ??
+    (rateLimited(r) ? rateLimitedWording(notRead) : null);
   return {
     step,
     status: r.status,

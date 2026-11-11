@@ -710,4 +710,8 @@ test('P22 re-review 7: a 429 on the pull or statuses read itself says rate-limit
   );
   assert.match(c.refusals[0]!.message, /rate-limiting.*Try again/);
   assert.doesNotMatch(c.refusals[0]!.message, /^HTTP 429$/);
+  // Re-review 8: a one-step refusal names only that step as unread.
+  assert.match(c.refusals[0]!.message, /the commit statuses were not read/);
+  assert.doesNotMatch(c.refusals[0]!.message, /nothing was read/i);
+  assert.match(pull.refusal!.message, /the pull request was not read/);
 });
