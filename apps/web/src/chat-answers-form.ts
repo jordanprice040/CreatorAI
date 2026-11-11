@@ -4,7 +4,7 @@
 type Access = { model_id: string; access: string; path: string };
 type Detail = { connection: { id: string }; model_access: readonly Access[] };
 
-/** Models verified for chat (the Responses path) on one connection, newest read first. */
+/** Models verified for chat (the Responses path) on one connection, in model id order. */
 export function verifiedModels(details: readonly Detail[], id: string) {
   const d = details.find((x) => x.connection.id === id);
   return [
@@ -17,18 +17,26 @@ export function verifiedModels(details: readonly Detail[], id: string) {
 }
 
 /**
- * Fills a connection or model field that is still empty once fresh connection details show one,
- * for example after a model is verified on a connection that had none. A choice the person
- * already made is kept. Without this the Model list showed the new model while the form held
- * none, so a save sent no model until "Reset fields".
+ * Fills a connection or model field that is empty, or that holds a value the lists no longer
+ * offer, with the first one offered, for example after a model is verified on a connection that
+ * had none, or after a recheck refused the saved model. A choice still offered is kept. Without
+ * this the select showed one model while the form held another (or none), so a save sent what
+ * was not shown (walkthrough item 9, PR #170 review N-3). Before any connection is read the
+ * form is left as it is.
  */
-export function fillEmptyChoice<
+export function matchOfferedChoice<
   F extends { connection_id: string; model_id: string },
 >(form: F, details: readonly Detail[]): F {
-  const connection_id = form.connection_id || details[0]?.connection.id || '';
-  const model_id =
-    form.model_id ||
-    (connection_id ? (verifiedModels(details, connection_id)[0] ?? '') : '');
+  if (details.length === 0) return form;
+  const connection_id = details.some(
+    (d) => d.connection.id === form.connection_id,
+  )
+    ? form.connection_id
+    : details[0]!.connection.id;
+  const models = verifiedModels(details, connection_id);
+  const model_id = models.includes(form.model_id)
+    ? form.model_id
+    : (models[0] ?? '');
   return connection_id === form.connection_id && model_id === form.model_id
     ? form
     : { ...form, connection_id, model_id };

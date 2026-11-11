@@ -47,6 +47,9 @@ export const STUDIO_CHANGED = 'creator:studio-changed';
  * top bar's usage count should go live while it runs, not only after (walkthrough item 13).
  */
 export const STUDIO_WRITE_STARTED = 'creator:studio-write-started';
+let openWrites = 0;
+/** Whether a write sent from this window has not ended yet (PR #170 review L-1). */
+export const writeOpen = () => openWrites > 0;
 
 export async function api<T>(
   schema: z.ZodType<T>,
@@ -86,8 +89,12 @@ export async function api<T>(
   });
   // A write that timed out may still have landed, so announce it however it ended.
   if (init.body !== undefined && !init.quiet && typeof window !== 'undefined') {
+    openWrites++;
     window.dispatchEvent(new Event(STUDIO_WRITE_STARTED));
-    const announce = () => window.dispatchEvent(new Event(STUDIO_CHANGED));
+    const announce = () => {
+      openWrites--;
+      window.dispatchEvent(new Event(STUDIO_CHANGED));
+    };
     sent.then(announce, announce);
   }
   const response = await sent;

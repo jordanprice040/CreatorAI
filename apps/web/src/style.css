@@ -1985,6 +1985,11 @@ fieldset.flagged {
     text-box: trim-both cap alphabetic;
     padding-block: calc((24px - 1cap) / 2);
   }
+  /* A skipped step's dash sits at the x-height middle, not the cap middle (PR #170 N-1). */
+  .path-stage.stage-skipped .path-mark {
+    text-box: normal;
+    padding-block: 0;
+  }
 }
 .path-stage.stage-done .path-mark {
   border-color: var(--ok-border);

@@ -10,6 +10,7 @@ import {
   message,
   STUDIO_CHANGED,
   STUDIO_WRITE_STARTED,
+  writeOpen,
 } from './oversight.js';
 import { money } from './budgets.js';
 import {
@@ -283,7 +284,12 @@ export function UsageIndicator({ workspace }: { workspace: Workspace }) {
     api(UsageSummarySchema, `workspaces/${workspace.id}/usage`)
       .then((u) => {
         if (mine !== seq.current) return;
-        watch.current = watchAfterRead(u.plans, Date.now(), watch.current);
+        watch.current = watchAfterRead(
+          u.plans,
+          Date.now(),
+          watch.current,
+          writeOpen(),
+        );
         setUsage(u);
         setError('');
         setNow(Date.now());
