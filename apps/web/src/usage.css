@@ -132,3 +132,49 @@
     width: auto;
   }
 }
+
+/* ADR-0081 (P21): the current-model picker sits beside the usage button and reuses its look. */
+.model-switch-label {
+  color: var(--muted);
+}
+.model-switch .usage-summary span:last-child {
+  color: var(--text);
+  max-width: 18ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.model-switch-list {
+  border: 0;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.model-switch-option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: start;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.model-switch-option.on {
+  border-color: var(--accent);
+  background: var(--surface-hover);
+}
+.model-switch-option input {
+  margin-top: 3px;
+}
+.model-switch-ready {
+  display: block;
+  color: var(--muted);
+}
+.model-note {
+  margin: 4px 0 8px;
+  color: var(--muted);
+}
+.model-note-warn {
+  color: var(--warn);
+}

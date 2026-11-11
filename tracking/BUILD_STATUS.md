@@ -31,7 +31,7 @@ the record of each package and are appended to, not rewritten.
 | P15 larger software | Slice 1 `static-web/1` merged and recorded qualified on one route (PRs #149, #150; ADR-0078); later slices not started |
 | P16 external runbook export | Merged (PR #152; ADR-0080, no migration) |
 | P17 integrated acceptance | Not started |
-| P18 collapsible options, shorter pages | Not started (added November 10, R20) |
+| P18 collapsible options, shorter pages | Draft PR #162 (no migration or ADR); four re-review rounds fixed, awaiting final re-review and merge |
 | P19 Standard/Advanced across the app | Not started (added November 10, R21 and rest of R10–R12) |
 | P20 whole process from Chat | Not started (added November 10, R22); Jordan approved it November 10; needs an ADR amending ADR-0057/0070 |
 | P21 quick model switch | Not started (added November 10, R23) |
@@ -829,6 +829,65 @@ and five new packages (P18 collapsible options, P19 Standard/Advanced app-wide, 
 model switch, P22 live API and GitHub checks) were added to the November 5 plan and its prompt runbook rather than a
 new plan. No application code, migration, ADR, configuration, grant or live call changed; no tests were needed or run.
 
+## ChatGPT plan route search test — November 10, 2026
+
+Jordan asked for it at 22:19 UTC and approved the dev-connection change at 22:42 UTC. PR #157
+(merged) added an opt-in `web_search` option to the plan request (`plan-responses.ts`,
+`plan-service.ts`, tests `plan-web-search.test.ts`); no route, UI or workflow uses it. The test ran
+through `PlanConnectionService.invoke` on the dev database only (Plus connection `4e4a7bec…`,
+gpt-6-astra, purpose chat, cap 3 calls). It was refused once at admission because chat needs
+`private_approved`; with Jordan's OK that data class was added for the test, then removed. The
+settings are byte-identical again and chat is off (connection version 16 to 21, caps re-accepted
+22:44:10Z). Results: 4 search calls, 24 candidates, all in the reported sources, 17-27 s each, $0
+incremental. 0 URLs overlap with the Claude Code run. Guarded fetch: 2/15 usable (PDFs, 403s,
+Reddit empty shells). Fetching remains the bottleneck; no search API is justified by these
+results. See [section 13](../docs/SEARCH_ROUTE_INVESTIGATION_2026-11-10.md) and
+`tracking/evidence/search-route-test-2026-11-10/plan-route/`. No ADR or migration.
+
+## P21 current-model switch (November 10, 2026, ADR-0081, migration 51; branch `claude/project-thread-6af37w`)
+
+- What works: a "Model" button beside the usage indicator (owners only) lists every verified model on the
+  workspace's plan connections, says which tasks each is qualified for (Chat, Explore, Discover, Assess, Build),
+  and switches the owner's current model. The choice is stored server-side per person and workspace
+  (`model_choices`, `GET/POST /api/workspaces/:ws/model-choice`), versioned and audited; only verified models
+  are accepted. Explore, Discover, Assess, Build (plan-role builder), the Chat answers setting and Qualify start
+  from it unless changed on the form. A form whose task the current model is not qualified for keeps it, shows
+  the reason and offers a qualified alternative as a button; it never switches quietly. A saved chat setting
+  follows the switch (audited, `via: model_switch`). Runs, builds, qualifications and chat answers already
+  started keep their recorded route.
+- Evidence: `tests/src/model-choice.test.ts` (form rules, Build default, store: owner only, verified only,
+  version conflict, audit, chat follows, earlier answer keeps its model, API route with CSRF and strict body).
+  Browser walk on a throwaway database: `tracking/evidence/p21-model-switch/` (two switches move Explore,
+  Discover, Assess and chat; a form pick wins locally; no page errors). The walk found and fixed a duplicate
+  React key that rendered the picker many times.
+- Checks (cloud container, PostgreSQL 16, no CI): `pnpm test:db` 903 tests, 869 pass, 29 skip, 5 fail (the known
+  no-`pwsh` wrapper tests); after the last web edits, `pnpm typecheck`, `pnpm format:check`, `pnpm test:dev-safety`
+  (19 pass, 3 skip) and the model-choice, storage and chat-answers suites (22 pass) were rerun and pass.
+- Not done: Build and Qualify not walked in a browser (fixture workspaces have no plan builders and fixture
+  connections cannot be qualified; Build's default is unit-tested); no CLI command; not independently reviewed.
+
+### P21 review fixes (November 10, same PR #161; review `/mnt/project-files/reviews/P21_MODEL_SWITCH_REVIEW_2026-11-10.md`, 0 High/Medium, 6 Low)
+
+- L-1: Build re-defaults its builder whenever the current model arrives or changes and nothing was picked on the
+  form, so a choice that loads after Build's data is still used. L-2: the first-ever switch checks the version in the
+  write itself (`on conflict … where version = expected`), so of two concurrent first switches one is refused as
+  `VERSION_CONFLICT` and leaves no audit row. L-3: with no current model, Build defaults to a builder qualified for
+  both roles before an unqualified one. L-4: tests that a tester is refused on `/model-choice` (read and switch) and
+  that a discovery started before a switch finishes on its recorded model. L-5: `model_choice` activity rows open
+  Models. L-6: the picker text names Qualify. Also (on main before this PR): the Build option names the Claude plan for
+  a Claude Code connection instead of always "ChatGPT plan".
+- L-1 is fixed in the form's effect and was not re-walked in a browser (fixture workspaces list no plan builders).
+- Checks (cloud container, PostgreSQL 16, no CI): typecheck and format pass; `pnpm test:db` 912 tests, 878 pass, 29 skip,
+  5 fail (the known no-`pwsh` wrapper tests); dev-safety 19 pass, 3 skip.
+- Re-review fixes: M-1, Build's choice-change effect no longer runs its reset on mount, so a lost locked builder
+  still shows "Chosen plan model unavailable: choose again" (the pure rule `builderAfterChoiceChange`, whose unit
+  test covers an unchanged choice keeping a lost builder; no component test). L-1: the help text under a Claude Code builder says "Claude plan". Checks: typecheck
+  and format pass; `pnpm test:db` 913 tests, 879 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests).
+- Second re-review Lows: L-1, when the current model is not verified on a plan connection here and nothing was
+  picked, Build says so and names the model it uses instead, like Explore, Discover and Assess. L-2: the wording above.
+- Third re-review Lows: that note is not shown beside "Chosen plan model unavailable: choose again" (nothing runs
+  until a builder is chosen) or in a fixture workspace (Build lists no plan builders there).
+
 ## P18 collapsible options and shorter pages (November 10, branch `claude/project-thread-d4dxg5`, no migration or ADR)
 
 R20 and part of R12 from the [November 10 check](../docs/CREATOR_AGENT_IMPLEMENTATION_PLAN_2026-11-05.md) (the P18
@@ -941,3 +1000,14 @@ row arrives with docs PR #158). Web only; no data, route, gate, scoring or API c
   first save (R2-1); A picked after B shows its default (R-2). Main walk re-run (output replaced).
 - Checks (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` and `pnpm format:check` pass; `pnpm test:db` 912
   tests, 878 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests).
+
+### P18 fourth re-review fixes (November 11, same PR #162; fourth re-review at `6549579`, 1 Low and a nit)
+
+- R5-1 tracking: SESSION_HANDOFF's table no longer says P18 is "Not started", and its P18 entry now covers the review
+  rounds (shared `kindAllows`, the per-proposal fold choices, Approvals opening the focused decision, how to run
+  `walk-proposal-choices.cjs`, and the Decide sections left unfolded for P19/P17).
+- N-3 Decide: the blocked line reads "<reason> Blocks: Validate before building, Recommend (no new software)." with no
+  nested brackets.
+- Merged main (P21, #161); conflicts were only in BUILD_STATUS.md and SESSION_HANDOFF.md.
+- Checks (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` and `pnpm format:check` pass; `pnpm test:db` 919
+  tests, 885 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests).

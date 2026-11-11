@@ -19,6 +19,7 @@ import {
 } from '@creator/contracts';
 import { announceActivity } from './activity-dots.js';
 import { api, ApiError, message as errorText, when } from './oversight.js';
+import { MODEL_CHOICE_CHANGED } from './model-choice.js';
 import { usePageActive } from './page-drafts.js';
 import { pathStages, type StudioFacts } from './next-rules.js';
 import {
@@ -185,6 +186,15 @@ export function Chat({
       .then(setSettings)
       .catch(() => setSettings(null));
   }, [active, focus, workspace.id]);
+  // ADR-0081: a switch in the top bar may move a saved chat setting to the new model.
+  useEffect(() => {
+    const changed = () =>
+      void api(ChatSettingsSchema, `workspaces/${workspace.id}/chat-settings`)
+        .then(setSettings)
+        .catch(() => undefined);
+    window.addEventListener(MODEL_CHOICE_CHANGED, changed);
+    return () => window.removeEventListener(MODEL_CHOICE_CHANGED, changed);
+  }, [workspace.id]);
   const answersOn = Boolean(settings?.enabled && settings.model_id);
   // PR #136 review L4: an explicit studio context the owner's setting refuses cannot be sent.
   const studioBlocked =

@@ -31,7 +31,7 @@ the record of each package and are appended to, not rewritten.
 | P15 larger software | Slice 1 `static-web/1` merged and recorded qualified on one route (PRs #149, #150; ADR-0078); later slices not started |
 | P16 external runbook export | Merged (PR #152; ADR-0080, no migration) |
 | P17 integrated acceptance | Not started |
-| P18 collapsible options, shorter pages | Not started (added November 10, R20) |
+| P18 collapsible options, shorter pages | Draft PR #162 (no migration or ADR); four re-review rounds fixed, awaiting final re-review and merge |
 | P19 Standard/Advanced across the app | Not started (added November 10, R21 and rest of R10–R12) |
 | P20 whole process from Chat | Not started (added November 10, R22); Jordan approved it November 10; needs an ADR amending ADR-0057/0070 |
 | P21 quick model switch | Not started (added November 10, R23) |
@@ -751,6 +751,31 @@ and five new packages (P18 collapsible options, P19 Standard/Advanced app-wide, 
 model switch, P22 live API and GitHub checks) were added to the November 5 plan and its prompt runbook rather than a
 new plan. No application code, migration, ADR, configuration, grant or live call changed; no tests were needed or run.
 
+## ChatGPT plan route search test — November 10, 2026
+
+Jordan asked for it at 22:19 UTC and approved the dev-connection change at 22:42 UTC. PR #157
+(merged) added an opt-in `web_search` option to the plan request (`plan-responses.ts`,
+`plan-service.ts`, tests `plan-web-search.test.ts`); no route, UI or workflow uses it. The test ran
+through `PlanConnectionService.invoke` on the dev database only (Plus connection `4e4a7bec…`,
+gpt-6-astra, purpose chat, cap 3 calls). It was refused once at admission because chat needs
+`private_approved`; with Jordan's OK that data class was added for the test, then removed. The
+settings are byte-identical again and chat is off (connection version 16 to 21, caps re-accepted
+22:44:10Z). Results: 4 search calls, 24 candidates, all in the reported sources, 17-27 s each, $0
+incremental. 0 URLs overlap with the Claude Code run. Guarded fetch: 2/15 usable (PDFs, 403s,
+Reddit empty shells). Fetching remains the bottleneck; no search API is justified by these
+results. See [section 13](../docs/SEARCH_ROUTE_INVESTIGATION_2026-11-10.md) and
+`tracking/evidence/search-route-test-2026-11-10/plan-route/`. No ADR or migration.
+
+## P21 current-model switch (November 10, 2026, ADR-0081, migration 51)
+
+Branch `claude/project-thread-6af37w`. The owner picks a current model beside the usage indicator; forms
+start from it and say so when it is not qualified for their task (offering a qualified one); a saved chat
+setting follows the switch; started work keeps its route. Details, evidence and limits: BUILD_STATUS.md
+"P21 current-model switch" and ADR-0081. Migration 51 and ADR-0081 were reserved with the parallel P18 and
+P22 threads (they were told to take 52/0082 and 53/0083 if they need numbers). Next free after this PR:
+migration 52, ADR-0082 (recheck main). Next eligible: independent review of this PR in a separate thread;
+then P19 per the November 10 order.
+
 ## P18 collapsible options (November 10, branch `claude/project-thread-d4dxg5`, no migration or ADR)
 
 See the BUILD_STATUS entry "P18 collapsible options and shorter pages". Shared pieces for later pages (P19, P17):
@@ -762,3 +787,16 @@ item open once the person edits it so it does not close under them. Walk scripts
 `CREATOR_DEV_LOGIN_CODE`; web on 5183). P18 takes no migration or ADR number; P21 (parallel thread) takes migration 51 and
 ADR-0081, so check main before allocating. Next eligible prompt after review: P19 (Standard and Advanced across
 the app), which can fold Decide's remaining long sections.
+
+Review rounds on PR #162 (November 10–11; reports in the project's `reviews/P18_PR162_*`): first review 7 Lows,
+then re-reviews 1–4 (R-1..R-4, R2-1/R3-1/R3-2/N-1, R4-1/N-2, R5-1/N-3), all fixed; details in BUILD_STATUS under the
+P18 entry. Things a later thread should know:
+- `kindAllows(kind, disposition)` in `packages/contracts/src/selection.ts` is the one rule for which dispositions an
+  option's kind can ever take. The domain's kind blocks use it; Decide's summaries leave those choices out.
+- Proposal section choices are held by the Proposals page and belong to one proposal or the unsaved draft
+  (`choicesFor` ref in `proposals.tsx`); `useFolds(attention, held)` takes parent-held choices.
+- Approvals opens a linked decision on focus change and on every return to the page (`useOnShow`).
+- `walk-proposal-choices.cjs` needs a fresh `seed-selection` workspace (`WALK_WS`); it records one selection and
+  approves it through the API on the throwaway database.
+- Still not done: Decide's problem statement, automatic assessment, scoring form and "Why this response" are not
+  folded (page about 4 screens); left to P19/P17. CI did not run (no Actions minutes).

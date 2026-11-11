@@ -482,7 +482,7 @@ export function Compare({
   const blockedCount = (id: string) => clearable(id).length;
   const blockedText = (id: string) =>
     groupByReason(clearable(id))
-      .map((g) => `${clip(g.reason, 90)} (blocks ${g.choices.join(', ')})`)
+      .map((g) => `${clip(g.reason, 90)} Blocks: ${g.choices.join(', ')}.`)
       .join('; ');
   return (
     <section className="panel" aria-labelledby="cmp-title">
