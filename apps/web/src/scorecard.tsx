@@ -10,6 +10,7 @@ import { api, message, when, words } from './oversight.js';
 import { clip } from './ui.js';
 import {
   CHECK_DEFAULT,
+  OPEN_CHECKS,
   CHECK_LABELS,
   draftFromBody,
   draftFromSystem,
@@ -229,14 +230,39 @@ export function ScoreOption({
       : {};
 
   // ADR-0082 (P19): the checks are routine: unanswered ones say "unknown" until changed.
+  const checkField = (k: keyof ScorecardDraft['checks']) => (
+    <div key={k}>
+      <label htmlFor={`sc-check-${k}`}>
+        {CHECK_LABELS[k]}
+        <input
+          id={`sc-check-${k}`}
+          maxLength={300}
+          value={draft?.checks[k] ?? ''}
+          {...invalid(`checks.${k}`)}
+          onChange={(e) =>
+            set((d) => {
+              d.checks[k] = e.target.value;
+              return d;
+            })
+          }
+        />
+      </label>
+      {err(`checks.${k}`)}
+    </div>
+  );
+  // "Evidence against it" and today's workaround are judgments, so they stay outside the fold.
+  const checkKeys = Object.keys(
+    CHECK_LABELS,
+  ) as (keyof ScorecardDraft['checks'])[];
+  const foldedChecks = checkKeys.filter((k) => !OPEN_CHECKS.includes(k));
   const answered = draft
-    ? Object.values(draft.checks).filter(
-        (v) => v.trim() && v.trim().toLowerCase() !== CHECK_DEFAULT,
-      ).length
+    ? foldedChecks.filter((k) => {
+        const v = draft.checks[k].trim();
+        return v && v.toLowerCase() !== CHECK_DEFAULT;
+      }).length
     : 0;
-  const total = draft ? Object.keys(draft.checks).length : 0;
   const tools = draft?.alternatives_checked.length ?? 0;
-  const checksSummary = `Checks: ${answered} of ${total} answered, the rest “unknown” · ${tools === 0 ? 'no existing tools listed' : `${tools} existing tool${tools === 1 ? '' : 's'} listed`}`;
+  const checksSummary = `Other checks: ${answered} of ${foldedChecks.length} answered, the rest “unknown” · ${tools === 0 ? 'no existing tools listed' : `${tools} existing tool${tools === 1 ? '' : 's'} listed`}`;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -713,37 +739,28 @@ export function ScoreOption({
               {err(`${g}.note`)}
             </fieldset>
           ))}
+          <fieldset>
+            <legend>What argues against it</legend>
+            <p className="small">
+              Short answers; write &quot;unknown&quot; only if you looked and do
+              not know.
+            </p>
+            {OPEN_CHECKS.map((k) => checkField(k))}
+          </fieldset>
           <Routine
             summary={checksSummary}
-            open={Object.keys(errors).some((k) => k.startsWith('checks.'))}
+            open={Object.keys(errors).some(
+              (k) =>
+                k.startsWith('checks.') &&
+                !OPEN_CHECKS.some((o) => k === `checks.${o}`),
+            )}
           >
             <fieldset>
-              <legend>Checks</legend>
+              <legend>Other checks</legend>
               <p className="small">
                 Short answers; write &quot;unknown&quot; where you do not know.
               </p>
-              {(
-                Object.keys(CHECK_LABELS) as (keyof ScorecardDraft['checks'])[]
-              ).map((k) => (
-                <div key={k}>
-                  <label htmlFor={`sc-check-${k}`}>
-                    {CHECK_LABELS[k]}
-                    <input
-                      id={`sc-check-${k}`}
-                      maxLength={300}
-                      value={draft.checks[k]}
-                      {...invalid(`checks.${k}`)}
-                      onChange={(e) =>
-                        set((d) => {
-                          d.checks[k] = e.target.value;
-                          return d;
-                        })
-                      }
-                    />
-                  </label>
-                  {err(`checks.${k}`)}
-                </div>
-              ))}
+              {foldedChecks.map((k) => checkField(k))}
               <p className="small">
                 Existing tools or approaches you looked at
                 {draft.alternatives_checked.length === 0 && ': none listed yet'}

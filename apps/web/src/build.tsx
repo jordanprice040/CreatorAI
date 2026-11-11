@@ -60,6 +60,7 @@ import {
 import { useModelChoice } from './model-switch.js';
 import {
   artifactForBuild,
+  builderSummary,
   envelopeFor,
   modelGrantCovers,
 } from './build-defaults.js';
@@ -1636,13 +1637,7 @@ function StartBuild({
           },
           {
             label: 'Builder',
-            value: connection
-              ? connection.kind === 'roles'
-                ? `Builder and reviewer on your ChatGPT plan (${connection.label}), no metered spend`
-                : `Codex on your ChatGPT plan (${connection.label}); a grant you approve must cover it`
-              : fixture
-                ? 'Fixture builder (simulated, no model call)'
-                : 'Model broker (metered, reserved from the budget first)',
+            value: builderSummary(connection, fixture),
           },
           {
             label: 'Limits',

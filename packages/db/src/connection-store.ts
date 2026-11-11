@@ -1038,7 +1038,6 @@ export class ConnectionStore extends PortfolioStore {
     });
   }
 
-  /** ADR-0057: the workspace's chat-answer setting; members may read it. */
   /**
    * ADR-0082 (P19): the signed-in person's Standard/Advanced choice. Any signed-in person
    * (owner or tester) reads and sets only their own; it is presentation, never authority.
@@ -1082,9 +1081,17 @@ export class ConnectionStore extends PortfolioStore {
          values ($1, $2, 1)
          on conflict (actor_id) do update set view_mode = excluded.view_mode,
            version = person_preferences.version + 1, updated_at = clock_timestamp()
+         where person_preferences.version = $3
          returning view_mode, version, updated_at`,
-        [ctx.actorId, req.view_mode],
+        [ctx.actorId, req.view_mode, req.expected_version],
       );
+      // A first save has no row to lock: a simultaneous first save lands first and this
+      // one then finds a row whose version is not the expected 0, so nothing is returned.
+      if (!out[0])
+        throw fail(
+          'VERSION_CONFLICT',
+          'Your view choice changed in another window; reload and try again.',
+        );
       const r = out[0] as Row;
       return {
         view_mode: r.view_mode as ViewPreference['view_mode'],
@@ -1094,6 +1101,7 @@ export class ConnectionStore extends PortfolioStore {
     });
   }
 
+  /** ADR-0057: the workspace's chat-answer setting; members may read it. */
   async chatSettings(ctxIn: CommandContext, ws: string): Promise<ChatSettings> {
     const ctx = normalize(ctxIn);
     return this.tx(async (c) => {

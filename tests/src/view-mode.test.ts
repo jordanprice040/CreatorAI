@@ -136,6 +136,29 @@ test('the view choice is per person, versioned, and refuses a stale write', asyn
   assert.ok(lost?.reason instanceof ContractError);
   assert.equal((lost.reason as ContractError).code, 'VERSION_CONFLICT');
   assert.equal((await store.viewPreference({ actorId: other })).version, 2);
+  // Two first saves (no row yet to lock) racing from version 0: exactly one wins, every time.
+  for (let i = 0; i < 5; i++) {
+    const fresh = randomUUID();
+    await db.pool.query(
+      `insert into actors (id, kind, display_name) values ($1, 'human', 'Tester')`,
+      [fresh],
+    );
+    const first = await Promise.allSettled([
+      store.setViewPreference(
+        { actorId: fresh },
+        { expected_version: 0, view_mode: 'standard' },
+      ),
+      store.setViewPreference(
+        { actorId: fresh },
+        { expected_version: 0, view_mode: 'advanced' },
+      ),
+    ]);
+    assert.equal(first.filter((x) => x.status === 'fulfilled').length, 1);
+    const refused = first.find((x) => x.status === 'rejected') as
+      PromiseRejectedResult | undefined;
+    assert.equal((refused?.reason as ContractError).code, 'VERSION_CONFLICT');
+    assert.equal((await store.viewPreference({ actorId: fresh })).version, 1);
+  }
 });
 
 type Section = { view: string; label: string; group?: string };
@@ -174,6 +197,9 @@ test('Standard lists fewer tabs; every route still opens; Advanced lists all', a
     ),
   );
   assert.deepEqual(p.hiddenTabs(page('monitor'), true, 'operations'), []);
+  // A group kept in the row by its open section names its hidden sections, not itself.
+  const launchOpen = p.hiddenTabs(page('projects'), true, 'payments');
+  assert.deepEqual(launchOpen, ['Campaigns', 'Maintain']);
   // Advanced lists everything and hides nothing.
   for (const pg of p.PAGES) {
     assert.deepEqual(p.shownSections(pg, false), pg.sections);
@@ -296,4 +322,32 @@ test('the first-run path takes one step at a time and ends at a proposal, spec o
   assert.equal(at({ ...f, scorecards: 0, alternatives: 0 }), 'choose');
   // Each step has exactly one button.
   for (const s of r.firstRunSteps(empty).steps) assert.ok(s.action.view);
+});
+
+test("Start build's summary names the plan the builder runs on", async () => {
+  const { builderSummary } = await load<{
+    builderSummary(
+      c: { kind: string; label: string; plan?: string } | undefined,
+      fixture: boolean,
+    ): string;
+  }>('build-defaults.ts');
+  const claude = builderSummary(
+    { kind: 'roles', label: 'Claude Code', plan: 'claude_code' },
+    false,
+  );
+  assert.match(claude, /your Claude plan \(Claude Code\)/);
+  assert.doesNotMatch(claude, /ChatGPT/);
+  assert.match(
+    builderSummary(
+      { kind: 'roles', label: 'Work', plan: 'chatgpt_plan' },
+      false,
+    ),
+    /your ChatGPT plan \(Work\)/,
+  );
+  assert.match(
+    builderSummary({ kind: 'codex', label: 'Work' }, false),
+    /^Codex on your ChatGPT plan/,
+  );
+  assert.match(builderSummary(undefined, true), /Fixture builder/);
+  assert.match(builderSummary(undefined, false), /Model broker/);
 });

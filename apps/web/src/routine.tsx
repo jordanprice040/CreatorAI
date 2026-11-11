@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from 'react';
+import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { useViewMode } from './view-mode.js';
 
 // ADR-0082 (P19): the two pieces every Standard form uses. A routine group folds under a
@@ -7,8 +7,8 @@ import { useViewMode } from './view-mode.js';
 // changes what the form submits, and the server checks every request as before.
 
 /**
- * A routine group: folded under its summary in Standard, open in Advanced. `open` forces it
- * open (a field inside needs fixing).
+ * A routine group: folded under its summary in Standard, open in Advanced. `open` opens it
+ * (a field inside needs fixing); it never closes a fold the person opened.
  */
 export function Routine({
   summary,
@@ -20,9 +20,13 @@ export function Routine({
   children: ReactNode;
 }) {
   const { standard } = useViewMode();
+  const fold = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    if (open && fold.current) fold.current.open = true;
+  }, [open, standard]);
   if (!standard) return <>{children}</>;
   return (
-    <details className="routine" open={open || undefined}>
+    <details className="routine" ref={fold}>
       <summary>{summary}</summary>
       {children}
     </details>

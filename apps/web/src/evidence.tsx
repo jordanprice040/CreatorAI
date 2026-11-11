@@ -595,16 +595,16 @@ export function Evidence({
   );
 }
 
-/**
- * Records a claim's evidence from one stored passage, for a new claim or an existing one.
- * The server checks that a supporting or contradicting quote occurs verbatim in the passage.
- */
 const STANCE_TEXT: Record<Exclude<SupportStance, 'inaccessible'>, string> = {
   supports: 'supports the claim',
   contradicts: 'contradicts the claim',
   does_not_support: 'does not support it',
 };
 
+/**
+ * Records a claim's evidence from one stored passage, for a new claim or an existing one.
+ * The server checks that a supporting or contradicting quote occurs verbatim in the passage.
+ */
 function CiteForm({
   passage,
   claims,

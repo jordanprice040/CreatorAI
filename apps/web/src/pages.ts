@@ -233,7 +233,10 @@ export function shownSections(
   );
 }
 
-/** The tab names a page hides in Standard right now (a shared group named once). */
+/**
+ * The tab names a page hides in Standard right now: a hidden group is named once; when its
+ * open section keeps the group's tab in the row, the hidden sections are named instead.
+ */
 export function hiddenTabs(
   page: Page,
   standard: boolean,
@@ -244,7 +247,8 @@ export function hiddenTabs(
   const names: string[] = [];
   for (const s of page.sections)
     if (!shown.includes(s)) {
-      const n = s.group ?? s.label;
+      const partlyShown = s.group && shown.some((x) => x.group === s.group);
+      const n = partlyShown ? s.label : (s.group ?? s.label);
       if (!names.includes(n)) names.push(n);
     }
   return names;

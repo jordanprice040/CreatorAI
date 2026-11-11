@@ -120,11 +120,12 @@ const STATUS_NOTE: Record<Reservation['status'], string> = {
   unknown: 'Unknown — held',
 };
 
-/** Budgets, the calls charged against them, and why any call was refused. */
+// ADR-0082: what the fund form starts from when no budget is active yet.
 const BUDGET_DEFAULT_NAME = 'Studio budget';
 const FIXTURE_DEFAULT_CAP = '100';
 const REAL_DEFAULT_CAP = '0.00';
 
+/** Budgets, the calls charged against them, and why any call was refused. */
 export function Budgets({
   session,
   workspace: current,
@@ -135,6 +136,8 @@ export function Budgets({
   const workspace = current.id;
   const [fundName, setFundName] = useState('');
   const [fundCap, setFundCap] = useState('');
+  // The cap the form filled in itself, so the default note goes once the person types.
+  const [defaultCap, setDefaultCap] = useState('');
   const [envelopes, setEnvelopes] = useState<Envelope[]>([]);
   // Budgets past the newest 200 come one page at a time (audit L-9).
   const shownEnvelopes = useOlder(
@@ -182,13 +185,13 @@ export function Budgets({
       // real one. A default never raises a cap above zero real money.
       if (!e.some((x) => x.status === 'active')) {
         setFundName((v) => v || BUDGET_DEFAULT_NAME);
-        setFundCap(
-          (v) =>
-            v ||
-            (current.record_mode === 'fixture'
-              ? FIXTURE_DEFAULT_CAP
-              : REAL_DEFAULT_CAP),
-        );
+        const cap =
+          current.record_mode === 'fixture'
+            ? FIXTURE_DEFAULT_CAP
+            : REAL_DEFAULT_CAP;
+        setFundCap((v) => v || cap);
+        // Shown only while the cap is still this value and the person has not typed.
+        setDefaultCap(cap);
       }
       setReservations(r);
       setPricing(p);
@@ -473,11 +476,12 @@ export function Budgets({
                 inputMode="decimal"
                 placeholder="e.g. 5.00"
                 value={fundCap}
-                onChange={(e) => setFundCap(e.target.value)}
+                onChange={(e) => {
+                  setFundCap(e.target.value);
+                  setDefaultCap('');
+                }}
               />
-              {(fundName === BUDGET_DEFAULT_NAME ||
-                fundCap === FIXTURE_DEFAULT_CAP ||
-                fundCap === REAL_DEFAULT_CAP) && (
+              {defaultCap !== '' && fundCap === defaultCap && (
                 <p className="small">
                   {current.record_mode === 'fixture'
                     ? `Studio default: ${FIXTURE_DEFAULT_CAP} simulated units, enough for a few fixture discoveries and builds. No money is involved.`

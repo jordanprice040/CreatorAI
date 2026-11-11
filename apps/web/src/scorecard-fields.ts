@@ -101,6 +101,15 @@ export const CHECK_LABELS: Record<keyof ScorecardDraft['checks'], string> = {
   maintenance: 'Who keeps it running, and how',
 };
 
+/**
+ * ADR-0082: checks that are judgments, not routine. They stay visible in Standard, so a
+ * scorecard is never saved without someone seeing what argues against the option.
+ */
+export const OPEN_CHECKS: readonly (keyof ScorecardDraft['checks'])[] = [
+  'contrary_evidence',
+  'current_workaround',
+];
+
 /** The default answer of a check nobody has answered yet. */
 export const CHECK_DEFAULT = 'unknown';
 
