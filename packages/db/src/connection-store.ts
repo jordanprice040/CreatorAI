@@ -13,6 +13,9 @@ import {
   PlanSettlementSchema,
   ReconcilePlanRequestSchema,
   StartPlanQualificationRequestSchema,
+  StartQualificationQueueRequestSchema,
+  latestDecided,
+  type QualificationQueue,
   UpdatePlanSettingsRequestSchema,
   WithdrawCreditsRequestSchema,
   parse,
@@ -251,6 +254,60 @@ const toGrant = (r: Row): PlanVerificationGrant => ({
   created_at: iso(r.created_at),
   intent: (r.intent ?? 'model_access') as PlanVerificationGrant['intent'],
 });
+/** ADR-0088: a locked queue row with its workspace. */
+interface QueueRow {
+  id: string;
+  workspace_id: string;
+  connection_id: string;
+  model_id: string;
+  state: string;
+  lease_holder: string | null;
+  created_by: string;
+}
+const words = (s: string) => s.replace(/_/g, ' ');
+const clip = (s: string) => (s.length > 1200 ? `${s.slice(0, 1199)}…` : s);
+
+async function runningQueueId(
+  c: PoolClient,
+  connectionId: string,
+): Promise<string | null> {
+  const { rows } = await c.query(
+    `select id from plan_qualification_queues where connection_id = $1 and state = 'running'`,
+    [connectionId],
+  );
+  return rows[0] ? String((rows[0] as Row).id) : null;
+}
+
+async function toQueue(c: PoolClient, r: Row): Promise<QualificationQueue> {
+  const items = await c.query(
+    'select * from plan_qualification_queue_items where queue_id = $1 order by position',
+    [r.id],
+  );
+  return {
+    id: String(r.id),
+    connection_id: String(r.connection_id),
+    model_id: String(r.model_id),
+    state: r.state as QualificationQueue['state'],
+    reason: nullable(r.reason),
+    created_by: String(r.created_by),
+    created_at: iso(r.created_at),
+    finished_at: r.finished_at ? iso(r.finished_at) : null,
+    active: r.state === 'running' && Boolean(r.leased),
+    items: (items.rows as Row[]).map((i) => ({
+      position: Number(i.position),
+      task_class:
+        i.task_class as QualificationQueue['items'][number]['task_class'],
+      manifest_name: String((i.manifest as { name: string }).name).slice(
+        0,
+        200,
+      ),
+      manifest_hash: String(i.manifest_hash),
+      qualification_id: nullable(i.qualification_id),
+      state: i.state as QualificationQueue['items'][number]['state'],
+      reason: nullable(i.reason),
+    })),
+  };
+}
 const toQualification = (r: Row): PlanQualification => ({
   id: String(r.id),
   connection_id: String(r.connection_id),
@@ -3533,118 +3590,147 @@ export class ConnectionStore extends PortfolioStore {
       req.expected_version,
       'qualification_started',
       async (c, conn) => {
-        const tc = req.manifest.task_class;
-        if (
-          !conn.settings.allowed_task_classes.includes(tc as never) ||
-          tc === 'code_build'
-        )
-          throw fail(
-            'SCOPE_EXCEEDED',
-            `Task class ${tc} is not allowed for Responses qualification here.`,
-          );
-        // A build-role class is qualified for the exact T12 prompt it will serve (ADR-0048).
-        const role = (
-          Object.entries(BUILD_ROLE_TASK_CLASSES) as [BuildRole, string][]
-        ).find(([, cls]) => cls === tc)?.[0];
-        if (
-          role &&
-          req.manifest.cases.some(
-            (k) =>
-              k.input.filter((m) => m.role === 'system').length !== 1 ||
-              k.input.find((m) => m.role === 'system')!.text !==
-                BUILD_ROLE_PROMPTS[role],
-          )
-        )
-          throw fail(
-            'INVALID_CONTRACT',
-            `Every ${tc} case must use exactly the T12 ${role} prompt.`,
-          );
-        if (
-          !conn.settings.allowed_data_classes.includes(req.manifest.data_class)
-        )
-          throw fail(
-            'SCOPE_EXCEEDED',
-            'The benchmark data class is not allowed on this connection.',
-          );
-        if (req.manifest.fixture !== conn.fixture)
-          throw fail(
-            'INVALID_CONTRACT',
-            'Fixture benchmarks qualify only fixture connections, and real ones only real ones.',
-          );
-        const verified = (await this.#access(c, conn.id)).some(
-          (a) =>
-            a.model_id === req.model_id &&
-            a.path === 'responses' &&
-            a.access === 'verified',
-        );
-        if (!verified)
-          throw fail(
-            'INVALID_TRANSITION',
-            'Verify model access before qualifying it.',
-          );
-        const heldOut = req.manifest.cases.filter(
-          (x) => x.split === 'held_out',
-        ).length;
-        // ADR-0052: held-out cases whose results someone has viewed no longer test a prompt
-        // revised after that view. Retrying the same prompt on them stays allowed.
-        const keys = new Set(heldOutKeys(req.manifest.cases));
-        const prompt = promptHash(req.manifest.cases);
-        const views = await c.query(
-          `select e.body, e.created_at from plan_connection_events e
-             join plan_connections p on p.id = e.connection_id
-            where p.workspace_id = $1 and e.kind = $2 and e.body->>'task_class' = $3
-            order by e.created_at`,
-          [conn.workspace_id, HELD_OUT_VIEWED, tc],
-        );
-        for (const v of views.rows as Row[]) {
-          const b = v.body as { prompt_hash: string; held_out: string[] };
-          if (b.prompt_hash === prompt) continue;
-          const seen = b.held_out.filter((k) => keys.has(k)).length;
-          if (seen)
-            throw fail(
-              'INVALID_CONTRACT',
-              `${seen} held-out case${seen === 1 ? ' was' : 's were'} viewed on ${iso(v.created_at).slice(0, 10)} under a different ${tc} prompt, so ${seen === 1 ? 'it no longer tests' : 'they no longer test'} this one fairly (ADR-0052). Freeze a benchmark with fresh held-out cases.`,
-            );
-        }
-        if (heldOut < req.min_held_out_cases)
-          throw fail(
-            'INVALID_CONTRACT',
-            'The manifest has fewer held-out cases than the minimum.',
-          );
-        const qid = randomUUID();
-        try {
-          const { rows } = await c.query(
-            `insert into plan_qualifications (id, connection_id, model_id, task_class, manifest, manifest_hash,
-             min_held_out_cases, floor, state, development, held_out, created_by)
-           values ($1,$2,$3,$4,$5,$6,$7,$8,'running','{"passed":0,"total":0}','{"passed":0,"total":0}',$9) returning *`,
-            [
-              qid,
-              conn.id,
-              req.model_id,
-              tc,
-              req.manifest,
-              canonicalHash(req.manifest),
-              req.min_held_out_cases,
-              req.floor,
-              ctx.actorId,
-            ],
-          );
-          q = toQualification(rows[0] as Row);
-        } catch (e) {
-          if ((e as { code?: string }).code === '23505')
-            throw fail(
-              'DUPLICATE',
-              'A qualification for this model and task class is already running.',
-            );
-          throw e;
-        }
+        await this.#checkQualificationStart(c, conn, req);
+        q = await this.#insertQualification(c, conn, req, ctx.actorId);
         return {
-          qualification_id: qid,
-          manifest_hash: canonicalHash(req.manifest),
+          qualification_id: q.id,
+          manifest_hash: q.manifest_hash,
         };
       },
     );
     return q!;
+  }
+
+  /**
+   * Everything a qualification start checks before it records anything: the task and data
+   * class are allowed here, a build role uses its exact prompt, fixture matches fixture, the
+   * model is verified, held-out cases were not viewed under another prompt (ADR-0052) and there
+   * are enough of them. ADR-0088: a queued qualification runs the same checks when its turn
+   * comes, against the connection as it is then.
+   */
+  async #checkQualificationStart(
+    c: PoolClient,
+    conn: PlanConnection,
+    req: Pick<
+      z.infer<typeof StartPlanQualificationRequestSchema>,
+      'model_id' | 'manifest' | 'min_held_out_cases'
+    >,
+  ) {
+    const tc = req.manifest.task_class;
+    if (
+      !conn.settings.allowed_task_classes.includes(tc as never) ||
+      tc === 'code_build'
+    )
+      throw fail(
+        'SCOPE_EXCEEDED',
+        `Task class ${tc} is not allowed for Responses qualification here.`,
+      );
+    // A build-role class is qualified for the exact T12 prompt it will serve (ADR-0048).
+    const role = (
+      Object.entries(BUILD_ROLE_TASK_CLASSES) as [BuildRole, string][]
+    ).find(([, cls]) => cls === tc)?.[0];
+    if (
+      role &&
+      req.manifest.cases.some(
+        (k) =>
+          k.input.filter((m) => m.role === 'system').length !== 1 ||
+          k.input.find((m) => m.role === 'system')!.text !==
+            BUILD_ROLE_PROMPTS[role],
+      )
+    )
+      throw fail(
+        'INVALID_CONTRACT',
+        `Every ${tc} case must use exactly the T12 ${role} prompt.`,
+      );
+    if (!conn.settings.allowed_data_classes.includes(req.manifest.data_class))
+      throw fail(
+        'SCOPE_EXCEEDED',
+        'The benchmark data class is not allowed on this connection.',
+      );
+    if (req.manifest.fixture !== conn.fixture)
+      throw fail(
+        'INVALID_CONTRACT',
+        'Fixture benchmarks qualify only fixture connections, and real ones only real ones.',
+      );
+    const verified = (await this.#access(c, conn.id)).some(
+      (a) =>
+        a.model_id === req.model_id &&
+        a.path === 'responses' &&
+        a.access === 'verified',
+    );
+    if (!verified)
+      throw fail(
+        'INVALID_TRANSITION',
+        'Verify model access before qualifying it.',
+      );
+    const heldOut = req.manifest.cases.filter(
+      (x) => x.split === 'held_out',
+    ).length;
+    // ADR-0052: held-out cases whose results someone has viewed no longer test a prompt
+    // revised after that view. Retrying the same prompt on them stays allowed.
+    const keys = new Set(heldOutKeys(req.manifest.cases));
+    const prompt = promptHash(req.manifest.cases);
+    const views = await c.query(
+      `select e.body, e.created_at from plan_connection_events e
+         join plan_connections p on p.id = e.connection_id
+        where p.workspace_id = $1 and e.kind = $2 and e.body->>'task_class' = $3
+        order by e.created_at`,
+      [conn.workspace_id, HELD_OUT_VIEWED, tc],
+    );
+    for (const v of views.rows as Row[]) {
+      const b = v.body as { prompt_hash: string; held_out: string[] };
+      if (b.prompt_hash === prompt) continue;
+      const seen = b.held_out.filter((k) => keys.has(k)).length;
+      if (seen)
+        throw fail(
+          'INVALID_CONTRACT',
+          `${seen} held-out case${seen === 1 ? ' was' : 's were'} viewed on ${iso(v.created_at).slice(0, 10)} under a different ${tc} prompt, so ${seen === 1 ? 'it no longer tests' : 'they no longer test'} this one fairly (ADR-0052). Freeze a benchmark with fresh held-out cases.`,
+        );
+    }
+    if (heldOut < req.min_held_out_cases)
+      throw fail(
+        'INVALID_CONTRACT',
+        'The manifest has fewer held-out cases than the minimum.',
+      );
+  }
+
+  async #insertQualification(
+    c: PoolClient,
+    conn: PlanConnection,
+    req: Pick<
+      z.infer<typeof StartPlanQualificationRequestSchema>,
+      'model_id' | 'manifest' | 'min_held_out_cases' | 'floor'
+    >,
+    actorId: string,
+  ): Promise<PlanQualification> {
+    const tc = req.manifest.task_class;
+    const qid = randomUUID();
+    try {
+      const { rows } = await c.query(
+        `insert into plan_qualifications (id, connection_id, model_id, task_class, manifest, manifest_hash,
+         min_held_out_cases, floor, state, development, held_out, created_by)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,'running','{"passed":0,"total":0}','{"passed":0,"total":0}',$9) returning *`,
+        [
+          qid,
+          conn.id,
+          req.model_id,
+          tc,
+          req.manifest,
+          canonicalHash(req.manifest),
+          req.min_held_out_cases,
+          req.floor,
+          actorId,
+        ],
+      );
+      return toQualification(rows[0] as Row);
+    } catch (e) {
+      if ((e as { code?: string }).code === '23505')
+        throw fail(
+          'DUPLICATE',
+          'A qualification for this model and task class is already running.',
+        );
+      throw e;
+    }
   }
 
   async planQualificationManifest(
@@ -3676,6 +3762,8 @@ export class ConnectionStore extends PortfolioStore {
         unresolved_cases: done.rows.filter(
           (x) => x.state === 'in_flight' || x.state === 'unknown',
         ).length,
+        // ADR-0088: the queue working on this connection, if any; only it may run here.
+        queue_id: await runningQueueId(c, String(rows[0].connection_id)),
       };
     });
   }
@@ -3687,11 +3775,22 @@ export class ConnectionStore extends PortfolioStore {
    * in flight or of unknown outcome (a run in another studio process, an answer cut off, or one
    * cut off by a restart), and one that has already finished.
    */
-  claimQualificationRun(read: {
-    qualification: PlanQualification;
-    unresolved_cases: number;
-  }): () => void {
+  claimQualificationRun(
+    read: {
+      qualification: PlanQualification;
+      unresolved_cases: number;
+      queue_id?: string | null;
+    },
+    queueId: string | null = null,
+  ): () => void {
     const key = String(uuid(read.qualification.id));
+    // ADR-0088: while a queue qualifies tasks on this connection one by one, a Run pressed by
+    // hand would compete with it for the one request at a time the connection allows.
+    if (read.queue_id && read.queue_id !== queueId)
+      throw fail(
+        'INVALID_TRANSITION',
+        'A queue is qualifying tasks on this connection one after another. Wait for it to finish, or cancel it under "Qualify several tasks", then press Run.',
+      );
     if (this.#runningQualifications.has(key))
       throw fail(
         'INVALID_TRANSITION',
@@ -3708,6 +3807,511 @@ export class ConnectionStore extends PortfolioStore {
     return () => {
       this.#runningQualifications.delete(key);
     };
+  }
+
+  // ---- Qualification queue (ADR-0088, P24) ---------------------------------------------
+
+  /**
+   * Queues several qualifications of one model on one connection, to be run one after another
+   * by the studio. Owner only, against the version the person saw. Every task must be allowed
+   * and not yet qualified (a failed re-run would replace a pass, ADR-0052); one already started
+   * with the same benchmark is taken over as it is. Each item is still checked and admitted on
+   * its own when its turn comes; nothing is started or sent here.
+   */
+  async startQualificationQueue(
+    ctxIn: CommandContext,
+    ws: string,
+    id: string,
+    body: unknown,
+  ): Promise<QualificationQueue> {
+    const ctx = normalize(ctxIn);
+    const req = parse(StartQualificationQueueRequestSchema, body);
+    const tasks = req.items.map((i) => i.manifest.task_class);
+    if (new Set(tasks).size !== tasks.length)
+      throw fail(
+        'INVALID_CONTRACT',
+        'Each task can be in a queue once; choose one benchmark per task.',
+      );
+    const queueId = randomUUID();
+    await this.#ownerChange(
+      ctx,
+      ws,
+      id,
+      req.expected_version,
+      'qualification_queue_started',
+      async (c, conn) => {
+        if (await runningQueueId(c, conn.id))
+          throw fail(
+            'DUPLICATE',
+            'A queue is already qualifying tasks on this connection. Wait for it to finish, or cancel it first.',
+          );
+        const quals = await this.#qualifications(c, conn.id);
+        const links: (string | null)[] = [];
+        for (const item of req.items) {
+          const tc = item.manifest.task_class;
+          if (latestDecided(quals, req.model_id, tc)?.state === 'qualified')
+            throw fail(
+              'INVALID_TRANSITION',
+              `${req.model_id} is already qualified for ${words(tc)}. A queue only takes tasks not yet qualified; start a re-run of it on its own.`,
+            );
+          const started = quals.find(
+            (q) =>
+              q.state === 'running' &&
+              q.model_id === req.model_id &&
+              q.task_class === tc,
+          );
+          if (started && started.manifest_hash !== canonicalHash(item.manifest))
+            throw fail(
+              'INVALID_TRANSITION',
+              `A different ${words(tc)} benchmark is already started for ${req.model_id}. Run or finish it first.`,
+            );
+          if (!started)
+            await this.#checkQualificationStart(c, conn, {
+              model_id: req.model_id,
+              ...item,
+            });
+          links.push(started?.id ?? null);
+        }
+        await c.query(
+          `insert into plan_qualification_queues (id, connection_id, model_id, state, created_by)
+           values ($1,$2,$3,'running',$4)`,
+          [queueId, conn.id, req.model_id, ctx.actorId],
+        );
+        for (const [position, item] of req.items.entries())
+          await c.query(
+            `insert into plan_qualification_queue_items (queue_id, position, task_class, manifest,
+               manifest_hash, min_held_out_cases, floor, qualification_id, state)
+             values ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+            [
+              queueId,
+              position,
+              item.manifest.task_class,
+              item.manifest,
+              canonicalHash(item.manifest),
+              item.min_held_out_cases,
+              item.floor,
+              links[position],
+              links[position] ? 'running' : 'waiting',
+            ],
+          );
+        return {
+          queue_id: queueId,
+          model_id: req.model_id,
+          task_classes: tasks,
+        };
+      },
+    );
+    return this.#withQueue(ws, queueId);
+  }
+
+  /** One queue, for any workspace member. */
+  async planQualificationQueue(
+    ctxIn: CommandContext,
+    ws: string,
+    queueId: string,
+  ): Promise<QualificationQueue> {
+    const ctx = normalize(ctxIn);
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, false);
+      return this.#queue(c, uuid(ws), uuid(queueId));
+    });
+  }
+
+  /**
+   * Owner only. Items not yet started are cancelled; a qualification already running finishes
+   * on its own and is recorded as usual (a cancel never cuts a case off mid-answer).
+   */
+  async cancelQualificationQueue(
+    ctxIn: CommandContext,
+    ws: string,
+    queueId: string,
+  ): Promise<QualificationQueue> {
+    const ctx = normalize(ctxIn);
+    return this.tx(async (c) => {
+      await this.requireOwner(c, uuid(ws), ctx.actorId);
+      const q = await this.#lockQueue(c, uuid(ws), uuid(queueId));
+      if (q.state !== 'running')
+        throw fail('INVALID_TRANSITION', 'The queue already finished.');
+      const running = await c.query(
+        `select 1 from plan_qualification_queue_items where queue_id = $1 and state = 'running'`,
+        [q.id],
+      );
+      await this.#endQueue(
+        c,
+        q,
+        'cancelled',
+        running.rowCount
+          ? 'Cancelled. The qualification that was already running finishes on its own; the rest were not started.'
+          : 'Cancelled before the next qualification started.',
+        ctx,
+      );
+      return this.#queue(c, uuid(ws), q.id);
+    });
+  }
+
+  /**
+   * For the studio's queue runner: takes the lease of one running queue that no live process
+   * holds (none yet, released, or expired after a crash). Returns null when there is none.
+   */
+  async leaseQualificationQueue(
+    holder: string,
+    leaseMs: number,
+  ): Promise<{ id: string; workspace_id: string; created_by: string } | null> {
+    const { rows } = await this.pool.query(
+      `update plan_qualification_queues q
+          set lease_holder = $1, lease_until = clock_timestamp() + make_interval(secs => $2::double precision / 1000)
+        where q.id = (select id from plan_qualification_queues
+                       where state = 'running' and (lease_until is null or lease_until < clock_timestamp())
+                       order by created_at limit 1 for update skip locked)
+        returning q.id, q.created_by,
+          (select workspace_id from plan_connections p where p.id = q.connection_id) as workspace_id`,
+      [uuid(holder), leaseMs],
+    );
+    const r = rows[0] as Row | undefined;
+    return r
+      ? {
+          id: String(r.id),
+          workspace_id: String(r.workspace_id),
+          created_by: String(r.created_by),
+        }
+      : null;
+  }
+
+  /** Keeps a held lease alive; false when another process took it over. */
+  async renewQualificationQueueLease(
+    queueId: string,
+    holder: string,
+    leaseMs: number,
+  ): Promise<boolean> {
+    const r = await this.pool.query(
+      `update plan_qualification_queues
+          set lease_until = clock_timestamp() + make_interval(secs => $3::double precision / 1000)
+        where id = $1 and lease_holder = $2`,
+      [uuid(queueId), uuid(holder), leaseMs],
+    );
+    return (r.rowCount ?? 0) > 0;
+  }
+
+  async releaseQualificationQueueLease(queueId: string, holder: string) {
+    await this.pool.query(
+      `update plan_qualification_queues set lease_holder = null, lease_until = null
+        where id = $1 and lease_holder = $2`,
+      [uuid(queueId), uuid(holder)],
+    );
+  }
+
+  /**
+   * The queue's next qualification to run, started now if it was waiting. Its start is checked
+   * against the connection as it is now (owner, allowed task and data class, verified model,
+   * fixture, held-out views), exactly as a start by hand, and recorded in the same transaction
+   * that links it to the queue, so a crash cannot start it twice. A refused start stops the
+   * queue there and says why. A qualification decided while no process held the queue (a crash
+   * after its last case, or a Finish by hand) is recorded first. `end` means nothing is left to
+   * run: the queue finished, stopped, was cancelled, or this holder lost the lease.
+   */
+  async nextQueuedQualification(
+    queueId: string,
+    holder: string,
+  ): Promise<
+    | { kind: 'run'; qualification_id: string; position: number }
+    | { kind: 'end' }
+  > {
+    return this.tx(async (c) => {
+      const q = await this.#lockQueue(c, null, uuid(queueId));
+      const ctx = normalize({ actorId: q.created_by });
+      for (;;) {
+        if (q.state !== 'running' || q.lease_holder !== uuid(holder))
+          return { kind: 'end' };
+        const { rows } = await c.query(
+          `select * from plan_qualification_queue_items
+            where queue_id = $1 and state in ('waiting','running') order by position limit 1`,
+          [q.id],
+        );
+        const item = rows[0] as Row | undefined;
+        if (!item) {
+          await this.#endQueue(c, q, 'done', null, ctx);
+          return { kind: 'end' };
+        }
+        const position = Number(item.position);
+        if (item.state === 'running') {
+          const qual = await this.#qualificationRow(
+            c,
+            String(item.qualification_id),
+          );
+          if (qual.state === 'running')
+            return {
+              kind: 'run',
+              qualification_id: qual.id,
+              position,
+            };
+          await this.#queueItemDecided(c, q, position, qual, ctx);
+          continue;
+        }
+        await c.query('savepoint queue_start');
+        try {
+          await this.requireOwner(c, q.workspace_id, q.created_by);
+          const conn = await this.#lock(c, q.workspace_id, q.connection_id);
+          const tc = String(item.task_class);
+          const quals = await this.#qualifications(c, conn.id);
+          const started = quals.find(
+            (x) =>
+              x.state === 'running' &&
+              x.model_id === q.model_id &&
+              x.task_class === tc,
+          );
+          let qid: string;
+          if (started) {
+            // Started by hand while it waited: run that one if it is the same benchmark.
+            if (started.manifest_hash !== String(item.manifest_hash))
+              throw fail(
+                'INVALID_TRANSITION',
+                `A different ${words(tc)} benchmark was started for ${q.model_id} by hand. Run or finish it, then queue the rest again.`,
+              );
+            qid = started.id;
+          } else {
+            const req = {
+              model_id: q.model_id,
+              manifest: item.manifest as z.infer<
+                typeof StartPlanQualificationRequestSchema
+              >['manifest'],
+              min_held_out_cases: Number(item.min_held_out_cases),
+              floor: item.floor as PlanQualification['floor'],
+            };
+            await this.#checkQualificationStart(c, conn, req);
+            const made = await this.#insertQualification(
+              c,
+              conn,
+              req,
+              q.created_by,
+            );
+            qid = made.id;
+            const payload = {
+              qualification_id: qid,
+              manifest_hash: made.manifest_hash,
+              queue_id: q.id,
+            };
+            await this.#event(
+              c,
+              conn.id,
+              'qualification_started',
+              payload,
+              ctx,
+            );
+            await this.append(c, ctx, {
+              workspaceId: q.workspace_id,
+              action: 'connection.qualification_started',
+              subjectKind: 'plan_qualification',
+              subjectId: qid,
+              subjectVersion: null,
+              contentHash: made.manifest_hash,
+              payload,
+            });
+          }
+          await c.query(
+            `update plan_qualification_queue_items set qualification_id = $3, state = 'running'
+              where queue_id = $1 and position = $2`,
+            [q.id, position, qid],
+          );
+          await c.query('release savepoint queue_start');
+          return { kind: 'run', qualification_id: qid, position };
+        } catch (e) {
+          if (!(e instanceof ContractError)) throw e;
+          await c.query('rollback to savepoint queue_start');
+          const reason = clip(
+            `${words(String(item.task_class))} was not started: ${[e.message, ...e.details].join(' ')}`,
+          );
+          await c.query(
+            `update plan_qualification_queue_items set state = 'stopped', reason = $3
+              where queue_id = $1 and position = $2`,
+            [q.id, position, reason],
+          );
+          await this.#endQueue(c, q, 'stopped', `Stopped at ${reason}`, ctx);
+          return { kind: 'end' };
+        }
+      }
+    });
+  }
+
+  /**
+   * After the runner's Run of the queue's current qualification returned or threw. A decided
+   * qualification is recorded (a failure stops the queue); one still running was stopped by a
+   * refusal or error, which stops the queue with `reason`. Returns whether to go on.
+   */
+  async recordQueuedRun(
+    queueId: string,
+    holder: string,
+    position: number,
+    reason: string,
+  ): Promise<boolean> {
+    return this.tx(async (c) => {
+      const q = await this.#lockQueue(c, null, uuid(queueId));
+      const ctx = normalize({ actorId: q.created_by });
+      const { rows } = await c.query(
+        `select * from plan_qualification_queue_items where queue_id = $1 and position = $2`,
+        [q.id, position],
+      );
+      const item = rows[0] as Row | undefined;
+      if (item?.state === 'running') {
+        const qual = await this.#qualificationRow(
+          c,
+          String(item.qualification_id),
+        );
+        if (qual.state !== 'running')
+          await this.#queueItemDecided(c, q, position, qual, ctx);
+        else {
+          const why = clip(`${words(String(item.task_class))}: ${reason}`);
+          await c.query(
+            `update plan_qualification_queue_items set state = 'stopped', reason = $3
+              where queue_id = $1 and position = $2`,
+            [q.id, position, why],
+          );
+          if (q.state === 'running')
+            await this.#endQueue(
+              c,
+              q,
+              'stopped',
+              clip(
+                `Stopped at ${why.replace(/[.\s]+$/, '')}. Its answered cases are kept: fix the cause, then press Run on it, or queue the rest again.`,
+              ),
+              ctx,
+            );
+        }
+      }
+      return q.state === 'running' && q.lease_holder === uuid(holder);
+    });
+  }
+
+  async #qualificationRow(c: PoolClient, id: string) {
+    const { rows } = await c.query(
+      'select * from plan_qualifications where id = $1',
+      [id],
+    );
+    return toQualification(rows[0] as Row);
+  }
+
+  /** Records a decided qualification on its item; a failure stops the queue there. */
+  async #queueItemDecided(
+    c: PoolClient,
+    q: QueueRow,
+    position: number,
+    qual: PlanQualification,
+    ctx: CommandContext,
+  ) {
+    const passed = qual.state === 'qualified';
+    const score = `${qual.held_out.passed} of ${qual.held_out.total} held-out cases passed`;
+    await c.query(
+      `update plan_qualification_queue_items set state = $3, reason = $4
+        where queue_id = $1 and position = $2`,
+      [q.id, position, passed ? 'qualified' : 'failed', clip(score)],
+    );
+    if (!passed && q.state === 'running')
+      await this.#endQueue(
+        c,
+        q,
+        'stopped',
+        clip(
+          `Stopped: ${words(qual.task_class)} did not qualify (${score}). The tasks after it were not started.`,
+        ),
+        ctx,
+      );
+  }
+
+  /** Ends a running queue; items that never started are marked cancelled. */
+  async #endQueue(
+    c: PoolClient,
+    q: QueueRow,
+    state: 'done' | 'stopped' | 'cancelled',
+    reason: string | null,
+    ctx: CommandContext,
+  ) {
+    await c.query(
+      `update plan_qualification_queue_items set state = 'cancelled', reason = $2
+        where queue_id = $1 and state = 'waiting'`,
+      [
+        q.id,
+        state === 'cancelled'
+          ? 'Cancelled before it started.'
+          : 'Not started: the queue stopped before it.',
+      ],
+    );
+    await c.query(
+      `update plan_qualification_queues set state = $2, reason = $3, finished_at = clock_timestamp()
+        where id = $1`,
+      [q.id, state, reason],
+    );
+    q.state = state;
+    const payload = { queue_id: q.id, model_id: q.model_id, state, reason };
+    await this.#event(
+      c,
+      q.connection_id,
+      `qualification_queue_${state}`,
+      payload,
+      ctx,
+    );
+    await this.append(c, ctx, {
+      workspaceId: q.workspace_id,
+      action: `connection.qualification_queue_${state}`,
+      subjectKind: 'plan_qualification_queue',
+      subjectId: q.id,
+      subjectVersion: null,
+      contentHash: null,
+      payload,
+    });
+  }
+
+  async #lockQueue(
+    c: PoolClient,
+    ws: string | null,
+    id: string,
+  ): Promise<QueueRow> {
+    const { rows } = await c.query(
+      `select q.*, p.workspace_id from plan_qualification_queues q
+         join plan_connections p on p.id = q.connection_id
+        where q.id = $1 and ($2::uuid is null or p.workspace_id = $2) for update of q`,
+      [id, ws],
+    );
+    const r = rows[0] as Row | undefined;
+    if (!r) throw fail('NOT_FOUND', 'Qualification queue not found.');
+    return {
+      id: String(r.id),
+      workspace_id: String(r.workspace_id),
+      connection_id: String(r.connection_id),
+      model_id: String(r.model_id),
+      state: String(r.state),
+      lease_holder: nullable(r.lease_holder),
+      created_by: String(r.created_by),
+    };
+  }
+
+  async #withQueue(ws: string, id: string) {
+    return this.tx((c) => this.#queue(c, uuid(ws), id));
+  }
+
+  async #queue(
+    c: PoolClient,
+    ws: string,
+    id: string,
+  ): Promise<QualificationQueue> {
+    const { rows } = await c.query(
+      `select q.*, q.lease_until > clock_timestamp() as leased from plan_qualification_queues q
+         join plan_connections p on p.id = q.connection_id
+        where q.id = $1 and p.workspace_id = $2`,
+      [id, ws],
+    );
+    if (!rows[0]) throw fail('NOT_FOUND', 'Qualification queue not found.');
+    return toQueue(c, rows[0] as Row);
+  }
+
+  async #newestQueue(
+    c: PoolClient,
+    connectionId: string,
+  ): Promise<QualificationQueue | null> {
+    const { rows } = await c.query(
+      `select q.*, q.lease_until > clock_timestamp() as leased from plan_qualification_queues q
+        where q.connection_id = $1 order by q.created_at desc limit 1`,
+      [connectionId],
+    );
+    return rows[0] ? toQueue(c, rows[0] as Row) : null;
   }
 
   /**
@@ -4042,6 +4646,7 @@ export class ConnectionStore extends PortfolioStore {
         };
       }),
       blockers: connectionBlockers(connection),
+      qualification_queue: await this.#newestQueue(c, id),
     };
   }
 

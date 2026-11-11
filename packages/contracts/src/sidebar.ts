@@ -82,6 +82,8 @@ export const ActivityNowKindSchema = z.enum([
   'workflow',
   /** A product run on a paired computer that has not finished. */
   'desktop_job',
+  /** ADR-0088 (P24): qualifications the studio is running one after another. */
+  'qualification_queue',
 ]);
 export type ActivityNowKind = z.infer<typeof ActivityNowKindSchema>;
 
@@ -106,7 +108,7 @@ export type ActivityNowItem = z.infer<typeof ActivityNowItemSchema>;
 export const ACTIVITY_NOW_MAX = 10;
 
 export const ActivityNowSchema = z.strictObject({
-  items: z.array(ActivityNowItemSchema).max(ACTIVITY_NOW_MAX * 3),
+  items: z.array(ActivityNowItemSchema).max(ACTIVITY_NOW_MAX * 4),
   generated_at: timestamp,
 });
 export type ActivityNow = z.infer<typeof ActivityNowSchema>;

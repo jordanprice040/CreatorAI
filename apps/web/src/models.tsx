@@ -1071,6 +1071,7 @@ export function Models({
                 )
                 .map((a) => a.model_id)}
               qualifications={detail.qualifications}
+              queue={detail.qualification_queue ?? null}
               busy={busy || !session}
               preferred={
                 choice?.connection_id === c.id ? choice.model_id : null

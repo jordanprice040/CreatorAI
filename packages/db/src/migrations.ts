@@ -3045,6 +3045,47 @@ create index audit_events_by_causation on audit_events (workspace_id, causation_
  where causation_id is not null;
 `,
   },
+  {
+    // ADR-0088 (P24): several qualifications of one model, run one after another by the studio
+    // so the person can leave the page. One running queue per connection. An item's
+    // qualification is started when its turn comes, in the same transaction that links it here,
+    // so a restart between two runs starts the next one once. The lease says which studio
+    // process is working on the queue; an expired lease is taken over after a restart.
+    version: 55,
+    name: 'plan_qualification_queues',
+    sql: `
+create table plan_qualification_queues (
+ id uuid primary key,
+ connection_id uuid not null references plan_connections(id),
+ model_id text not null check (length(model_id) between 1 and 200),
+ state text not null check (state in ('running','done','stopped','cancelled')),
+ reason text check (reason is null or length(reason) between 1 and 1200),
+ lease_holder uuid,
+ lease_until timestamptz,
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ finished_at timestamptz,
+ check ((state = 'running') = (finished_at is null))
+);
+create unique index plan_qualification_queues_one_running on plan_qualification_queues (connection_id)
+ where state = 'running';
+create table plan_qualification_queue_items (
+ queue_id uuid not null references plan_qualification_queues(id),
+ position integer not null check (position >= 0),
+ task_class text not null,
+ manifest jsonb not null,
+ manifest_hash char(64) not null,
+ min_held_out_cases integer not null check (min_held_out_cases >= 3),
+ floor jsonb not null,
+ qualification_id uuid unique references plan_qualifications(id),
+ state text not null check (state in ('waiting','running','qualified','failed','stopped','cancelled')),
+ reason text check (reason is null or length(reason) between 1 and 1200),
+ primary key (queue_id, position),
+ unique (queue_id, task_class),
+ check (state not in ('running','qualified','failed') or qualification_id is not null)
+);
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

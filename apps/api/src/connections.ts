@@ -121,7 +121,7 @@ const codexTurns = new Map<string, number>();
 
 /** ADR-0042 ChatGPT-plan routes under /api/workspaces/:ws/<collection>. Matched separately. */
 export const CONNECTIONS_ROUTE =
-  /^\/api\/workspaces\/([^/]+)\/(plan-connections|plan-qualifications)(?:\/([^/]+)(?:\/(settings|accept-caps|credits|credits-withdraw|sign-in|sign-out|verification-grants|verify|availability-recheck|qualifications|requests|reconcile|quota-recheck|codex-builds|build-calls|build-roles-ready|run|finish|claude-code-check))?)?$/;
+  /^\/api\/workspaces\/([^/]+)\/(plan-connections|plan-qualifications|plan-qualification-queues)(?:\/([^/]+)(?:\/(settings|accept-caps|credits|credits-withdraw|sign-in|sign-out|verification-grants|verify|availability-recheck|qualifications|requests|reconcile|quota-recheck|codex-builds|build-calls|build-roles-ready|run|finish|claude-code-check|qualification-queues|cancel))?)?$/;
 
 const VerifyBody = z.strictObject({
   grant_id: z.uuid(),
@@ -203,6 +203,8 @@ export async function connectionRoutes(r: {
   store: ConnectionStore;
   service: PlanConnectionService | null;
   codex: CodexLauncher | null;
+  /** ADR-0088: told when a queue is started, so it begins at once instead of at the next poll. */
+  queue?: { kick(): void } | null;
   ctx: CommandContext;
   ws: string;
   collection: string;
@@ -236,6 +238,21 @@ export async function connectionRoutes(r: {
       return send(
         200,
         await store.finishPlanQualification(ctx, ws, item),
+        true,
+      );
+    return false;
+  }
+  if (collection === 'plan-qualification-queues' && item) {
+    if (get && !action)
+      return send(
+        200,
+        await store.planQualificationQueue(ctx, ws, item),
+        false,
+      );
+    if (post && action === 'cancel')
+      return send(
+        200,
+        await store.cancelQualificationQueue(ctx, ws, item),
         true,
       );
     return false;
@@ -330,6 +347,21 @@ export async function connectionRoutes(r: {
         await store.startPlanQualification(ctx, ws, item, await r.body()),
         true,
       );
+    case 'qualification-queues': {
+      if (!r.service)
+        throw new ContractError(
+          'INVALID_CONFIG',
+          'The ChatGPT plan service is not configured.',
+        );
+      const queue = await store.startQualificationQueue(
+        ctx,
+        ws,
+        item,
+        await r.body(),
+      );
+      r.queue?.kick();
+      return send(201, queue, true);
+    }
     case 'reconcile': {
       const { request_id, ...rest } = parse(ReconcileBody, await r.body()) as {
         request_id: string;

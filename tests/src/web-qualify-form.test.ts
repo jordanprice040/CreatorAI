@@ -105,6 +105,24 @@ async function loadQualify() {
       allowed: readonly string[],
     ) => { kind: string };
     QualifyModel: (props: Record<string, unknown>) => unknown;
+    queueChoices: (
+      qualifications: readonly PlanQualification[],
+      model: string,
+      allowed: readonly string[],
+    ) => { name: string; task_class: string; eligible: boolean }[];
+    queueBody: (
+      version: number,
+      model: string,
+      list: readonly { name: string }[],
+    ) => {
+      expected_version: number;
+      model_id: string;
+      items: {
+        manifest: { name: string; task_class: string };
+        min_held_out_cases: number;
+        floor: unknown;
+      }[];
+    };
   };
   new Function('require', 'exports', code)(
     (name: string) =>
@@ -252,4 +270,147 @@ test('a run that stops says why; a finished run says the result (review M-1)', a
   );
   // A failed request (null) leaves no outcome line: its error shows instead.
   assert.equal(runOutcome(q, null), '');
+});
+
+test('P24: Qualify several offers allowed tasks not yet qualified and sends their benchmarks in order', async () => {
+  const { queueChoices, queueBody } = await loadQualify();
+  const pass = qualification({
+    task_class: 'summarization',
+    state: 'qualified',
+    decided_at: '2026-11-11T10:05:00.000Z',
+  });
+  const fail = qualification({
+    task_class: 'specification',
+    state: 'failed',
+    decided_at: '2026-11-11T10:05:00.000Z',
+  });
+  const choices = queueChoices([pass, fail], 'gpt-6-astra', [
+    'specification',
+    'summarization',
+    'independent_review',
+  ]);
+  const byTask = Object.fromEntries(
+    choices.map((c) => [c.task_class, c.eligible]),
+  );
+  // Qualified: re-run on its own (a failed re-run replaces the pass, ADR-0052). Not allowed:
+  // allow it first. Failed or new: offered.
+  assert.equal(byTask.summarization, false);
+  assert.equal(byTask.scoring, false);
+  assert.equal(byTask.specification, true);
+  assert.equal(byTask.independent_review, true);
+  const body = queueBody(
+    7,
+    'gpt-6-astra',
+    choices.filter((c) => c.eligible),
+  );
+  assert.equal(body.expected_version, 7);
+  assert.deepEqual(
+    body.items.map((i) => i.manifest.task_class),
+    ['specification', 'independent_review'],
+  );
+  for (const i of body.items) {
+    const m = BenchmarkManifestSchema.parse(i.manifest);
+    assert.equal(
+      i.min_held_out_cases,
+      m.cases.filter((c) => c.split === 'held_out').length,
+      'the pass bar is every held-out case, as Start',
+    );
+    assert.deepEqual(i.floor, { numerator: 1, denominator: 1 });
+  }
+});
+
+test('P24: a running queue shows its progress and locks every other qualify action', async () => {
+  const { QualifyModel } = await loadQualify();
+  const connection = {
+    id: randomUUID(),
+    kind: 'chatgpt_plan',
+    version: 3,
+    fixture: false,
+    caps_accepted_at: '2026-11-11T09:00:00.000Z',
+    settings: {
+      allowed_data_classes: ['synthetic', 'public'],
+      allowed_task_classes: ['specification', 'summarization'],
+      caps: { responses: { request_timeout_ms: 120000 } },
+    },
+  };
+  const item = (
+    position: number,
+    task_class: string,
+    state: string,
+    reason: string | null = null,
+  ) => ({
+    position,
+    task_class,
+    manifest_name: `${task_class}-synthetic-v1`,
+    manifest_hash: 'b'.repeat(64),
+    qualification_id: state === 'waiting' ? null : randomUUID(),
+    state,
+    reason,
+  });
+  const queue = (over: Record<string, unknown>) => ({
+    id: randomUUID(),
+    connection_id: connection.id,
+    model_id: 'gpt-6-astra',
+    state: 'running',
+    reason: null,
+    created_by: randomUUID(),
+    created_at: '2026-11-11T10:00:00.000Z',
+    finished_at: null,
+    active: true,
+    items: [
+      item(0, 'specification', 'qualified', '8 of 8 held-out cases passed'),
+      item(1, 'summarization', 'running'),
+    ],
+    ...over,
+  });
+  const html = (q: unknown, qualifications: PlanQualification[] = []) =>
+    renderToStaticMarkup(
+      createElement(QualifyModel, {
+        base: 'workspaces/w',
+        connection,
+        models: ['gpt-6-astra'],
+        qualifications,
+        queue: q,
+        busy: false,
+        act: async () => null,
+      }),
+    );
+  const idle = html(null);
+  assert.match(idle, /Qualify several tasks/);
+  assert.match(idle, /Qualify all \(2, up to/);
+  assert.match(idle, /Not allowed on this connection, so not offered/);
+  const running = html(queue({}), [
+    qualification({ task_class: 'summarization', executing: true }),
+  ]);
+  assert.match(running, /one task after another: 1 of 2 done/);
+  assert.match(
+    running,
+    /specification · specification-synthetic-v1: qualified/,
+  );
+  for (const b of running.matchAll(/<button([^>]*)>([^<]*)/g))
+    if (b[2]!.startsWith('Cancel the queue'))
+      assert.doesNotMatch(b[1]!, /disabled/, 'the queue can be cancelled');
+    else
+      assert.match(b[1]!, /disabled/, `locked while the queue runs: ${b[0]}`);
+  // No process holds the lease (after a restart): say it waits for the studio.
+  assert.match(
+    html(queue({ active: false })),
+    /Waiting for the studio to pick it up/,
+  );
+  const stopped = html(
+    queue({
+      state: 'stopped',
+      reason:
+        'Stopped: summarization did not qualify (5 of 8 held-out cases passed).',
+      finished_at: '2026-11-11T10:30:00.000Z',
+      items: [
+        item(0, 'specification', 'qualified'),
+        item(1, 'summarization', 'failed', '5 of 8 held-out cases passed'),
+      ],
+    }),
+  );
+  assert.match(stopped, /stopped\. Stopped: summarization did not qualify/);
+  assert.match(stopped, /summarization-synthetic-v1: did not qualify/);
+  assert.match(stopped, />Hide</);
+  assert.doesNotMatch(stopped, /Cancel the queue/);
 });
