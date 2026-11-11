@@ -394,6 +394,7 @@ export function Chat({
     kind: CardKind,
     messageId: string | null,
     input: Record<string, unknown> = {},
+    againOf: string | null = null,
   ) {
     if (!canWrite || carding) return;
     setCarding(true);
@@ -416,7 +417,8 @@ export function Chat({
           client_id: crypto.randomUUID(),
           kind,
           message_id: messageId,
-          input: { ...input, _op: crypto.randomUUID(), _opened: Date.now() },
+          again_of: againOf,
+          input: { ...input, _op: crypto.randomUUID() },
           subjects: [],
         },
       });
@@ -434,7 +436,7 @@ export function Chat({
       Object.entries(card.input).filter(([k]) => !k.startsWith('_')),
     );
     // It goes to the end of the conversation, where the person is now.
-    return startCard(card.kind, latestMessage.current, input);
+    return startCard(card.kind, latestMessage.current, input, card.id);
   }
   const renderCard = (c: ChatAction) => (
     <ActionCard

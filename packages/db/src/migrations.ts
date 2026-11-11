@@ -3011,6 +3011,8 @@ create table chat_actions (
  client_id uuid not null,
  message_id uuid references chat_messages(id) on delete cascade,
  answer_id uuid references chat_answers(id) on delete cascade,
+ -- A card sent again with the same answers names the card it repeats (and keeps its origin).
+ again_of uuid references chat_actions(id) on delete cascade,
  origin text not null check (origin in ('studio','model')),
  kind text not null check (kind in ('fund_budget','fetch_source','cite_claim','start_discovery',
    'answer_decision','score_option','record_choice','save_proposal')),
@@ -3036,7 +3038,8 @@ create table chat_actions (
  check ((state in ('draft','sending')) = (finished_at is null))
 );
 create index chat_actions_conversation on chat_actions (conversation_id, created_at);
-create unique index chat_actions_one_per_answer on chat_actions (answer_id) where answer_id is not null;
+create unique index chat_actions_one_per_answer on chat_actions (answer_id)
+ where answer_id is not null and again_of is null;
 -- The events a card's send caused are counted by their causation id.
 create index audit_events_by_causation on audit_events (workspace_id, causation_id)
  where causation_id is not null;

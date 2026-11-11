@@ -1,9 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
-import ts from 'typescript';
 import {
   AnswerDecisionRequestSchema,
   CreateEntityRequestSchema,
@@ -13,6 +10,7 @@ import {
   StartDiscoveryRequestSchema,
   type z,
 } from '@creator/contracts';
+import { loadWeb } from './web-module.js';
 
 // ADR-0083 (P20): the rules behind Chat's cards. A card asks the form's questions one at a
 // time, and once answered its plan is exactly the requests the form makes: every body here is
@@ -56,6 +54,7 @@ type Mod = {
     ctx: Ctx,
   ) => View;
   fill: (v: unknown, got: Record<string, unknown>) => unknown;
+  fillPath: (path: string, got: Record<string, unknown>) => string;
   pick: (v: unknown, path: string) => unknown;
   cardForStep: (
     view: string | null,
@@ -63,31 +62,7 @@ type Mod = {
   ) => string | null;
 };
 
-const src = new URL('../../apps/web/src/', import.meta.url);
-const nodeRequire = createRequire(new URL('chat-cards.ts', src));
-const loaded = new Map<string, unknown>();
-/** Loads a web module with its sibling imports transpiled the same way. */
-async function load(file: string): Promise<unknown> {
-  if (loaded.has(file)) return loaded.get(file);
-  const source = await readFile(new URL(file, src), 'utf8');
-  const code = ts.transpileModule(source, {
-    compilerOptions: {
-      module: ts.ModuleKind.CommonJS,
-      target: ts.ScriptTarget.ES2022,
-    },
-  }).outputText;
-  const siblings = new Map<string, unknown>();
-  for (const m of code.matchAll(/require\("(\.\/[^"]+)\.js"\)/g))
-    siblings.set(`${m[1]}.js`, await load(`${m[1]!.slice(2)}.ts`));
-  const exports = {};
-  new Function('require', 'exports', code)(
-    (name: string) => siblings.get(name) ?? nodeRequire(name),
-    exports,
-  );
-  loaded.set(file, exports);
-  return exports;
-}
-const cards = () => load('chat-cards.ts') as Promise<Mod>;
+const cards = () => loadWeb('chat-cards.ts') as Promise<Mod>;
 
 const ws = randomUUID();
 const ctx = (over: Partial<Ctx> = {}): Ctx => ({
@@ -109,7 +84,7 @@ function walk(
   data: unknown,
   answers: Record<string, Value>,
   c = ctx(),
-  start: Record<string, unknown> = { _op: randomUUID(), _opened: c.now },
+  start: Record<string, unknown> = { _op: randomUUID() },
 ) {
   const input: Record<string, unknown> = { ...start };
   const asked: string[] = [];
@@ -220,7 +195,7 @@ test('a discovery card sends exactly the Discover form requests, bound to the cl
   };
   const [brief, run, oversee, grant, start] = view.steps.map((s) => ({
     ...s,
-    path: m.fill(s.path, got) as string,
+    path: m.fillPath(s.path, got),
     body: m.fill(s.body, got),
   }));
   ok(CreateEntityRequestSchema, brief!.body, 'brief');
@@ -259,6 +234,21 @@ test('a discovery card sends exactly the Discover form requests, bound to the cl
     ctx(),
   );
   assert.match(none.blockers.join(' '), /No claim is recorded/);
+
+  // Review N-5: more records than a card can re-check is said plainly, and nothing is sent.
+  const many = Array.from({ length: 41 }, (_, i) => ({
+    id: randomUUID(),
+    version: 1,
+    title: `Claim ${i}`,
+  }));
+  const big = m.cardView(
+    'start_discovery',
+    { claims: many.map((c) => c.id) },
+    { ...data, claims: many },
+    ctx(),
+  );
+  assert.match(big.blockers.join(' '), /at most 40 records/);
+  assert.deepEqual(big.subjects, []);
 });
 
 test('an approval card answers one waiting decision with its coverage; a changed target is refused here too', async () => {
@@ -273,25 +263,27 @@ test('an approval card answers one waiting decision with its coverage; a changed
     coverage_hash: 'a'.repeat(64),
     recommendation: null,
   };
-  const opened = Date.parse('2026-11-11T11:58:00Z');
   const { view, asked } = walk(
     m,
     'answer_decision',
     { decisions: [d] },
     { decision: d.id, choice: 'approve_once', rationale: 'Public page.' },
-    ctx(),
-    { _op: randomUUID(), _opened: opened },
   );
   assert.deepEqual(asked, ['decision', 'choice', 'rationale']);
   assert.equal(view.steps.length, 1);
-  ok(AnswerDecisionRequestSchema, view.steps[0]!.body, 'answer');
+  // Review L-2: the time is measured by the page at Send, not planned from the clock.
+  assert.equal(
+    (view.steps[0]!.body as { time_spent_ms: unknown }).time_spent_ms,
+    '{time_spent_ms}',
+  );
+  ok(
+    AnswerDecisionRequestSchema,
+    m.fill(view.steps[0]!.body, { time_spent_ms: 1234 }),
+    'answer',
+  );
   assert.equal(
     view.steps[0]!.path,
     `workspaces/${ws}/decisions/${d.id}/answer`,
-  );
-  assert.equal(
-    (view.steps[0]!.body as { time_spent_ms: number }).time_spent_ms,
-    120_000,
   );
   assert.ok(view.subjects.some((s) => s.kind === 'decision' && s.id === d.id));
   const changed = m.cardView(
@@ -309,13 +301,18 @@ test('filling and picking response fields, and the card for the next step', asyn
   const m = await cards();
   assert.deepEqual(
     m.fill(
-      { a: '{x}', b: 'runs/{x}/go', c: ['{y}'], d: '{missing}' },
+      { a: '{x}', b: 'a quote with {x} in it', c: ['{y}'], d: '{missing}' },
       {
         x: 7,
         y: null,
       },
     ),
-    { a: 7, b: 'runs/7/go', c: [null], d: '{missing}' },
+    // Review N-1: braces inside typed text are kept as written.
+    { a: 7, b: 'a quote with {x} in it', c: [null], d: '{missing}' },
+  );
+  assert.equal(
+    m.fillPath('workspaces/w/runs/{run}/go', { run: 'r 1' }),
+    'workspaces/w/runs/r%201/go',
   );
   assert.equal(m.pick({ workflow: { id: 'w' } }, 'workflow.id'), 'w');
   assert.equal(m.pick({ workflow: null }, 'workflow.id'), undefined);
@@ -333,4 +330,34 @@ test('filling and picking response fields, and the card for the next step', asyn
   // Freezing and building are done on their own tabs for now.
   assert.equal(m.cardForStep('scores', f), null);
   assert.equal(m.cardForStep('build', f), null);
+});
+
+test('a default never adds a grant: a new fetching run is always asked (review M-1)', async () => {
+  const m = await cards();
+  const url = 'https://health.fixture.test/reports/clinic-access-2025';
+  const none = walk(
+    m,
+    'fetch_source',
+    { runs: [], pages: [url] },
+    { url, run: 'new' },
+  );
+  assert.deepEqual(
+    none.asked,
+    ['url', 'run'],
+    'Standard still asks before a new run and its grant',
+  );
+  assert.equal(none.view.steps.length, 4);
+  const run = { id: randomUUID(), label: 'Evidence gathering' };
+  const existing = walk(
+    m,
+    'fetch_source',
+    { runs: [run], pages: [url] },
+    { url },
+  );
+  assert.deepEqual(existing.asked, ['url'], 'an existing run is routine');
+  assert.equal(existing.view.steps.length, 1);
+  assert.equal(
+    existing.view.steps[0]!.path,
+    `workspaces/${ws}/runs/${run.id}/source-fetches`,
+  );
 });

@@ -31,11 +31,11 @@ the record of each package and are appended to, not rewritten.
 | P15 larger software                        | Slice 1 `static-web/1` merged and recorded qualified on one route (PRs #149, #150; ADR-0078); later slices not started                                                                    |
 | P16 external runbook export                | Merged (PR #152; ADR-0080, no migration)                                                                                                                                                  |
 | P17 integrated acceptance                  | Not started                                                                                                                                                                               |
-| P18 collapsible options, shorter pages     | Not started (added November 10, R20)                                                                                                                                                      |
+| P18 collapsible options, shorter pages   | Open as PR #162 (review-clean; nit fixes in progress) |
 | P19 Standard/Advanced across the app       | Built November 11 on branch `claude/project-thread-xdq8er` (ADR-0082, migration 52), PR #164; independent review and two fix rounds done, ready to merge once the last re-review is clean |
-| P20 whole process from Chat                | Built November 11 on branch `claude/project-thread-b20hlm` (ADR-0083 amending ADR-0057/0070, migration 53), on top of P19's branch; draft PR, independent review next                     |
-| P21 quick model switch                     | Not started (added November 10, R23)                                                                                                                                                      |
-| P22 live API and GitHub checks             | Not started (added November 10, R24–R25); Jordan approved the live API and GitHub tests November 10                                                                                       |
+| P20 whole process from Chat              | Built November 11 on branch `claude/project-thread-b20hlm` (ADR-0083 amending ADR-0057/0070, migration 53), PR #165; independent review done and its findings (1 Medium, 5 Low, 6 nits) fixed, re-review next |
+| P21 quick model switch                   | Merged (PR #161; ADR-0081, migration 51) |
+| P22 live API and GitHub checks           | Open as PR #160 (review-clean; nit fixes in progress); Jordan approved the live API and GitHub tests November 10 |
 
 Checks on main `e08e0a4`, November 10 (cloud container, PostgreSQL 16): TypeScript, web typecheck and
 formatting pass; `pnpm test:db` 867 tests, 833 pass, 29 skips, 5 fail (the known wrapper tests that need
@@ -58,6 +58,18 @@ Open items:
   and PR #148 N-I are fixed by the November 10 cleanup.)
 - **The web qualification record** lives in source against the dev studio's connection id, so it does not
   apply to the installed app's connection.
+
+## P20 review fixes (November 11, PR #165, ADR-0083 amendment, migration 53 unreleased)
+
+Review: `/mnt/project-files/reviews/P20_PR165_REVIEW.md` (0 High, 1 Medium, 5 Low, 6 nits), all fixed:
+M-1 a fetch card asks before registering a new fetching run (it creates a grant); L-1 the card's safety note is
+accurate; L-2 a decision card's `time_spent_ms` runs from when the card is shown to Send, in milliseconds; L-3 a held
+send reads "Held for a decision"; L-4 a test sends a discovery card's own request against a human-only run and gets
+the form's `HUMAN_ONLY_DENIED`; L-5 "Send again" names the card it repeats (`again_of` column) and keeps its origin and
+model answer; N-1 placeholders fill whole values and path segments only; N-2 no repeated source; N-3 records marked
+`in_trail` by the store; N-4 a sender who lost the editor role can still record the outcome; N-5 plain message over
+40 records; N-6 DECISIONS.md reflows reverted and the package table corrected. Migration 53 was edited in place
+(never released): a database that ran the earlier 53 must be re-created. Next: re-review in a new thread.
 
 ## Next eligible prompt
 

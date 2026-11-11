@@ -21,6 +21,7 @@ export const toChatAction = (r: Row): ChatAction => ({
   conversation_id: String(r.conversation_id),
   message_id: r.message_id ? String(r.message_id) : null,
   answer_id: r.answer_id ? String(r.answer_id) : null,
+  again_of: r.again_of ? String(r.again_of) : null,
   origin: String(r.origin) as ChatAction['origin'],
   kind: String(r.kind) as ChatActionKind,
   input: parse(ChatActionInputSchema, r.input),
@@ -123,13 +124,16 @@ export async function chatActionEvents(
   ws: string,
   sentEvent: string,
   actor: string,
-): Promise<number> {
+): Promise<{ count: number; subjects: Set<string> }> {
   const { rows } = await c.query(
-    `select count(*)::int as n from audit_events
+    `select subject_id::text as subject_id from audit_events
      where workspace_id = $1 and causation_id = $2 and actor_id = $3`,
     [ws, sentEvent, actor],
   );
-  return Number(rows[0]?.n ?? 0);
+  return {
+    count: rows.length,
+    subjects: new Set(rows.map((r) => String(r.subject_id))),
+  };
 }
 
 /** Refuses a change made against an older version of the card. */

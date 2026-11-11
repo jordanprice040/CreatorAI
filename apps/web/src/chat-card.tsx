@@ -16,6 +16,7 @@ import {
   LABEL,
   cardView,
   fill,
+  fillPath,
   pick,
   type CardData,
   type CardView,
@@ -147,10 +148,11 @@ export function ActionCard({
   }, [draft]);
   // A card the model suggested (or one made elsewhere) gets its own request ids once opened.
   const named = useRef(false);
+  // Review L-2: time on a decision counts from when this card was shown on this page.
+  const shownAt = useRef(Date.now());
   useEffect(() => {
     if (!draft || !canWrite || named.current) return;
-    if (typeof input._op === 'string' && typeof input._opened === 'number')
-      return;
+    if (typeof input._op === 'string') return;
     named.current = true;
     void save({}, null).catch(() => undefined);
   }, [draft, canWrite]);
@@ -165,7 +167,6 @@ export function ActionCard({
       ...input,
       ...patch,
       _op: typeof input._op === 'string' ? input._op : crypto.randomUUID(),
-      _opened: typeof input._opened === 'number' ? input._opened : Date.now(),
     };
     const subjects = (viewFor ?? cardView(card.kind, next, data, ctx)).subjects;
     await api(ChatActionSchema, base, {
@@ -250,7 +251,12 @@ export function ActionCard({
         return;
       }
       const trace = { causation: sent.causation_id, correlation: card.id };
-      const got: Record<string, unknown> = {};
+      const got: Record<string, unknown> = {
+        time_spent_ms: Math.max(
+          0,
+          Math.min(86_400_000, Date.now() - shownAt.current),
+        ),
+      };
       const records: { id: string; kind: string; label: string }[] = [];
       let held: { code: string; message: string } | null = null;
       let failure: {
@@ -261,7 +267,7 @@ export function ActionCard({
       for (const step of steps) {
         let res: unknown;
         try {
-          res = await api(z.unknown(), String(fill(step.path, got)), {
+          res = await api(z.unknown(), fillPath(step.path, got), {
             csrf: session.csrf_token,
             body: fill(step.body, got),
             trace,
@@ -372,7 +378,10 @@ export function ActionCard({
       aria-label={`${LABEL[card.kind]} card`}
     >
       <p className="chat-meta">
-        {origin} · {STATE_TEXT[card.state]}
+        {origin} ·{' '}
+        {card.outcome?.code === 'needs_human' && card.state === 'done'
+          ? 'Held for a decision'
+          : STATE_TEXT[card.state]}
       </p>
       <h4 className="chat-card-title">{title}</h4>
       {error && (
@@ -439,7 +448,7 @@ export function ActionCard({
                 value: l.value,
                 ...(l.source ? { source: l.source } : {}),
               }))}
-              note="Nothing happens until you press Send. Each request goes through the form's own route, which checks it again exactly as for the form; this card cannot add permissions, money or approvals."
+              note="Nothing happens until you press Send. It makes only the requests listed below, through the form's own routes, which check them exactly as for the form."
             />
           )}
           {view.steps.length > 0 && <Requests steps={view.steps} />}
@@ -659,12 +668,15 @@ function Answered({
             <dt>{q.label}</dt>
             <dd>
               {label(q, v) || '—'}
-              {!Object.hasOwn(input, q.key) && (
-                <span className="source">
-                  {' '}
-                  · {q.source ?? 'studio default'}
-                </span>
-              )}{' '}
+              {/* Review N-2: name the source only when it adds something. */}
+              {!Object.hasOwn(input, q.key) &&
+                (q.source ?? 'studio default').toLowerCase() !==
+                  label(q, v).toLowerCase() && (
+                  <span className="source">
+                    {' '}
+                    · {q.source ?? 'studio default'}
+                  </span>
+                )}{' '}
               <button
                 type="button"
                 className="text"
@@ -700,8 +712,9 @@ function Requests({ steps }: { steps: Step[] }) {
         ))}
       </ol>
       <p className="small">
-        A value in braces, such as {'{run}'}, is filled in from the answer to an
-        earlier request of this card.
+        A whole value in braces, such as {'"{run}"'}, is filled in from the
+        answer to an earlier request of this card; {'"{time_spent_ms}"'} is the
+        time since this card was shown, measured when you press Send.
       </p>
     </details>
   );
@@ -718,6 +731,12 @@ function Finished({ card }: { card: ChatAction }) {
           {o.records.map((r) => (
             <li key={r.id}>
               {r.kind}: {r.label}
+              {r.in_trail === false && (
+                <span className="small">
+                  {' '}
+                  (reported by the page; no audit event names it)
+                </span>
+              )}
             </li>
           ))}
         </ul>

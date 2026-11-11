@@ -11,6 +11,7 @@ import {
 import { ConnectionStore, type CommandContext } from '@creator/db';
 import { createApi } from '@creator/api';
 import { freshDatabase, LOGIN_CODE, login } from './pg-harness.js';
+import { loadWeb } from './web-module.js';
 
 // ADR-0083 (P20): action cards in Chat. A card stores the answers and the records it was made
 // from; the person's browser sends it through the form's own routes, each request naming the
@@ -198,6 +199,8 @@ test('chat cards over HTTP: a send names its requests; done, unconfirmed and ref
   assert.equal(done.state, 'done');
   assert.ok(done.outcome.events >= 1, JSON.stringify(done.outcome));
   assert.equal(done.outcome.records[0].id, made.body.id);
+  // Review N-3: the store marks which reported records the trail confirms.
+  assert.equal(done.outcome.records[0].in_trail, true);
   // The audit trail shows who approved the step: the send event and the budget it caused.
   const events = await db.pool.query(
     `select action, actor_id, causation_id, correlation_id from audit_events
@@ -223,10 +226,15 @@ test('chat cards over HTTP: a send names its requests; done, unconfirmed and ref
     await call('POST', `${cards}/${c2.id}/send`, { expected_version: 1 })
   ).body;
   assert.ok(s2.causation_id);
-  const u = (await call('POST', `${cards}/${c2.id}/outcome`, { ok: true }))
-    .body;
+  const u = (
+    await call('POST', `${cards}/${c2.id}/outcome`, {
+      ok: true,
+      records: [{ id: randomUUID(), kind: 'budget', label: 'Made up' }],
+    })
+  ).body;
   assert.equal(u.state, 'unconfirmed');
   assert.equal(u.outcome.events, 0);
+  assert.equal(u.outcome.records[0].in_trail, false);
 
   // The form's route refuses: the card keeps its reason, and nothing was saved.
   const c3 = await make();
@@ -251,6 +259,130 @@ test('chat cards over HTTP: a send names its requests; done, unconfirmed and ref
   assert.equal(r3.outcome.events, 0);
   assert.equal(r3.reason, no.body.error.message);
 
+  // Review L-4: a card's step in a study run stays refused with the form's own code and words.
+  // The body is the discovery card's own last step, sent against a human-only run.
+  const m = (await loadWeb('chat-cards.ts')) as {
+    cardView: (
+      kind: string,
+      input: Record<string, unknown>,
+      data: unknown,
+      ctx: unknown,
+    ) => {
+      current: unknown;
+      steps: { label: string; path: string; body: unknown }[];
+    };
+    fill: (v: unknown, got: Record<string, unknown>) => unknown;
+    fillPath: (path: string, got: Record<string, unknown>) => string;
+  };
+  const runRecord = await call('POST', `workspaces/${ws}/entities`, {
+    kind: 'run',
+    title: 'Human-only arm',
+    body: {
+      state: 'queued',
+      experiment_condition: 'human_only',
+      discovery_method: 'structured',
+      config_hash: null,
+    },
+  });
+  assert.equal(runRecord.status, 201, JSON.stringify(runRecord.body));
+  const humanRun = await call('POST', `workspaces/${ws}/runs`, {
+    run: { id: runRecord.body.id, version: 1 },
+    autonomy_mode: 'human_only',
+    stage_gates: null,
+    initial_grants: [],
+    routine_policy: null,
+  });
+  assert.equal(humanRun.status, 201, JSON.stringify(humanRun.body));
+  const claimId = randomUUID();
+  const view = m.cardView(
+    'start_discovery',
+    {
+      _op: randomUUID(),
+      theme: 'rural clinic waits',
+      target_users: 'Rural patients',
+      measurable_problem: 'Median wait over 30 days',
+      outcome_measure: 'Median wait',
+      field_a: 'Clinic scheduling',
+      field_b: 'Airline overbooking',
+      claims: [claimId],
+      roles: ['problem'],
+      context: '',
+    },
+    {
+      claims: [{ id: claimId, version: 1, title: 'Waits are long' }],
+      route: {
+        kind: 'api',
+        envelope: randomUUID(),
+        pricing: randomUUID(),
+        label: 'fixture',
+      },
+      routeBlockers: [],
+    },
+    {
+      ws,
+      fixture: true,
+      advanced: false,
+      reviewer: 'Owner',
+      now: Date.now(),
+    },
+  );
+  assert.equal(view.current, null);
+  const startStep = view.steps.find((x) =>
+    x.label.startsWith('Start the discovery'),
+  )!;
+  const got = {
+    brief: randomUUID(),
+    brief_version: 1,
+    run: humanRun.body.run_id,
+  };
+  const studyCard = (
+    await call('POST', cards, {
+      client_id: randomUUID(),
+      kind: 'start_discovery',
+      input: {},
+    })
+  ).body;
+  const s5 = (
+    await call('POST', `${cards}/${studyCard.id}/send`, { expected_version: 1 })
+  ).body;
+  const viaCard = await call(
+    'POST',
+    m.fillPath(startStep.path, got),
+    m.fill(startStep.body, got),
+    { 'X-Causation-Id': s5.causation_id, 'X-Correlation-Id': studyCard.id },
+  );
+  const viaForm = await call(
+    'POST',
+    m.fillPath(startStep.path, got),
+    m.fill(startStep.body, got),
+  );
+  assert.equal(viaCard.status, 403);
+  assert.equal(viaCard.body.error.code, 'HUMAN_ONLY_DENIED');
+  assert.equal(
+    viaCard.body.error.message,
+    'This workflow is outside the assigned study context.',
+  );
+  assert.deepEqual(viaCard.body.error, viaForm.body.error);
+  const r5 = (
+    await call('POST', `${cards}/${studyCard.id}/outcome`, {
+      ok: false,
+      code: viaCard.body.error.code,
+      message: viaCard.body.error.message,
+    })
+  ).body;
+  // The refusal itself is recorded and names the send, so the card reads "Refused; part of it
+  // was recorded" with the form's words; no discovery started.
+  assert.equal(r5.state, 'partial');
+  assert.equal(r5.reason, viaCard.body.error.message);
+  const caused = await db.pool.query(
+    `select action from audit_events where workspace_id = $1 and causation_id = $2`,
+    [ws, s5.causation_id],
+  );
+  assert.deepEqual(
+    caused.rows.map((r) => r.action),
+    ['study.workflow_denied'],
+  );
+
   // Put away: a draft only.
   const c4 = await make();
   const gone = (
@@ -267,7 +399,7 @@ test('chat cards over HTTP: a send names its requests; done, unconfirmed and ref
   const detail = (await call('GET', `workspaces/${ws}/chats/${chat}`)).body;
   assert.deepEqual(
     detail.actions.map((a: { state: string }) => a.state),
-    ['done', 'unconfirmed', 'refused', 'dismissed'],
+    ['done', 'unconfirmed', 'refused', 'partial', 'dismissed'],
   );
   // Another workspace's address cannot reach a card.
   const other = (
@@ -345,6 +477,12 @@ test('chat cards in the store: roles, the sender alone reports, and a changed re
   await rejects(
     'ACCESS_DENIED',
     store.finishChatAction(owner, ws.id, chat.id, card.id, { ok: true }),
+  );
+  // Review N-4: the sender lost the editor role since Send, and can still record how it ended
+  // (otherwise the card would stay "sending" for good).
+  await db.pool.query(
+    `update workspace_members set role = 'viewer' where workspace_id = $1 and actor_id = $2`,
+    [ws.id, editor.actorId],
   );
   // The page lost track and nothing names the send: refused, nothing was saved.
   const lost = await store.finishChatAction(editor, ws.id, chat.id, card.id, {

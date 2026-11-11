@@ -4,7 +4,10 @@
 // what will happen. Nothing here sends anything; chat-card.tsx sends the plan after the
 // person presses Send, and every route checks it again exactly as for the form.
 
-import { WORKFLOW_WALL_MAX_SECONDS } from '@creator/contracts';
+import {
+  CHAT_ACTION_SUBJECTS_MAX,
+  WORKFLOW_WALL_MAX_SECONDS,
+} from '@creator/contracts';
 import { studioDefaults } from './discover-defaults.js';
 import { overridesFor, type CarryReport } from './carry-decisions.js';
 import {
@@ -300,6 +303,14 @@ export function cardView(
     missing.length === 0
       ? spec.plan(values, input, data, ctx)
       : { steps: [], blockers: [] };
+  const subjects = spec.subjects(values, data);
+  // Review N-5: a card keeps at most this many records to re-check before sending.
+  const tooMany =
+    subjects.length > CHAT_ACTION_SUBJECTS_MAX
+      ? [
+          `This card can check at most ${CHAT_ACTION_SUBJECTS_MAX} records before sending, and it names ${subjects.length}. Choose fewer, or use the form.`,
+        ]
+      : [];
   return {
     questions,
     values,
@@ -307,10 +318,14 @@ export function cardView(
     missing,
     steps: planned.steps,
     blockers: [
-      ...new Set([...spec.blockers(values, data, ctx), ...planned.blockers]),
+      ...new Set([
+        ...spec.blockers(values, data, ctx),
+        ...planned.blockers,
+        ...tooMany,
+      ]),
     ],
     happen: spec.happen(values, data, ctx, questions),
-    subjects: spec.subjects(values, data),
+    subjects: tooMany.length ? [] : subjects,
     title: spec.title(values, data),
   };
 }
@@ -488,16 +503,25 @@ const fetchSource: Spec<FetchData> = {
           ? input.hint_url
           : (d.pages[0] ?? ''),
     },
+    // Review M-1: a default never adds a grant. With a run that can already fetch, the
+    // newest one is the routine choice; a new run and its fetch grant are always asked.
     {
       key: 'run',
       label: 'Run',
-      prompt: 'Which run fetches it?',
+      prompt: d.runs.length
+        ? 'Which run fetches it?'
+        : 'No run can fetch pages yet. Register a new evidence-gathering run for this?',
+      help: d.runs.length
+        ? undefined
+        : 'Like “Register a run for fetching” under Sources: it gets a grant to fetch public pages for 24 hours, nothing else.',
       type: 'choice',
-      routine: true,
-      source: d.runs.length
-        ? 'newest run allowed to fetch'
-        : 'a new evidence-gathering run',
-      fallback: d.runs[0]?.id ?? 'new',
+      ...(d.runs.length
+        ? {
+            routine: true,
+            source: 'newest run allowed to fetch',
+            fallback: d.runs[0]!.id,
+          }
+        : {}),
       choices: [
         ...d.runs.map((r) => ({ value: r.id, label: r.label })),
         {
@@ -1200,10 +1224,9 @@ const answer: Spec<DecisionData> = {
         ]
       : [];
   },
-  plan: (v, input, d, ctx) => {
+  plan: (v, _input, d, ctx) => {
     const pick = d.decisions.find((x) => x.id === str(v.decision));
     if (!pick) return { steps: [], blockers: [] };
-    const opened = typeof input._opened === 'number' ? input._opened : ctx.now;
     return {
       steps: [
         {
@@ -1215,7 +1238,9 @@ const answer: Spec<DecisionData> = {
             rationale: str(v.rationale),
             coverage_hash: pick.coverage_hash,
             standing_expires_at: null,
-            time_spent_ms: Math.max(0, Math.min(86_400_000, ctx.now - opened)),
+            // Review L-2: measured by the page when Send is pressed, from when this card
+            // was shown on it, to the millisecond, as the Approvals form measures it.
+            time_spent_ms: '{time_spent_ms}',
             interruption: null,
           },
         },
@@ -1851,14 +1876,14 @@ const SPECS: Record<CardKind, Spec<never>> = {
 // ---- Sending ----------------------------------------------------------------------------
 
 const PLACEHOLDER = /^\{([a-z_]+)\}$/;
-/** Fills `{name}` from earlier responses: a whole-string placeholder takes the raw value. */
+/**
+ * Fills a whole-string `{name}` in a request body with the raw value from an earlier response.
+ * Review N-1: braces inside text the person typed (a quote, a reason) are left as written.
+ */
 export function fill(v: unknown, got: Record<string, unknown>): unknown {
   if (typeof v === 'string') {
     const whole = PLACEHOLDER.exec(v);
-    if (whole && Object.hasOwn(got, whole[1]!)) return got[whole[1]!];
-    return v.replace(/\{([a-z_]+)\}/g, (m, k: string) =>
-      Object.hasOwn(got, k) ? String(got[k]) : m,
-    );
+    return whole && Object.hasOwn(got, whole[1]!) ? got[whole[1]!] : v;
   }
   if (Array.isArray(v)) return v.map((x) => fill(x, got));
   if (v && typeof v === 'object')
@@ -1867,6 +1892,18 @@ export function fill(v: unknown, got: Record<string, unknown>): unknown {
     );
   return v;
 }
+
+/** Fills `{name}` segments of a route path (ids from earlier responses). */
+export const fillPath = (path: string, got: Record<string, unknown>) =>
+  path
+    .split('/')
+    .map((seg) => {
+      const whole = PLACEHOLDER.exec(seg);
+      return whole && Object.hasOwn(got, whole[1]!)
+        ? encodeURIComponent(String(got[whole[1]!]))
+        : seg;
+    })
+    .join('/');
 
 /** A dotted field of a response. */
 export function pick(v: unknown, path: string): unknown {

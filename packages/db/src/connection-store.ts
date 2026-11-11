@@ -925,17 +925,45 @@ export class ConnectionStore extends PortfolioStore {
         );
         if (!m.rows.length) throw fail('NOT_FOUND', 'Message not found.');
       }
+      // Review L-5: a card sent again keeps where it came from.
+      let origin: ChatAction['origin'] = 'studio';
+      let answerId: string | null = null;
+      if (req.again_of) {
+        const src = (
+          await c.query(
+            'select * from chat_actions where conversation_id = $1 and id = $2',
+            [conversation.id, uuid(req.again_of)],
+          )
+        ).rows[0] as Row | undefined;
+        if (!src)
+          throw fail('NOT_FOUND', 'The card to send again was not found.');
+        const was = toChatAction(src);
+        if (
+          was.kind !== req.kind ||
+          was.state === 'draft' ||
+          was.state === 'sending'
+        )
+          throw fail(
+            'INVALID_CONTRACT',
+            'Only a finished card of the same kind can be sent again.',
+          );
+        origin = was.origin;
+        answerId = was.answer_id;
+      }
       const id = randomUUID();
       const { rows } = await c.query(
         `insert into chat_actions (id, workspace_id, conversation_id, client_id, message_id,
-           origin, kind, input, subjects, state, version, created_by)
-         values ($1, $2, $3, $4, $5, 'studio', $6, $7, $8, 'draft', 1, $9) returning *`,
+           answer_id, again_of, origin, kind, input, subjects, state, version, created_by)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'draft', 1, $12) returning *`,
         [
           id,
           uuid(ws),
           conversation.id,
           req.client_id,
           req.message_id ? uuid(req.message_id) : null,
+          answerId,
+          req.again_of ? uuid(req.again_of) : null,
+          origin,
           req.kind,
           JSON.stringify(req.input),
           JSON.stringify(req.subjects),
@@ -949,7 +977,13 @@ export class ConnectionStore extends PortfolioStore {
         subjectId: conversation.id,
         subjectVersion: null,
         contentHash: canonicalHash({ kind: req.kind, input: req.input }),
-        payload: { action_id: id, kind: req.kind, origin: 'studio' },
+        payload: {
+          action_id: id,
+          kind: req.kind,
+          origin,
+          answer_id: answerId,
+          again_of: req.again_of,
+        },
       });
       return toChatAction(rows[0] as Row);
     });
@@ -1054,6 +1088,7 @@ export class ConnectionStore extends PortfolioStore {
             kind: card.kind,
             origin: card.origin,
             answer_id: card.answer_id,
+            again_of: card.again_of,
             subjects: card.subjects.map((s) => ({
               kind: s.kind,
               id: s.id,
@@ -1097,7 +1132,9 @@ export class ConnectionStore extends PortfolioStore {
     const ctx = normalize(ctxIn);
     const req = parse(ChatActionOutcomeRequestSchema, raw);
     return this.tx(async (c) => {
-      await this.role(c, uuid(ws), ctx.actorId, true);
+      // Review N-4: a sender who lost the editor role since Send can still record how the send
+      // ended (only the sender may, below); otherwise the card would stay "sending" for good.
+      await this.role(c, uuid(ws), ctx.actorId, false);
       await chatConversation(c, uuid(ws), uuid(conversationId), true);
       const card = await chatAction(
         c,
@@ -1111,12 +1148,18 @@ export class ConnectionStore extends PortfolioStore {
           'ACCESS_DENIED',
           'Only the person who sent this card records how it ended.',
         );
-      const events = await chatActionEvents(
+      const trail = await chatActionEvents(
         c,
         uuid(ws),
         card.sent_event_id!,
         ctx.actorId,
       );
+      const events = trail.count;
+      // Review N-3: the records come from the browser; mark which ones the trail confirms.
+      const records = req.records.map((x) => ({
+        ...x,
+        in_trail: trail.subjects.has(x.id),
+      }));
       const state =
         req.ok === true
           ? events > 0
@@ -1138,7 +1181,7 @@ export class ConnectionStore extends PortfolioStore {
       const outcome = {
         code: req.code,
         message: req.message,
-        records: req.records,
+        records,
         events,
       };
       const { rows } = await c.query(
@@ -1165,7 +1208,11 @@ export class ConnectionStore extends PortfolioStore {
           state,
           code: req.code,
           events,
-          records: req.records.map((x) => ({ id: x.id, kind: x.kind })),
+          records: records.map((x) => ({
+            id: x.id,
+            kind: x.kind,
+            in_trail: x.in_trail,
+          })),
         },
       });
       return toChatAction(rows[0] as Row);

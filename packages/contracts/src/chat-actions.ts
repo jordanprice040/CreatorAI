@@ -62,6 +62,9 @@ export const ChatActionSubjectSchema = z.strictObject({
 });
 export type ChatActionSubject = z.infer<typeof ChatActionSubjectSchema>;
 export const CHAT_ACTION_SUBJECTS_MAX = 40;
+const TOO_MANY_SUBJECTS = {
+  message: `A card checks at most ${CHAT_ACTION_SUBJECTS_MAX} records before sending; choose fewer, or use the form.`,
+};
 
 export const ChatActionStateSchema = z.enum([
   /** Being filled in (guided questions) or ready to send. */
@@ -102,6 +105,11 @@ export const ChatActionOutcomeSchema = z.strictObject({
         id,
         kind: z.string().max(40),
         label: z.string().max(200),
+        /**
+         * Review N-3: set by the store, never taken from the browser. True when a caused audit
+         * event names this record as its subject.
+         */
+        in_trail: z.boolean().optional(),
       }),
     )
     .max(20),
@@ -118,6 +126,8 @@ export const ChatActionSchema = z.strictObject({
   message_id: id.nullable(),
   /** The model answer that suggested it, for origin `model`. */
   answer_id: id.nullable(),
+  /** The card this one sends again with the same answers; it keeps that card's origin. */
+  again_of: id.nullable(),
   origin: ChatActionOriginSchema,
   kind: ChatActionKindSchema,
   input: ChatActionInputSchema,
@@ -142,16 +152,23 @@ export const ChatActionCreateRequestSchema = z.strictObject({
   client_id: id,
   kind: ChatActionKindSchema,
   message_id: id.nullable().default(null),
+  /**
+   * Review L-5: the finished card this one sends again. Its origin and model answer carry
+   * over (the client can never set origin `model` itself).
+   */
+  again_of: id.nullable().default(null),
   input: ChatActionInputSchema.default({}),
   subjects: z
     .array(ChatActionSubjectSchema)
-    .max(CHAT_ACTION_SUBJECTS_MAX)
+    .max(CHAT_ACTION_SUBJECTS_MAX, TOO_MANY_SUBJECTS)
     .default([]),
 });
 export const ChatActionUpdateRequestSchema = z.strictObject({
   expected_version: z.number().int().min(1),
   input: ChatActionInputSchema,
-  subjects: z.array(ChatActionSubjectSchema).max(CHAT_ACTION_SUBJECTS_MAX),
+  subjects: z
+    .array(ChatActionSubjectSchema)
+    .max(CHAT_ACTION_SUBJECTS_MAX, TOO_MANY_SUBJECTS),
 });
 export const ChatActionVersionRequestSchema = z.strictObject({
   expected_version: z.number().int().min(1),
