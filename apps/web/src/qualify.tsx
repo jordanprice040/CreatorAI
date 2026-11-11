@@ -287,7 +287,13 @@ export function QualifyModel({
       {running.map((q) => {
         // The bundled benchmark of this task class, if there is one: a qualification started
         // elsewhere may use another manifest, so the count is an upper bound only (L-2).
-        const b = BENCHMARKS.find((x) => x.task_class === q.task_class);
+        // Review 5 N-2: of the same kind too (web discovery or not), since both are research
+        // synthesis.
+        const b = BENCHMARKS.find(
+          (x) =>
+            x.task_class === q.task_class &&
+            x.web === (q.admits_web_discovery === true),
+        );
         const n = b ? b.development + b.held_out : null;
         return (
           <div key={q.id} className="qualify-row" role="group">

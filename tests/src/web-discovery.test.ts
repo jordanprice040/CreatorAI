@@ -179,6 +179,19 @@ test('only URLs the provider search listed are fetched; exclusions, repeats and 
     scope(),
   );
   assert.equal(lone.ok && lone.summary, 'Half \uFFFD of an emoji.');
+  // Review 5 N-1: a lead the search never listed is stored as written, so it is made well
+  // formed too.
+  const named = checkScoutOutput(
+    {
+      summary: 'Searched.',
+      leads: [lead('https://invented.org/\ud83d'), lead('not a url \ud83d')],
+    },
+    [call(['https://a.org/1'])],
+    scope(),
+  );
+  assert.ok(named.ok);
+  for (const l of named.ok ? named.leads : [])
+    assert.ok(!/[\uD800-\uDFFF]/.test(l.url + l.url_key), l.url);
   // Review 4 N-D: the reading answer's stored text is made well formed too.
   const read = ReaderOutputSchema.parse({
     claims: [

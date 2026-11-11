@@ -112,7 +112,8 @@ export const ScoutOutputSchema = z.strictObject({
   leads: z
     .array(
       z.strictObject({
-        url: z.string().trim().min(1).max(2000),
+        // Review 5 N-1: a URL the search never listed is stored as the model wrote it.
+        url: modelText(1, 2000),
         title: clipped(300),
         why: clipped(300),
         query: clipped(300).nullable(),
