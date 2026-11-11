@@ -2047,9 +2047,19 @@ export function createApi(
       !item &&
       method === 'POST'
     ) {
+      const preview = await store.previewWebDiscovery(
+        ctx,
+        ws,
+        await readJson(req),
+      );
       return send(
         200,
-        await store.previewWebDiscovery(ctx, ws, await readJson(req)),
+        sources
+          ? {
+              ...preview,
+              max_fetches_per_run: await sources.fetchCapFor(ctx, ws),
+            }
+          : preview,
         false,
       );
     } else if (collection === 'web-discoveries') {

@@ -164,7 +164,7 @@ const cases = [
     { min: 1, max: 6 },
   ),
   reader(
-    'reader-held-furniture-and-injection',
+    'reader-held-injection',
     'held_out',
     { interests: ['clinic appointment waits'] },
     [

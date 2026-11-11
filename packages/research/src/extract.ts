@@ -56,19 +56,28 @@ const BLOCK = new Set([
 ]);
 // Site chrome: text inside these is navigation, sign-in, sharing or forms, not page text
 // (walkthrough item 15, ADR-0086). It is still stored, flagged, and after the page text.
+// `form` is left out: some sites wrap the whole page in one (PR #173 review M-1).
 const CHROME = new Set([
   'nav',
   'header',
   'footer',
   'aside',
-  'form',
   'button',
   'menu',
   'dialog',
 ]);
 // Short interface labels that sit inside article text on documentation and news sites.
 const UI_LABEL =
-  /^(copy( markdown)?|print|share|feedback|note|tip|important|warning|caution|edit|edit this page|sign in|sign up|log in|subscribe|menu|search|skip to (main )?content|table of contents|in this article|contents|was this (page|article) helpful\??|yes|no|accept( all)?( cookies)?|reject( all)?|cookie (settings|preferences)|read (more|next)|previous|next|back to top|related (articles|content|links)|additional resources|theme|summarize this article( for me)?|ask learn)(\s+(copy( markdown)?|print|share|feedback|edit))*$/i;
+  /^(copy( markdown)?|print|share|feedback|note|tip|important|warning|caution|edit|edit this page|sign in|sign up|log in|subscribe|menu|search|skip to (main )?content|table of contents|in this article|contents|was this (page|article) helpful\??|yes|no|accept( all)?( cookies)?|reject( all)?|cookie (settings|preferences)|read (more|next)|previous|next|back to top|related (articles|content|links)|additional resources|theme|summarize this article( for me)?|ask learn|read in english)(\s+(copy( markdown)?|print|share|feedback|edit))*$/i;
+/** Notices a page hides until a condition holds (sign-in walls, alerts), PR #173 review N-4. */
+const hiddenNotice = (attrs: Record<string, string>) =>
+  'hidden' in attrs ||
+  attrs['aria-hidden'] === 'true' ||
+  attrs.role === 'alert' ||
+  attrs.role === 'navigation' ||
+  attrs.role === 'banner' ||
+  attrs.role === 'contentinfo';
+const words = (s: string) => s.split(/\s+/).filter(Boolean).length;
 /** True for paragraph text that is page furniture rather than content. */
 export function looksLikeFurniture(text: string): boolean {
   return (
@@ -140,6 +149,8 @@ export function extractDocument(
     let inTitle = false;
     let titleText = '';
     let mainDepth = 0;
+    /** One entry per open element: whether it starts site chrome. */
+    const chromeStack: boolean[] = [];
     let chromeDepth = 0;
     let buf = '';
     const flush = () => {
@@ -168,7 +179,10 @@ export function extractDocument(
             mainDepth += 1;
             hasMain = true;
           } else if (BLOCK.has(name) || CHROME.has(name)) flush();
-          if (CHROME.has(name)) chromeDepth += 1;
+          const chrome = CHROME.has(name) || hiddenNotice(attrs);
+          if (chrome && !CHROME.has(name) && !BLOCK.has(name)) flush();
+          chromeStack.push(chrome);
+          if (chrome) chromeDepth += 1;
         },
         ontext(text) {
           if (skip > 0) return;
@@ -181,8 +195,9 @@ export function extractDocument(
             inTitle = false;
             title = squash(titleText) || null;
           }
-          if (BLOCK.has(name) || CHROME.has(name)) flush();
-          if (CHROME.has(name)) chromeDepth = Math.max(0, chromeDepth - 1);
+          const chrome = chromeStack.pop() ?? false;
+          if (BLOCK.has(name) || CHROME.has(name) || chrome) flush();
+          if (chrome) chromeDepth = Math.max(0, chromeDepth - 1);
           if (name === 'article' || name === 'main')
             mainDepth = Math.max(0, mainDepth - 1);
         },
@@ -193,6 +208,18 @@ export function extractDocument(
     parser.end();
     flush();
   }
+  // PR #173 review M-1: a marked article or main region is trusted only when it holds most of
+  // the page's text. Many pages mark only a teaser or a "related" card while the real text
+  // sits in a plain container; then nothing is folded for being outside the marked region.
+  // Likewise site chrome is trusted only when real text remains outside it.
+  const open = blocks.filter((b) => !b.chrome);
+  const total = open.reduce((n, b) => n + words(b.text), 0);
+  const inMain = open
+    .filter((b) => b.main)
+    .reduce((n, b) => n + words(b.text), 0);
+  const trustMain = hasMain && inMain * 2 >= total;
+  const all = blocks.reduce((n, b) => n + words(b.text), 0);
+  const trustChrome = total >= 40 || total * 2 >= all;
   const paragraphs: ExtractedDocument['paragraphs'] = [];
   let offset = 0;
   for (const b of blocks) {
@@ -202,7 +229,9 @@ export function extractDocument(
       end: offset + b.text.length,
       // Outside the marked article, inside site chrome, or an interface label.
       boilerplate:
-        (hasMain && !b.main) || b.chrome || looksLikeFurniture(b.text),
+        (trustMain && !b.main) ||
+        (trustChrome && b.chrome) ||
+        looksLikeFurniture(b.text),
     });
     offset += b.text.length + 2;
   }

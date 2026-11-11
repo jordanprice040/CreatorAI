@@ -66,7 +66,7 @@ const QUALITY: Record<string, string> = {
   not_fetched: 'Not fetched',
 };
 const CHECK: Record<WebClaimProposal['check'], string> = {
-  verified: 'Quote checked',
+  verified: 'Quote found on the page',
   unverified: 'Quote not found on the page',
   excluded: 'Excluded topic',
   duplicate: 'Already in the studio',
@@ -180,6 +180,7 @@ export function WebDiscover({
     return () => clearTimeout(t);
   }, [scopeKey, workspace.id]);
   const current = preview?.key === scopeKey ? preview : null;
+  const cap = current?.data?.max_fetches_per_run;
 
   const live = c?.discoveries.some((d) => WORKING.has(d.state));
   const blockers = [
@@ -204,9 +205,14 @@ export function WebDiscover({
           `${model} is not qualified for web discovery (the web-discovery-v1 benchmark). Qualify it under Models and connections first.`,
         ]
       : []),
+    ...(current?.data?.max_fetches_per_run === null
+      ? [
+          'No evidence websites are approved for this workspace, so no page could be fetched. Add them in Settings.',
+        ]
+      : []),
     ...(live
       ? [
-          'A web discovery is still working; one runs at a time in each run, so wait for it or cancel it.',
+          'A web discovery is still working; one runs at a time in a workspace, so wait for it or cancel it.',
         ]
       : []),
   ];
@@ -444,9 +450,21 @@ export function WebDiscover({
                         ` The search is told not to use ${current.data.blocked_domains.join(', ')}.`}
                     </p>
                     <pre className="small">{current.data.input}</pre>
+                    <p className="small">
+                      What you type above (interests, groups, question and
+                      topics to leave out) goes to the provider and its web
+                      search as public data.
+                    </p>
                   </>
                 )}
               </details>
+              {typeof cap === 'number' && cap < maxFetches && (
+                <p className="notice small">
+                  Your evidence-site rules allow {cap} page fetch
+                  {cap === 1 ? '' : 'es'} per run, so at most {cap} of the{' '}
+                  {maxFetches} chosen pages will be fetched.
+                </p>
+              )}
               {blockers.length > 0 && (
                 <ul className="error small">
                   {blockers.map((b) => (
@@ -654,9 +672,16 @@ function Discovery({
           <ul className="small">
             {d.leads.map((l) => (
               <li key={l.ordinal}>
-                <a href={l.url} target="_blank" rel="noreferrer noopener">
-                  {l.title || l.host}
-                </a>{' '}
+                {/* PR #173 review L-2: only pages the search reported are links. */}
+                {l.origin === 'search_source' && /^https?:\/\//i.test(l.url) ? (
+                  <a href={l.url} target="_blank" rel="noreferrer noopener">
+                    {l.title || l.host}
+                  </a>
+                ) : (
+                  <span>
+                    {l.title || l.host} ({l.url})
+                  </span>
+                )}{' '}
                 · {l.host} · {DISPOSITION[l.disposition]}
                 {l.quality && ` · ${QUALITY[l.quality] ?? l.quality}`}
                 {(l.reason || l.quality_note) && (

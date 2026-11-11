@@ -24,6 +24,7 @@ import {
   normalizeUrl,
   pageQuality,
   scoutInputHash,
+  webQuoteLongEnough,
 } from '@creator/domain';
 import { ConnectionStore } from '@creator/db';
 import { MemoryVault, PlanConnectionService } from '@creator/broker';
@@ -94,7 +95,7 @@ test('only URLs the provider search listed are fetched; exclusions, repeats and 
         lead('https://a.org/2'),
         lead('https://a.org/3'),
         lead('https://invented.org/page'),
-        lead('https://b.org/1'),
+        lead('https://www.b.org:443/1/?utm_source=x-anything&ref=abc#frag'),
         lead('https://www.reddit.com/r/x'),
         lead('https://x.blocked.org/p'),
         lead('https://c.org/crypto', 'Crypto wallets'),
@@ -128,6 +129,9 @@ test('only URLs the provider search listed are fetched; exclusions, repeats and 
       ['invalid_url', 'model_suggested'],
     ],
   );
+  // PR #173 review L-1: fetched at the URL the search reported, not the model's spelling.
+  assert.equal(r.leads[4]!.url, 'https://b.org/1?utm_medium=x');
+  assert.equal(r.leads[3]!.url, 'https://invented.org/page');
   const none = checkScoutOutput(
     { summary: 'From memory.', leads: [lead('https://a.org/1')] },
     [],
@@ -190,6 +194,53 @@ test('page furniture is flagged and stored after the page text (walkthrough item
       doc.paragraphs.some((p) => p.boilerplate && p.text.includes(t)),
       t,
     );
+  // PR #173 review M-1: a page marking only a teaser card as <article> keeps its real text.
+  const real = Array.from(
+    { length: 6 },
+    (_, i) =>
+      `<p>Paragraph ${i + 1}: volunteer coordinators describe rebuilding the weekly rota by hand whenever two people swap shifts at short notice.</p>`,
+  ).join('');
+  const teaser = extractDocument(
+    Buffer.from(
+      `<html><body><div id="content"><h1>Why our shift scheduling keeps breaking</h1>${real}</div>
+       <div class="related"><article><h3>Ten tips</h3><p>Read more</p></article></div></body></html>`,
+    ),
+    'text/html',
+    new URL('https://blog.example.org/rota'),
+  );
+  const kept = teaser.paragraphs.filter((p) => !p.boilerplate);
+  assert.equal(kept.length, 8); // heading, six paragraphs, the teaser title
+  assert.equal(
+    pageQuality(
+      teaser.paragraphs.map((p) => ({
+        excerpt: p.text,
+        boilerplate: p.boilerplate ?? false,
+      })),
+    ).quality,
+    'usable',
+  );
+  // A page wrapped in one <form> (some site frameworks) is not all furniture.
+  const wrapped = extractDocument(
+    Buffer.from(`<html><body><form>${real}</form></body></html>`),
+    'text/html',
+    new URL('https://old.example.org/p'),
+  );
+  assert.ok(wrapped.paragraphs.every((p) => !p.boilerplate));
+  // N-4: hidden sign-in notices, alert boxes and "Read in English" are furniture.
+  const notices = extractDocument(
+    Buffer.from(
+      `<html><body><main><div hidden><p>Access to this page requires authorization. You can try signing in.</p></div>
+       <div role="alert"><p>Access to this page requires authorization.</p></div><p>Read in English</p>${real}</main></body></html>`,
+    ),
+    'text/html',
+    new URL('https://learn.example.com/b'),
+  );
+  assert.ok(
+    notices.paragraphs
+      .filter((p) => /Access to this page|Read in English/.test(p.text))
+      .every((p) => p.boilerplate),
+  );
+  assert.equal(notices.paragraphs.filter((p) => !p.boilerplate).length, 6);
   // Offsets and the text hash still cover every paragraph, furniture included.
   assert.equal(
     doc.paragraphs.at(-1)!.end,
@@ -271,7 +322,7 @@ test('a proposed claim counts only with a supporting quote found word for word',
           {
             ref: 'S2.P1',
             stance: 'contradicts',
-            quote: 'no change in waits',
+            quote: 'saw no change in waits at all',
           },
         ]),
         claim('Waits doubled.', [
@@ -293,10 +344,14 @@ test('a proposed claim counts only with a supporting quote found word for word',
         claim('Already recorded claim.', [
           { ref: 'S1.P1', stance: 'supports', quote: 'median wait of 41 days' },
         ]),
+        // PR #173 review M-2: found on the page but too short to support anything.
+        claim('90% of clinics have a 90-day wait.', [
+          { ref: 'S1.P1', stance: 'supports', quote: 'median wait of 41' },
+        ]),
       ],
       not_covered: ['Why waits changed.'],
     },
-    { ...packet, max_claims: 6 },
+    { ...packet, max_claims: 7 },
     s,
     ['  already RECORDED claim '],
   );
@@ -311,8 +366,13 @@ test('a proposed claim counts only with a supporting quote found word for word',
       'duplicate',
       'excluded',
       'duplicate',
+      'unverified',
     ],
   );
+  assert.equal(r.proposals[6]!.evidence[0]!.verified, false);
+  assert.match(r.proposals[6]!.reasons.join(' '), /too short/);
+  assert.equal(webQuoteLongEnough('median wait of 41 days in 2025'), true);
+  assert.equal(webQuoteLongEnough('problems'), false);
   assert.equal(r.proposals[0]!.supporting_sources, 1);
   assert.equal(r.proposals[0]!.contradicting_sources, 1);
   assert.equal(r.proposals[2]!.evidence[0]!.passage_id, null);
@@ -577,6 +637,20 @@ async function setup(t: test.TestContext) {
                   },
                 ],
               },
+              {
+                title: 'Rural clinics need more first appointments',
+                statement:
+                  'Rural clinics need more first-appointment capacity than they have.',
+                basis: 'inference',
+                uncertainty: 'Drawn from waits alone.',
+                evidence: [
+                  {
+                    ref: p1.ref,
+                    stance: 'supports',
+                    quote: p1.text.slice(0, 70),
+                  },
+                ],
+              },
             ],
             not_covered: ['Why waits changed.'],
           }) +
@@ -753,6 +827,12 @@ test('web discovery needs its own qualification; the locator-style one does not 
   await h.qualify(stale);
   const again = await h.start(await h.run());
   assert.equal(again.state, 'failed');
+  // N-1: nor one whose case input is not the stage's input for its own scope or packet.
+  const swapped = structuredClone(h.manifest);
+  swapped.cases[0].input[1].text = swapped.cases[1].input[1].text;
+  await h.qualify(swapped);
+  const third = await h.start(await h.run());
+  assert.equal(third.state, 'failed');
   assert.equal(h.bodies.length, before);
 });
 
@@ -811,7 +891,7 @@ test('search, guarded fetch, reading and the quote check run end to end on a bar
   assert.ok(!sent.includes('Synthetic fixture page for Creator Agent tests.'));
   assert.deepEqual(
     d.proposals.map((p) => p.check),
-    ['verified', 'unverified'],
+    ['verified', 'unverified', 'verified'],
   );
   assert.ok(d.proposals.every((p) => p.decision === 'pending'));
   // The owner adds the verified claim: one claim, its quotes as support, evidence current.
@@ -852,6 +932,21 @@ test('search, guarded fetch, reading and the quote check run end to end on a bar
   assert.equal(dismissed.proposals[1]!.decision, 'dismissed');
   const list = await h.store.listWebDiscoveries(owner, h.ws.id);
   assert.equal(list[0]!.admitted, 1);
+  // PR #173 review L-5: what a discovery started with and each decision are kept as recorded.
+  for (const sql of [
+    `update web_discoveries set scope = '{}'::jsonb, version = version + 1 where id = $1`,
+    `update web_discoveries set leads = '[]'::jsonb, version = version + 1 where id = $1`,
+    `update web_discoveries set state = 'failed', version = version + 1 where id = $1`,
+    `delete from web_discoveries where id = $1`,
+    `update web_discovery_claims set decision = 'pending', decided_at = null, decided_by = null,
+       decision_reason = null where discovery_id = $1 and decision = 'dismissed'`,
+    `update web_discovery_claims set proposal = '{}'::jsonb where discovery_id = $1`,
+  ])
+    await assert.rejects(
+      h.db.pool.query(sql, [d.id]),
+      (e: unknown) => (e as { code?: string }).code === 'P0001',
+      sql,
+    );
 });
 
 test('each request and fetch is covered once, only for this discovery and its chosen pages', async (t) => {
@@ -988,16 +1083,28 @@ test('a routine policy with the evidence stage adds checked claims; without it t
   assert.equal(a.proposals[0]!.decision, 'admitted');
   assert.equal(a.proposals[0]!.admitted_via, 'routine_policy');
   assert.equal(a.proposals[1]!.decision, 'pending', 'unverified stays');
-  const without = await h.run();
+  // PR #173 review M-2: an inference waits for the owner even under the policy.
+  assert.equal(a.proposals[2]!.check, 'verified');
+  assert.equal(a.proposals[2]!.decision, 'pending');
+  // L-3: what the policy did and why the rest waits is said on the discovery.
+  assert.match(a.explanation, /routine policy added 1 checked claim/);
+  assert.match(a.explanation, /Inferences always wait for you/);
+  // A fresh workspace, so the same fixture pages are not already sources there.
+  const h2 = await setup(t);
+  if (!h2) return;
+  await h2.qualify();
+  const without = await h2.run();
   const q = policy(['research', 'model_work']);
-  await h.store.setRoutinePolicy(owner, h.ws.id, without, {
+  await h2.store.setRoutinePolicy(owner, h2.ws.id, without, {
     ...q,
     summary_seen: routinePolicySummary(q),
   });
-  const b = await h.start(without);
+  const b = await h2.start(without);
+  assert.equal(b.proposals.length, 3);
   assert.ok(b.proposals.every((x) => x.decision === 'pending'));
+  assert.match(b.explanation, /2 checked claims wait for you/);
   assert.equal(
-    (await h.store.listDecisions(owner, h.ws.id, { runId: without })).length,
+    (await h2.store.listDecisions(owner, h2.ws.id, { runId: without })).length,
     0,
     'a claim the policy does not cover raises no decision',
   );

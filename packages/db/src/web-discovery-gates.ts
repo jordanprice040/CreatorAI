@@ -115,10 +115,11 @@ export async function webDiscoveryFetchRefusal(
       [ws, runId],
     )
   ).rows[0] as Record<string, unknown> | undefined;
-  if (!run || run.state !== 'active')
+  // PR #173 review N-8: the same run rule as the request gate.
+  if (RUN_CLOSED(run))
     return {
       code: 'run_cancelled',
-      text: 'The run was cancelled; cancellation overrides any approval.',
+      text: 'The run is cancelled or human-only; cancellation overrides any approval.',
     };
   const d = (
     await c.query(

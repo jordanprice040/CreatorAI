@@ -22,6 +22,7 @@ import {
   canonicalHash,
   scoutInput,
   scoutInputHash,
+  webQuoteLongEnough,
   type CheckedProposal,
 } from '@creator/domain';
 import { PortfolioStore } from './portfolio-store.js';
@@ -254,7 +255,7 @@ export class WebDiscoveryStore extends PortfolioStore {
       if (isPgError(e, '23505', 'web_discoveries_one_live'))
         throw fail(
           'INVALID_TRANSITION',
-          'This run already has a web discovery working. Wait for it or cancel it first.',
+          'A web discovery is already working in this workspace. Wait for it or cancel it first.',
         );
       throw e;
     }
@@ -497,6 +498,11 @@ export class WebDiscoveryStore extends PortfolioStore {
   }
 
   /** Existing claim statements and source URLs, for duplicate checks. */
+  /**
+   * What duplicate checks compare against: the newest 5000 active claims and 20000 source
+   * URLs. Past those the checks are best effort (PR #173 review N-3); the owner still sees
+   * every proposal before it is added.
+   */
   async webDiscoveryKnown(
     ctxIn: CommandContext,
     wsIn: string,
@@ -508,7 +514,7 @@ export class WebDiscoveryStore extends PortfolioStore {
       const statements = (
         await c.query<{ s: string }>(
           `select body->>'statement' as s from entities where workspace_id = $1
-             and kind = 'claim' and status = 'active' order by updated_at desc limit 500`,
+             and kind = 'claim' and status = 'active' order by updated_at desc limit 5000`,
           [ws],
         )
       ).rows
@@ -517,7 +523,8 @@ export class WebDiscoveryStore extends PortfolioStore {
       const urls = (
         await c.query<{ u: string }>(
           `select e.body->>'url' as u from research_sources rs join entities e
-             on e.id = rs.source_id where rs.workspace_id = $1 limit 2000`,
+             on e.id = rs.source_id where rs.workspace_id = $1
+             order by e.updated_at desc limit 20000`,
           [ws],
         )
       ).rows
@@ -628,7 +635,14 @@ export class WebDiscoveryStore extends PortfolioStore {
       ).rows as Row[];
       let admitted = 0;
       let note: string | null = null;
-      for (const r of pending) {
+      // PR #173 review M-2: only observations (a quote that states the claim) are added
+      // unattended; an inference from the quotes always waits for the owner.
+      const observations = pending.filter(
+        (r) => (r.proposal as CheckedProposal).basis === 'observation',
+      );
+      const inferences = pending.length - observations.length;
+      const skipped: string[] = [];
+      for (const r of observations) {
         const action = {
           action_type: 'claim.admit' as const,
           task_id: null,
@@ -653,23 +667,53 @@ export class WebDiscoveryStore extends PortfolioStore {
           note = dry.explanation;
           break;
         }
-        const admission = await this.admitIn(c, ctx, ws, runId, action);
-        if (admission.verdict !== 'allow') {
-          note = admission.explanation;
-          break;
+        // PR #173 review L-3: each claim in its own savepoint, so one stale quote does not
+        // undo the claims already added.
+        await c.query('savepoint web_claim');
+        try {
+          const admission = await this.admitIn(c, ctx, ws, runId, action);
+          if (admission.verdict !== 'allow') {
+            await c.query('rollback to savepoint web_claim');
+            note = admission.explanation;
+            break;
+          }
+          await this.#admitOne(
+            c,
+            ctx,
+            ws,
+            r,
+            'routine_policy',
+            admission.id,
+            'Added by the routine approval policy (evidence stage).',
+          );
+          await c.query('release savepoint web_claim');
+          admitted += 1;
+        } catch (err) {
+          await c.query('rollback to savepoint web_claim');
+          skipped.push(
+            `claim ${Number(r.ordinal) + 1}: ${err instanceof Error ? err.message : 'refused'}`,
+          );
         }
-        await this.#admitOne(
-          c,
-          ctx,
-          ws,
-          r,
-          'routine_policy',
-          admission.id,
-          'Added by the routine approval policy (evidence stage).',
-        );
-        admitted += 1;
       }
-      return { admitted, waiting: pending.length - admitted, note };
+      const waiting = pending.length - admitted;
+      if (pending.length) {
+        const summary = [
+          admitted
+            ? `Your routine policy added ${admitted} checked claim${admitted === 1 ? '' : 's'}; ${waiting} wait${waiting === 1 ? 's' : ''} for you.`
+            : `${waiting} checked claim${waiting === 1 ? '' : 's'} wait${waiting === 1 ? 's' : ''} for you to add or dismiss.`,
+          inferences ? 'Inferences always wait for you.' : '',
+          note ? `No routine policy added the rest: ${note}` : '',
+          skipped.length ? `Not added: ${skipped.join('; ')}` : '',
+        ]
+          .filter(Boolean)
+          .join(' ');
+        await c.query(
+          `update web_discoveries set explanation = left(explanation || ' ' || $2, 1200),
+             version = version + 1, updated_at = clock_timestamp() where id = $1`,
+          [id, summary.slice(0, 600)],
+        );
+      }
+      return { admitted, waiting, note: note ?? (skipped[0] || null) };
     });
   }
 
@@ -731,7 +775,9 @@ export class WebDiscoveryStore extends PortfolioStore {
     const rationale = `From web discovery ${String(r.discovery_id)}; the studio found this quote word for word in the stored passage.`;
     let rows = 0;
     for (const e of p.evidence) {
-      if (!e.verified || !e.passage_id) continue;
+      // The stored excerpt is checked again by addClaimSupportIn; the length rule here.
+      if (!e.verified || !e.passage_id || !webQuoteLongEnough(e.quote))
+        continue;
       try {
         await this.addClaimSupportIn(c, ctx, ws, claim.id, {
           evidence: 'passage',

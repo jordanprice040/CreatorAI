@@ -99,6 +99,8 @@ import {
   READER_PROMPT,
   SCOUT_PROMPT,
   WEB_DISCOVERY_ROLE_VERSION,
+  readerInput,
+  scoutInput,
 } from '@creator/domain';
 import { WebDiscoveryStore } from './web-discovery-store.js';
 import {
@@ -385,9 +387,20 @@ export function currentForWebDiscoveryRole(r: Row): boolean {
       .filter((m) => m.role === 'system')
       .map((m) => m.text)
       .join('\n\n');
+    const user = (item.input ?? [])
+      .filter((m) => m.role === 'user')
+      .map((m) => m.text)
+      .join('\n\n');
+    // PR #173 review N-1: the case's input is the stage's input for its own scope or packet.
     if (
       system !==
-      (parsed.data.kind === 'web_scout_contract' ? SCOUT_PROMPT : READER_PROMPT)
+        (parsed.data.kind === 'web_scout_contract'
+          ? SCOUT_PROMPT
+          : READER_PROMPT) ||
+      user !==
+        (parsed.data.kind === 'web_scout_contract'
+          ? scoutInput(parsed.data.scope)
+          : readerInput(parsed.data.packet))
     )
       return false;
     stages.add(parsed.data.kind);

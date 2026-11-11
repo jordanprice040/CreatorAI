@@ -50,6 +50,11 @@ export const WebDiscoveryPreviewSchema = z.strictObject({
   chars: counter,
   /** Domains the search is told not to use (from excluded websites). */
   blocked_domains: z.array(z.string()),
+  /**
+   * Pages one run may fetch under this workspace's evidence-site rules; null when no website
+   * is approved. Absent when the studio has no fetcher.
+   */
+  max_fetches_per_run: z.number().int().min(1).nullable().optional(),
 });
 export type WebDiscoveryPreview = z.infer<typeof WebDiscoveryPreviewSchema>;
 

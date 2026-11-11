@@ -99,6 +99,18 @@ export class SourceBroker {
     return settingsPolicy(saved, this.policies.live);
   }
 
+  /**
+   * PR #173 review N-6: how many pages one run may fetch in this workspace now (the fixture
+   * policy for a fixture workspace), or null when no fetch is allowed at all.
+   */
+  async fetchCapFor(ctx: CommandContext, ws: string): Promise<number | null> {
+    const fixture = await this.store.isFixtureWorkspace(ctx, ws);
+    const policy = fixture
+      ? this.policies.fixture
+      : await this.policyFor(ctx, ws);
+    return policy?.max_fetches_per_run ?? null;
+  }
+
   /** What Settings shows: the list in force, where it came from, and its change history. */
   async evidenceSites(ctx: CommandContext, ws: string): Promise<EvidenceSites> {
     const [saved, history] = await Promise.all([

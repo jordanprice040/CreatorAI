@@ -3086,8 +3086,9 @@ create table web_discoveries (
  check ((state = 'done') = (outcome is not null))
 );
 create index web_discoveries_by_workspace on web_discoveries (workspace_id, created_at desc);
--- At most one discovery of a run is working at a time.
-create unique index web_discoveries_one_live on web_discoveries (workspace_id, run_id)
+-- At most one discovery is working at a time in a workspace (PR #173 review N-2): each
+-- start makes its own run, so a per-run limit would never apply.
+create unique index web_discoveries_one_live on web_discoveries (workspace_id)
  where state in ('searching','fetching','reading');
 create table web_discovery_claims (
  id uuid primary key,
@@ -3133,6 +3134,65 @@ begin
   end if;
   return new;
 end $$;
+-- PR #173 review L-5: what a discovery was started with and what it found stay as recorded.
+-- Only the forward state fields change: search calls while searching, leads while searching or
+-- fetching, each request id once, and nothing after a finished state except the explanation.
+create function creator_web_discovery_change() returns trigger language plpgsql as $$
+begin
+  if (new.id, new.workspace_id, new.fixture, new.run_id, new.connection_id, new.model_id,
+      new.scope, new.input_hash, new.policy_version, new.created_by, new.created_at)
+     is distinct from
+     (old.id, old.workspace_id, old.fixture, old.run_id, old.connection_id, old.model_id,
+      old.scope, old.input_hash, old.policy_version, old.created_by, old.created_at) then
+    raise exception 'a web discovery keeps what it was started with' using errcode = 'P0001';
+  end if;
+  if old.state in ('done','failed','cancelled','interrupted') and
+     (new.state, new.outcome, new.search_calls, new.draft_summary, new.leads, new.packet_hash,
+      new.not_covered, new.finished_at, new.search_request_id, new.read_request_id)
+     is distinct from
+     (old.state, old.outcome, old.search_calls, old.draft_summary, old.leads, old.packet_hash,
+      old.not_covered, old.finished_at, old.search_request_id, old.read_request_id) then
+    raise exception 'a finished web discovery is not changed' using errcode = 'P0001';
+  end if;
+  if old.state <> 'searching' and (new.search_calls, new.draft_summary)
+     is distinct from (old.search_calls, old.draft_summary) then
+    raise exception 'search calls are recorded once' using errcode = 'P0001';
+  end if;
+  if old.state not in ('searching','fetching') and new.leads is distinct from old.leads then
+    raise exception 'leads are recorded once' using errcode = 'P0001';
+  end if;
+  if (old.search_request_id is not null and new.search_request_id is distinct from old.search_request_id)
+     or (old.read_request_id is not null and new.read_request_id is distinct from old.read_request_id)
+     or (old.packet_hash is not null and new.packet_hash is distinct from old.packet_hash) then
+    raise exception 'request ids are recorded once' using errcode = 'P0001';
+  end if;
+  if new.version <= old.version then
+    raise exception 'web discovery versions only increase' using errcode = 'P0001';
+  end if;
+  return new;
+end $$;
+create trigger web_discoveries_guard before update on web_discoveries
+  for each row execute function creator_web_discovery_change();
+create trigger web_discoveries_no_delete before delete on web_discoveries
+  for each row execute function creator_reject_change();
+-- A proposal is decided once; only its decision columns change, and only from pending.
+create function creator_web_claim_change() returns trigger language plpgsql as $$
+begin
+  if (new.id, new.workspace_id, new.discovery_id, new.ordinal, new.proposal,
+      new.proposal_hash, new.check_state, new.created_at)
+     is distinct from
+     (old.id, old.workspace_id, old.discovery_id, old.ordinal, old.proposal,
+      old.proposal_hash, old.check_state, old.created_at)
+     or old.decision <> 'pending' then
+    raise exception 'a proposed claim is decided once and otherwise kept as proposed'
+      using errcode = 'P0001';
+  end if;
+  return new;
+end $$;
+create trigger web_discovery_claims_guard before update on web_discovery_claims
+  for each row execute function creator_web_claim_change();
+create trigger web_discovery_claims_no_delete before delete on web_discovery_claims
+  for each row execute function creator_reject_change();
 `,
   },
 ];
