@@ -9,15 +9,13 @@ import {
   type PlanConnection,
   type SessionInfo,
   type Workspace,
-  latestDecided,
-  forDiscover,
-  forWebDiscovery,
 } from '@creator/contracts';
 import { ApiError, api, message } from './oversight.js';
 import { STALE_NOTE } from './owner-actions.js';
 import { usePageActive } from './page-drafts.js';
 import { QualificationResults } from './qualification-results.js';
 import { QualifyModel } from './qualify.js';
+import { rowLatest } from './qualification-role.js';
 import { useModelChoice } from './model-switch.js';
 import {
   capChanges,
@@ -1084,22 +1082,16 @@ export function Models({
           {detail.qualifications.length ? (
             <ul>
               {detail.qualifications.map((q) => {
-                // ADR-0086: a web-discovery and a Discover qualification of the same
-                // task name do not replace each other.
-                const latest = latestDecided(
-                  q.admits_web_discovery === true
-                    ? forWebDiscovery(detail.qualifications)
-                    : forDiscover(detail.qualifications),
-                  q.model_id,
-                  q.task_class,
-                );
+                // PR #175 review M-1: a row counts against its own role only, as the server
+                // admits it (a failed assessment scoring run never withdraws a discovery pass).
+                const latest = rowLatest(detail.qualifications, q);
                 return (
                   <li key={q.id}>
                     <QualificationResults base={base} q={q} />
                     {q.state === 'qualified' && latest?.state === 'failed' && (
                       <p className="small">
                         No longer counts: a newer qualification of this model
-                        for the same job failed.
+                        for the same job and role failed.
                       </p>
                     )}
                   </li>
