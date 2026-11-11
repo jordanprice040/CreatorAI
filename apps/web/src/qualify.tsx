@@ -2,6 +2,8 @@ import { useState } from 'react';
 import {
   PlanQualificationResultsSchema,
   latestDecided,
+  forDiscover,
+  forWebDiscovery,
   planWaitMs,
   type PlanConnection,
   type PlanQualification,
@@ -12,6 +14,7 @@ import specification from '../../../config/connections/benchmarks/specification-
 import summarization from '../../../config/connections/benchmarks/summarization-synthetic-v1.json';
 import builder from '../../../config/connections/benchmarks/t12-builder-v1.json';
 import reviewer from '../../../config/connections/benchmarks/t12-reviewer-v2.json';
+import webDiscovery from '../../../config/connections/benchmarks/web-discovery-v2.json';
 import { AllowTasks } from './allow-tasks.js';
 import { api, words } from './oversight.js';
 
@@ -29,12 +32,15 @@ export const BENCHMARKS = [
   builder,
   reviewer,
   assessment,
+  webDiscovery,
 ].map((m) => ({
   manifest: m,
   name: m.name,
   task_class: m.task_class,
   held_out: m.cases.filter((c) => c.split === 'held_out').length,
   development: m.cases.filter((c) => c.split !== 'held_out').length,
+  // ADR-0086: shares research synthesis with the discovery locator but admits only web discovery.
+  web: m.name.startsWith('web-discovery-'),
 }));
 
 /** Start, run and finish a qualification of one verified model on one bundled benchmark. */
@@ -156,7 +162,13 @@ export function QualifyModel({
     models[0] ||
     '';
   const state = chosen
-    ? benchmarkState(qualifications, pick, chosen.task_class, allowed)
+    ? benchmarkState(
+        qualifications,
+        pick,
+        chosen.task_class,
+        allowed,
+        chosen.web,
+      )
     : null;
   const several = queueChoices(qualifications, pick, allowed);
   const eligible = several.filter((x) => x.eligible);
@@ -224,7 +236,13 @@ export function QualifyModel({
                   {words(b.task_class)} · {b.name} ({b.development} practice +{' '}
                   {b.held_out} held out)
                   {benchmarkTag(
-                    benchmarkState(qualifications, pick, b.task_class, allowed),
+                    benchmarkState(
+                      qualifications,
+                      pick,
+                      b.task_class,
+                      allowed,
+                      b.web,
+                    ),
                   )}
                 </option>
               ))}
@@ -327,7 +345,13 @@ export function QualifyModel({
       {running.map((q) => {
         // The bundled benchmark of this task class, if there is one: a qualification started
         // elsewhere may use another manifest, so the count is an upper bound only (L-2).
-        const b = BENCHMARKS.find((x) => x.task_class === q.task_class);
+        // Review 5 N-2: of the same kind too (web discovery or not), since both are research
+        // synthesis.
+        const b = BENCHMARKS.find(
+          (x) =>
+            x.task_class === q.task_class &&
+            x.web === (q.admits_web_discovery === true),
+        );
         const n = b ? b.development + b.held_out : null;
         return (
           <div key={q.id} className="qualify-row" role="group">
@@ -430,14 +454,20 @@ export function benchmarkState(
   model: string,
   task: string,
   allowed: readonly string[],
+  web = false,
 ): BenchmarkState {
   if (!allowed.includes(task)) return { kind: 'not_allowed' };
-  const started = qualifications.find(
+  // PR #173 review 4 L-B: a web-discovery benchmark reads only web records, and the others
+  // never read them, though both are research synthesis.
+  const own = web
+    ? forWebDiscovery(qualifications)
+    : forDiscover(qualifications);
+  const started = own.find(
     (q) =>
       q.state === 'running' && q.model_id === model && q.task_class === task,
   );
   if (started) return { kind: 'started', qualification: started };
-  const latest = latestDecided(qualifications, model, task);
+  const latest = latestDecided(own, model, task);
   if (latest?.state === 'qualified' || latest?.state === 'failed')
     return { kind: latest.state, latest };
   return { kind: 'new' };
@@ -488,11 +518,22 @@ export function queueChoices(
   allowed: readonly string[],
 ): QueueChoice[] {
   return BENCHMARKS.map((b) => {
-    const state = benchmarkState(qualifications, model, b.task_class, allowed);
+    const web = b.web;
+    const state = benchmarkState(
+      qualifications,
+      model,
+      b.task_class,
+      allowed,
+      web,
+    );
     // Review of PR #176, L-3: a started re-run of a qualified task is still qualified (the
-    // newest decided one counts), so it is run on its own, not queued.
+    // newest decided one counts), so it is run on its own, not queued. A web-discovery
+    // benchmark reads only its own lane (P12).
+    const own = web
+      ? forWebDiscovery(qualifications)
+      : forDiscover(qualifications);
     const qualified =
-      latestDecided(qualifications, model, b.task_class)?.state === 'qualified';
+      latestDecided(own, model, b.task_class)?.state === 'qualified';
     return {
       name: b.name,
       task_class: b.task_class,

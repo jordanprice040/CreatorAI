@@ -33,6 +33,7 @@ export * from './orchestration.js';
 export * from './research.js';
 export * from './discovery.js';
 export * from './exploration.js';
+export * from './web-discovery.js';
 export * from './selection.js';
 export * from './assessment.js';
 export * from './proposal.js';

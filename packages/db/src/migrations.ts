@@ -3046,6 +3046,156 @@ create index audit_events_by_causation on audit_events (workspace_id, causation_
 `,
   },
   {
+    // ADR-0086 (P12): online discovery through the plan connection's own web search. One row
+    // per discovery holds its scope, the search calls the provider reported, the leads and the
+    // fetch outcome of each; proposed claims are rows so each is added or dismissed once. The
+    // routine policy gains its evidence stage, and passages record page furniture.
+    version: 54,
+    name: 'web_discoveries',
+    sql: `
+create table web_discoveries (
+ id uuid primary key,
+ workspace_id uuid not null references workspaces(id),
+ fixture boolean not null,
+ run_id uuid not null,
+ connection_id uuid not null references plan_connections(id),
+ model_id text not null check (length(model_id) between 1 and 200),
+ scope jsonb not null check (jsonb_typeof(scope) = 'object'),
+ input_hash char(64) not null,
+ policy_version text not null,
+ state text not null check (state in ('searching','fetching','reading','done','failed',
+   'cancelled','interrupted')),
+ outcome text check (outcome in ('claims_found','no_verified_claims','no_search','no_leads',
+   'nothing_fetchable')),
+ explanation text not null default '' check (length(explanation) <= 1200),
+ search_request_id uuid unique references plan_requests(id),
+ read_request_id uuid unique references plan_requests(id),
+ search_calls jsonb not null default '[]' check (jsonb_typeof(search_calls) = 'array'),
+ draft_summary text check (length(draft_summary) <= 1200),
+ leads jsonb not null default '[]' check (jsonb_typeof(leads) = 'array'),
+ packet_hash char(64),
+ not_covered jsonb not null default '[]' check (jsonb_typeof(not_covered) = 'array'),
+ version integer not null check (version >= 1),
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ updated_at timestamptz not null default clock_timestamp(),
+ finished_at timestamptz,
+ foreign key (workspace_id, run_id) references run_controls (workspace_id, run_id),
+ unique (workspace_id, id),
+ check ((state in ('done','failed','cancelled','interrupted')) = (finished_at is not null)),
+ check ((state = 'done') = (outcome is not null))
+);
+create index web_discoveries_by_workspace on web_discoveries (workspace_id, created_at desc);
+-- At most one discovery is working at a time in a workspace (PR #173 review N-2): each
+-- start makes its own run, so a per-run limit would never apply.
+create unique index web_discoveries_one_live on web_discoveries (workspace_id)
+ where state in ('searching','fetching','reading');
+create table web_discovery_claims (
+ id uuid primary key,
+ workspace_id uuid not null,
+ discovery_id uuid not null,
+ ordinal integer not null check (ordinal >= 0),
+ proposal jsonb not null check (jsonb_typeof(proposal) = 'object'),
+ proposal_hash char(64) not null,
+ check_state text not null check (check_state in ('verified','unverified','excluded','duplicate')),
+ decision text not null default 'pending' check (decision in ('pending','admitted','dismissed')),
+ claim_id uuid,
+ admitted_via text check (admitted_via in ('owner','routine_policy')),
+ admission_id uuid references action_admissions(id),
+ decided_by uuid references actors(id),
+ decided_at timestamptz,
+ decision_reason text check (length(decision_reason) <= 500),
+ created_at timestamptz not null default clock_timestamp(),
+ foreign key (workspace_id, discovery_id) references web_discoveries (workspace_id, id),
+ foreign key (workspace_id, claim_id) references entities (workspace_id, id),
+ unique (discovery_id, ordinal),
+ check ((decision = 'admitted') = (claim_id is not null and admitted_via is not null)),
+ check (decision <> 'admitted' or check_state = 'verified'),
+ check ((decision = 'pending') = (decided_at is null)),
+ check (admitted_via <> 'routine_policy' or admission_id is not null)
+);
+create index web_discovery_claims_by_discovery on web_discovery_claims (discovery_id, ordinal);
+alter table routine_policies drop constraint routine_policies_stages_check;
+alter table routine_policies add constraint routine_policies_stages_check
+ check (cardinality(stages) >= 1 and stages <@ array['research', 'model_work', 'selection',
+   'spec_freeze', 'build', 'evidence']);
+alter table source_passages add column boilerplate boolean not null default false;
+create or replace function creator_passage_change() returns trigger language plpgsql as $$
+begin
+  if (new.id, new.workspace_id, new.source_id, new.source_version, new.ordinal,
+      new.paragraph, new.char_start, new.char_end, new.text_hash, new.excerpt_truncated,
+      new.passage_hash, new.instruction_like, new.retrieval_id, new.created_at, new.boilerplate)
+     is distinct from
+      (old.id, old.workspace_id, old.source_id, old.source_version, old.ordinal,
+      old.paragraph, old.char_start, old.char_end, old.text_hash, old.excerpt_truncated,
+      old.passage_hash, old.instruction_like, old.retrieval_id, old.created_at, old.boilerplate)
+     or new.excerpt is not null and new.excerpt is distinct from old.excerpt then
+    raise exception 'passages only lose their excerpt (redaction)' using errcode = 'P0001';
+  end if;
+  return new;
+end $$;
+-- PR #173 review L-5: what a discovery was started with and what it found stay as recorded.
+-- Only the forward state fields change: search calls while searching, leads while searching or
+-- fetching, each request id once, and nothing after a finished state except the explanation.
+create function creator_web_discovery_change() returns trigger language plpgsql as $$
+begin
+  if (new.id, new.workspace_id, new.fixture, new.run_id, new.connection_id, new.model_id,
+      new.scope, new.input_hash, new.policy_version, new.created_by, new.created_at)
+     is distinct from
+     (old.id, old.workspace_id, old.fixture, old.run_id, old.connection_id, old.model_id,
+      old.scope, old.input_hash, old.policy_version, old.created_by, old.created_at) then
+    raise exception 'a web discovery keeps what it was started with' using errcode = 'P0001';
+  end if;
+  if old.state in ('done','failed','cancelled','interrupted') and
+     (new.state, new.outcome, new.search_calls, new.draft_summary, new.leads, new.packet_hash,
+      new.not_covered, new.finished_at, new.search_request_id, new.read_request_id)
+     is distinct from
+     (old.state, old.outcome, old.search_calls, old.draft_summary, old.leads, old.packet_hash,
+      old.not_covered, old.finished_at, old.search_request_id, old.read_request_id) then
+    raise exception 'a finished web discovery is not changed' using errcode = 'P0001';
+  end if;
+  if old.state <> 'searching' and (new.search_calls, new.draft_summary)
+     is distinct from (old.search_calls, old.draft_summary) then
+    raise exception 'search calls are recorded once' using errcode = 'P0001';
+  end if;
+  if old.state not in ('searching','fetching') and new.leads is distinct from old.leads then
+    raise exception 'leads are recorded once' using errcode = 'P0001';
+  end if;
+  if (old.search_request_id is not null and new.search_request_id is distinct from old.search_request_id)
+     or (old.read_request_id is not null and new.read_request_id is distinct from old.read_request_id)
+     or (old.packet_hash is not null and new.packet_hash is distinct from old.packet_hash) then
+    raise exception 'request ids are recorded once' using errcode = 'P0001';
+  end if;
+  if new.version <= old.version then
+    raise exception 'web discovery versions only increase' using errcode = 'P0001';
+  end if;
+  return new;
+end $$;
+create trigger web_discoveries_guard before update on web_discoveries
+  for each row execute function creator_web_discovery_change();
+create trigger web_discoveries_no_delete before delete on web_discoveries
+  for each row execute function creator_reject_change();
+-- A proposal is decided once; only its decision columns change, and only from pending.
+create function creator_web_claim_change() returns trigger language plpgsql as $$
+begin
+  if (new.id, new.workspace_id, new.discovery_id, new.ordinal, new.proposal,
+      new.proposal_hash, new.check_state, new.created_at)
+     is distinct from
+     (old.id, old.workspace_id, old.discovery_id, old.ordinal, old.proposal,
+      old.proposal_hash, old.check_state, old.created_at)
+     or old.decision <> 'pending' then
+    raise exception 'a proposed claim is decided once and otherwise kept as proposed'
+      using errcode = 'P0001';
+  end if;
+  return new;
+end $$;
+create trigger web_discovery_claims_guard before update on web_discovery_claims
+  for each row execute function creator_web_claim_change();
+create trigger web_discovery_claims_no_delete before delete on web_discovery_claims
+  for each row execute function creator_reject_change();
+`,
+  },
+  {
     // ADR-0088 (P24): several qualifications of one model, run one after another by the studio
     // so the person can leave the page. One running queue per connection. An item's
     // qualification is started when its turn comes, in the same transaction that links it here,
@@ -3081,7 +3231,7 @@ create table plan_qualification_queue_items (
  state text not null check (state in ('waiting','running','qualified','failed','stopped','cancelled')),
  reason text check (reason is null or length(reason) between 1 and 1200),
  primary key (queue_id, position),
- unique (queue_id, task_class),
+ unique (queue_id, manifest_hash),
  check (state not in ('running','qualified','failed') or qualification_id is not null)
 );
 -- A qualification is worked on by one queue item at a time; a later queue may take over one

@@ -770,6 +770,85 @@ test('sign-in, credits, caps, verification and qualification are separate record
   assert.equal(retry.state, 'running');
 });
 
+test('PR #173 review 4 L-A: a view recorded in the old key format still guards web held-out cases', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const { store, service, ws } = s;
+  await s.signIn();
+  const c = await s.ready();
+  const grant = await store.createPlanVerificationGrant(owner, ws.id, c.id, {
+    expected_version: c.version,
+    model_id: 'm',
+    path: 'responses',
+    expires_in_minutes: 5,
+  });
+  await service.verifyModel(owner, ws.id, c.id, {
+    id: grant.id,
+    model_id: 'm',
+  });
+  const v2 = {
+    ...(read('config/connections/benchmarks/web-discovery-v2.json') as {
+      cases: ManifestCase[];
+    }),
+    fixture: true,
+  };
+  const start = async (manifest: unknown) =>
+    store.startPlanQualification(owner, ws.id, c.id, {
+      expected_version: (await s.current()).version,
+      model_id: 'm',
+      manifest: manifest as never,
+      min_held_out_cases: 7,
+      floor: { numerator: 1, denominator: 1 },
+    });
+  const q = await start(v2);
+  // A view as stored before per-case prompts: keys hashed with the role version, which no
+  // longer match any key, and no per-case prompts.
+  await s.db.pool.query(
+    'insert into plan_connection_events (id, connection_id, kind, body, actor_id) values ($1,$2,$3,$4,$5)',
+    [
+      randomUUID(),
+      c.id,
+      'qualification_held_out_viewed',
+      {
+        qualification_id: q.id,
+        task_class: 'research_synthesis',
+        manifest_hash: q.manifest_hash,
+        prompt_hash: 'old',
+        held_out: ['old-format-key-1', 'old-format-key-2'],
+      },
+      owner.actorId,
+    ],
+  );
+  // A revised reader prompt on the same reader held-out cases is refused: the view is
+  // recomputed from the benchmark it showed.
+  const revisedReader = {
+    ...v2,
+    name: 'web-discovery-v3-test',
+    cases: v2.cases.map((k) =>
+      (k.check as { kind?: string }).kind === 'web_reader_contract'
+        ? {
+            ...k,
+            input: k.input.map((m) =>
+              m.role === 'system' ? { ...m, text: `${m.text} Be brief.` } : m,
+            ),
+          }
+        : k,
+    ),
+  };
+  await assert.rejects(
+    start(revisedReader),
+    (e: unknown) =>
+      e instanceof ContractError &&
+      e.code === 'INVALID_CONTRACT' &&
+      /4 held-out cases were viewed/.test(e.message),
+  );
+  // The same benchmark again passes the guard; only the open qualification stops it.
+  await assert.rejects(
+    start(v2),
+    (e: unknown) => e instanceof ContractError && e.code === 'DUPLICATE',
+  );
+});
+
 test('ADR-0084: a second Run of a qualification that is running is refused and nothing is sent twice', async (t) => {
   // Review of PR #169 M-1: a Run is one long request. A page that was left (or a second
   // window) could press Run again and start a second loop for the same qualification.

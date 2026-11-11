@@ -95,6 +95,7 @@ import {
   gradePatchCase,
 } from '@creator/executor';
 import { createAuth } from './auth.js';
+import { WebDiscoveryRunner } from './web-discovery.js';
 import { desktopRoutes, visitorKey } from './desktop.js';
 import {
   GITHUB_ROUTE,
@@ -245,7 +246,7 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   STORAGE_UNAVAILABLE: 503,
 };
 const RECORD_ROUTE =
-  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|routine-policies|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|proposals|specs|search|library|destination|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback|terminals|route-registries|route-policies|route-benchmarks|route-promotions|route-decisions|context-capabilities|context-index|context-packs|context-handoffs|context-calls|context-cache|context-batches|context-evaluations|context-usage|saved-queries|semantic-search|audit-questions|audit-plans|lineage-verify|members|exploration-preview)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|build-approvals|routine-policy|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|source-searches|support|evidence|discoveries|explorations|exploration-packet|assessments|assessment-packet|assessment-preview|explored-briefs|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|manifest|compare|feedback|previews|terminals|guide|stop|decide|revision|benchmark|benchmark-results|advance|rollback|call|outcomes|escalate|compact|compactions|invalidate|poll|run|link|lineage-graph|lineage-export|research-plan|remove|explanation|reviews|files|runbook))?)?)?)?$/;
+  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|routine-policies|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|proposals|specs|search|library|destination|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback|terminals|route-registries|route-policies|route-benchmarks|route-promotions|route-decisions|context-capabilities|context-index|context-packs|context-handoffs|context-calls|context-cache|context-batches|context-evaluations|context-usage|saved-queries|semantic-search|audit-questions|audit-plans|lineage-verify|members|exploration-preview|web-discoveries|web-discovery-preview)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|build-approvals|routine-policy|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|source-searches|support|evidence|discoveries|explorations|exploration-packet|assessments|assessment-packet|assessment-preview|explored-briefs|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|manifest|compare|feedback|previews|terminals|guide|stop|decide|revision|benchmark|benchmark-results|advance|rollback|call|outcomes|escalate|compact|compactions|invalidate|poll|run|link|lineage-graph|lineage-export|research-plan|remove|explanation|reviews|files|runbook|web-discoveries|admit|dismiss))?)?)?)?$/;
 
 export function createApi(
   env: Record<string, string | undefined> = {},
@@ -476,6 +477,11 @@ export function createApi(
         { fixture: FIXTURE_SOURCE_POLICY, live: sourceConfig.policy },
       )
     : null;
+  // ADR-0086 (P12): web discovery through the plan connection's own web search.
+  const webDiscovery =
+    store && sources && planService
+      ? new WebDiscoveryRunner(store, planService, sources)
+      : null;
   const brokerActor = { actorId: BROKER_ACTOR_ID };
   // Per-process salt: stored pairing visitor keys cannot be turned back into addresses.
   const visitorSalt = randomBytes(32).toString('hex');
@@ -1587,6 +1593,18 @@ export function createApi(
           await store.startDiscovery(ctx, ws, item, await readJson(req)),
           true,
         );
+      if (item && method === 'POST' && action === 'web-discoveries') {
+        if (!webDiscovery)
+          throw new ContractError(
+            'INVALID_CONFIG',
+            'Web discovery needs the plan connection service and the source broker.',
+          );
+        return send(
+          201,
+          await webDiscovery.start(ctx, ws, item, await readJson(req)),
+          true,
+        );
+      }
       if (item && method === 'POST' && action === 'explorations')
         return send(
           201,
@@ -2052,6 +2070,69 @@ export function createApi(
           true,
         );
     } else if (
+      collection === 'web-discovery-preview' &&
+      !item &&
+      method === 'POST'
+    ) {
+      const preview = await store.previewWebDiscovery(
+        ctx,
+        ws,
+        await readJson(req),
+      );
+      return send(
+        200,
+        sources
+          ? await sources.fetchCapFor(ctx, ws).then((f) => ({
+              ...preview,
+              max_fetches_per_run: f.cap,
+              fetching_available: f.live,
+            }))
+          : preview,
+        false,
+      );
+    } else if (collection === 'web-discoveries') {
+      // ADR-0086 (P12): read, stop, resume, and decide the checked claims.
+      if (!item && method === 'GET')
+        return send(
+          200,
+          await store.listWebDiscoveries(
+            ctx,
+            ws,
+            url.searchParams.get('run') ?? undefined,
+          ),
+          false,
+        );
+      if (item && !action && method === 'GET') {
+        const d = await store.getWebDiscovery(ctx, ws, item);
+        return send(200, webDiscovery ? webDiscovery.with(d) : d, false);
+      }
+      if (item && method === 'POST' && webDiscovery) {
+        if (action === 'cancel')
+          return send(
+            200,
+            await webDiscovery.cancel(ctx, ws, item, await readJson(req)),
+            true,
+          );
+        if (action === 'resume')
+          return send(200, await webDiscovery.resume(ctx, ws, item), true);
+        if (action === 'admit')
+          return send(
+            200,
+            webDiscovery.with(
+              await store.admitWebClaims(ctx, ws, item, await readJson(req)),
+            ),
+            true,
+          );
+        if (action === 'dismiss')
+          return send(
+            200,
+            webDiscovery.with(
+              await store.dismissWebClaims(ctx, ws, item, await readJson(req)),
+            ),
+            true,
+          );
+      }
+    } else if (
       collection === 'exploration-preview' &&
       !item &&
       method === 'POST'
@@ -2426,3 +2507,4 @@ import {
 } from './portfolio.js';
 export { visitorKey } from './desktop.js';
 export { createPreviewServer } from './artifacts.js';
+export { WebDiscoveryRunner, stepId, answerJson } from './web-discovery.js';

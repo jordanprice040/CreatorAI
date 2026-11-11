@@ -15,6 +15,7 @@ import {
 import {
   BUILD_ROLE_PROMPTS,
   BUILD_ROLE_TASK_CLASSES,
+  blockedDomains,
   canonicalHash,
   checkOutput,
   type BuildRole,
@@ -23,6 +24,7 @@ import type {
   CommandContext,
   ConnectionStore,
   PlanObservation,
+  WebDiscoveryBinding,
 } from '@creator/db';
 import {
   OFFICIAL_PLAN_ENDPOINTS,
@@ -188,6 +190,11 @@ export interface InvokeRequest {
    * stored with the request, so a replayed request does not return them.
    */
   web_search?: PlanWebSearch;
+  /**
+   * ADR-0086: this request is a web discovery's search or reading request. Admission checks
+   * it against the discovery under lock and uses only web discovery qualifications.
+   */
+  web_discovery?: WebDiscoveryBinding;
 }
 
 export class PlanConnectionService {
@@ -640,6 +647,25 @@ export class PlanConnectionService {
     outcome: PlanObservedOutcome;
     admission?: Admission;
   }> {
+    // ADR-0086: hosted web search only for a web discovery's search request or a qualification
+    // case that tests it; nothing else may turn it on.
+    if (
+      r.web_search &&
+      r.web_discovery?.stage !== 'search' &&
+      r.purpose !== 'qualification'
+    )
+      return {
+        request_id: '',
+        outcome: {
+          kind: 'rejected',
+          reason_code: 'web_search_not_bound',
+          message:
+            'Web search is used only by a web discovery search request or its qualification.',
+          response_id: null,
+          output_chars: null,
+          retry_allowed: false,
+        },
+      };
     const admitted = await this.deps.store.admitPlanRequest(
       ctx,
       ws,
@@ -667,6 +693,7 @@ export class PlanConnectionService {
             }),
           }
         : undefined,
+      r.web_discovery,
     );
     if (admitted.admission)
       return {
@@ -1332,6 +1359,17 @@ export class PlanConnectionService {
         qualification_case: { case_id: c.case_id, split: c.split },
         instructions: system || 'Follow the user instructions.',
         input: user,
+        // ADR-0086: a web scout case searches, within its own call limit.
+        ...(c.check.kind === 'web_scout_contract'
+          ? {
+              web_search: {
+                max_calls: c.check.scope.max_search_calls,
+                ...(blockedDomains(c.check.scope).length
+                  ? { blocked_domains: blockedDomains(c.check.scope) }
+                  : {}),
+              },
+            }
+          : {}),
         score: (text, outcome) => {
           if (c.check.kind === 'patch_cases')
             return outcome.kind === 'completed'
@@ -1344,11 +1382,16 @@ export class PlanConnectionService {
             } catch {
               return 'schema_invalid';
             }
-          return checkOutput(c.check, text === null ? null : { text, json }, {
-            succeeded: outcome.kind === 'completed',
-            reason_code:
-              outcome.kind === 'completed' ? 'ok' : outcome.reason_code,
-          });
+          return checkOutput(
+            c.check,
+            text === null ? null : { text, json },
+            {
+              succeeded: outcome.kind === 'completed',
+              reason_code:
+                outcome.kind === 'completed' ? 'ok' : outcome.reason_code,
+            },
+            outcome.search_calls ?? null,
+          );
         },
       });
       if (

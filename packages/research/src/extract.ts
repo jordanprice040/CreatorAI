@@ -54,6 +54,36 @@ const BLOCK = new Set([
   'tr',
   'ul',
 ]);
+// Site chrome: text inside these is navigation, sign-in, sharing or forms, not page text
+// (walkthrough item 15, ADR-0086). It is still stored, flagged, and after the page text.
+// `form` is left out: some sites wrap the whole page in one (PR #173 review M-1).
+const CHROME = new Set([
+  'nav',
+  'header',
+  'footer',
+  'aside',
+  'button',
+  'menu',
+  'dialog',
+]);
+// Short interface labels that sit inside article text on documentation and news sites.
+const UI_LABEL =
+  /^(copy( markdown)?|print|share|feedback|note|tip|important|warning|caution|edit|edit this page|sign in|sign up|log in|subscribe|menu|search|skip to (main )?content|table of contents|in this article|contents|was this (page|article) helpful\??|yes|no|accept( all)?( cookies)?|reject( all)?|cookie (settings|preferences)|read (more|next)|previous|next|back to top|related (articles|content|links)|additional resources|theme|summarize this article( for me)?|ask learn|read in english)(\s+(copy( markdown)?|print|share|feedback|edit))*$/i;
+/** Notices a page hides until a condition holds (sign-in walls, alerts), PR #173 review N-4. */
+const hiddenNotice = (attrs: Record<string, string>) =>
+  'hidden' in attrs ||
+  attrs['aria-hidden'] === 'true' ||
+  attrs.role === 'alert' ||
+  attrs.role === 'navigation' ||
+  attrs.role === 'banner' ||
+  attrs.role === 'contentinfo';
+const words = (s: string) => s.split(/\s+/).filter(Boolean).length;
+/** True for paragraph text that is page furniture rather than content. */
+export function looksLikeFurniture(text: string): boolean {
+  return (
+    text.length <= 80 && UI_LABEL.test(text.replace(/[.:!·•|]+$/g, '').trim())
+  );
+}
 const PUBLISHED_META = new Set([
   'article:published_time',
   'og:published_time',
@@ -107,23 +137,39 @@ export function extractDocument(
   let published: string | null = null;
   let timeCandidate: string | null = null;
   let canonical: string | null = null;
-  const blocks: { text: string; main: boolean }[] = [];
+  const blocks: {
+    text: string;
+    main: boolean;
+    chrome: boolean;
+    /** Which outermost article/main region holds it (-1: none). */
+    region: number;
+  }[] = [];
   let hasMain = false;
   if (media === 'text/plain') {
     for (const part of raw.split(/\n\s*\n/)) {
       const text = squash(part);
-      if (text) blocks.push({ text, main: true });
+      if (text) blocks.push({ text, main: true, chrome: false, region: 0 });
     }
   } else {
     let skip = 0;
     let inTitle = false;
     let titleText = '';
     let mainDepth = 0;
+    let region = -1;
+    /** One entry per open element: whether it starts site chrome. */
+    const chromeStack: boolean[] = [];
+    let chromeDepth = 0;
     let buf = '';
     const flush = () => {
       const text = squash(buf);
       buf = '';
-      if (text) blocks.push({ text, main: mainDepth > 0 });
+      if (text)
+        blocks.push({
+          text,
+          main: mainDepth > 0,
+          chrome: chromeDepth > 0,
+          region: mainDepth > 0 ? region : -1,
+        });
     };
     const parser = new Parser(
       {
@@ -142,9 +188,14 @@ export function extractDocument(
           if (name === 'title') inTitle = true;
           if (name === 'article' || name === 'main') {
             if (BLOCK.has(name)) flush();
+            if (mainDepth === 0) region += 1;
             mainDepth += 1;
             hasMain = true;
-          } else if (BLOCK.has(name)) flush();
+          } else if (BLOCK.has(name) || CHROME.has(name)) flush();
+          const chrome = CHROME.has(name) || hiddenNotice(attrs);
+          if (chrome && !CHROME.has(name) && !BLOCK.has(name)) flush();
+          chromeStack.push(chrome);
+          if (chrome) chromeDepth += 1;
         },
         ontext(text) {
           if (skip > 0) return;
@@ -157,7 +208,9 @@ export function extractDocument(
             inTitle = false;
             title = squash(titleText) || null;
           }
-          if (BLOCK.has(name)) flush();
+          const chrome = chromeStack.pop() ?? false;
+          if (BLOCK.has(name) || CHROME.has(name) || chrome) flush();
+          if (chrome) chromeDepth = Math.max(0, chromeDepth - 1);
           if (name === 'article' || name === 'main')
             mainDepth = Math.max(0, mainDepth - 1);
         },
@@ -168,6 +221,28 @@ export function extractDocument(
     parser.end();
     flush();
   }
+  // PR #173 review M-1: a marked article or main region is trusted only when it holds most of
+  // the page's text. Many pages mark only a teaser or a "related" card while the real text
+  // sits in a plain container; then nothing is folded for being outside the marked region.
+  // Likewise site chrome is trusted only when real text remains outside it.
+  const open = blocks.filter((b) => !b.chrome);
+  const total = open.reduce((n, b) => n + words(b.text), 0);
+  // Re-review R-1: only the largest marked region counts, so several small "related" cards
+  // together cannot outweigh a short real article.
+  const byRegion = new Map<number, number>();
+  for (const b of open)
+    if (b.region >= 0)
+      byRegion.set(b.region, (byRegion.get(b.region) ?? 0) + words(b.text));
+  let largest = -1;
+  let inMain = 0;
+  for (const [r, n] of byRegion)
+    if (n > inMain) {
+      largest = r;
+      inMain = n;
+    }
+  const trustMain = hasMain && inMain * 2 >= total;
+  const all = blocks.reduce((n, b) => n + words(b.text), 0);
+  const trustChrome = total >= 40 || total * 2 >= all;
   const paragraphs: ExtractedDocument['paragraphs'] = [];
   let offset = 0;
   for (const b of blocks) {
@@ -175,6 +250,11 @@ export function extractDocument(
       text: b.text,
       start: offset,
       end: offset + b.text.length,
+      // Outside the marked article, inside site chrome, or an interface label.
+      boilerplate:
+        (trustMain && b.region !== largest) ||
+        (trustChrome && b.chrome) ||
+        looksLikeFurniture(b.text),
     });
     offset += b.text.length + 2;
   }

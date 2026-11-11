@@ -68,6 +68,8 @@ export const ACTION_REGISTRY: Record<ActionType, ActionSpec> = {
   // Changes under .github/workflows or .github/actions: separately granted, never via github.write.
   'github.workflow_change': spec({ external_effect: true, reversible: false }),
   'github.merge': spec({ external_effect: true, reversible: false }),
+  // ADR-0086: a checked web-discovery claim becomes a record; it can be archived again.
+  'claim.admit': spec({}),
 };
 /** Stage gates each mode asks at unless the run registers its own list. */
 export const DEFAULT_STAGE_GATES: Record<AutonomyMode, readonly ActionType[]> =
