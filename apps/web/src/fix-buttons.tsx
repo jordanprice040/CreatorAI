@@ -7,6 +7,8 @@ import {
   z,
   type PlanConnectionDetail,
   type PlanQualification,
+  DiscoveryBenchmarksSchema,
+  type DiscoveryBenchmark,
 } from '@creator/contracts';
 import { allowSequence } from './allow-tasks.js';
 import {
@@ -28,6 +30,7 @@ import {
   type QualifyRole,
 } from './fix-here.js';
 import { api, message, words } from './oversight.js';
+import { manifestRole } from './qualification-role.js';
 import { BENCHMARKS, runOutcome } from './qualify.js';
 
 /**
@@ -124,36 +127,23 @@ export function routeFixes(input: {
 }
 
 /**
- * Which route a bundled benchmark qualifies for, from every case's check kind, as P34's
- * `manifestRole` reads it (qualification-role.ts in #175; swap to it once both are in): all
- * assessment-contract cases are the assessment route, all discovery-contract cases discovery,
- * all web scout or reader cases Search the web (`null`: no fix starts it), anything else a plan
- * role.
+ * Which route a bundled benchmark qualifies for, from every case's check kind (P34's
+ * `manifestRole`): the assessment and discovery routes as tagged, Search the web `null` (no fix
+ * starts it), and a manifest with no role tag a plan role.
  */
 export function roleOf(manifest: {
   cases: readonly { check?: unknown }[];
 }): QualifyRole | null {
-  const kinds = new Set(
-    manifest.cases.map((c) => (c.check as { kind?: string } | undefined)?.kind),
-  );
-  if (kinds.size === 1 && kinds.has('assessment_contract')) return 'assessment';
-  if (kinds.size === 1 && kinds.has('discovery_contract')) return 'discovery';
-  if (
-    kinds.size > 0 &&
-    [...kinds].every(
-      (k) => k === 'web_scout_contract' || k === 'web_reader_contract',
-    )
-  )
-    return null;
-  return 'plan';
+  const r = manifestRole(manifest);
+  return r === 'web_discovery' ? null : (r ?? 'plan');
 }
 
 /**
  * A benchmark a fix can start for a task in a role (ADR-0087): a bundled one, started with its
  * manifest, or one the server offers (P34 #175, `GET plan-benchmarks`), started by name with
  * `{ expected_version, model_id, benchmark }` and carrying its manifest_hash. A page that
- * offers discovery fixes calls `useQualifyOffers(base)`; until the server offers discovery
- * benchmarks (before #175), discovery has no qualify fix.
+ * offers discovery fixes calls `useQualifyOffers(base)`; while that list is not read (or a
+ * read failed with none before), discovery has no qualify fix.
  */
 export type QualifyOffer = {
   name: string;
@@ -193,26 +183,11 @@ const BUNDLED: readonly QualifyOffer[] = BENCHMARKS.filter(
 }));
 
 /**
- * The discovery benchmarks the server offers (ADR-0089, P34 #175: `GET plan-benchmarks`); the
- * manifest stays on the server, which starts one by name. Read as P34's
- * `DiscoveryBenchmarkSchema` lists them; a studio without the route (before #175) offers none.
+ * The discovery benchmarks the server offers (ADR-0089: `GET plan-benchmarks`); the manifest
+ * stays on the server, which starts one by name.
  */
-const ServerOffersSchema = z.object({
-  benchmarks: z
-    .array(
-      z.object({
-        name: z.string().min(1).max(120),
-        task_class: z.string().min(1),
-        manifest_hash: z.string().regex(/^[a-f0-9]{64}$/),
-        development: z.number().int().nonnegative(),
-        held_out: z.number().int().nonnegative(),
-      }),
-    )
-    .max(20),
-});
-
 export const serverOffers = (
-  list: z.infer<typeof ServerOffersSchema>['benchmarks'],
+  list: readonly DiscoveryBenchmark[],
 ): QualifyOffer[] =>
   list.map((b) => ({
     name: b.name,
@@ -242,7 +217,7 @@ export function loadOffers(base: string, fresh = false): Promise<void> {
   if (!fresh && offered?.base === base) return Promise.resolve();
   const pending = reading.get(base);
   if (pending) return pending;
-  const p = api(ServerOffersSchema, `${base}/plan-benchmarks`)
+  const p = api(DiscoveryBenchmarksSchema, `${base}/plan-benchmarks`)
     .then(
       (r) => {
         offered = { base, list: serverOffers(r.benchmarks) };

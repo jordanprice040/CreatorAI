@@ -23,8 +23,7 @@ import {
   SourceDetailSchema,
   SourceSummarySchema,
   StoredEntitySchema,
-  isQualified,
-  forDiscover,
+  isDiscoveryQualified,
   z,
   type Decision,
   type StoredEntity,
@@ -235,7 +234,7 @@ export async function loadCard(
           `${model || 'No model'} is not verified on this connection. Pick another model beside the usage indicator.`,
         );
       const missing = DISCOVERY_CLASSES.filter(
-        (tc) => !isQualified(forDiscover(d.qualifications), model, tc),
+        (tc) => !isDiscoveryQualified(d.qualifications, model, tc),
       );
       // P23 item 8: a task the connection does not allow can't be qualified, so say that
       // instead of a plain "not qualified" with no way forward.

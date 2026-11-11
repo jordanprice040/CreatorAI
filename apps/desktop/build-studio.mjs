@@ -75,6 +75,8 @@ await build({
 const bundled = readFileSync(join(out, 'service/app/dist/studio.mjs'), 'utf8');
 for (const ref of [
   '../../../config/spending.json',
+  // ADR-0089: the discovery benchmarks Qualify a model offers.
+  '../../../config/connections/benchmarks/',
   '../worker/bridge.py',
   '../worker/terminal.py',
 ])

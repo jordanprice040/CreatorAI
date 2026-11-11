@@ -7,8 +7,8 @@ import {
   ModelChoiceSchema,
   PlanConnectionDetailSchema,
   PlanConnectionSchema,
+  isDiscoveryQualified,
   isQualified,
-  forDiscover,
   latestDecided,
   z,
   type ModelChoice,
@@ -60,6 +60,27 @@ export const assessQualified = (
     ASSESSMENT_TASK_CLASS,
   )?.state === 'qualified';
 
+const DISCOVERY_STEP_CLASSES: readonly string[] = [
+  ...new Set(Object.values(DISCOVERY_TASK_CLASSES)),
+];
+
+/**
+ * Whether a model is qualified for one task of a form (ADR-0089): an assessment's scoring counts
+ * only the assessor's qualifications, a discovery or Explore step only qualifications bound to
+ * the discovery role, so a scoring pass for one never makes the other look ready.
+ */
+export const qualifiedFor = (
+  d: Pick<PlanConnectionDetail, 'qualifications'>,
+  model: string,
+  task: string,
+  assessment = false,
+) =>
+  assessment && task === ASSESSMENT_TASK_CLASS
+    ? assessQualified(d, model)
+    : DISCOVERY_STEP_CLASSES.includes(task)
+      ? isDiscoveryQualified(d.qualifications, model, task)
+      : isQualified(d.qualifications, model, task);
+
 /** Verified Responses models on a connection. */
 export const responsesModels = (
   d: Pick<PlanConnectionDetail, 'model_access'>,
@@ -85,11 +106,7 @@ export function routePlans(
         )),
     models: responsesModels(d).map((m) => ({
       id: m,
-      qualified: taskClasses.filter((tc) =>
-        assessment && tc === ASSESSMENT_TASK_CLASS
-          ? assessQualified(d, m)
-          : isQualified(forDiscover(d.qualifications), m, tc),
-      ),
+      qualified: taskClasses.filter((tc) => qualifiedFor(d, m, tc, assessment)),
     })),
   }));
 }
@@ -336,9 +353,7 @@ export function ModelSwitch({
                 choice.model_id === m;
               const ready = CHOICE_TASKS.filter((t) =>
                 t.classes.every((tc) =>
-                  tc === ASSESSMENT_TASK_CLASS
-                    ? assessQualified(d, m)
-                    : isQualified(forDiscover(d.qualifications), m, tc),
+                  qualifiedFor(d, m, tc, t.label === 'Assess'),
                 ),
               ).map((t) => t.label);
               const not = CHOICE_TASKS.map((t) => t.label).filter(

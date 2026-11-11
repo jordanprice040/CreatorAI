@@ -14,6 +14,7 @@ import {
   WORKFLOW_WALL_MAX_SECONDS,
   WorkflowDetailSchema,
   WorkflowSchema,
+  isDiscoveryQualified,
   z,
   type ExplorationPacket,
   type ExplorationPreview,
@@ -23,7 +24,6 @@ import {
   type Workflow,
   type WorkflowDetail,
   type Workspace,
-  forDiscover,
   forWebDiscovery,
   isQualified,
 } from '@creator/contracts';
@@ -297,11 +297,7 @@ export function Explore({
   // web-discovery qualification does not count (ADR-0086).
   const explorationQualified = Boolean(
     plan &&
-    isQualified(
-      forDiscover(plan.qualifications),
-      model,
-      EXPLORATION_TASK_CLASS,
-    ),
+    isDiscoveryQualified(plan.qualifications, model, EXPLORATION_TASK_CLASS),
   );
   const blockers =
     resourceKind === 'subscription'
@@ -331,7 +327,7 @@ export function Explore({
                   EXPLORATION_TASK_CLASS,
                 )
                   ? [
-                      'Its web-discovery qualification covers only Search the web; Explore for me needs a qualification on the discovery locator’s own benchmark.',
+                      'Its web-discovery qualification covers only Search the web; Explore for me needs “research synthesis for discovery” under Qualify a model.',
                     ]
                   : []),
               ]

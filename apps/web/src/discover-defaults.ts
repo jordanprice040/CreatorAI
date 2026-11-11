@@ -327,11 +327,11 @@ export function plansOffered(kinds: readonly string[]) {
 }
 
 /**
- * Task classes that Models and connections › Qualify a model has a bundled benchmark for, so the
- * app itself can qualify them (a test keeps this equal to the section's BENCHMARKS). The
- * discovery roles research synthesis and candidate generation are not here yet (review of
- * PR #172, M-1; planned as P34). The installed app has no command line, so the text does not
- * name one (re-review N-A).
+ * Task classes that Models and connections › Qualify a model has a benchmark for, so the app
+ * itself can qualify them: the bundled benchmarks plus the discovery ones the server offers
+ * (ADR-0089, P34). A test keeps this equal to both lists, and another that the server offers a
+ * role-current manifest for every discovery class. The installed app has no command line, so the
+ * text does not name one (re-review N-A).
  */
 export const QUALIFY_IN_APP: readonly string[] = [
   'specification',
@@ -339,6 +339,8 @@ export const QUALIFY_IN_APP: readonly string[] = [
   'patch_build',
   'independent_review',
   'scoring',
+  'research_synthesis',
+  'candidate_generation',
 ];
 
 /**
@@ -367,9 +369,12 @@ export function taskBlockerTexts(
     return [
       ...(inApp.length
         ? [
-            `Qualify ${subject} for ${names(inApp)} under Models and connections › Qualify a model.`,
+            // ADR-0089: every caller is a discovery step, and scoring has two benchmarks.
+            `Qualify ${subject} for ${names(inApp)} under Models and connections › Qualify a model, with the benchmarks marked "for discovery".`,
           ]
         : []),
+      // A guard since P34 (PR #175 review N-2): every discovery class is in QUALIFY_IN_APP, so
+      // only a task with no benchmark in the app (code build) reaches this.
       ...(cli.length
         ? [
             `The app can't qualify ${names(cli)} yet; that is planned for a later update.`,

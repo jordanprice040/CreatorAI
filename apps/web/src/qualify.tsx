@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
+  DiscoveryBenchmarksSchema,
   PlanQualificationResultsSchema,
   latestDecided,
-  forDiscover,
-  forWebDiscovery,
   planWaitMs,
+  type DiscoveryBenchmark,
   type PlanConnection,
   type PlanQualification,
 } from '@creator/contracts';
@@ -15,6 +15,15 @@ import builder from '../../../config/connections/benchmarks/t12-builder-v1.json'
 import reviewer from '../../../config/connections/benchmarks/t12-reviewer-v2.json';
 import webDiscovery from '../../../config/connections/benchmarks/web-discovery-v2.json';
 import { AllowTasks } from './allow-tasks.js';
+import {
+  forRole,
+  manifestRole,
+  qualificationTask,
+  roleOf,
+  roleTask,
+  runningFor,
+  type Admits,
+} from './qualification-role.js';
 import { api, words } from './oversight.js';
 
 /**
@@ -38,9 +47,66 @@ export const BENCHMARKS = [
   task_class: m.task_class,
   held_out: m.cases.filter((c) => c.split === 'held_out').length,
   development: m.cases.filter((c) => c.split !== 'held_out').length,
-  // ADR-0086: shares research synthesis with the discovery locator but admits only web discovery.
-  web: m.name.startsWith('web-discovery-'),
 }));
+
+/**
+ * Which qualifications count for a benchmark's own role (ADR-0089): the assessment benchmark's
+ * scoring counts only for assessments, the discovery benchmarks' only for discovery, and (with
+ * P12) the web discovery benchmark's only for Search the web, so a pass on one never shows
+ * another as qualified. See qualification-role.ts.
+ */
+export type { Admits };
+
+/** One benchmark in the list: bundled with the app, or offered by the server (discovery). */
+export interface Offer {
+  name: string;
+  task_class: string;
+  development: number;
+  held_out: number;
+  admits: Admits;
+  /** Server-offered benchmarks carry their manifest hash, to match a started qualification. */
+  manifest_hash: string | null;
+  /** The start request body after `expected_version` and `model_id`. */
+  start: Record<string, unknown>;
+}
+
+/**
+ * The benchmarks Qualify a model lists: the bundled ones, then the discovery benchmarks the
+ * server offers (ADR-0089: the newest manifest per discovery task class that matches the current
+ * role prompts; the server picks them and loads the manifest itself when one is started).
+ */
+export function offers(discovery: readonly DiscoveryBenchmark[]): Offer[] {
+  return [
+    ...BENCHMARKS.map((b) => ({
+      name: b.name,
+      task_class: b.task_class,
+      development: b.development,
+      held_out: b.held_out,
+      // Read from the manifest's checks, so a bundled benchmark of another role (P12's web
+      // discovery) gets its own tag without a change here (PR #175 review M-2).
+      admits: manifestRole(b.manifest),
+      manifest_hash: null,
+      start: {
+        manifest: b.manifest,
+        min_held_out_cases: b.held_out,
+        floor: { numerator: 1, denominator: 1 },
+      },
+    })),
+    ...discovery.map((b) => ({
+      name: b.name,
+      task_class: b.task_class,
+      development: b.development,
+      held_out: b.held_out,
+      admits: 'discovery' as const,
+      manifest_hash: b.manifest_hash,
+      start: { benchmark: b.name },
+    })),
+  ];
+}
+
+/** The task in the benchmark list, with the role when one task class serves two roles. */
+export const offerTask = (o: Pick<Offer, 'task_class' | 'admits'>): string =>
+  roleTask(o.task_class, o.admits);
 
 /** Start, run and finish a qualification of one verified model on one bundled benchmark. */
 export function QualifyModel({
@@ -50,6 +116,7 @@ export function QualifyModel({
   qualifications,
   busy,
   preferred = null,
+  discovery: given,
   act,
 }: {
   /** The workspace's API path, e.g. `workspaces/<id>`. */
@@ -65,6 +132,8 @@ export function QualifyModel({
   busy: boolean;
   /** ADR-0081: the current model, preselected when it is verified on this connection. */
   preferred?: string | null;
+  /** The server's discovery benchmarks; read from `plan-benchmarks` when not given. */
+  discovery?: DiscoveryBenchmark[];
   act: (
     path: string,
     body: unknown,
@@ -80,6 +149,25 @@ export function QualifyModel({
   const [outcome, setOutcome] = useState('');
   const [runningId, setRunningId] = useState('');
   const [confirmFinish, setConfirmFinish] = useState('');
+  const [loaded, setLoaded] = useState<DiscoveryBenchmark[] | null>(null);
+  const [loadError, setLoadError] = useState('');
+  useEffect(() => {
+    if (given) return;
+    let live = true;
+    setLoadError('');
+    api(DiscoveryBenchmarksSchema, `${base}/plan-benchmarks`).then(
+      (r) => live && setLoaded(r.benchmarks),
+      (e: unknown) =>
+        live &&
+        setLoadError(
+          `Could not load the discovery benchmarks: ${e instanceof Error ? e.message : String(e)}`,
+        ),
+    );
+    return () => {
+      live = false;
+    };
+  }, [base, given]);
+  const list = offers(given ?? loaded ?? []);
   const allowed = connection.settings.allowed_task_classes;
   const running = qualifications.filter((q) => q.state === 'running');
   // ADR-0084: whether a Run is executing comes from the server, so leaving the page, a
@@ -137,10 +225,10 @@ export function QualifyModel({
     )) as { state?: string; reason?: string | null } | null;
     if (out?.state)
       setOutcome(
-        `${words(q.task_class)} on ${q.model_id}: ${words(out.state)}${out.reason ? `. ${out.reason}` : '.'}`,
+        `${qualificationTask(q)} on ${q.model_id}: ${words(out.state)}${out.reason ? `. ${out.reason}` : '.'}`,
       );
   }
-  const chosen = BENCHMARKS.find((b) => b.name === bench);
+  const chosen = list.find((b) => b.name === bench);
   const p = `plan-connections/${connection.id}`;
   const pick =
     (models.includes(model) ? model : '') ||
@@ -153,7 +241,7 @@ export function QualifyModel({
         pick,
         chosen.task_class,
         allowed,
-        chosen.web,
+        chosen.admits,
       )
     : null;
   return (
@@ -201,9 +289,9 @@ export function QualifyModel({
               onChange={(e) => setBench(e.target.value)}
             >
               <option value="">Choose a task</option>
-              {BENCHMARKS.map((b) => (
+              {list.map((b) => (
                 <option key={b.name} value={b.name}>
-                  {words(b.task_class)} · {b.name} ({b.development} practice +{' '}
+                  {offerTask(b)} · {b.name} ({b.development} practice +{' '}
                   {b.held_out} held out)
                   {benchmarkTag(
                     benchmarkState(
@@ -211,19 +299,20 @@ export function QualifyModel({
                       pick,
                       b.task_class,
                       allowed,
-                      b.web,
+                      b.admits,
                     ),
                   )}
                 </option>
               ))}
             </select>
           </div>
+          {loadError && <p className="small">{loadError}</p>}
           {chosen && state && (
             <>
               {state.kind === 'not_allowed' ? (
                 <p className="small">
-                  {words(chosen.task_class)} is not allowed on this connection,
-                  so it can&apos;t be qualified yet.{' '}
+                  {offerTask(chosen)} is not allowed on this connection, so it
+                  can&apos;t be qualified yet.{' '}
                   <AllowTasks
                     connection={connection}
                     tasks={[chosen.task_class]}
@@ -236,69 +325,75 @@ export function QualifyModel({
               ) : (
                 <p className="small">
                   {state.kind === 'qualified'
-                    ? `${pick} is qualified for ${words(chosen.task_class)} (${decidedWords(state.latest)}). A re-run is recorded as a new qualification, and the newest decided one counts, so a failed re-run replaces this pass. `
+                    ? `${pick} is qualified for ${offerTask(chosen)} (${decidedWords(state.latest)}). A re-run is recorded as a new qualification, and the newest decided one counts, so a failed re-run replaces this pass. `
                     : state.kind === 'failed'
-                      ? `${pick}'s last qualification for ${words(chosen.task_class)} failed (${decidedWords(state.latest)}). `
+                      ? `${pick}'s last qualification for ${offerTask(chosen)} failed (${decidedWords(state.latest)}). `
                       : ''}
                   {state.kind === 'started'
                     ? 'Already started: press Run on it below.'
-                    : `Uses up to ${chosen.development + chosen.held_out} plan requests when run. Pass bar: all ${chosen.held_out} held-out cases.`}
+                    : state.kind === 'other_running'
+                      ? // PR #175 review L-1: the server runs one qualification per model and
+                        // task class, so the other role's must be run or finished first.
+                        `A ${qualificationTask(state.qualification)} qualification of ${pick} is started; run or finish it below first, since one qualification per model and task runs at a time.`
+                      : `Uses up to ${chosen.development + chosen.held_out} plan requests when run. Pass bar: all ${chosen.held_out} held-out cases.`}
                 </p>
               )}
-              {state.kind !== 'not_allowed' && state.kind !== 'started' && (
-                <button
-                  type="button"
-                  disabled={locked || !pick}
-                  onClick={() => {
-                    setError('');
-                    setOutcome('');
-                    void act(
-                      `${p}/qualifications`,
-                      {
-                        expected_version: connection.version,
-                        model_id: pick,
-                        manifest: chosen.manifest,
-                        min_held_out_cases: chosen.held_out,
-                        floor: { numerator: 1, denominator: 1 },
-                      },
-                      undefined,
-                      setError,
-                    );
-                  }}
-                >
-                  {state.kind === 'qualified'
-                    ? 'Start a re-run'
-                    : state.kind === 'failed'
-                      ? 'Start qualification again'
-                      : 'Start qualification'}
-                </button>
-              )}
-              {anyExecuting && state.kind !== 'started' && (
-                <p className="small">
-                  A qualification on this connection is running; it sends one
-                  request at a time, so wait for it to finish before starting
-                  another.
-                </p>
-              )}
+              {state.kind !== 'not_allowed' &&
+                state.kind !== 'started' &&
+                state.kind !== 'other_running' && (
+                  <button
+                    type="button"
+                    disabled={locked || !pick}
+                    onClick={() => {
+                      setError('');
+                      setOutcome('');
+                      void act(
+                        `${p}/qualifications`,
+                        {
+                          expected_version: connection.version,
+                          model_id: pick,
+                          ...chosen.start,
+                        },
+                        undefined,
+                        setError,
+                      );
+                    }}
+                  >
+                    {state.kind === 'qualified'
+                      ? 'Start a re-run'
+                      : state.kind === 'failed'
+                        ? 'Start qualification again'
+                        : 'Start qualification'}
+                  </button>
+                )}
+              {anyExecuting &&
+                state.kind !== 'started' &&
+                state.kind !== 'other_running' && (
+                  <p className="small">
+                    A qualification on this connection is running; it sends one
+                    request at a time, so wait for it to finish before starting
+                    another.
+                  </p>
+                )}
             </>
           )}
         </>
       )}
       {running.map((q) => {
-        // The bundled benchmark of this task class, if there is one: a qualification started
-        // elsewhere may use another manifest, so the count is an upper bound only (L-2).
-        // Review 5 N-2: of the same kind too (web discovery or not), since both are research
-        // synthesis.
-        const b = BENCHMARKS.find(
-          (x) =>
-            x.task_class === q.task_class &&
-            x.web === (q.admits_web_discovery === true),
-        );
+        // The offered benchmark with this manifest, else one of this task class and role: a
+        // qualification started elsewhere may use another manifest, so the count is an upper
+        // bound only (L-2; PR #173 review 5 N-2: web discovery and the locator are both
+        // research synthesis).
+        const b =
+          list.find((x) => x.manifest_hash === q.manifest_hash) ??
+          list.find(
+            (x) => x.task_class === q.task_class && x.admits === roleOf(q),
+          );
         const n = b ? b.development + b.held_out : null;
         return (
           <div key={q.id} className="qualify-row" role="group">
             <span>
-              {words(q.task_class)} on {q.model_id} is started.
+              {qualificationTask(q)} on {q.model_id} is started.
               {executing(q) &&
                 ' Running: one plan request per case; this can take several minutes, and it carries on if you leave this page.'}
             </span>
@@ -360,7 +455,13 @@ export function QualifyModel({
  * `decided` with the recorded qualification once every case has an answer.
  */
 export function runOutcome(
-  q: { task_class: string; model_id: string },
+  q: {
+    task_class: string;
+    model_id: string;
+    admits_assessment?: boolean | undefined;
+    admits_discovery?: boolean | undefined;
+    prompt_current?: boolean | undefined;
+  },
   out: unknown,
 ): string {
   const o = (out ?? {}) as {
@@ -372,7 +473,7 @@ export function runOutcome(
       held_out: { passed: number; total: number };
     };
   };
-  const what = `${words(q.task_class)} on ${q.model_id}`;
+  const what = `${qualificationTask(q)} on ${q.model_id}`;
   if (o.state === 'stopped')
     return `${what} stopped: ${words(o.reason ?? 'unknown reason')}. Answered cases are kept. Fix the cause and press Run to continue with the rest, or Finish to record the result now.`;
   if (o.state === 'decided' && o.qualification)
@@ -388,6 +489,7 @@ export function runOutcome(
 export type BenchmarkState =
   | { kind: 'not_allowed' }
   | { kind: 'started'; qualification: PlanQualification }
+  | { kind: 'other_running'; qualification: PlanQualification }
   | { kind: 'qualified' | 'failed'; latest: PlanQualification }
   | { kind: 'new' };
 
@@ -396,20 +498,16 @@ export function benchmarkState(
   model: string,
   task: string,
   allowed: readonly string[],
-  web = false,
+  admits: Admits = null,
 ): BenchmarkState {
   if (!allowed.includes(task)) return { kind: 'not_allowed' };
-  // PR #173 review 4 L-B: a web-discovery benchmark reads only web records, and the others
-  // never read them, though both are research synthesis.
-  const own = web
-    ? forWebDiscovery(qualifications)
-    : forDiscover(qualifications);
-  const started = own.find(
-    (q) =>
-      q.state === 'running' && q.model_id === model && q.task_class === task,
-  );
-  if (started) return { kind: 'started', qualification: started };
-  const latest = latestDecided(own, model, task);
+  // The server runs one qualification per model and task class at a time, whatever its role;
+  // one of another role blocks this start and is named as such (PR #175 review L-1).
+  const running = runningFor(qualifications, model, task, admits);
+  if (running.kind !== 'free') return running;
+  // Qualified or failed counts only this benchmark's role (ADR-0089), and an untagged one never
+  // borrows a tagged role's pass (PR #175 review M-2).
+  const latest = latestDecided(forRole(qualifications, admits), model, task);
   if (latest?.state === 'qualified' || latest?.state === 'failed')
     return { kind: latest.state, latest };
   return { kind: 'new' };
@@ -421,6 +519,11 @@ function benchmarkTag(s: BenchmarkState): string {
       return ' · not allowed on this connection yet';
     case 'started':
       return ' · started';
+    case 'other_running':
+      // PR #175 re-review 2 N-2: a running row on an older prompt has no role of its own.
+      return roleOf(s.qualification)
+        ? ' · another role is running'
+        : ' · another run is started';
     case 'qualified':
       // Short, so the option fits the select; the line below it has the score (PR #172 N-2).
       return ` · qualified${s.latest.decided_at ? ` ${new Date(s.latest.decided_at).toLocaleDateString()}` : ''}`;

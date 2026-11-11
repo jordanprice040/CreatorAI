@@ -727,7 +727,7 @@ test('P34 handover: discovery fixes qualify on the benchmarks the server offers,
       roleOf(m: unknown): string | null;
     };
   };
-  // A studio without the route (main before #175) offers no discovery benchmark, and a
+  // A read that fails (here: no list served) offers no discovery benchmark, and a
   // failed first read is not kept: the next page's read tries again (fifth review L-1).
   await mod.loadOffers('workspaces/w');
   assert.equal(mod.canQualifyFor('discovery')('candidate_generation'), false);
@@ -793,4 +793,39 @@ test('P34 handover: discovery fixes qualify on the benchmarks the server offers,
   assert.equal(mod.roleOf(kinds('web_scout_contract', 'exact_label')), 'plan');
   // P12's bundled web-discovery benchmark is never a fix's research synthesis benchmark.
   assert.equal(mod.benchmarkFor('research_synthesis', 'plan'), undefined);
+});
+
+test('after P34: the tasks a fix can qualify are exactly QUALIFY_IN_APP, with the server offering its discovery benchmarks', async () => {
+  const { offeredDiscoveryBenchmarks } = await import('@creator/db');
+  const { PlanTaskClassSchema } = await import('@creator/contracts');
+  const { QUALIFY_IN_APP } = (await loadWeb('discover-defaults.ts')) as {
+    QUALIFY_IN_APP: readonly string[];
+  };
+  const { mod, offers } = (await loadButtons()) as unknown as {
+    offers: { served: { benchmarks: unknown[] } | null };
+    mod: {
+      loadOffers(base: string, fresh?: boolean): Promise<void>;
+      canQualifyFor(role: string): (t: string) => boolean;
+    };
+  };
+  offers.served = {
+    benchmarks: offeredDiscoveryBenchmarks().map((b) => ({
+      name: b.name,
+      task_class: b.task_class,
+      manifest_hash: b.manifest_hash,
+      data_class: b.data_class,
+      development: b.development,
+      held_out: b.held_out,
+    })),
+  };
+  await mod.loadOffers('workspaces/w');
+  const can = (t: string) =>
+    ['discovery', 'assessment', 'plan'].some((r) => mod.canQualifyFor(r)(t));
+  assert.deepEqual(
+    PlanTaskClassSchema.options.filter(can).sort(),
+    [...QUALIFY_IN_APP].sort(),
+  );
+  // Each discovery class is qualified on the discovery route itself.
+  for (const t of ['research_synthesis', 'candidate_generation', 'scoring'])
+    assert.equal(mod.canQualifyFor('discovery')(t), true, t);
 });

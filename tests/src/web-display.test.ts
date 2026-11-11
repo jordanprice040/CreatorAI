@@ -8,7 +8,10 @@ import ts from 'typescript';
 test('a historical qualification keeps its score but cannot appear currently qualified', async () => {
   const { QualificationSummary } = await load<{
     QualificationSummary: (p: { q: unknown }) => unknown;
-  }>('qualification-results.tsx', { './oversight.js': {} });
+  }>('qualification-results.tsx', {
+    './oversight.js': {},
+    './qualification-role.js': await load('qualification-role.ts'),
+  });
   const require = createRequire(
     new URL('../../apps/web/package.json', import.meta.url),
   );
@@ -32,6 +35,27 @@ test('a historical qualification keeps its score but cannot appear currently qua
   );
   assert.match(current, /qualified/);
   assert.ok(!current.includes('historical pass'));
+  // PR #175 review M-1: one task class, two roles, two names.
+  const scoring = (flags: object) =>
+    renderToStaticMarkup(
+      QualificationSummary({ q: { ...q, task_class: 'scoring', ...flags } }),
+    );
+  assert.match(
+    scoring({ admits_discovery: true }),
+    /scoring job for discovery/,
+  );
+  assert.match(
+    scoring({ admits_assessment: true }),
+    /scoring job for assessments/,
+  );
+  assert.match(
+    renderToStaticMarkup(
+      QualificationSummary({
+        q: { ...q, task_class: 'candidate_generation', admits_discovery: true },
+      }),
+    ),
+    /candidate generation job for discovery/,
+  );
 });
 
 /** The page map module, which has no imports: modules that import it get the real one. */

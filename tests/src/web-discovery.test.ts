@@ -9,8 +9,8 @@ import {
   ReaderOutputSchema,
   WebDiscoveryScopeSchema,
   WebDiscoverySchema,
-  forDiscover,
   forWebDiscovery,
+  isDiscoveryQualified,
   isQualified,
   routinePolicySummary,
   type PlanQualification,
@@ -245,6 +245,8 @@ test('a web-discovery and a Discover qualification of research synthesis never s
       state,
       prompt_current: true,
       admits_web_discovery: web,
+      // ADR-0089 (P34): a locate qualification is bound to the discovery role.
+      admits_discovery: !web,
       created_at: at,
       decided_at: at,
     }) as PlanQualification;
@@ -254,17 +256,14 @@ test('a web-discovery and a Discover qualification of research synthesis never s
     q('failed', true, '2026-11-11T11:00:00Z'),
   ];
   assert.equal(isQualified(both, 'm', 'research_synthesis'), false); // the old mix-up
-  assert.equal(isQualified(forDiscover(both), 'm', 'research_synthesis'), true);
+  assert.equal(isDiscoveryQualified(both, 'm', 'research_synthesis'), true);
   assert.equal(
     isQualified(forWebDiscovery(both), 'm', 'research_synthesis'),
     false,
   );
   // Only a web qualification (gpt-6-astra on the dev studio): Discover is not qualified.
   const webOnly = [q('qualified', true, '2026-11-11T12:00:00Z')];
-  assert.equal(
-    isQualified(forDiscover(webOnly), 'm', 'research_synthesis'),
-    false,
-  );
+  assert.equal(isDiscoveryQualified(webOnly, 'm', 'research_synthesis'), false);
   assert.equal(
     isQualified(forWebDiscovery(webOnly), 'm', 'research_synthesis'),
     true,

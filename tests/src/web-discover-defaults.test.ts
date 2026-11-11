@@ -208,7 +208,7 @@ test('setup blockers name the step and the tab that fixes it; defaults never cle
     unq.map((b) => b.text),
     [
       'This connection does not permit the selected evidence sharing class.',
-      'The model is not qualified for scoring. Qualify the model for scoring under Models and connections › Qualify a model.',
+      `The model is not qualified for scoring. Qualify the model for scoring under Models and connections › Qualify a model, with the benchmarks marked "for discovery".`,
     ],
   );
   // P23 item 8: a task the connection does not allow is named as that, with its fix.
@@ -226,11 +226,11 @@ test('setup blockers name the step and the tab that fixes it; defaults never cle
     notAllowed.map((b) => [b.text, b.fix?.view]),
     [
       [
-        "Scoring is not allowed on this connection, so the model can't be qualified for it yet. Allow it under Models and connections (Allow all tasks, or tick it in Change caps or allowed work). Qualify the model for scoring under Models and connections › Qualify a model.",
+        `Scoring is not allowed on this connection, so the model can't be qualified for it yet. Allow it under Models and connections (Allow all tasks, or tick it in Change caps or allowed work). Qualify the model for scoring under Models and connections › Qualify a model, with the benchmarks marked "for discovery".`,
         'models',
       ],
       [
-        "The model is not qualified for research synthesis. The app can't qualify research synthesis yet; that is planned for a later update.",
+        `The model is not qualified for research synthesis. Qualify the model for research synthesis under Models and connections › Qualify a model, with the benchmarks marked "for discovery".`,
         'models',
       ],
     ],
@@ -301,10 +301,10 @@ test("Discover's model access names the plan the connection runs on", async () =
   assert.equal(m.plansOffered([]), 'Subscription plan');
 });
 
-test('PR #172 review M-1: "not qualified" texts point only at fixes that exist', async () => {
+test('PR #172 review M-1 and ADR-0089: "not qualified" texts point only at fixes that exist', async () => {
   const m = await load<Mod>('discover-defaults.ts');
   // The Chat discovery card on a connection allowing only summarization: the discovery roles
-  // can be allowed in the app, but only scoring can be qualified there.
+  // can be allowed and, since P34, qualified in the app.
   const card = m.missingTaskTexts(
     'gpt-6-astra',
     ['research_synthesis', 'candidate_generation', 'scoring'],
@@ -318,22 +318,23 @@ test('PR #172 review M-1: "not qualified" texts point only at fixes that exist',
   assert.match(card[0]!, /Allow all tasks, or tick them in Change caps/);
   assert.match(
     card[0]!,
-    /Qualify gpt-6-astra for scoring under Models and connections › Qualify a model\./,
+    /Qualify gpt-6-astra for research synthesis, candidate generation and scoring under Models and connections › Qualify a model, with the benchmarks marked "for discovery"\./,
   );
-  assert.match(
-    card[0]!,
-    /can't qualify research synthesis and candidate generation yet; that is planned/,
-  );
+  assert.doesNotMatch(card[0]!, /can't qualify/);
   assert.doesNotMatch(card.join(' '), /Allow this task/);
-  // Explore for me once research synthesis is allowed: never sent to Qualify a model for it.
+  // Explore for me once research synthesis is allowed: sent to Qualify a model for it.
   const explore = m.missingTaskTexts(
     'gpt-6-astra',
     ['research_synthesis'],
     ['research_synthesis'],
   );
   assert.deepEqual(explore, [
-    "gpt-6-astra is not qualified for research synthesis. The app can't qualify research synthesis yet; that is planned for a later update.",
+    `gpt-6-astra is not qualified for research synthesis. Qualify gpt-6-astra for research synthesis under Models and connections › Qualify a model, with the benchmarks marked "for discovery".`,
   ]);
-  assert.doesNotMatch(explore[0]!, /Qualify a model/);
+  // A task the app has no benchmark for still says so plainly.
+  assert.match(
+    m.missingTaskTexts('m', ['code_build'], ['code_build'])[0]!,
+    /The app can't qualify code build yet/,
+  );
   assert.deepEqual(m.missingTaskTexts('m', [], ['scoring']), []);
 });
