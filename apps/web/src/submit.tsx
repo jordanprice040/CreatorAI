@@ -34,7 +34,7 @@ import {
   isQualified,
 } from '@creator/contracts';
 import { api, message, refusalsOf, words } from './oversight.js';
-import { FixButtons, canQualifyFor, type FixContext } from './fix-buttons.js';
+import { FixButtons, qualifierFor, type FixContext } from './fix-buttons.js';
 import { refusalFixes, type FixAction } from './fix-here.js';
 import { newestFirst } from './versions.js';
 import { envelopesFor } from './build-defaults.js';
@@ -495,7 +495,7 @@ export function Submit({
     usableEnvelopes: usableEnvelopes.length,
     pricing: c?.pricing.length ?? 0,
     fixture,
-    canQualify: canQualifyFor('discovery'),
+    canQualify: plan ? qualifierFor('discovery', plan.connection) : () => false,
   }).map((b) => ({
     text: b.text,
     ...(b.fix ? { fix: b.fix } : {}),
@@ -887,7 +887,11 @@ export function Submit({
     } catch (err) {
       setError(message(err));
       setErrorFixes(
-        refusalFixes(refusalsOf(err), 'discovery', canQualifyFor('discovery')),
+        refusalFixes(
+          refusalsOf(err),
+          'discovery',
+          plan ? qualifierFor('discovery', plan.connection) : () => false,
+        ),
       );
     } finally {
       setBusy(false);

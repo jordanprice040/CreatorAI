@@ -2,7 +2,11 @@
 // refusal's code or by what the page already knows, never by matching its wording. Pure rules,
 // so tests load them directly; fix-buttons.tsx draws the buttons. Every fix is the owner's own
 // Models and connections route with the same confirmation, and only the owner sees one.
-import type { PlanRefusal } from '@creator/contracts';
+import {
+  BenchmarkManifestSchema,
+  type PlanQualification,
+  type PlanRefusal,
+} from '@creator/contracts';
 import { DATA_CLASS_CHOICES } from './caps-fields.js';
 import type { FixAction, QualifyRole } from './discover-defaults.js';
 
@@ -116,4 +120,56 @@ export function refusalFixes(
       });
   }
   return out;
+}
+
+/**
+ * The manifest hash the server records for a bundled benchmark (P27 review M-2): SHA-256 of
+ * the parsed manifest as JSON with its keys sorted, as `canonicalHash` in the domain package.
+ */
+export async function manifestHash(manifest: unknown): Promise<string> {
+  const order = (v: unknown): unknown =>
+    Array.isArray(v)
+      ? v.map(order)
+      : v !== null && typeof v === 'object'
+        ? Object.fromEntries(
+            Object.entries(v)
+              .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+              .map(([k, x]) => [k, order(x)]),
+          )
+        : v;
+  const text = JSON.stringify(order(BenchmarkManifestSchema.parse(manifest)));
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(text),
+  );
+  return [...new Uint8Array(digest)]
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/**
+ * The started qualification of a model for a task, if any (P27 review M-2). The server keeps
+ * one per model and task, so a started run of this benchmark is run on (its answered cases are
+ * skipped), and one of another benchmark blocks the press: running it would grade the wrong
+ * benchmark and leave the route still refused.
+ */
+export function startedFor(
+  qualifications: readonly Pick<
+    PlanQualification,
+    'id' | 'state' | 'model_id' | 'task_class' | 'manifest_hash'
+  >[],
+  model: string,
+  task: string,
+  hash: string,
+): { kind: 'none' } | { kind: 'same' | 'other'; id: string; hash: string } {
+  const q = qualifications.find(
+    (x) =>
+      x.state === 'running' && x.model_id === model && x.task_class === task,
+  );
+  if (!q) return { kind: 'none' };
+  return {
+    kind: q.manifest_hash === hash ? 'same' : 'other',
+    id: q.id,
+    hash: q.manifest_hash,
+  };
 }

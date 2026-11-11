@@ -467,3 +467,164 @@ test('each route qualifies only on its own benchmark; the confirmation says what
     />Review and accept caps</,
   );
 });
+
+test('review M-2: the app hashes a bundled benchmark as the server does, and a started run of another benchmark blocks the press', async () => {
+  const { canonicalHash } = await import('@creator/domain');
+  const { BenchmarkManifestSchema } = await import('@creator/contracts');
+  const m = (await loadWeb('fix-here.ts')) as {
+    manifestHash(x: unknown): Promise<string>;
+    startedFor(
+      q: readonly unknown[],
+      model: string,
+      task: string,
+      hash: string,
+    ): { kind: string; id?: string };
+  };
+  const dir = new URL('../../config/connections/benchmarks/', import.meta.url);
+  for (const f of [
+    'assessment-synthetic-v1.json',
+    'specification-synthetic-v1.json',
+    't12-reviewer-v2.json',
+  ]) {
+    const manifest = JSON.parse(readFileSync(new URL(f, dir), 'utf8'));
+    // The server records canonicalHash of the parsed manifest (startPlanQualification).
+    assert.equal(
+      await m.manifestHash(manifest),
+      canonicalHash(BenchmarkManifestSchema.parse(manifest)),
+      f,
+    );
+  }
+  const a = 'a'.repeat(64);
+  const b = 'b'.repeat(64);
+  const row = (over: Record<string, unknown>) => ({
+    id: randomUUID(),
+    state: 'running',
+    model_id: 'm1',
+    task_class: 'scoring',
+    manifest_hash: a,
+    ...over,
+  });
+  const same = row({});
+  assert.deepEqual(m.startedFor([same], 'm1', 'scoring', a), {
+    kind: 'same',
+    id: same.id,
+    hash: a,
+  });
+  assert.equal(m.startedFor([same], 'm1', 'scoring', b).kind, 'other');
+  // Decided runs, other models and other tasks are not started runs of this one.
+  assert.equal(
+    m.startedFor(
+      [
+        row({ state: 'failed', manifest_hash: b }),
+        row({ model_id: 'm2', manifest_hash: b }),
+        row({ task_class: 'summarization', manifest_hash: b }),
+      ],
+      'm1',
+      'scoring',
+      a,
+    ).kind,
+    'none',
+  );
+});
+
+test('review N-2, N-3: an unverified model still gets the allow; a fixture connection is never offered a qualification', async () => {
+  const { mod } = (await loadButtons()) as unknown as {
+    mod: {
+      routeFixes(input: Record<string, unknown>): FixAction[];
+      qualifierFor(role: string, c: unknown): (t: string) => boolean;
+      confirmText(a: FixAction, d: unknown): string;
+    };
+  };
+  const c = connection({
+    settings: {
+      ...SETTINGS,
+      allowed_data_classes: ['synthetic', 'public'],
+      allowed_task_classes: ['summarization'],
+    },
+  } as Partial<PlanConnection>);
+  const route = (over: Partial<PlanConnection>, model: string) =>
+    mod.routeFixes({
+      plan: { connection: { ...c, ...over }, refusals: [] },
+      dataClass: 'public',
+      model,
+      missing: ['scoring', 'summarization'],
+      role: 'assessment',
+    });
+  // A real connection with a verified model: allow and qualify scoring.
+  assert.deepEqual(
+    route({ fixture: false } as Partial<PlanConnection>, 'm1').map((a) => [
+      a.kind,
+      a.kind === 'allow_tasks' ? a.qualify : [],
+    ]),
+    [['allow_tasks', ['scoring']]],
+  );
+  // No verified model: the task is still allowed here, nothing is qualified.
+  assert.deepEqual(
+    route({ fixture: false } as Partial<PlanConnection>, '').map((a) => [
+      a.kind,
+      a.kind === 'allow_tasks' ? [a.model_id, a.qualify] : [],
+    ]),
+    [['allow_tasks', [null, []]]],
+  );
+  // A fixture connection: allow only, never qualify.
+  assert.deepEqual(
+    route({ fixture: true } as Partial<PlanConnection>, 'm1').map((a) => [
+      a.kind,
+      a.kind === 'allow_tasks' ? a.qualify : [],
+    ]),
+    [['allow_tasks', []]],
+  );
+  assert.equal(
+    mod.qualifierFor('plan', { fixture: true })('specification'),
+    false,
+  );
+  assert.equal(
+    mod.qualifierFor('plan', { fixture: false })('specification'),
+    true,
+  );
+  const verified = [
+    {
+      connection_id: c.id,
+      model_id: 'm1',
+      path: 'responses',
+      access: 'verified',
+    },
+  ];
+  const accepted = '2026-11-11T10:00:00.000Z';
+  assert.equal(
+    mod.confirmText(
+      {
+        kind: 'qualify',
+        connection_id: c.id,
+        model_id: 'm1',
+        task_class: 'summarization',
+        role: 'plan',
+      },
+      {
+        connection: { ...c, fixture: true, caps_accepted_at: accepted },
+        model_access: verified,
+        qualifications: [],
+      },
+    ),
+    'A fixture connection is not qualified in the app.',
+  );
+  // Several tasks: the confirmation says they stop at the first that does not pass (L-2).
+  assert.match(
+    mod.confirmText(
+      {
+        kind: 'allow_tasks',
+        connection_id: c.id,
+        model_id: 'm1',
+        tasks: ['specification', 'patch_build'],
+        qualify: ['specification', 'patch_build'],
+        role: 'plan',
+      },
+      {
+        connection: { ...c, fixture: false, caps_accepted_at: accepted },
+        model_access: verified,
+        qualifications: [],
+      },
+    ),
+    /stopping at the first that does not pass/,
+  );
+});

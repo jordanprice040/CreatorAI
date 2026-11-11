@@ -1428,7 +1428,8 @@ function StartBuild({
               connection.unqualified,
               connection.allowed_tasks,
               'plan',
-              canQualifyFor('plan'),
+              // A fixture workspace qualifies nothing in the app (P27 review N-3).
+              fixture ? () => false : canQualifyFor('plan'),
             ),
           },
         ]

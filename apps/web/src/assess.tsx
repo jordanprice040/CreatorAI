@@ -34,7 +34,7 @@ import {
 import {
   FixButtons,
   FixRow,
-  canQualifyFor,
+  qualifierFor,
   routeFixes,
   type FixContext,
 } from './fix-buttons.js';
@@ -424,7 +424,7 @@ export function AutoAssess({
         refusalFixes(
           refusalsOf(err),
           'assessment',
-          canQualifyFor('assessment'),
+          plan ? qualifierFor('assessment', plan.connection) : () => false,
         ),
       );
       ctx.refresh();

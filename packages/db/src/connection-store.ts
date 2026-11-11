@@ -3663,7 +3663,9 @@ export class ConnectionStore extends PortfolioStore {
   ) {
     const ctx = normalize(ctxIn);
     return this.tx(async (c) => {
-      await this.role(c, uuid(ws), ctx.actorId, true);
+      // Run sends paid requests on the owner's connection and records the outcome; like
+      // starting a qualification it is the owner's alone (ADR-0087, P27 review L-3).
+      await this.requireOwner(c, uuid(ws), ctx.actorId);
       const { rows } = await c.query(
         `select q.*, p.workspace_id from plan_qualifications q join plan_connections p on p.id = q.connection_id
          where q.id = $1 and p.workspace_id = $2`,

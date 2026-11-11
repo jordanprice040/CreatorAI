@@ -258,17 +258,16 @@ export function discoverSetupBlockers(input: {
       const texts = missingTaskTexts('the model', input.unqualified, allowed);
       // ADR-0087: the "not allowed" sentence comes first and gets "allow (and qualify)";
       // the "not qualified" one gets "Qualify now" per task the app can qualify.
-      const acts =
-        id && input.model
-          ? missingTaskFixes(
-              id,
-              input.model,
-              input.unqualified,
-              allowed,
-              'discovery',
-              input.canQualify ?? (() => false),
-            )
-          : [];
+      const acts = id
+        ? missingTaskFixes(
+            id,
+            input.model || null,
+            input.unqualified,
+            allowed,
+            'discovery',
+            input.canQualify ?? (() => false),
+          )
+        : [];
       const allow = acts.filter((a) => a.kind === 'allow_tasks');
       const qualify = acts.filter((a) => a.kind === 'qualify');
       const notAllowedFirst = input.unqualified.some(
@@ -455,7 +454,8 @@ export type FixAction =
  */
 export function missingTaskFixes(
   connection_id: string,
-  model_id: string,
+  /** The model to qualify; none (unverified) offers only the allow (P27 review N-2). */
+  model_id: string | null,
   missing: readonly string[],
   allowed: readonly string[],
   role: QualifyRole,
