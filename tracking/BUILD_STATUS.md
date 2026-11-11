@@ -1,5 +1,9 @@
 # Build status — November 10, 2026
 
+## November 11 update — fix plan from the installed-app walk
+
+Docs only: [fix plan](../docs/FIX_PLAN_INSTALLED_WALK_2026-11-11.md) for the 24 walk findings (P23–P32 planned, not started; decisions A and B pending with Jordan). Checked: `prettier --check` on the new plan.
+
 ## November 11 update — Creator Agent visual assets
 
 On base `e2304be`, the [brand pack](../assets/creator-agent/README.md) (Codex-made, reviewed separately) supplies the Windows icon, browser and touch icons, editable mark, horizontal logos and studio cover. It is stored byte-exact (`-text`) so `SHA256SUMS.txt` stays valid; the pack's ZIP copy is not committed. Wiring: the web favicon, Apple touch icon and the mark at both web brand placements; `icons/icon.ico` for the executable, window and tray; the mark in the desktop status window header; and the NSIS installer and uninstaller icon, header and sidebar images (`tauri.local-bundle.conf.json`). `scripts/brand-derived-assets.ps1` regenerates every app copy; the pack README lists them and `SHA256SUMS.txt` hashes them. The ICO's 256 px frame is stored as PNG (369 KB to 114 KB, all nine frames pixel-identical).
