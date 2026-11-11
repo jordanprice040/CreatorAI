@@ -252,6 +252,23 @@ export const TASK_CLASS_CHOICES: readonly ClassChoice[] = [
 export const taskChoicesFor = (kind: string) =>
   TASK_CLASS_CHOICES.filter((x) => !x.codexOnly || kind === 'chatgpt_plan');
 
+/**
+ * ADR-0084 (P23, Jordan's Decision A): a new connection starts with every task its kind can
+ * take, so all eight on ChatGPT and the seven Responses tasks on Claude Code (no code build).
+ * The owner can untick any of them, and caps acceptance is still the gate before anything runs.
+ */
+export const defaultTaskClasses = (kind: string): string[] =>
+  taskChoicesFor(kind).map((x) => x.key);
+
+/** Tasks this connection's kind can take that it does not allow yet, in the canonical order. */
+export const missingTaskClasses = (
+  kind: string,
+  allowed: readonly string[],
+): string[] =>
+  taskChoicesFor(kind)
+    .filter((x) => !allowed.includes(x.key))
+    .map((x) => x.key);
+
 /** Ticked keys in the canonical order, keeping only ones this kind can take. */
 export function orderedClasses(
   choices: readonly ClassChoice[],

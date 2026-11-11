@@ -33,6 +33,7 @@ import { api } from './oversight.js';
 import { newestFirst } from './versions.js';
 import { envelopesFor } from './build-defaults.js';
 import { runNames } from './ui.js';
+import { missingTaskTexts } from './discover-defaults.js';
 import type {
   CardData,
   CardKind,
@@ -235,9 +236,15 @@ export async function loadCard(
       const missing = DISCOVERY_CLASSES.filter(
         (tc) => !isQualified(d.qualifications, model, tc),
       );
-      if (missing.length)
+      // P23 item 8: a task the connection does not allow can't be qualified, so say that
+      // instead of a plain "not qualified" with no way forward.
+      const allowed = d.connection.settings
+        .allowed_task_classes as readonly string[];
+      const blockers = missingTaskTexts(model, missing, allowed);
+      out.routeBlockers.push(...blockers);
+      if (blockers.length)
         out.routeBlockers.push(
-          `${model} is not qualified for ${missing.map((m) => m.replaceAll('_', ' ')).join(', ')}. Pick a qualified model beside the usage indicator, or use Discover.`,
+          'Or pick a model qualified for every discovery step beside the usage indicator, or start the discovery from Discover.',
         );
       if (out.routeBlockers.length === 0)
         out.route = {

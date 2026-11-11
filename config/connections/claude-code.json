@@ -3,7 +3,15 @@
   "plan_type": "unknown",
   "shared_allowance_note": "Claude Pro/Max: the five-hour and weekly usage limits are shared with Jordan's own Claude and Claude Code use. Extra usage after the limit stays off. Studio caps below are proposals pending Jordan's acceptance.",
   "allowed_data_classes": ["synthetic", "public"],
-  "allowed_task_classes": ["summarization", "specification"],
+  "allowed_task_classes": [
+    "research_synthesis",
+    "candidate_generation",
+    "scoring",
+    "specification",
+    "summarization",
+    "patch_build",
+    "independent_review"
+  ],
   "caps": {
     "responses": {
       "max_requests_per_run": 10,

@@ -74,12 +74,20 @@ const until = async (f: () => boolean, ms = 5000) => {
   }
 };
 
-test('proposed plan settings parse and keep code_build, private data and credits out', () => {
+test('proposed plan settings parse, allow every task (ADR-0084) and keep private data and credits out', () => {
   assert.equal(SETTINGS.plan_type, 'plus');
   assert.deepEqual(SETTINGS.allowed_data_classes, ['synthetic', 'public']);
+  // ADR-0084 (Jordan's Decision A) replaced the least-privilege task default; acceptance of
+  // the caps is still the gate before anything runs.
   assert.deepEqual(SETTINGS.allowed_task_classes, [
-    'summarization',
+    'research_synthesis',
+    'candidate_generation',
+    'scoring',
     'specification',
+    'summarization',
+    'patch_build',
+    'independent_review',
+    'code_build',
   ]);
   assert.equal(SETTINGS.caps.shared.max_in_flight, 1);
 });
@@ -760,6 +768,162 @@ test('sign-in, credits, caps, verification and qualification are separate record
     floor: { numerator: 7, denominator: 8 },
   });
   assert.equal(retry.state, 'running');
+});
+
+test('ADR-0084: a second Run of a qualification that is running is refused and nothing is sent twice', async (t) => {
+  // Review of PR #169 M-1: a Run is one long request. A page that was left (or a second
+  // window) could press Run again and start a second loop for the same qualification.
+  let hold = false;
+  let release = () => {};
+  const held = new Promise<void>((r) => (release = r));
+  const s = await setup(t, {
+    responses: [
+      { kind: 'text', text: 'ok' },
+      { kind: 'text', text: '{"fixture":true,"summary":"s"}' },
+    ],
+    beforeResponse: async () => {
+      if (hold) await held;
+    },
+  });
+  if (!s) return;
+  const refused = (p: Promise<unknown>, m: RegExp) =>
+    assert.rejects(
+      p,
+      (e: unknown) =>
+        e instanceof ContractError &&
+        e.code === 'INVALID_TRANSITION' &&
+        m.test(e.message),
+    );
+  const { store, service, ws, conn, fake } = s;
+  await s.signIn();
+  const c = await s.ready();
+  const grant = await store.createPlanVerificationGrant(owner, ws.id, c.id, {
+    expected_version: c.version,
+    model_id: 'm',
+    path: 'responses',
+    expires_in_minutes: 5,
+  });
+  await service.verifyModel(owner, ws.id, c.id, {
+    id: grant.id,
+    model_id: 'm',
+  });
+  const q = await store.startPlanQualification(owner, ws.id, c.id, {
+    expected_version: (await s.current()).version,
+    model_id: 'm',
+    manifest: read('config/routing/benchmark.fixture.json'),
+    min_held_out_cases: 8,
+    floor: { numerator: 7, denominator: 8 },
+  });
+  const executing = async () =>
+    (
+      await store.planConnectionDetail(owner, ws.id, conn.id)
+    ).qualifications.find((x) => x.id === q.id)?.executing;
+  assert.equal(await executing(), false, 'started is not running');
+  hold = true;
+  const sent = fake.responseRequests.length;
+  const first = service.runQualification(owner, ws.id, q.id);
+  await until(() => fake.responseRequests.length > sent);
+  assert.equal(
+    await executing(),
+    true,
+    'the page reads the Run from the server',
+  );
+  // The same process (another tab, or the page after a remount) is refused.
+  await refused(
+    service.runQualification(owner, ws.id, q.id),
+    /already running/,
+  );
+  // Another studio process sharing the database sees the case in flight and is refused too.
+  const other = new PlanConnectionService({
+    ...service.deps,
+    store: new ConnectionStore(s.db.pool),
+  });
+  await refused(other.runQualification(owner, ws.id, q.id), /still in flight/);
+  // Review of PR #172 N-1: a Finish from another window cannot cut the running loop short.
+  await refused(
+    store.finishPlanQualification(owner, ws.id, q.id),
+    /is running/,
+  );
+  hold = false;
+  release();
+  const done = await first;
+  assert.equal(
+    done.state === 'decided' && done.qualification.state,
+    'qualified',
+  );
+  const cases = await s.db.pool.query(
+    'select case_id, count(*)::int as n from plan_requests where qualification_id = $1 group by case_id',
+    [q.id],
+  );
+  const manifest = read('config/routing/benchmark.fixture.json') as {
+    cases: unknown[];
+  };
+  assert.equal(cases.rows.length, manifest.cases.length);
+  assert.ok(
+    cases.rows.every((r) => r.n === 1),
+    'every case was sent exactly once',
+  );
+  assert.equal(await executing(), undefined, 'a decided one is not running');
+  // The claim is released, and a finished qualification is refused before anything is sent.
+  const after = fake.responseRequests.length;
+  await refused(
+    service.runQualification(owner, ws.id, q.id),
+    /already finished/,
+  );
+  assert.equal(fake.responseRequests.length, after);
+});
+
+test('PR #172 review L-2: a case with no known outcome stops the next Run before anything is sent', async (t) => {
+  // The first answer verifies the model; the next is cut off, so its outcome stays unknown.
+  const s = await setup(t, {
+    responses: [
+      { kind: 'text', text: 'ok' },
+      { kind: 'cut', text: 'partial' },
+    ],
+  });
+  if (!s) return;
+  const { store, service, ws, fake } = s;
+  await s.signIn();
+  const c = await s.ready();
+  const grant = await store.createPlanVerificationGrant(owner, ws.id, c.id, {
+    expected_version: c.version,
+    model_id: 'm',
+    path: 'responses',
+    expires_in_minutes: 5,
+  });
+  await service.verifyModel(owner, ws.id, c.id, {
+    id: grant.id,
+    model_id: 'm',
+  });
+  const q = await store.startPlanQualification(owner, ws.id, c.id, {
+    expected_version: (await s.current()).version,
+    model_id: 'm',
+    manifest: read('config/routing/benchmark.fixture.json'),
+    min_held_out_cases: 8,
+    floor: { numerator: 7, denominator: 8 },
+  });
+  const first = await service.runQualification(owner, ws.id, q.id);
+  assert.equal(first.state, 'stopped');
+  const states = await s.db.pool.query(
+    'select state from plan_requests where qualification_id = $1',
+    [q.id],
+  );
+  assert.deepEqual(
+    states.rows.map((r) => r.state),
+    ['unknown'],
+  );
+  // Before the fix, this Run skipped the case, sent the rest and then failed on finish with
+  // "A qualification case is still unresolved." (Jordan's item 10).
+  const sent = fake.responseRequests.length;
+  await assert.rejects(
+    service.runQualification(owner, ws.id, q.id),
+    (e: unknown) =>
+      e instanceof ContractError &&
+      e.code === 'INVALID_TRANSITION' &&
+      /no known outcome/.test(e.message) &&
+      /Running now/.test(e.message),
+  );
+  assert.equal(fake.responseRequests.length, sent, 'nothing more was sent');
 });
 
 test('provider refusals are recorded as eligibility and quota states and stop admission', async (t) => {
@@ -1592,8 +1756,8 @@ test('the Codex relay binds its admission to the login: late 401s affect only th
         settings: {
           ...c.settings,
           allowed_task_classes: [
-            ...c.settings.allowed_task_classes,
-            'code_build',
+            // ADR-0084: the proposal may already allow these.
+            ...new Set([...c.settings.allowed_task_classes, 'code_build']),
           ],
         },
       });
@@ -1769,8 +1933,11 @@ test('production discovery-contract qualification grades role outputs through th
     settings: {
       ...conn.settings,
       allowed_task_classes: [
-        ...conn.settings.allowed_task_classes,
-        'research_synthesis',
+        // ADR-0084: the proposal may already allow these.
+        ...new Set([
+          ...conn.settings.allowed_task_classes,
+          'research_synthesis',
+        ]),
       ],
     },
   });
@@ -1862,9 +2029,12 @@ test('build-role plan requests need the exact role prompt, a qualification and a
     settings: {
       ...conn.settings,
       allowed_task_classes: [
-        ...conn.settings.allowed_task_classes,
-        'independent_review',
-        'patch_build',
+        // ADR-0084: the proposal may already allow these.
+        ...new Set([
+          ...conn.settings.allowed_task_classes,
+          'independent_review',
+          'patch_build',
+        ]),
       ],
     },
   });
@@ -2536,8 +2706,8 @@ test('a patch-build qualification is graded by the studio scorer, and a scorer c
     settings: {
       ...conn.settings,
       allowed_task_classes: [
-        ...conn.settings.allowed_task_classes,
-        'patch_build',
+        // ADR-0084: the proposal may already allow these.
+        ...new Set([...conn.settings.allowed_task_classes, 'patch_build']),
       ],
     },
   });
