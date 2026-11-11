@@ -5,14 +5,14 @@
   "subject": {
     "type": "specification",
     "id": "00000000-0000-4000-8000-000000000001",
-    "version": 2,
-    "content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    "saved_at": "2026-11-10T08:00:00.000Z"
+    "version": 3,
+    "content_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "saved_at": "2026-11-11T08:00:00.000Z"
   },
   "freeze": {
     "id": "00000000-0000-4000-8000-000000000002",
-    "frozen_at": "2026-11-10T08:05:00.000Z",
-    "content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    "frozen_at": "2026-11-11T08:05:00.000Z",
+    "content_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
   },
   "problem": {
     "id": "00000000-0000-4000-8000-000000000003",
@@ -110,7 +110,7 @@
     {
       "path": "DECISIONS.md",
       "bytes": 2084,
-      "sha256": "63b9cf9563647581294661cad19118329e3dfd23a2ab5ff8f5b626fa4fb67f98"
+      "sha256": "46735034b360ca8056a135270e6a87026308581095ceebf7c018ce417b61abc8"
     },
     {
       "path": "EVIDENCE.md",
@@ -120,7 +120,7 @@
     {
       "path": "README.md",
       "bytes": 4302,
-      "sha256": "dfc9d9a9b118c85512a18dff7c8310a134df3e09c8988ffce05bd523ad1cb488"
+      "sha256": "0ee1081b1bf2fcef1d8830b0f62be6a69c079a289c8ec6fd8ef399b9aa353807"
     },
     {
       "path": "RECOVERY.md",
@@ -129,13 +129,13 @@
     },
     {
       "path": "REQUIREMENTS.md",
-      "bytes": 3246,
-      "sha256": "c3203f86d4c58a5c32ab3c8f111596f613114885b01f8ef28c879018bae51c88"
+      "bytes": 3227,
+      "sha256": "927d895a060e25a57867858614fb423d1cc34e3c9606413df77ba6998ed30a34"
     },
     {
       "path": "STACK.md",
-      "bytes": 2117,
-      "sha256": "247f678fa29aa2d11ffecb073a00e7aee7c9e5b062d929e36b0127e251e1fb3d"
+      "bytes": 2199,
+      "sha256": "7d8a766fe6e1d290be3fb3ae70b9619dd6dd0a0201041c21ba21099122c18f86"
     },
     {
       "path": "TASKS.md",
@@ -174,8 +174,8 @@
     },
     {
       "path": "prompts/05-review-and-repair.md",
-      "bytes": 3185,
-      "sha256": "5239647e3a238f9ce1a657dc1035b91681329e6be99b3c4b1956407852d747d6"
+      "bytes": 3319,
+      "sha256": "989189c9a3bd324bd0e7e83f254258068e7d8b62773dc5c4e88e379444d5ca21"
     },
     {
       "path": "prompts/06-verify-and-hand-over.md",
@@ -185,8 +185,8 @@
     {
       "path": "spec.json",
       "bytes": 4528,
-      "sha256": "89875653ac934ff4990ba2447eaeed50970501956847dcfa1908e858f16a1390"
+      "sha256": "16f53ed6cfa9c6a5a6c95614f73be5b616b96837eb1d71fbb97b917277a60959"
     }
   ],
-  "bundle_hash": "3150012b7a7f6ce24955d139ae4a86137caccd92ab8f06c3e7b7e049f780d078"
+  "bundle_hash": "9ddeb6acf477ab3630d7c00a7477a9aec6e1ad51d34af6498b9f39cf40168da2"
 }

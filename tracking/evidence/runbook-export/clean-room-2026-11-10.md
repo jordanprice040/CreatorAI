@@ -117,15 +117,15 @@ R1, R6 and R8 are spec wording in the synthetic fixture. R2–R5 and R7 are expo
 
 ## Fixes for R1–R8 (2026-11-11, follow-up PR)
 
-Regenerated bundle hash `3150012b…`. Not re-consumed in a clean room; the wording was checked by tests only.
+Regenerated bundle hash `9ddeb6ac…` (after the PR review fixes; the synthetic spec is now version 3). Not re-consumed in a clean room; the wording was checked by tests only.
 
 | Gap | Where | Fix |
 | --- | --- | --- |
-| R1 | Fixture A1 measure; REQUIREMENTS.md template | The A1 measure now names the exit code 2 refusal. Every REQUIREMENTS.md now says a case's exact output and exit code govern where they differ from the general measure, and the mismatch is reported, not edited. |
+| R1 | Fixture A1 measure; REQUIREMENTS.md template | The A1 measure now names the exit code 2 refusal. A REQUIREMENTS.md with visible cases now says a case's exact output and exit code govern where they differ from the general measure, and the mismatch is reported, not edited. |
 | R2 | CONTRACT.md rule 10; prompt 05 | Only the review-and-repair step may correct an ASSUMPTIONS.md line, for a finding in REVIEW.md, saying what it said before. |
 | R3 | Prompt 05 | Past task reviews (`review/`) stay as written; a mistake in one is a finding in REVIEW.md. |
 | R4 | Prompt 05 | Part 1 changes no file except REVIEW.md; commit order is REVIEW.md first, one commit per fix, then the final status update. |
 | R5 | CONTRACT.md rule 9 | Where neither reading refuses, take the one closer to the plain words; where refusing needs an undefined exit code or message, do not invent one, take the non-refusing reading and mark it "owner to decide". |
 | R6 | Fixture risk mitigation | The README states how words are counted and how lines are counted, one sentence each. |
-| R7 | STACK.md template | The stack is a proposal, but the notes under it are not: a program on that stack that ignores one is a review finding. |
+| R7 | STACK.md template | The stack is a proposal, but what its notes require is not: a program on that stack that does not do it is a review finding. A way shown “for example” is only one way. |
 | R8 | Fixture A3 measure | "No reading or writing of files and no network use"; finding the program's own folder for imports does not count. |

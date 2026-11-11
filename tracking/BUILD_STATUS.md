@@ -853,5 +853,12 @@ changes in `packages/domain/src/runbook.ts`: REQUIREMENTS.md says exact cases go
 10 lets only the review-and-repair step correct an ASSUMPTIONS.md line (R2); prompt 05 keeps past task reviews as
 written (R3) and states what Part 1 may change and the commit order (R4); STACK.md says the notes under a proposed
 stack are binding on that stack (R7). Fixture spec changes in `runbook-fixture.ts` (R1 A1 measure, R6 README
-mitigation, R8 A3 measure). Bundle regenerated (hash `3150012b…`); `node scripts/p16-runbook-example.mjs` verifies
+mitigation, R8 A3 measure). Bundle regenerated; `node scripts/p16-runbook-example.mjs` verifies
 it. New assertions in `tests/src/runbook-domain.test.ts`. No ADR or migration. Not re-consumed in a clean room.
+
+Review fixes (PR #163 review; report in the project files at `reviews/P16_PR163_REVIEW_2026-11-11.md`): the "cases
+govern" line appears only when a check has visible cases (L1); the STACK.md sentence now covers what a note requires,
+not every suggestion, and the static-web server note says it is only a way to try the page (L2); prompt 05 Part 1 may
+add an ASSUMPTIONS.md line as the contract allows (L3); prompt 05 no longer names `review/` (N1); the commit order
+reads right with no findings (N2); the synthetic spec is now version 3 with a new placeholder hash, since its text
+changed (N3). Bundle hash now `9ddeb6ac…`.

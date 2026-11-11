@@ -155,18 +155,18 @@ const HASH = (c: string) => c.repeat(64);
 export const RUNBOOK_FIXTURE_INPUT: SoftwareRunbookInput = {
   spec: {
     id: ID(1),
-    version: 2,
+    version: 3,
     title: 'Word tally (synthetic)',
-    content_hash: HASH('a'),
-    saved_at: '2026-11-10T08:00:00.000Z',
+    content_hash: HASH('b'),
+    saved_at: '2026-11-11T08:00:00.000Z',
     content: RUNBOOK_FIXTURE_SPEC,
   },
   freeze: {
     id: ID(2),
-    frozen_at: '2026-11-10T08:05:00.000Z',
-    content_hash: HASH('a'),
+    frozen_at: '2026-11-11T08:05:00.000Z',
+    content_hash: HASH('b'),
   },
-  latest_frozen_version: 2,
+  latest_frozen_version: 3,
   problem: {
     id: ID(3),
     version: 1,
@@ -198,7 +198,7 @@ export const RUNBOOK_FIXTURE_INPUT: SoftwareRunbookInput = {
   humility: {
     id: ID(6),
     version: 1,
-    subject_version: 2,
+    subject_version: 3,
     disposition: 'build',
     software_part: 'Counting words and lines.',
     human_part: 'Deciding what the count means for the draft.',

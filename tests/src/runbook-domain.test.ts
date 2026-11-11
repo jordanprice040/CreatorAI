@@ -46,7 +46,7 @@ test('a software runbook is whole, ordered by the task plan and the same bytes e
   assert.deepEqual(validateRunbook(files), []);
   assert.equal(manifest.kind, 'software');
   assert.equal(manifest.recipe, 'python-build/1');
-  assert.equal(manifest.subject.version, 2);
+  assert.equal(manifest.subject.version, 3);
   assert.ok(manifest.freeze);
   // Setup, T1, T2, T3 (the spec lists T3 before T2; the plan orders by dependency), review, verify.
   assert.deepEqual(
@@ -228,7 +228,7 @@ test('an unfrozen, replaced or stack-less spec says so instead of looking ready'
   const w = manifest.warnings.join('\n');
   assert.match(
     w,
-    /version 2 of the spec, which is not frozen \(version 1 is\)/,
+    /version 3 of the spec, which is not frozen \(version 1 is\)/,
   );
   assert.match(w, /later selection/);
   assert.match(
@@ -249,6 +249,11 @@ test('an unfrozen, replaced or stack-less spec says so instead of looking ready'
   }
   const none = softwareRunbook(j);
   assert.equal(none.manifest.recipe, 'none');
+  // With no case to compare, REQUIREMENTS.md says nothing about cases governing.
+  assert.doesNotMatch(
+    textOf(none.files, 'REQUIREMENTS.md'),
+    /What a case expects/,
+  );
   assert.ok(!none.files.some((f) => f.path === 'checks/run_checks.py'));
   assert.match(
     textOf(none.files, 'STACK.md'),
@@ -284,15 +289,22 @@ test('a receiver with only the bundle can finish every step as written', () => {
   // A case that differs from its check's general measure governs.
   assert.match(
     textOf(files, 'REQUIREMENTS.md'),
-    /Where one differs from the general measure above it .* the case governs/,
+    /Where it differs from the general measure of its check .* the case governs/,
   );
   // The stack notes are binding on that stack, not part of the proposal.
   assert.match(textOf(files, 'STACK.md'), /The notes below are not proposals/);
   const review = textOf(files, 'prompts/05-review-and-repair.md');
   assert.doesNotMatch(review, /review \(change nothing\)/);
-  assert.match(review, /change no file except REVIEW\.md/);
-  assert.match(review, /Commit REVIEW\.md on its own before any fix/);
-  assert.match(review, /Commit that update to REVIEW\.md last/);
+  assert.match(
+    review,
+    /change no file except REVIEW\.md, and ASSUMPTIONS\.md only to add/,
+  );
+  assert.match(review, /If it has no findings, the repair part is empty/);
+  assert.match(
+    review,
+    /If you fixed anything, commit that update to REVIEW\.md last/,
+  );
+  assert.doesNotMatch(review, /`review\/`/);
   assert.match(review, /leave that review as it is/);
   const t3 = textOf(files, 'prompts/04-t3-review-against-the-scope.md');
   assert.doesNotMatch(t3, /Check A3 passes when run now/);
@@ -1120,6 +1132,12 @@ test('a browser spec proposes the static web stack, writes the steps out and shi
     /Browser case 1: open `\/`, then do these steps in order \(selectors are CSS\):\n\n```text\n1\. clear #text`\[x\]\(https:\/\/evil\.example\/\) and type "one two"\n2\. click button\[type="submit"\]\n3\. expect #count to show exactly "2"\n```/,
   );
   assert.match(textOf(files, 'STACK.md'), /Proposed stack: Static web page/);
+  // The local server is a way to try the page, not something the program must do.
+  assert.match(
+    textOf(files, 'STACK.md'),
+    /To try it by hand, any local web server/,
+  );
+  assert.match(req, /What a case expects is exact/);
   assert.match(
     textOf(files, 'README.md'),
     /no command-line cases, so there is no script to run/,

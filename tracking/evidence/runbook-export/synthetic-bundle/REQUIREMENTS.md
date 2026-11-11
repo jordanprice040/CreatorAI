@@ -1,6 +1,6 @@
 # Requirements — Word tally (synthetic)
 
-Spec 00000000-0000-4000-8000-000000000001, version 2, frozen on 2026-11-10 (freeze 00000000). Content hash `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`.
+Spec 00000000-0000-4000-8000-000000000001, version 3, frozen on 2026-11-11 (freeze 00000000). Content hash `bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb`.
 
 These requirements are fixed. Do not change them; report a requirement that looks wrong.
 
@@ -48,7 +48,7 @@ Do not build these, even if they seem helpful.
 ## Acceptance checks
 
 Each check has a key (A1, A2, ...). A check passes only when it is run and observed to pass.
-A case’s expected output and exit code are exact. Where one differs from the general measure above it (a refusal case, for example), the case governs; report the mismatch, do not change either.
+What a case expects is exact. Where it differs from the general measure of its check (a refusal case, for example), the case governs; report the mismatch, do not change either.
 
 ### A1 — The number of whitespace-separated words is printed.
 

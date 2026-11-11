@@ -3,8 +3,8 @@
   "title": "Word tally (synthetic)",
   "spec": {
     "id": "00000000-0000-4000-8000-000000000001",
-    "version": 2,
-    "content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    "version": 3,
+    "content_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
   },
   "frozen": true,
   "audience": "Writers who want a quick count from the command line (synthetic).",
