@@ -9,7 +9,9 @@ import {
 import { checkDiscoveryOutput } from './discovery.js';
 import { checkAssessmentOutput } from './assessment.js';
 import { canonicalHash } from './rules.js';
+import { gradeWebDiscoveryCase } from './web-discovery.js';
 import type {
+  WebSearchCall,
   ArmSummary,
   BenchmarkCheck,
   CostSummary,
@@ -203,6 +205,8 @@ export function checkOutput(
   check: BenchmarkCheck,
   output: { text: string; json: unknown } | null,
   status: { succeeded: boolean; reason_code: string },
+  /** ADR-0086: the search calls the provider reported, for a web scout check. */
+  searchCalls: readonly WebSearchCall[] | null = null,
 ): ObjectiveSignal {
   if (!status.succeeded || !output)
     return status.reason_code === 'incomplete_output'
@@ -211,6 +215,9 @@ export function checkOutput(
         ? 'schema_invalid'
         : 'provider_error';
   switch (check.kind) {
+    case 'web_scout_contract':
+    case 'web_reader_contract':
+      return gradeWebDiscoveryCase(check, output.json, searchCalls);
     case 'discovery_contract': {
       if (canonicalHash(check.packet) !== check.context.packet_hash)
         return 'acceptance_check_failed';

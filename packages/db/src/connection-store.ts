@@ -28,6 +28,7 @@ import {
   type BuildApproval,
   type BuildApprovalResult,
   type PlanAdmissionRequest,
+  WEB_DISCOVERY_TASK_CLASS,
   type PlanConnection,
   type PlanConnectionDetail,
   type PlanModelAccess,
@@ -95,8 +96,17 @@ import {
   type BuildRole,
   type PlanChatAllowance,
   type PlanUsageCounts,
+  READER_PROMPT,
+  SCOUT_PROMPT,
+  WEB_DISCOVERY_ROLE_VERSION,
+  readerInput,
+  scoutInput,
 } from '@creator/domain';
-import { PortfolioStore } from './portfolio-store.js';
+import { WebDiscoveryStore } from './web-discovery-store.js';
+import {
+  webDiscoveryRequestGate,
+  type WebDiscoveryBinding,
+} from './web-discovery-gates.js';
 import { usageSummary } from './usage-summary.js';
 import {
   CHAT_ANSWER_STALE_POINT,
@@ -268,8 +278,11 @@ const toQualification = (r: Row): PlanQualification => ({
   decided_at: r.decided_at ? iso(r.decided_at) : null,
   prompt_current:
     currentForBuildRole(r) &&
-    (currentForDiscoveryRole(r) || currentForAssessmentRole(r)),
+    (currentForDiscoveryRole(r) ||
+      currentForAssessmentRole(r) ||
+      currentForWebDiscoveryRole(r)),
   admits_assessment: currentForAssessmentRole(r),
+  admits_web_discovery: currentForWebDiscoveryRole(r),
 });
 const toRequest = (r: Row): PlanRequest => ({
   id: String(r.id),
@@ -345,6 +358,54 @@ function currentForAssessmentRole(r: Row): boolean {
         .join('\n\n') === assessmentRoleInput(check.packet)[0]!.text
     );
   });
+}
+
+/**
+ * ADR-0086: a research-synthesis qualification admits web discovery only when every case is a
+ * web scout or reader check on the current role version and its system message is that
+ * stage's current prompt, and both stages are covered. It never admits Explore or the locator,
+ * and their qualifications never admit web discovery.
+ */
+export function currentForWebDiscoveryRole(r: Row): boolean {
+  if (String(r.task_class) !== WEB_DISCOVERY_TASK_CLASS) return false;
+  const manifest = r.manifest as {
+    cases?: { input?: { role: string; text: string }[]; check?: unknown }[];
+  };
+  if (!manifest.cases?.length || canonicalHash(manifest) !== r.manifest_hash)
+    return false;
+  const stages = new Set<string>();
+  for (const item of manifest.cases) {
+    const parsed = BenchmarkCheckSchema.safeParse(item.check);
+    if (
+      !parsed.success ||
+      (parsed.data.kind !== 'web_scout_contract' &&
+        parsed.data.kind !== 'web_reader_contract') ||
+      parsed.data.role_version !== WEB_DISCOVERY_ROLE_VERSION
+    )
+      return false;
+    const system = (item.input ?? [])
+      .filter((m) => m.role === 'system')
+      .map((m) => m.text)
+      .join('\n\n');
+    const user = (item.input ?? [])
+      .filter((m) => m.role === 'user')
+      .map((m) => m.text)
+      .join('\n\n');
+    // PR #173 review N-1: the case's input is the stage's input for its own scope or packet.
+    if (
+      system !==
+        (parsed.data.kind === 'web_scout_contract'
+          ? SCOUT_PROMPT
+          : READER_PROMPT) ||
+      user !==
+        (parsed.data.kind === 'web_scout_contract'
+          ? scoutInput(parsed.data.scope)
+          : readerInput(parsed.data.packet))
+    )
+      return false;
+    stages.add(parsed.data.kind);
+  }
+  return stages.size === 2;
 }
 
 /** Same discovery prompt binding used for both admission and historical-result labels. */
@@ -427,6 +488,12 @@ function withoutRoleVersion(check: unknown): unknown {
     kind?: string;
     context?: Record<string, unknown>;
   } | null;
+  // PR #173 review 3 L-1: a web check names its role version at the top level; the stage's
+  // prompt is its system message, which `heldOutPrompts` covers case by case.
+  if (c?.kind === 'web_scout_contract' || c?.kind === 'web_reader_contract') {
+    const { role_version: _v, ...rest } = c as Record<string, unknown>;
+    return rest;
+  }
   if (c?.kind !== 'discovery_contract' || !c.context) return check ?? null;
   const { role_version: _v, packet_hash: _p, ...context } = c.context;
   return { ...c, context };
@@ -448,6 +515,37 @@ export const promptHash = (cases: readonly ManifestCase[]) =>
       ),
     ].sort(),
   );
+/**
+ * PR #173 review 3 L-1: the prompt each held-out case gives its model, in `heldOutKeys` order.
+ * A benchmark with several stages (web discovery's scout and reader) revises one stage's prompt
+ * without changing the other's, so a viewed case is compared with its own stage's prompt.
+ */
+export const heldOutPrompts = (cases: readonly ManifestCase[]) =>
+  cases.filter((k) => k.split === 'held_out').map((k) => promptHash([k]));
+/**
+ * ADR-0052: how many of a manifest's held-out cases one recorded view showed under a different
+ * prompt. A view recorded before per-case prompts were stored compares the whole prompt.
+ */
+export function heldOutSeen(
+  view: {
+    prompt_hash: string;
+    held_out: string[];
+    held_out_prompts?: string[];
+  },
+  cases: readonly ManifestCase[],
+): number {
+  const keys = heldOutKeys(cases);
+  if (!view.held_out_prompts) {
+    if (view.prompt_hash === promptHash(cases)) return 0;
+    const now = new Set(keys);
+    return view.held_out.filter((k) => now.has(k)).length;
+  }
+  const prompts = heldOutPrompts(cases);
+  const now = new Map(keys.map((k, i) => [k, prompts[i]!]));
+  return view.held_out.filter(
+    (k, i) => now.has(k) && now.get(k) !== view.held_out_prompts![i],
+  ).length;
+}
 const HELD_OUT_VIEWED = 'qualification_held_out_viewed';
 
 /** ADR-0081: one person's model choice in a workspace; version 0 when never chosen. */
@@ -471,7 +569,7 @@ async function modelChoice(
   };
 }
 
-export class ConnectionStore extends PortfolioStore {
+export class ConnectionStore extends WebDiscoveryStore {
   /**
    * PR #126 review L-1: chat answers this studio process has begun and not yet finished. A reply
    * can come back only to the process that sent the request, so these are the answers that are
@@ -2620,6 +2718,20 @@ export class ConnectionStore extends PortfolioStore {
    * Admits one upstream plan request or refuses it with every reason. On success the request
    * row is in flight and counts against every cap until it settles.
    */
+  /** ADR-0086: research-synthesis qualifications bound to the current web discovery prompts. */
+  async #webDiscoveryQualifications(
+    c: PoolClient,
+    id: string,
+  ): Promise<PlanQualification[]> {
+    const rows = await c.query(
+      'select * from plan_qualifications where connection_id=$1',
+      [id],
+    );
+    return rows.rows
+      .filter((r) => currentForWebDiscoveryRole(r as Row))
+      .map((r) => toQualification(r as Row));
+  }
+
   async #discoveryQualifications(
     c: PoolClient,
     id: string,
@@ -3011,6 +3123,8 @@ export class ConnectionStore extends PortfolioStore {
     body: unknown,
     qualificationCase?: { case_id: string; split: 'development' | 'held_out' },
     workflow?: { task_id: string; lease_token: string; input_hash: string },
+    /** ADR-0086: a web discovery's search or reading request, covered by its start. */
+    webDiscovery?: WebDiscoveryBinding,
   ): Promise<{
     request_id: string;
     connection: PlanConnection;
@@ -3030,6 +3144,7 @@ export class ConnectionStore extends PortfolioStore {
       req,
       qualificationCase,
       workflow,
+      webDiscovery,
     );
     // ADR-0064: a newly admitted request is live in this process until it is settled.
     if (out.request_id && !out.replay && !out.admission)
@@ -3045,6 +3160,7 @@ export class ConnectionStore extends PortfolioStore {
       { case_id: string; split: 'development' | 'held_out' } | undefined,
     workflow:
       { task_id: string; lease_token: string; input_hash: string } | undefined,
+    webDiscovery?: WebDiscoveryBinding,
   ): Promise<{
     request_id: string;
     connection: PlanConnection;
@@ -3145,6 +3261,18 @@ export class ConnectionStore extends PortfolioStore {
             'Plan build roles are not used for frozen study assignments.',
           );
       }
+      // ADR-0086: the discovery's start is the one approval for its two requests; the
+      // binding is checked under the discovery's lock, before the connection's.
+      if (webDiscovery)
+        await webDiscoveryRequestGate(
+          c,
+          uuid(ws),
+          ctx.actorId,
+          req,
+          webDiscovery,
+          (runId) => this.lockRun(c, ws, runId),
+          () => this.requireOwner(c, uuid(ws), ctx.actorId),
+        );
       const conn = await this.#lock(c, ws, req.connection_id);
       if (
         wf &&
@@ -3186,7 +3314,9 @@ export class ConnectionStore extends PortfolioStore {
             conn.id,
             wf.role as Workflow['role'],
           )
-        : await this.#qualifications(c, conn.id, true);
+        : webDiscovery
+          ? await this.#webDiscoveryQualifications(c, conn.id)
+          : await this.#qualifications(c, conn.id, true);
       // ADR-0057: a chat answer is the owner's, under the workspace's chat setting.
       let chat: PlanChatAllowance | null = null;
       if (req.purpose === 'chat') {
@@ -3312,6 +3442,12 @@ export class ConnectionStore extends PortfolioStore {
         await c.query(
           'update plan_requests set workflow_task_id=$2, input_hash=$3 where id=$1',
           [rid, workflow.task_id, workflow.input_hash],
+        );
+      if (webDiscovery)
+        await c.query(
+          `update web_discoveries set ${webDiscovery.stage === 'search' ? 'search_request_id' : 'read_request_id'} = $2,
+             version = version + 1, updated_at = clock_timestamp() where id = $1`,
+          [uuid(webDiscovery.discovery_id), rid],
         );
       return { request_id: rid, connection: conn };
     });
@@ -3587,19 +3723,29 @@ export class ConnectionStore extends PortfolioStore {
         ).length;
         // ADR-0052: held-out cases whose results someone has viewed no longer test a prompt
         // revised after that view. Retrying the same prompt on them stays allowed.
-        const keys = new Set(heldOutKeys(req.manifest.cases));
-        const prompt = promptHash(req.manifest.cases);
         const views = await c.query(
-          `select e.body, e.created_at from plan_connection_events e
+          `select e.body, e.created_at, q.manifest from plan_connection_events e
              join plan_connections p on p.id = e.connection_id
+             left join plan_qualifications q on q.id::text = e.body->>'qualification_id'
             where p.workspace_id = $1 and e.kind = $2 and e.body->>'task_class' = $3
             order by e.created_at`,
           [conn.workspace_id, HELD_OUT_VIEWED, tc],
         );
         for (const v of views.rows as Row[]) {
-          const b = v.body as { prompt_hash: string; held_out: string[] };
-          if (b.prompt_hash === prompt) continue;
-          const seen = b.held_out.filter((k) => keys.has(k)).length;
+          // PR #173 review 4 L-A: a view's keys are recomputed from the benchmark it showed, so
+          // views recorded under an older key format are checked like new ones.
+          const shown = (v.manifest as { cases?: ManifestCase[] } | null)
+            ?.cases;
+          const seen = heldOutSeen(
+            shown
+              ? {
+                  prompt_hash: promptHash(shown),
+                  held_out: heldOutKeys(shown),
+                  held_out_prompts: heldOutPrompts(shown),
+                }
+              : (v.body as Parameters<typeof heldOutSeen>[0]),
+            req.manifest.cases,
+          );
           if (seen)
             throw fail(
               'INVALID_CONTRACT',
@@ -3877,6 +4023,7 @@ export class ConnectionStore extends PortfolioStore {
               manifest_hash: String(rows[0].manifest_hash),
               prompt_hash: promptHash(full.cases),
               held_out: heldOutKeys(full.cases),
+              held_out_prompts: heldOutPrompts(full.cases),
             },
             ctx,
           );

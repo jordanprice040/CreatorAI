@@ -15,6 +15,10 @@ import {
 } from './discovery.js';
 import { DataClassSchema } from './oversight.js';
 import {
+  ReaderPacketSchema,
+  WebDiscoveryScopeSchema,
+} from './web-discovery.js';
+import {
   AssessmentPacketSchema,
   AssessmentTaskContextSchema,
 } from './assessment.js';
@@ -456,6 +460,33 @@ export const BenchmarkCheckSchema = z.discriminatedUnion('kind', [
   }),
   z.strictObject({ kind: z.literal('exact_label'), label: short }),
   /**
+   * ADR-0086 (P12): the web discovery search request. Graded on what the provider reported:
+   * at least one search call, enough leads that its own search listed, from enough websites,
+   * none from an excluded website. The live web changes, so no exact answer is expected.
+   */
+  z.strictObject({
+    kind: z.literal('web_scout_contract'),
+    role_version: short,
+    scope: WebDiscoveryScopeSchema,
+    min_leads: z.number().int().min(1).max(20),
+    min_hosts: z.number().int().min(1).max(20),
+  }),
+  /**
+   * ADR-0086 (P12): the web discovery reading request on a frozen packet. Every claim must cite
+   * packet passages with quotes found word for word; the counts of verified claims bound it,
+   * and quotes from a passage that must not be used (for example instruction-like text) fail.
+   */
+  z.strictObject({
+    kind: z.literal('web_reader_contract'),
+    role_version: short,
+    packet: ReaderPacketSchema,
+    packet_hash: hash,
+    min_verified: z.number().int().min(0).max(12),
+    max_verified: z.number().int().min(0).max(12),
+    /** Passage refs no claim may cite (planted instructions, page furniture). */
+    forbidden_refs: z.array(z.string().max(20)).max(20),
+  }),
+  /**
    * T12 reviewer (ADR-0048): the answer binds the case's candidate and frozen hashes and gives
    * the expected verdict; approve needs no findings, changes_requested at least one.
    */
@@ -537,6 +568,19 @@ export const BenchmarkManifestSchema = z
         ctx.addIssue({
           code: 'custom',
           message: 'Assessment check task class/output format mismatch.',
+        });
+    for (const c of b.cases)
+      if (
+        (c.check.kind === 'web_scout_contract' ||
+          c.check.kind === 'web_reader_contract') &&
+        (b.task_class !== 'research_synthesis' ||
+          c.output_format !== 'json' ||
+          b.data_class !== 'public')
+      )
+        ctx.addIssue({
+          code: 'custom',
+          message:
+            'Web discovery checks are research synthesis on public data, answered in JSON.',
         });
     // Build-role checks belong to their own task classes and answer in JSON (ADR-0048).
     const roleCheck = {

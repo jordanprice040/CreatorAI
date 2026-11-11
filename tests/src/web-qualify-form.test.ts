@@ -70,13 +70,20 @@ test('every benchmark the app offers would pass the server checks it can know ab
     defaults,
   )![1]!;
   const inApp = [...listed.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]!).sort();
-  const offered = await Promise.all(
-    files.map(
-      async (f) =>
-        (JSON.parse(await readFile(f, 'utf8')) as { task_class: string })
-          .task_class,
-    ),
-  );
+  // ADR-0086: the web-discovery benchmark is research synthesis too, but it qualifies only
+  // Search the web, not the discovery locator those refusal texts are about.
+  const offered = (
+    await Promise.all(
+      files
+        .filter((f) => !/\/web-discovery-v\d+\.json$/.test(f))
+        .map(
+          async (f) =>
+            (JSON.parse(await readFile(f, 'utf8')) as { task_class: string })
+              .task_class,
+        ),
+    )
+  ).sort();
+  assert.ok(files.some((f) => /\/web-discovery-v\d+\.json$/.test(f)));
   assert.deepEqual(inApp, [...new Set(offered)].sort());
 });
 
@@ -103,6 +110,7 @@ async function loadQualify() {
       model: string,
       task: string,
       allowed: readonly string[],
+      web?: boolean,
     ) => { kind: string };
     QualifyModel: (props: Record<string, unknown>) => unknown;
   };
@@ -182,6 +190,43 @@ test('P23: a benchmark says whether its task is not allowed, started, qualified 
       .kind,
     'started',
     'an open qualification of the same model and task is run, not started twice',
+  );
+  // PR #173 review 4 L-B: web discovery and the locator are both research synthesis; each
+  // benchmark shows only its own kind of result.
+  const rs = ['research_synthesis'];
+  const locate = qualification({
+    task_class: 'research_synthesis',
+    state: 'qualified',
+    decided_at: '2026-11-11T10:05:00.000Z',
+  });
+  const webFail = qualification({
+    task_class: 'research_synthesis',
+    state: 'failed',
+    admits_web_discovery: true,
+    created_at: '2026-11-11T11:00:00.000Z',
+    decided_at: '2026-11-11T11:05:00.000Z',
+  });
+  assert.equal(
+    benchmarkState([locate], 'gpt-6-astra', 'research_synthesis', rs, true)
+      .kind,
+    'new',
+    'a locate pass does not show the web benchmark as qualified',
+  );
+  assert.equal(
+    benchmarkState([locate, webFail], 'gpt-6-astra', 'research_synthesis', rs)
+      .kind,
+    'qualified',
+    'a newer failed web run does not replace the locate result',
+  );
+  assert.equal(
+    benchmarkState(
+      [locate, webFail],
+      'gpt-6-astra',
+      'research_synthesis',
+      rs,
+      true,
+    ).kind,
+    'failed',
   );
 });
 
