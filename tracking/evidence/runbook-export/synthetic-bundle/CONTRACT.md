@@ -44,13 +44,18 @@ Rules for every step:
      not show the work is accepted. Make the behaviour right, not just the cases.
   9. Where a requirement can be read more than one way and no case settles it, take
      the reading that does less and refuses more (refuse unclear input rather than guess
-     what it means), and add one line to ASSUMPTIONS.md in the project: the
-     requirement, the reading you took, and the other reading. This is not a reason
-     to stop. It is for readings of a requirement only, never for an open decision.
+     what it means). Where neither reading refuses anything, take the one closer to
+     the plain words of the requirement. Where refusing would need an exit code or
+     message the requirements do not give, do not invent one: take the reading that
+     does not refuse and mark the line "owner to decide". Either way, add one line to
+     ASSUMPTIONS.md in the project: the requirement, the reading you took, and the
+     other reading. This is not a reason to stop. It is for readings of a
+     requirement only, never for an open decision.
   10. Five files at the project root belong to no task: README.md, .gitignore,
      ASSUMPTIONS.md, REVIEW.md and HANDOVER.md. A step may change one of them only
      where its prompt says so, except that any step may add a line to ASSUMPTIONS.md.
-     Such a change does not count as a change outside the task’s scope.
+     Only the review-and-repair step may correct a line there, and only for a finding
+     in REVIEW.md. Such a change does not count as a change outside the task’s scope.
 
 End every step with a short report: what changed (files), what you ran and its
 result, whether the completion gate passed, and anything the owner must decide.

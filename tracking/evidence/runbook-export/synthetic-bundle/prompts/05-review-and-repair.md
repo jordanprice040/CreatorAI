@@ -13,12 +13,13 @@ Paste the whole of [CONTRACT.md](../CONTRACT.md) first, then the block under “
 
 - Review the whole project against REQUIREMENTS.md in a fresh session that did not write the code.
 - Then repair only what the review found, each fix inside the scope of the task that owns the file.
-- May also change `README.md` and `REVIEW.md` at the project root, which no task owns.
+- May also change `README.md` and `REVIEW.md` at the project root, which no task owns, and correct a line in `ASSUMPTIONS.md` that a finding shows is wrong.
+- Reviews that earlier tasks wrote stay as they were written; a mistake in one is a finding in `REVIEW.md`, not an edit to it.
 
 ## Expected artifacts
 
 - A `REVIEW.md` in the project: findings by severity with file and line, and for each the fix or the reason it stays.
-- One commit per repaired finding.
+- `REVIEW.md` committed first, with any line Part 1 added to `ASSUMPTIONS.md`; then one commit per repaired finding; then, if there were any findings, a last commit that marks each one in `REVIEW.md`.
 
 ## Completion gate
 
@@ -33,7 +34,8 @@ If the gate does not pass, follow [RECOVERY.md](../RECOVERY.md).
 ```text
 Step: independent review, then repair. Use a session that did not write the code.
 
-Part 1, review (change nothing):
+Part 1, review (change no file except REVIEW.md, and ASSUMPTIONS.md only to add a
+line as the contract allows):
 1. Read REQUIREMENTS.md, then the code and its history.
 2. For each acceptance check, decide whether the code truly does what the statement
    says, not only what the visible cases test. Other cases exist that you cannot see.
@@ -44,13 +46,18 @@ Part 1, review (change nothing):
    that belongs in the documentation (for example a rule the README must state) is
    a finding if it is missing.
    Read ASSUMPTIONS.md if it exists: a reading there that looks wrong is a finding.
+   A mistake in an earlier task’s review is a finding too; leave that review as it is.
 4. Write REVIEW.md: findings, most serious first, each with file and line.
+   Commit REVIEW.md, with any line you added to ASSUMPTIONS.md, before any fix.
+   If it has no findings, the repair part is empty.
 
 Part 2, repair:
 5. Fix each finding inside the scope of the task that owns the file. One commit each.
    A finding about README.md is fixed in README.md in this step; no task owns it.
+   A wrong line in ASSUMPTIONS.md is corrected in place, saying what it said before.
 6. After each fix run: python3 <bundle>/checks/run_checks.py
 7. Mark each finding fixed, or say why it stays and what the owner must decide.
+   If REVIEW.md has any findings, commit that update to it last.
 
 Do not review your own work and call it independent. If this session wrote the
 code, say so in REVIEW.md.

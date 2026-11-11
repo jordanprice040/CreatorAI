@@ -567,7 +567,7 @@ const STACKS: Record<
       'A browser case opens one page, runs its steps in order and stays on that document: no dialogs (alert, confirm, prompt), no popups, no navigation to another document. Show messages in the page and handle form submits in script.',
       'A selector must match exactly one element. “expect text” compares the element’s visible text with whitespace collapsed, exactly; “expect contains” checks a substring.',
       'Storage such as localStorage starts empty in every case. An uncaught page error fails the case.',
-      'Serve `site/` from a local web server to try it (for example `python3 -m http.server --directory site 8000`).',
+      'To try it by hand, any local web server for `site/` will do (for example `python3 -m http.server --directory site 8000`); the program needs no server of its own.',
     ],
     run: 'follow each browser case in REQUIREMENTS.md by hand or with a browser test tool of your choice',
   },
@@ -905,6 +905,14 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
   req.push('', '## Acceptance checks', '');
   req.push(
     'Each check has a key (A1, A2, ...). A check passes only when it is run and observed to pass.',
+    ...(checks.some(
+      (a) =>
+        a.cases.length || a.browser_cases.length || a.held_out_cases_withheld,
+    )
+      ? [
+          'What a case expects is exact. Where it differs from the general measure of its check (a refusal case, for example), the case governs; report the mismatch, do not change either.',
+        ]
+      : []),
     '',
   );
   for (const a of checks) {
@@ -1007,6 +1015,7 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
       `**Proposed stack: ${stack.name}.**`,
       '',
       'This is a proposal, not an owner decision. It is the stack the frozen acceptance cases were written for, so another stack must still pass the same cases in the same way.',
+      'The notes below are not proposals: they say what a program on this stack must do to meet the cases. A program that does not do what a note requires is a review finding, even where the owner’s own check would still pass. A way shown “for example” is only one way to do it.',
       '',
       ...stack.lines.map((l) => `- ${l}`),
       '',
@@ -1204,13 +1213,18 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
           : []),
         `  ${heldOut ? 9 : 8}. Where a requirement can be read more than one way and no case settles it, take`,
         '     the reading that does less and refuses more (refuse unclear input rather than guess',
-        '     what it means), and add one line to ASSUMPTIONS.md in the project: the',
-        '     requirement, the reading you took, and the other reading. This is not a reason',
-        '     to stop. It is for readings of a requirement only, never for an open decision.',
+        '     what it means). Where neither reading refuses anything, take the one closer to',
+        '     the plain words of the requirement. Where refusing would need an exit code or',
+        '     message the requirements do not give, do not invent one: take the reading that',
+        '     does not refuse and mark the line "owner to decide". Either way, add one line to',
+        '     ASSUMPTIONS.md in the project: the requirement, the reading you took, and the',
+        '     other reading. This is not a reason to stop. It is for readings of a',
+        '     requirement only, never for an open decision.',
         `  ${heldOut ? 10 : 9}. Five files at the project root belong to no task: README.md, .gitignore,`,
         '     ASSUMPTIONS.md, REVIEW.md and HANDOVER.md. A step may change one of them only',
         '     where its prompt says so, except that any step may add a line to ASSUMPTIONS.md.',
-        '     Such a change does not count as a change outside the task’s scope.',
+        '     Only the review-and-repair step may correct a line there, and only for a finding',
+        '     in REVIEW.md. Such a change does not count as a change outside the task’s scope.',
         '',
         'End every step with a short report: what changed (files), what you ran and its',
         'result, whether the completion gate passed, and anything the owner must decide.',
@@ -1426,11 +1440,12 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
     scope: [
       'Review the whole project against REQUIREMENTS.md in a fresh session that did not write the code.',
       'Then repair only what the review found, each fix inside the scope of the task that owns the file.',
-      'May also change `README.md` and `REVIEW.md` at the project root, which no task owns.',
+      'May also change `README.md` and `REVIEW.md` at the project root, which no task owns, and correct a line in `ASSUMPTIONS.md` that a finding shows is wrong.',
+      'Reviews that earlier tasks wrote stay as they were written; a mistake in one is a finding in `REVIEW.md`, not an edit to it.',
     ],
     artifacts: [
       'A `REVIEW.md` in the project: findings by severity with file and line, and for each the fix or the reason it stays.',
-      'One commit per repaired finding.',
+      '`REVIEW.md` committed first, with any line Part 1 added to `ASSUMPTIONS.md`; then one commit per repaired finding; then, if there were any findings, a last commit that marks each one in `REVIEW.md`.',
     ],
     gate: [
       ...(runner ? [`\`${runner}\` ends with 0 failed.`] : []),
@@ -1440,10 +1455,15 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
     body: [
       'Step: independent review, then repair. Use a session that did not write the code.',
       '',
-      'Part 1, review (change nothing):',
+      'Part 1, review (change no file except REVIEW.md, and ASSUMPTIONS.md only to add a',
+      'line as the contract allows):',
       '1. Read REQUIREMENTS.md, then the code and its history.',
       '2. For each acceptance check, decide whether the code truly does what the statement',
-      '   says, not only what the visible cases test. Other cases exist that you cannot see.',
+      ...(heldOut
+        ? [
+            '   says, not only what the visible cases test. Other cases exist that you cannot see.',
+          ]
+        : ['   says, not only what the cases test.']),
       '3. Look for: behaviour outside the scope, a non-goal that was built, a changed check,',
       '   input that crashes it, data the spec does not allow, anything a risk in',
       '   REQUIREMENTS.md warned about.',
@@ -1451,15 +1471,20 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
       '   that belongs in the documentation (for example a rule the README must state) is',
       '   a finding if it is missing.',
       '   Read ASSUMPTIONS.md if it exists: a reading there that looks wrong is a finding.',
+      '   A mistake in an earlier task’s review is a finding too; leave that review as it is.',
       '4. Write REVIEW.md: findings, most serious first, each with file and line.',
+      '   Commit REVIEW.md, with any line you added to ASSUMPTIONS.md, before any fix.',
+      '   If it has no findings, the repair part is empty.',
       '',
       'Part 2, repair:',
       '5. Fix each finding inside the scope of the task that owns the file. One commit each.',
       '   A finding about README.md is fixed in README.md in this step; no task owns it.',
+      '   A wrong line in ASSUMPTIONS.md is corrected in place, saying what it said before.',
       ...(runner
         ? [`6. After each fix run: ${runner}`]
         : ['6. After each fix, repeat every check.']),
       '7. Mark each finding fixed, or say why it stays and what the owner must decide.',
+      '   If REVIEW.md has any findings, commit that update to it last.',
       '',
       'Do not review your own work and call it independent. If this session wrote the',
       'code, say so in REVIEW.md.',
