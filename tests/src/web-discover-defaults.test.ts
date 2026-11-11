@@ -230,7 +230,7 @@ test('setup blockers name the step and the tab that fixes it; defaults never cle
         'models',
       ],
       [
-        "The model is not qualified for research synthesis. The app can't qualify research synthesis yet: its benchmark runs only from the command line (pnpm cli plan-qualify).",
+        "The model is not qualified for research synthesis. The app can't qualify research synthesis yet; that is planned for a later update.",
         'models',
       ],
     ],
@@ -313,7 +313,7 @@ test('PR #172 review M-1: "not qualified" texts point only at fixes that exist',
   assert.equal(card.length, 1);
   assert.match(
     card[0]!,
-    /^Research synthesis, candidate generation, scoring are not allowed on this connection/,
+    /^Research synthesis, candidate generation and scoring are not allowed on this connection/,
   );
   assert.match(card[0]!, /Allow all tasks, or tick them in Change caps/);
   assert.match(
@@ -322,7 +322,7 @@ test('PR #172 review M-1: "not qualified" texts point only at fixes that exist',
   );
   assert.match(
     card[0]!,
-    /can't qualify research synthesis, candidate generation yet: their benchmarks run only from the command line/,
+    /can't qualify research synthesis and candidate generation yet; that is planned/,
   );
   assert.doesNotMatch(card.join(' '), /Allow this task/);
   // Explore for me once research synthesis is allowed: never sent to Qualify a model for it.
@@ -332,7 +332,7 @@ test('PR #172 review M-1: "not qualified" texts point only at fixes that exist',
     ['research_synthesis'],
   );
   assert.deepEqual(explore, [
-    "gpt-6-astra is not qualified for research synthesis. The app can't qualify research synthesis yet: its benchmark runs only from the command line (pnpm cli plan-qualify).",
+    "gpt-6-astra is not qualified for research synthesis. The app can't qualify research synthesis yet; that is planned for a later update.",
   ]);
   assert.doesNotMatch(explore[0]!, /Qualify a model/);
   assert.deepEqual(m.missingTaskTexts('m', [], ['scoring']), []);

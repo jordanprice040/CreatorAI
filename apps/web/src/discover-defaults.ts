@@ -282,8 +282,9 @@ export function plansOffered(kinds: readonly string[]) {
 /**
  * Task classes that Models and connections › Qualify a model has a bundled benchmark for, so the
  * app itself can qualify them (a test keeps this equal to the section's BENCHMARKS). The
- * discovery roles research synthesis and candidate generation are not here: their benchmarks
- * run only from the command line for now (review of PR #172, M-1).
+ * discovery roles research synthesis and candidate generation are not here yet (review of
+ * PR #172, M-1; planned as P34). The installed app has no command line, so the text does not
+ * name one (re-review N-A).
  */
 export const QUALIFY_IN_APP: readonly string[] = [
   'specification',
@@ -305,8 +306,13 @@ export function taskBlockerTexts(
   unqualified: readonly string[],
 ): string[] {
   const out: string[] = [];
-  const names = (xs: readonly string[]) =>
-    xs.map((x) => x.replaceAll('_', ' ')).join(', ');
+  // "a", "a and b", "a, b and c" (PR #172 re-review N-B).
+  const names = (xs: readonly string[]) => {
+    const w = xs.map((x) => x.replaceAll('_', ' '));
+    return w.length < 2
+      ? (w[0] ?? '')
+      : `${w.slice(0, -1).join(', ')} and ${w[w.length - 1]}`;
+  };
   const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
   const qualifyHow = (xs: readonly string[]) => {
     const inApp = xs.filter((x) => QUALIFY_IN_APP.includes(x));
@@ -319,7 +325,7 @@ export function taskBlockerTexts(
         : []),
       ...(cli.length
         ? [
-            `The app can't qualify ${names(cli)} yet: ${cli.length === 1 ? 'its benchmark runs' : 'their benchmarks run'} only from the command line (pnpm cli plan-qualify).`,
+            `The app can't qualify ${names(cli)} yet; that is planned for a later update.`,
           ]
         : []),
     ].join(' ');
