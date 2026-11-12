@@ -1,4 +1,5 @@
 import {
+  ADVANCING_DISPOSITIONS,
   RUBRICS,
   ScorecardBodySchema,
   kindAllows,
@@ -202,7 +203,7 @@ function staleReasons(
       );
     if (env.team_hash !== undefined && env.team_hash !== (a.team_hash ?? ''))
       out.push(
-        'The team profile changed since this assessment; assess again so it reads the current one.',
+        'The team profile, or the computer its checks ran on, changed since this assessment; assess again so it reads the current one.',
       );
     if (ev)
       for (const e of a.evidence) {
@@ -328,9 +329,6 @@ export function gateState(
   // current automatic assessment read a team profile that answers at least one capability and
   // raised no concern. model: either gate clears on the model's word, every current automatic
   // assessment having found no concern on it (Jordan's explicit choice; no person looks).
-  const teamVersions = [
-    ...new Set(system.map((p) => p.body.assessment?.team_version ?? 0)),
-  ];
   const rule = c.auto_clear ?? null;
   const ruleClears =
     !!rule &&
@@ -374,12 +372,13 @@ export function gateState(
             reason:
               rule.mode === 'model'
                 ? `Cleared on the model’s word by your gate rule: the automatic assessment found no ${gate} concern. No person looked at this gate.`
-                : `Cleared by your gate rule: the automatic assessment read your team profile (version ${teamVersions.join(', ')}) and found no access concern.`,
+                : `Cleared by the model’s reading of your team profile (your gate rule): the automatic assessment read profile version ${Math.max(...system.map((p) => p.body.assessment?.team_version ?? 0))} and found no access concern. No person looked at this gate.`,
             created_at: rule.at,
           }
         : null,
     stale_confirmation: stale,
     assessed: cards.length > 0,
+    rule: rule?.mode ?? ('owner' as const),
   };
 }
 
@@ -1110,4 +1109,29 @@ export function taskImpact(
         .sort()
     : [];
   return { tasks, removed };
+}
+
+/**
+ * ADR-0090 (Jordan, November 12, 2026): whether any option a selection advances has an ethics
+ * gate cleared only by the owner's "model's word" rule, so no person looked at it. A selection
+ * by a run (a routine policy included) then stops and asks a person.
+ */
+export function modelClearedEthics(
+  report: Pick<SelectionReport, 'suitability'>,
+  dispositions: readonly {
+    alternative: { id: string };
+    disposition: SelectionDisposition;
+  }[],
+): boolean {
+  return dispositions.some((d) => {
+    if (!ADVANCING_DISPOSITIONS.includes(d.disposition)) return false;
+    const row = report.suitability.candidates.find(
+      (x) => x.alternative.id === d.alternative.id.toLowerCase(),
+    );
+    const ethics = row?.gates.gate_details?.find((g) => g.gate === 'ethics');
+    return (
+      ethics?.state === 'auto_cleared' &&
+      ethics.confirmation?.rule_mode === 'model'
+    );
+  });
 }

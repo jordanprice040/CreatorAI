@@ -123,12 +123,7 @@ test('a check tries its fixed programs in order, with a bare environment and not
     CREATOR_SESSION_SECRET: 'secret',
     OPENAI_API_KEY: 'sk-secret',
   });
-  // Windows must not look in the current directory before PATH.
-  assert.deepEqual(env, {
-    PATH: '/usr/bin',
-    HOME: '/home/x',
-    NoDefaultCurrentDirectoryInExePath: '1',
-  });
+  assert.deepEqual(env, { PATH: '/usr/bin', HOME: '/home/x' });
 });
 
 test('saving keeps a passing check while the answer stays yes; changing the answer makes it declared', () => {
@@ -243,5 +238,5 @@ test('the packet says how each answer is known without naming the computer, and 
     assessed_at: '2026-11-11T23:00:00.000Z',
   })[0]!.text;
   assert.match(system, /team block/);
-  assert.match(system, /r08-assessor\/1\.1/);
+  assert.match(system, /r08-assessor\/1\.2/);
 });

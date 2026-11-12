@@ -934,7 +934,7 @@ test('ADR-0088 with ADR-0089: a queue takes offered discovery benchmarks by name
     (b) => b.task_class === 'scoring',
   )!;
   const ASSESS = read(
-    'config/connections/benchmarks/assessment-synthetic-v1.json',
+    'config/connections/benchmarks/assessment-synthetic-v2.json',
   );
   const assess = {
     manifest: ASSESS,

@@ -39,6 +39,7 @@ import {
   selectionReport,
   taskHashes,
   taskImpact,
+  modelClearedEthics,
   teamHash,
   validateSpec,
   type CandidateInput,
@@ -1121,7 +1122,20 @@ export class SelectionStore extends TeamStore {
         data_class: req.data_class,
         assumption_ids: [],
         humility_review: null,
-        flags: [],
+        // ADR-0090 (Jordan, November 12): when an option advances while its ethics gate was
+        // cleared on the model's word alone, a run's selection (a routine policy included)
+        // stops and asks a person. A person selecting by hand is that person.
+        flags:
+          (await this.actorKind(c, ctx.actorId)) !== 'human' &&
+          modelClearedEthics(report, req.dispositions)
+            ? [
+                {
+                  reason: 'ethical_judgment' as const,
+                  note: 'An option this selection advances had its ethics gate cleared on the model’s word only (the owner’s gate rule); no person looked at it, so a person decides.',
+                  evidence_refs: [],
+                },
+              ]
+            : [],
         justification: req.rationale,
       });
       if (admission.verdict !== 'allow')

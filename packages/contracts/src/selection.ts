@@ -446,6 +446,8 @@ export const GateReportSchema = z.strictObject({
         stale_confirmation: z.string().max(300).nullable(),
         /** Whether any current card (an assessment or a person's) looked at this gate. */
         assessed: z.boolean().optional(),
+        /** Who clears gates in this workspace now (the owner's gate rule, ADR-0090). */
+        rule: z.enum(['owner', 'team_profile', 'model']).optional(),
       }),
     )
     .max(2)

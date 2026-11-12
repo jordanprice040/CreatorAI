@@ -305,12 +305,12 @@ const MODE_TEXT: Record<GateClearMode, { label: string; text: string }> = {
     text: 'A gate clears only from a person: your own scorecard, or Clear: I confirm on the option.',
   },
   team_profile: {
-    label: 'Access clears from your team profile',
-    text: 'An access gate also clears once every current automatic assessment has read a team profile that answers at least one question above and found no access concern. The clear rests on the assessment’s reading of your profile, so keep it accurate. Ethics still needs you.',
+    label: 'Access clears on the model’s reading of your team profile',
+    text: 'An access gate also clears once every current automatic assessment has read a team profile that answers at least one question above and found no access concern. The model decides from your profile; the app checks only that a profile was sent, not that it covers what the option needs (an app-verified choice comes with the ethics and access checklist). Ethics still needs you.',
   },
   model: {
     label: 'Both gates clear on the model’s word',
-    text: 'An ethics or access gate also clears once every current automatic assessment found no concern on it. No person looks at a gate cleared this way: the model can be wrong or misled by a source, and a routine approval policy for selecting options can then select the option without you. Each such gate is marked “cleared on the model’s word”.',
+    text: 'An ethics or access gate also clears once every current automatic assessment found no concern on it. No person looks at a gate cleared this way: the model can be wrong or misled by a source. Each such gate is marked “cleared on the model’s word”. A run (a routine approval policy included) that selects an option whose ethics gate cleared this way stops and asks you first.',
   },
 };
 
@@ -385,7 +385,7 @@ function AutoClearRule({
                   {pick === 'owner'
                     ? 'Gates will clear only when you or another person clear them.'
                     : pick === 'team_profile'
-                      ? 'Access gates will clear without you whenever the automatic assessment reads your team profile and finds no access concern.'
+                      ? 'Access gates will clear without you whenever the model, reading your team profile, finds no access concern.'
                       : 'Ethics and access gates will clear without you whenever the automatic assessment finds no concern. No person will look at them.'}{' '}
                   Change it?
                 </p>

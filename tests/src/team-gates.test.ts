@@ -8,12 +8,14 @@ import {
   type ErrorCode,
   type RankedCandidate,
   type ScorecardBody,
+  type SelectionDisposition,
   type StartAssessmentRequest,
 } from '@creator/contracts';
 import {
   ASSESSMENT_MARKER,
   DISCOVERY_SCENARIOS,
   assessmentFixtureAnswer,
+  modelClearedEthics,
 } from '@creator/domain';
 import {
   FixtureAdapter,
@@ -263,7 +265,9 @@ test('the team profile is the owner’s, versioned, read by every assessment, an
   assert.ok(stale.length && stale.every((x) => x.stale));
   assert.ok(
     stale.every((x) =>
-      (x.stale_reasons ?? []).some((r) => /team profile changed/.test(r)),
+      (x.stale_reasons ?? []).some((r) =>
+        /team profile, or the computer its checks ran on, changed/.test(r),
+      ),
     ),
   );
 });
@@ -441,6 +445,19 @@ test('the owner confirms a gate as it is now; a newer concern makes it stale; th
   row2 = await other();
   assert.equal(gate(row2, 'access').state, 'auto_cleared');
   assert.equal(row2.gates.ethics_access, 'clear');
+  // Jordan's yes (November 12): a run's selection that advances an option whose ethics only the
+  // model cleared carries the ethical-judgment stop; holding or rejecting it does not.
+  const report2 = await s.report();
+  const pick = (disposition: SelectionDisposition) => [
+    { alternative: { id: second.alternative.id }, disposition },
+  ];
+  assert.equal(
+    modelClearedEthics(report2, pick('proceed_to_validation')),
+    true,
+  );
+  assert.equal(modelClearedEthics(report2, pick('select_for_build')), true);
+  assert.equal(modelClearedEthics(report2, pick('defer')), false);
+  assert.equal(gate(row2, 'ethics').rule, 'model');
 
   // Back to the owner: every clear the rule made ends.
   await s.store.setGateRule(owner, s.ws.id, {
@@ -450,6 +467,10 @@ test('the owner confirms a gate as it is now; a newer concern makes it stale; th
   row2 = await other();
   assert.equal(gate(row2, 'access').state, 'not_assessed');
   assert.equal(gate(row2, 'ethics').state, 'not_assessed');
+  assert.equal(
+    modelClearedEthics(await s.report(), pick('proceed_to_validation')),
+    false,
+  );
   await rejects(
     'INVALID_CONTRACT',
     s.store.setGateRule(owner, s.ws.id, {

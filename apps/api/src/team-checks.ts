@@ -1,6 +1,8 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { CapabilityCheck, TeamCapabilityKey } from '@creator/contracts';
 import { studioMachine } from '@creator/db';
 import { CAPABILITY_CHECKS, readCapabilityCheck } from '@creator/domain';
@@ -43,9 +45,22 @@ export function checkEnv(
     const v = env[k];
     if (typeof v === 'string') out[k] = v;
   }
-  // Windows otherwise looks for the program in the current directory before PATH.
-  out.NoDefaultCurrentDirectoryInExePath = '1';
   return out;
+}
+
+/**
+ * The working directory checks run in: an empty directory the studio made for them (owner-only
+ * permissions), never the API's own directory or a shared temporary folder where a stray
+ * python.exe could sit. Windows looks for a program in the working directory before PATH unless
+ * the CALLING process has NoDefaultCurrentDirectoryInExePath set (libuv reads the parent's
+ * environment, not the child's), so the API sets that for itself too.
+ */
+let checkDir: string | null = null;
+function checkCwd(): string {
+  if (process.platform === 'win32')
+    process.env.NoDefaultCurrentDirectoryInExePath = '1';
+  checkDir ??= mkdtempSync(join(tmpdir(), 'creator-checks-'));
+  return checkDir;
 }
 
 export const runCapabilityProgram: CapabilityRunner = (file, args) =>
@@ -58,8 +73,7 @@ export const runCapabilityProgram: CapabilityRunner = (file, args) =>
         timeout: 10_000,
         maxBuffer: 64 * 1024,
         windowsHide: true,
-        // Not the API's own working directory, so no program left there runs instead.
-        cwd: tmpdir(),
+        cwd: checkCwd(),
         env: checkEnv(),
       },
       (err, stdout, stderr) => {

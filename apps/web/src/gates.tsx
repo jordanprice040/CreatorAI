@@ -27,6 +27,14 @@ export function gateGuidance(d: Detail): string | null {
       : 'To resolve: check the concern against your evidence and add what answers it, then assess again. If it is fine as it is, confirm it here.';
   if (d.state === 'not_assessed' && d.assessed === false)
     return 'Nothing has assessed this yet. Assess the option or score it yourself first.';
+  if (
+    d.state === 'not_assessed' &&
+    d.gate === 'access' &&
+    d.rule === 'team_profile'
+  )
+    return 'Your gate rule clears access once the automatic assessment reads a team profile that answers at least one question. Answer one in Settings › Team profile and assess again, or confirm it here.';
+  if (d.state === 'not_assessed' && d.rule && d.rule !== 'owner')
+    return 'Only the automatic assessment looked at this, and your gate rule doesn’t clear it. Confirm it here or score the option yourself.';
   if (d.state === 'not_assessed')
     return d.gate === 'access'
       ? 'Only the automatic assessment looked at this, and on its own it can’t clear a gate. Confirm it here, score the option yourself, or choose who clears gates in Settings › Team profile.'
@@ -110,9 +118,10 @@ export function GateLines({
               <span
                 className={`gate-${d.state === 'confirmed' || d.state === 'auto_cleared' ? 'clear' : d.state}`}
               >
-                {d.state === 'auto_cleared' &&
-                d.confirmation?.rule_mode === 'model'
-                  ? 'cleared on the model’s word (no person looked)'
+                {d.state === 'auto_cleared'
+                  ? d.confirmation?.rule_mode === 'model'
+                    ? 'cleared on the model’s word (no person looked)'
+                    : 'cleared by the model, from your team profile (no person looked)'
                   : STATE[d.state]}
               </span>
               {d.confirmation && (

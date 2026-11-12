@@ -3244,8 +3244,8 @@ create unique index plan_qualification_queue_items_one_running on plan_qualifica
     // ADR-0090: the team profile (what the owner says the team can run, install and do with
     // data, ticked by hand or found by a built-in check), one append-only version per save; the
     // owner's gate confirmations (a person's one-click answer to an ethics or access gate on one
-    // option version, naming the concerns it answered); and the owner's auto-clear rule, one
-    // version per change. All are kept unchanged.
+    // option version, naming the concerns it answered); and the owner's gate rule (who clears
+    // gates: owner, team_profile or model), one version per change. All are kept unchanged.
     version: 56,
     name: 'team_profiles_and_gate_confirmations',
     sql: `

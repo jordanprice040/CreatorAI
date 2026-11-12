@@ -1320,7 +1320,7 @@ export function createApi(
             req,
             collection === 'plan-connections' && item && method === 'POST'
               ? action === 'qualifications'
-                ? // A bundled benchmark manifest; assessment-synthetic-v1 is ~132 KiB minified.
+                ? // A bundled benchmark manifest; assessment-synthetic-v2 is ~190 KiB minified.
                   256 * 1024
                 : action === 'qualification-queues'
                   ? // ADR-0088: several bundled manifests (all five today are ~200 KiB).
