@@ -38,6 +38,7 @@ import { ChatAnswersCard } from './chat-answers.js';
 import { OpenRequests } from './open-requests.js';
 import { ApiKeyCheck } from './api-key-check-panel.js';
 import { AllowTasks } from './allow-tasks.js';
+import { CopyConnection } from './copy-connection.js';
 import { DailyCapNotice } from './extra-requests.js';
 
 // §2.2 Models and connections. Sign-in, model access and task qualification are shown as
@@ -599,6 +600,16 @@ export function Models({
                 </button>
               )}
             </div>
+          )}
+          {owner && (
+            // ADR-0095 (P30): the copy is a new connection in the other workspace.
+            <CopyConnection
+              key={c.id}
+              workspace={workspace}
+              session={session}
+              connection={c}
+              disabled={busy}
+            />
           )}
           {owner &&
             capsDraft?.connection_id === c.id &&
