@@ -268,11 +268,14 @@ export class AutomationStore extends AutopilotStore {
                            where x.workspace_id = a.workspace_id and x.run_id = a.run_id
                              and x.steps @> jsonb_build_array(jsonb_build_object('child',
                                    jsonb_build_object('kind', 'workflow', 'id', w.id::text))))
-          -- A newer assessment of the same problem supersedes this one.
+          -- A newer assessment of the same problem supersedes this one, unless it failed or
+          -- was cancelled: that one never qualifies, so it must not hide the last good one
+          -- (audit 2026-11-12 N-7).
           and not exists (select 1 from workflows n
                            where n.workspace_id = w.workspace_id and n.run_id = w.run_id
                              and n.role = 'r08_assessment' and n.subject_id = w.subject_id
-                             and n.created_at > w.created_at)
+                             and n.created_at > w.created_at
+                             and n.state not in ('failed', 'cancelled'))
         order by a.id, w.finished_at
         limit 20`,
     );

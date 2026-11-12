@@ -1004,7 +1004,12 @@ export function Submit({
       {viewer && (
         <p className="error">You can read this workspace but not start runs.</p>
       )}
-      <Status loading={ctx.loading} error={ctx.error} retry={ctx.reload}>
+      <Status
+        loading={ctx.loading}
+        error={ctx.error}
+        stale={ctx.stale}
+        retry={ctx.reload}
+      >
         {c && (
           <form
             noValidate

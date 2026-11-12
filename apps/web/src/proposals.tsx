@@ -25,7 +25,7 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
-import { Empty, Status, clip, useLoad, type View } from './ui.js';
+import { Empty, Status, StaleNote, clip, useLoad, type View } from './ui.js';
 import { Markdown } from './markdown-view.js';
 import { newestFirst } from './versions.js';
 import { RunbookExport } from './runbook.js';
@@ -110,6 +110,7 @@ export function ResponseExplanationPanel({
   return (
     <section className="panel explain" aria-labelledby="explain-head">
       <h3 id="explain-head">Why this response</h3>
+      <StaleNote stale={x.stale || proposals.stale} />
       <p>{e.summary}</p>
       {e.selection?.report_changed && (
         <p className="notice small">
@@ -355,7 +356,12 @@ export function Proposals({
           whether it worked. Each save is a new version; reviews belong to the
           version they read.
         </p>
-        <Status loading={list.loading} error={list.error} retry={list.reload}>
+        <Status
+          loading={list.loading}
+          error={list.error}
+          stale={list.stale}
+          retry={list.reload}
+        >
           {list.data && list.data.eligible.length > 0 && writer && (
             <>
               <h3>Ready for a proposal</h3>
@@ -461,7 +467,12 @@ function ProposalView({
     [base, id, version],
   );
   return (
-    <Status loading={d.loading && !d.data} error={d.error} retry={d.reload}>
+    <Status
+      loading={d.loading && !d.data}
+      error={d.error}
+      stale={d.stale}
+      retry={d.reload}
+    >
       {d.data && (
         <ProposalEditor
           key={`${id}:${d.data.shown_version}:${d.data.proposal.version}`}
@@ -1050,6 +1061,7 @@ function ProposalEditor({
             </div>
           )}
           {error && <p className="error">{error}</p>}
+          <StaleNote stale={claims.stale} />
         </form>
       )}
       {detail && (

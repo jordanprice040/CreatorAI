@@ -224,6 +224,7 @@ export function Search({
         <Status
           loading={result.loading}
           error={result.error}
+          stale={result.stale}
           retry={result.reload}
         >
           {r && (

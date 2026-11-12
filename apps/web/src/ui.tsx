@@ -182,25 +182,50 @@ export function useLoad<T>(load: () => Promise<T>, deps: unknown[]) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [tick, setTick] = useState(0);
+  // Audit 2026-11-12 L-1: a failed background read keeps what the view shows (and so keeps
+  // its polls going) and says the view may be out of date; only a first or full load clears it.
+  const [stale, setStale] = useState('');
   const quiet = useRef(false);
+  const shown = useRef(false);
+  // PR #191 review R-N4: what the shown data was read for; a read for other dependencies is a
+  // full load even when a refresh lands in the same render.
+  const shownFor = useRef<unknown[] | null>(null);
   useOnShow(() => {
     quiet.current = true;
     setTick((t) => t + 1);
   });
   useEffect(() => {
     let stop = false;
-    if (!quiet.current) setLoading(true);
+    const prev = shownFor.current;
+    const sameDeps =
+      prev !== null &&
+      prev.length === deps.length &&
+      prev.every((v, i) => Object.is(v, deps[i]));
+    const background = quiet.current && shown.current && sameDeps;
+    if (!background) setLoading(true);
     quiet.current = false;
-    setError('');
+    if (!background) setError('');
     load()
       .then((d) => {
-        if (!stop) setData(d);
+        if (!stop) {
+          shown.current = true;
+          shownFor.current = deps;
+          setData(d);
+          setError('');
+          setStale('');
+        }
       })
       .catch((e: unknown) => {
-        if (!stop) {
-          setData(null);
-          setError(message(e));
+        if (stop) return;
+        if (background) {
+          setStale(message(e));
+          return;
         }
+        shown.current = false;
+        shownFor.current = null;
+        setData(null);
+        setError(message(e));
+        setStale('');
       })
       .finally(() => {
         if (!stop) setLoading(false);
@@ -213,6 +238,8 @@ export function useLoad<T>(load: () => Promise<T>, deps: unknown[]) {
     data,
     error,
     loading,
+    /** Why the last background read failed while the view kept its earlier answer. */
+    stale,
     reload: () => setTick((t) => t + 1),
     /** Reads again without the "Loading…" state, for polls and refreshes after an action. */
     refresh: () => {
@@ -225,11 +252,14 @@ export function useLoad<T>(load: () => Promise<T>, deps: unknown[]) {
 export function Status({
   loading,
   error,
+  stale,
   retry,
   children,
 }: {
   loading: boolean;
   error: string;
+  /** A failed background read (useLoad's `stale`): the view stays, with this note above it. */
+  stale?: string;
   retry?: () => void;
   children?: ReactNode;
 }) {
@@ -250,7 +280,22 @@ export function Status({
         Loading…
       </p>
     );
-  return <>{children}</>;
+  return (
+    <>
+      <StaleNote stale={stale} />
+      {children}
+    </>
+  );
+}
+
+/** A failed background read (useLoad's `stale`), for views that do not use `Status`. */
+export function StaleNote({ stale }: { stale?: string | undefined }) {
+  if (!stale) return null;
+  return (
+    <p className="small" role="status">
+      Could not refresh: {stale} Showing what was read last.
+    </p>
+  );
 }
 export function Empty({ children }: { children: ReactNode }) {
   return <p className="small empty-note">{children}</p>;

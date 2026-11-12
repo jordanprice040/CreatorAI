@@ -349,7 +349,12 @@ export function Catalog({
       </div>
       <div className="records-grid">
         <div>
-          <Status loading={list.loading} error={list.error} retry={list.reload}>
+          <Status
+            loading={list.loading}
+            error={list.error}
+            stale={list.stale}
+            retry={list.reload}
+          >
             {rows && rows.length === 0 ? (
               <Empty>No records match these filters.</Empty>
             ) : (

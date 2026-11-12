@@ -197,9 +197,6 @@ export const AuditPlanSchema = z.discriminatedUnion('intent', [
 ]);
 export type AuditPlan = z.infer<typeof AuditPlanSchema>;
 export type AuditIntent = AuditPlan['intent'];
-export const AUDIT_INTENTS = AuditPlanSchema.options.map(
-  (o) => o.shape.intent.value,
-);
 
 /** Fields of a model-compiled question's broker call; required for compiler `model`. */
 export const AuditModelCallSchema = z.strictObject({

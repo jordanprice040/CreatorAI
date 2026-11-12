@@ -16,3 +16,6 @@ dist/
 # Generated fixture assignment keys and raw exports are local-only.
 /tracking/evidence/t18/demo-output/*/input/private/
 __pycache__/
+
+# Stray test logs at the repository root (audit 2026-11-12 N-1); evidence logs live under tracking/.
+/*.log

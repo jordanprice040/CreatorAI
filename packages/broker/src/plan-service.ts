@@ -141,20 +141,25 @@ type SignInStatus =
   | { state: 'completed'; plan_usage_granted: boolean; finished_at: string }
   | { state: 'failed'; code: string; message: string; finished_at: string };
 
-/** Opens the system browser without a shell parsing the URL. */
+/**
+ * Opens the system browser without a shell parsing the URL. A launcher that cannot start is
+ * ignored on every platform (audit 2026-11-12 N-6): an unhandled 'error' event would end the
+ * API process, and the sign-in page also shows the link to open by hand.
+ */
 export function openSystemBrowser(url: string) {
-  if (process.platform === 'win32')
-    spawn('rundll32.exe', ['url.dll,FileProtocolHandler', url], {
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: true,
-    }).unref();
-  else if (process.platform === 'darwin')
-    spawn('open', [url], { detached: true, stdio: 'ignore' }).unref();
-  else
-    spawn('xdg-open', [url], { detached: true, stdio: 'ignore' })
-      .on('error', () => {})
-      .unref();
+  const [bin, args, extra] =
+    process.platform === 'win32'
+      ? ([
+          'rundll32.exe',
+          ['url.dll,FileProtocolHandler', url],
+          { windowsHide: true },
+        ] as const)
+      : process.platform === 'darwin'
+        ? (['open', [url], {}] as const)
+        : (['xdg-open', [url], {}] as const);
+  spawn(bin, [...args], { detached: true, stdio: 'ignore', ...extra })
+    .on('error', () => {})
+    .unref();
 }
 
 /** One direct request for invoke(); the connection's kind picks ChatGPT or Claude Code. */

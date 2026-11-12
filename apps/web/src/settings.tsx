@@ -140,6 +140,7 @@ export function Settings({
       <Status
         loading={data.loading && !c}
         error={data.error}
+        stale={data.stale}
         retry={data.reload}
       >
         {c && (

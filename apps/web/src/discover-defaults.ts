@@ -124,10 +124,6 @@ export function sourceOf<K extends keyof RoutineSettings>(
 export const presetKey = (actor: string, ws: string) =>
   `creator.discover-preset.${actor}.${ws}`;
 
-/** Guided or Advanced, kept per person (not per workspace): it is how they like to work. */
-export const presentationKey = (actor: string) =>
-  `creator.presentation.${actor}`;
-
 export type Presentation = 'guided' | 'advanced';
 
 export const parsePresentation = (raw: unknown): Presentation =>

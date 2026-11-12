@@ -45,7 +45,6 @@ export const ModelRefSchema = z.strictObject({
 });
 export type ModelRef = z.infer<typeof ModelRefSchema>;
 
-export const ROUTING_POLICY_VERSION = 'routing/1.0' as const;
 export const TaskClassSchema = z.enum([
   'research_synthesis',
   'candidate_generation',

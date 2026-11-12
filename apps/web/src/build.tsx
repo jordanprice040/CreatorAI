@@ -1,4 +1,5 @@
 import { SpecForm, type SpecFormMode } from './spec-form.js';
+import { usePoll } from './page-active.js';
 import { HumilityForm } from './humility.js';
 import {
   useEffect,
@@ -334,11 +335,7 @@ export function BuildView({
       (b) => b.state === 'running' || b.package?.state === 'running',
     ),
   );
-  useEffect(() => {
-    if (!running) return;
-    const t = setInterval(data.refresh, 2000);
-    return () => clearInterval(t);
-  }, [running]);
+  usePoll(data.refresh, 2000, running ?? false);
 
   async function act(
     what: () => Promise<unknown>,
@@ -386,6 +383,7 @@ export function BuildView({
       <Status
         loading={data.loading && !d}
         error={data.error}
+        stale={data.stale}
         retry={data.reload}
       >
         {d && (

@@ -42,6 +42,8 @@ import {
   routesOf,
 } from './autopilot-routes.js';
 import { Empty, Status, useLoad } from './ui.js';
+import { usePoll } from './page-active.js';
+import { endTimeClose, useEndTime } from './end-time.js';
 
 // P33 (ADR-0099): how much of a project is automated. Four levels, each a preset over what
 // already exists: Manual; Automate selection (a standing level on the run that starts a
@@ -173,11 +175,7 @@ export function Automation({
   const watching =
     (c?.autopilots.some((a) => a.state === 'running') ?? false) ||
     (c?.automations.some((a) => a.state === 'active') ?? false);
-  useEffect(() => {
-    if (!watching) return;
-    const t = setInterval(() => ctx.refresh(), 10_000);
-    return () => clearInterval(t);
-  }, [watching]);
+  usePoll(() => ctx.refresh(), 10_000, watching);
 
   const [runId, setRunId] = useState('');
   const run: RunControl | undefined =
@@ -201,8 +199,9 @@ export function Automation({
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [endsAt, setEndsAt] = useState(() => endAfter(24));
-  useEffect(() => setEndsAt(endAfter(hours)), [hours]);
+  // Never past 90 days (the server's limit). Worked out again from now when the page comes back
+  // into view, unless the summary is confirmed.
+  const [endsAt, renewEndsAt] = useEndTime(hours, 90, confirmed);
   // Any change needs the summaries read again.
   useEffect(
     () => setConfirmed(false),
@@ -326,8 +325,8 @@ export function Automation({
     if (!ready || !run || !step) return;
     // The form may have stayed open: an end time that is (nearly) here is set again, and the
     // owner reads the summaries again before applying (review N-3).
-    if (Date.parse(endsAt) < Date.now() + 5 * 60_000) {
-      setEndsAt(endAfter(hours));
+    if (endTimeClose(endsAt)) {
+      renewEndsAt();
       setError(
         'The end time came too close while the form was open; it was set again. Read the summaries again and confirm.',
       );
@@ -436,7 +435,12 @@ export function Automation({
           </li>
         ))}
       </ul>
-      <Status loading={ctx.loading} error={ctx.error} retry={ctx.reload}>
+      <Status
+        loading={ctx.loading}
+        error={ctx.error}
+        stale={ctx.stale}
+        retry={ctx.reload}
+      >
         {c && (
           <>
             {c.runs.length > 0 && (
@@ -747,14 +751,4 @@ export function Automation({
       </Status>
     </section>
   );
-}
-
-function endAfter(hours: number): string {
-  const h = Number.isFinite(hours) && hours > 0 ? hours : 0;
-  // On the minute, and never past 90 days (the server's limit), rounding down there.
-  const latest =
-    Math.floor((Date.now() + 90 * 86_400_000 - 60_000) / 60_000) * 60_000;
-  return new Date(
-    Math.min(Math.ceil((Date.now() + h * 3_600_000) / 60_000) * 60_000, latest),
-  ).toISOString();
 }

@@ -7,8 +7,6 @@ import { z, id, hash, version, counter, timestamp } from './primitives.js';
 const short = z.string().trim().min(1).max(300);
 const para = z.string().trim().min(1).max(1200);
 
-export const DISCOVERY_POLICY_VERSION = 'discovery/1.0' as const;
-
 /** The National Academy of Engineering Grand Challenges: optional seeds, never the theme itself. */
 export const NAE_GRAND_CHALLENGES = [
   'Make solar energy economical',

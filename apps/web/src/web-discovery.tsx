@@ -336,7 +336,12 @@ export function WebDiscover({
         is added without you (or a routine policy that covers the evidence
         stage). No search or browser API is used and nothing is spent.
       </p>
-      <Status loading={ctx.loading} error={ctx.error} retry={ctx.reload}>
+      <Status
+        loading={ctx.loading}
+        error={ctx.error}
+        stale={ctx.stale}
+        retry={ctx.reload}
+      >
         {c && (
           <>
             <form onSubmit={(e) => void start(e)} noValidate>

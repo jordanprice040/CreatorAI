@@ -162,6 +162,7 @@ export function TeamProfilePanel({
       <Status
         loading={data.loading && !t}
         error={data.error}
+        stale={data.stale}
         retry={data.reload}
       >
         {t && draft && (
@@ -390,6 +391,7 @@ function AutoClearRule({
       <Status
         loading={data.loading && !r}
         error={data.error}
+        stale={data.stale || list.stale}
         retry={data.reload}
       >
         {r && (
@@ -537,6 +539,7 @@ function GateChecklistEditor({
       <Status
         loading={data.loading && !l}
         error={data.error}
+        stale={data.stale || rule.stale}
         retry={data.reload}
       >
         {l && (

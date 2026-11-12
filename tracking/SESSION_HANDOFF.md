@@ -1,5 +1,9 @@
 # Session handoff — November 10, 2026
 
+## November 12 handoff — full codebase audit fixes
+
+Branch `claude/project-thread-2jhwqe`, no migration or ADR. Report `docs/FULL_AUDIT_2026-11-12.md` (also `/mnt/project-files/reviews/FULL_AUDIT_2026-11-12.md`), with a Fixes section. New: `usePoll` in `apps/web/src/page-active.ts`; `useLoad` returns `stale` and `Status` takes `stale`; `apps/web/src/end-time.ts` (`endAfter`, `useEndTime`); `dueAutomations` ignores failed or cancelled newer assessments. Tests: `tests/src/web-load-poll.test.ts` (8, a small hook harness, no DOM), `automation.test.ts` audit N-7, `codex-host.test.ts` pin check. Review 1 (2 L, 5 nits) fixed: `StaleNote` in `ui.tsx`, `stale` on every `useLoad` view (scan test in `web-load-poll.test.ts`), `usePoll` in `assess.tsx` `Run`, `explore.tsx` and `overview.tsx`, `endTimeClose` in `end-time.ts`, `useLoad` tracks the dependencies its data was read for. Open: L-3 docs refresh at the final UX pass. Re-review nits N-1..N-4 fixed (`useEndTime` takes `keep`, the confirmation; `useLoad` shows Loading on a full load; one end time in the automation widen test). Next: merge.
+
 ## November 12 handoff — PR #150 review nits N-1..N-3
 
 Branch `claude/project-thread-eondj8`, no migration or ADR. `tests/src/web-recipe.test.ts`: the recorded-qualification test filters `RECIPE_QUALIFICATIONS` by all six fields of the results file's record (recipe, benchmark, connection, model, both prompt hashes), no longer imports `BUILD_ROLE_PROMPTS`, expects the record to qualify its own roles only while its benchmark is current, and checks `source_files`. `tracking/evidence/p15-benchmarks/RESULTS_P15_V4_2026-11-06.json` gains `source_files` (40 files under `C:\dev\creator_agent_p15\.creator\p15-benchmarks\v4\runs\`, SHA-256 and bytes; no file there is newer than 2026-11-06 21:44). `docs/STATIC_WEB_RECIPE.md`: 64.8 to 67.6 s. No older review items remain open.

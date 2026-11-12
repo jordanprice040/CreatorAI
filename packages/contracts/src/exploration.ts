@@ -14,8 +14,6 @@ const short = z.string().trim().min(1).max(300);
 const para = z.string().trim().min(1).max(1200);
 const term = z.string().trim().min(1).max(80);
 
-export const EXPLORATION_POLICY_VERSION = 'exploration/1.0' as const;
-
 /** What the owner may narrow an exploration with. Every field is optional. */
 export const ExploreScopeSchema = z
   .strictObject({

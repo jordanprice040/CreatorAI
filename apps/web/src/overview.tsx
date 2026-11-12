@@ -9,10 +9,10 @@ import {
   type Workflow,
   type Workspace,
 } from '@creator/contracts';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { api, message, when, words } from './oversight.js';
 import { money } from './budgets.js';
-import { usePageActive } from './page-drafts.js';
+import { usePoll } from './page-active.js';
 import {
   Empty,
   STATE_NOTE,
@@ -69,7 +69,6 @@ export function Overview({
     }
     data.reload();
   }
-  const active = usePageActive();
   const d = data.data;
   const o = d?.overview;
   const fixture = workspace.record_mode === 'fixture';
@@ -78,11 +77,8 @@ export function Overview({
     d?.workflows.filter((w) => !LIVE.includes(w.state)).slice(0, 5) ?? [];
   const viewer = workspace.role === 'viewer';
   // While anything runs or waits, refresh every few seconds so state changes show up.
-  useEffect(() => {
-    if (!active || live.length === 0) return;
-    const t = setInterval(data.refresh, 4000);
-    return () => clearInterval(t);
-  }, [active, live.length]);
+  // PR #191 review R-N3: only while this page is shown and the window is visible.
+  usePoll(data.refresh, 4000, live.length > 0);
   return (
     <section className="panel" aria-labelledby="mon-title">
       <div className="decision-head">
@@ -99,6 +95,7 @@ export function Overview({
       <Status
         loading={data.loading && !d}
         error={data.error}
+        stale={data.stale}
         retry={data.reload}
       >
         {o && d && (

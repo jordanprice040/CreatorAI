@@ -17,8 +17,6 @@ import {
 const short = z.string().trim().min(1).max(300);
 const para = z.string().trim().min(1).max(1200);
 
-export const ASSESSMENT_POLICY_VERSION = 'assessment/1.0' as const;
-
 const optionRef = z.string().regex(/^O[1-8]$/);
 const claimRef = z.string().regex(/^C[1-9][0-9]?$/);
 

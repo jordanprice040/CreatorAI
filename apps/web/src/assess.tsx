@@ -1,3 +1,4 @@
+import { usePoll } from './page-active.js';
 import { useEffect, useState } from 'react';
 import {
   ASSESSMENT_TASK_CLASS,
@@ -43,7 +44,7 @@ import {
 import { refusalFixes, type FixAction } from './fix-here.js';
 import { newestFirst } from './versions.js';
 import { envelopesFor } from './build-defaults.js';
-import { useLoad, type View } from './ui.js';
+import { useLoad, type View, StaleNote } from './ui.js';
 import { LinkClaims } from './link-claims.js';
 import { rangeEnds } from './claim-suggest.js';
 import { preferredRoute } from './model-choice.js';
@@ -465,6 +466,7 @@ export function AutoAssess({
         cleared ethics.
       </p>
       {ctx.error && <p className="error">{ctx.error}</p>}
+      <StaleNote stale={ctx.stale || pv.stale} />
       {c && (
         <>
           {preview && (
@@ -834,11 +836,8 @@ function Run({
   );
   const wf = d.data?.workflow;
   const live = wf ? LIVE.has(wf.state) : false;
-  useEffect(() => {
-    if (!live) return;
-    const t = setTimeout(() => d.refresh(), 2000);
-    return () => clearTimeout(t);
-  }, [live, d.data]);
+  // PR #191 review R-L1: polled while shown, and a failed read keeps polling (it shows stale).
+  usePoll(d.refresh, 2000, live);
   const [wasLive, setWasLive] = useState(false);
   useEffect(() => {
     if (live) setWasLive(true);
@@ -877,6 +876,7 @@ function Run({
   }
   return (
     <div className="assess-run" role="status">
+      <StaleNote stale={d.stale} />
       <p className="small">
         <span className={`badge wf-${wf.state}`}>{words(wf.state)}</span>{' '}
         Started {when(wf.created_at)}

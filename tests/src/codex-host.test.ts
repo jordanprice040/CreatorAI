@@ -4,6 +4,7 @@ import http from 'node:http';
 import { existsSync, readFileSync } from 'node:fs';
 import {
   ALLOWED_CLIENT_METHODS,
+  CODEX_PIN,
   PlanRelay,
   checkCodexRequest,
   checkOutputItem,
@@ -693,4 +694,21 @@ test('a Codex disconnect while the request is being admitted never reaches the u
   ]);
   assert.equal(settled[0]!.reason_code, 'codex_disconnected');
   assert.equal(upstreamCalls, 0, 'nothing was sent upstream');
+});
+
+test('the install script checks the same Codex pin the builder records (audit 2026-11-12 N-3)', () => {
+  const script = readFileSync(
+    new URL('scripts/install-codex-wsl.sh', root),
+    'utf8',
+  );
+  const value = (name: string) =>
+    new RegExp(`^${name}="?([^"\\n]+)"?$`, 'm').exec(script)?.[1];
+  assert.equal(value('VERSION'), CODEX_PIN.version);
+  assert.equal(value('SHA256'), CODEX_PIN.sha256);
+  assert.equal(`sha512-${value('SHA512_B64')}`, CODEX_PIN.integrity);
+  assert.equal(
+    CODEX_PIN.url,
+    `https://registry.npmjs.org/@openai/codex/-/codex-${CODEX_PIN.version}-linux-x64.tgz`,
+  );
+  assert.ok(script.includes(CODEX_PIN.binary_dir));
 });

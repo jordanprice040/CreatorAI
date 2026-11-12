@@ -182,6 +182,7 @@ export function Checkout({
       <Status
         loading={list.loading && !list.data}
         error={list.error}
+        stale={list.stale || own.stale}
         retry={list.reload}
       >
         {checkouts.length > 0 && (
@@ -473,7 +474,12 @@ function SimulatedBuyer({
       ),
     ).length ?? 0;
   return (
-    <Status loading={load.loading && !s} error={load.error} retry={load.reload}>
+    <Status
+      loading={load.loading && !s}
+      error={load.error}
+      stale={load.stale}
+      retry={load.reload}
+    >
       {s && (
         <>
           {error && (
