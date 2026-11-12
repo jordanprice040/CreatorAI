@@ -1,5 +1,15 @@
 # Session handoff — November 10, 2026
 
+## November 11 handoff — option claims, claim linking, range explanation (ADR-0091)
+
+Branch `claude/project-thread-j9fsjp`, no migration. Packet: `ASSESSMENT_CLAIMS_SQL` and `linkedClaimsHash` (`claim:option` keys) in `packages/db/src/selection-store.ts`; `AssessmentInputClaim`, coverage-first claim order and `option_coverage` in `packages/domain/src/assessment.ts`; optional `options` on `AssessmentClaimSchema` and `option_coverage` on `AssessmentPreviewSchema`. Web: `link-claims.tsx` (`LinkClaims`, `ClaimLinks`), `claim-suggest.ts` (pure: `suggestClaims`, `rangeEnds`), `web-search-handoff.ts`; `Coverage` and `RangeWhy` in `assess.tsx`; Compare, Evidence, Catalog and WebDiscover wired. R08 untouched on purpose (qualification check compares the system text). The ethics/access gate thread plans ADR-0090 / migration 56 and an R08 change; expect a small merge in the packet notes area of `assessment.ts`.
+
+Review 1 (`/mnt/project-files/reviews/PR178_REVIEW1.md`: 1 Medium, 4 Low, 7 nits) fixed; see the ADR-0091 review amendment. Merge notes for #179: keep `RangeWhy`, `LinkClaims` and `GateLines` imports in compare.tsx; keep `ASSESSMENT_CLAIMS_SQL` and `extends TeamStore`, and both `outputCap` and `team` in `buildAssessment`; rerun assessment-packing tests after. Re-review 2 (`PR178_REVIEW2.md`: 2 Low, 5 nits) and re-review 3 (`PR178_REVIEW3.md`: 1 Low, 2 nits) fixed; see their amendments. Main (with #177) merged in.
+
+After upgrading, problems with claims already linked to options show their automatic assessments as stale; assess again to read them (the stale reason says this).
+
+Next: Jordan tries Link claims on the CSV problem and assesses again (about 2 plan requests, needs his OK).
+
 ## November 11 handoff — team profile and gate confirmations (ADR-0090)
 
 Built on branch `claude/project-thread-uf8kgy`: migration 56; `packages/contracts/src/team.ts`; `packages/domain/src/team.ts` (profile rules, packet block, `CAPABILITY_CHECKS`); `gateState` in `packages/domain/src/selection.ts`; `packages/db/src/team-store.ts` (profile, checks, confirmations, rule; `SelectionStore` now extends it, and `confirmGate` lives in the selection store); `apps/api/src/team-checks.ts` and the `team-profile`, `team-profile/checks`, `gate-rule` and `problems/{id}/gate-confirmations` routes; `apps/web/src/team-profile.tsx` (Settings) and `apps/web/src/gates.tsx` (Compare). Review 1 (`/mnt/project-files/reviews/PR179_REVIEW1.md`) is fixed: the gate rule is now a three-way `mode` (`owner`, `team_profile`, `model`; migration 56 was edited in place since it is unmerged), staleness follows `team_hash`, re-checks that find the same are no-ops, checks keep a declared No. Before live use: re-qualify assessment (scoring) on the plan connection with the new `assessment-synthetic-v2` (prompt `r08-assessor/1.2`; 11 plan requests). Review 2 (`PR179_REVIEW2.md`) is fixed too; `modelClearedEthics` (domain) adds the `ethical_judgment` flag to a non-person's selection. Next: part 2, the owner's ethics checklist walked through by the model.

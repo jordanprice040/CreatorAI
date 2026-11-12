@@ -45,7 +45,31 @@ type Option = { entity: StoredEntity; kind: string };
  * carry the reviewer's label, not an account, so a card is yours when it is a human card
  * under your display name; another member's card is never offered for revision.
  */
-const yours = (
+/** The label a person's own scorecards carry. */
+export const reviewerLabel = (session: { display_name: string }) =>
+  session.display_name.trim().slice(0, 300) || 'Owner';
+
+/**
+ * ADR-0074: the current automatic assessments of this option version on this rubric. With no
+ * card of the person's own, the scoring form opens the first of these (stale or not).
+ */
+export const currentSystemCards = (
+  cards: StoredEntity[],
+  option: { id: string; version: number },
+  rubric: RubricKey,
+) =>
+  cards.filter((c) => {
+    const b = c.body as ScorecardBodyShape | undefined;
+    return (
+      c.status === 'active' &&
+      b?.rubric === rubric &&
+      !!b.assessment &&
+      b.subject.id.toLowerCase() === option.id.toLowerCase() &&
+      b.subject.version === option.version
+    );
+  });
+
+export const yours = (
   cards: StoredEntity[],
   optionId: string,
   rubric: RubricKey,
@@ -121,7 +145,7 @@ export function ScoreOption({
       .getElementById('score-title')
       ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [pick?.n]);
-  const reviewer = session.display_name.trim().slice(0, 300) || 'Owner';
+  const reviewer = reviewerLabel(session);
   const option = options.find((o) => o.entity.id === optionId);
   const rubrics = option ? rubricsFor(option.kind) : [];
   // A rubric the option does not offer falls back in the same render, never after it.
@@ -145,18 +169,8 @@ export function ScoreOption({
     : undefined;
   const others = humanCards.filter((c) => c.id !== existing?.id);
   const existingBody = existing?.body as ScorecardBodyShape | undefined;
-  /** ADR-0074: the current automatic assessments of this option on this rubric. */
   const systemCards = option
-    ? scorecards.filter((c) => {
-        const b = c.body as ScorecardBodyShape | undefined;
-        return (
-          c.status === 'active' &&
-          b?.rubric === rubric &&
-          !!b.assessment &&
-          b.subject.id.toLowerCase() === option.entity.id &&
-          b.subject.version === option.entity.version
-        );
-      })
+    ? currentSystemCards(scorecards, option.entity, rubric)
     : [];
   /**
    * The system card this form edits: the one whose Edit was pressed, or with no card of the

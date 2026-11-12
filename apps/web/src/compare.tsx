@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import {
+  EntityDetailSchema,
   ProblemComparisonSchema,
   RunControlSchema,
   SelectOutcomeSchema,
@@ -37,9 +38,15 @@ import { firstNeeding, groupByReason, nameList } from './fold-state.js';
 import { runLabel } from './labels.js';
 import { HumilityForm } from './humility.js';
 import { ResponseExplanationPanel } from './proposals.js';
-import { ScoreOption } from './scorecard.js';
-import { AssessmentLines, AutoAssess } from './assess.js';
+import {
+  ScoreOption,
+  currentSystemCards,
+  reviewerLabel,
+  yours,
+} from './scorecard.js';
+import { AssessmentLines, AutoAssess, RangeWhy } from './assess.js';
 import { GateLines } from './gates.js';
+import { LinkClaims } from './link-claims.js';
 import { Routine, WhatWillHappen } from './routine.js';
 import {
   decideRoutineSummary,
@@ -203,6 +210,37 @@ type Row = {
  * option's scores and gates, then a selection. The server decides whether the selection
  * needs your approval (supervised gates) and refuses gated or non-code builds.
  */
+/**
+ * Review L-3: claims a scorecard cites that neither the problem's claims nor the newest-500
+ * claim list name (an option claim past that list), read by id so they are named, not numbered.
+ */
+async function citedPastList(
+  base: string,
+  scorecards: StoredEntity[],
+  known: string[],
+): Promise<{ id: string; title: string }[]> {
+  const have = new Set(known.map((x) => x.toLowerCase()));
+  const cited = new Set<string>();
+  for (const c of scorecards) {
+    const ratings = (c.body?.ratings ?? {}) as Record<
+      string,
+      { evidence_refs?: { id: string }[] }
+    >;
+    for (const r of Object.values(ratings))
+      for (const e of r?.evidence_refs ?? [])
+        if (!have.has(e.id.toLowerCase())) cited.add(e.id.toLowerCase());
+  }
+  const read = await Promise.all(
+    [...cited].slice(0, 60).map((x) =>
+      api(EntityDetailSchema, `${base}/entities/${x}`).then(
+        (r) => ({ id: r.entity.id, title: r.entity.title }),
+        () => null,
+      ),
+    ),
+  );
+  return read.filter((x) => x !== null);
+}
+
 export function Compare({
   session,
   workspace,
@@ -234,7 +272,7 @@ export function Compare({
   }, [problems.data, focus]);
   const detail = useLoad(async () => {
     if (!focus) return null;
-    const [cmp, report, selections, runs, names, scorecards] =
+    const [cmp, report, selections, runs, names, scorecards, claimNames] =
       await Promise.all([
         api(ProblemComparisonSchema, `${base}/problems/${focus}/comparison`),
         api(SelectionReportSchema, `${base}/problems/${focus}/report`),
@@ -244,6 +282,10 @@ export function Compare({
         api(
           z.array(StoredEntitySchema),
           `${base}/entities?kind=scorecard&status=active`,
+        ),
+        // ADR-0091: an assessment also cites claims linked to an option, so name them all.
+        api(z.array(StoredEntitySchema), `${base}/entities?kind=claim`).catch(
+          () => [],
         ),
       ]);
     const wf = cmp.workflow_id
@@ -260,6 +302,13 @@ export function Compare({
       names,
       wf,
       scorecards,
+      claimNames: [
+        ...claimNames.map((c) => ({ id: c.id, title: c.title })),
+        ...(await citedPastList(base, scorecards, [
+          ...claimNames.map((c) => c.id),
+          ...cmp.claims.map((c) => c.evidence.claim.id),
+        ])),
+      ],
     };
   }, [workspace.id, focus]);
 
@@ -274,11 +323,14 @@ export function Compare({
   const [reasonsKept, setReasonsKept] = useState<Record<string, string>>({});
   const [humilityFor, setHumilityFor] = useState<string | null>(null);
   /** ADR-0074: "Edit" on an automatic assessment opens the scoring form on it. */
+  // ADR-0091: the "Link claims" panels open in place (one problem, one option at a time).
+  const [linkingProblem, setLinkingProblem] = useState(false);
+  const [linkingOption, setLinkingOption] = useState('');
   const [scorePick, setScorePick] = useState<{
     optionId: string;
     rubric: 'suitability' | 'opportunity';
-    /** The system card whose Edit was pressed (review M-3). */
-    systemId: string;
+    /** The system card whose Edit was pressed (review M-3); absent, the person's own card. */
+    systemId?: string;
     n: number;
   } | null>(null);
   const [runId, setRunId] = useState('');
@@ -589,6 +641,35 @@ export function Compare({
                 label="claims"
               />
             </div>
+            {!viewer && (
+              <p className="small">
+                <button
+                  type="button"
+                  className="text"
+                  aria-expanded={linkingProblem}
+                  onClick={() => setLinkingProblem((v) => !v)}
+                >
+                  {linkingProblem ? 'Close' : 'Link claims to this problem'}
+                </button>{' '}
+                <span className="muted">
+                  Recorded claims become evidence an assessment reads.
+                </span>
+              </p>
+            )}
+            {linkingProblem && (
+              <LinkClaims
+                session={session}
+                workspace={workspace}
+                target={{
+                  id: d.cmp.problem.id,
+                  version: d.cmp.problem.version,
+                  kind: 'problem',
+                  title: d.cmp.problem.title,
+                }}
+                onLinked={detail.reload}
+                open={open}
+              />
+            )}
             {d.cmp.claims.length === 0 ? (
               <Empty>
                 No claims are linked to this problem: its evidence is
@@ -771,7 +852,10 @@ export function Compare({
                             { rubric: 'opportunity', cand: o },
                           ]}
                           cards={d.scorecards}
-                          claims={d.cmp.claims.map((c) => c.evidence.claim)}
+                          claims={[
+                            ...d.cmp.claims.map((c) => c.evidence.claim),
+                            ...d.claimNames,
+                          ]}
                           canEdit={!viewer}
                           onEdit={(rubric, systemId) =>
                             setScorePick({
@@ -786,6 +870,76 @@ export function Compare({
                           <p className="small">
                             Unknown: {s.unknown_criteria.map(words).join(', ')}
                           </p>
+                        )}
+                        {[
+                          { rubric: 'suitability' as const, cand: s },
+                          { rubric: 'opportunity' as const, cand: o },
+                        ].map(({ rubric, cand }) =>
+                          cand ? (
+                            <RangeWhy
+                              key={rubric}
+                              rubric={rubric}
+                              cand={cand}
+                              cards={d.scorecards}
+                              canEdit={!viewer}
+                              ownCardId={
+                                yours(
+                                  d.scorecards,
+                                  a.entity.id.toLowerCase(),
+                                  rubric,
+                                  reviewerLabel(session),
+                                )?.id
+                              }
+                              formOpensSystem={
+                                currentSystemCards(
+                                  d.scorecards,
+                                  a.entity,
+                                  rubric,
+                                ).length > 0
+                              }
+                              onFill={(systemId) =>
+                                setScorePick({
+                                  optionId: a.entity.id,
+                                  rubric,
+                                  ...(systemId ? { systemId } : {}),
+                                  n: Date.now(),
+                                })
+                              }
+                            />
+                          ) : null,
+                        )}
+                        {!viewer && (
+                          <p className="small">
+                            <button
+                              type="button"
+                              className="text"
+                              aria-expanded={linkingOption === a.entity.id}
+                              onClick={() =>
+                                setLinkingOption((v) =>
+                                  v === a.entity.id ? '' : a.entity.id,
+                                )
+                              }
+                            >
+                              {linkingOption === a.entity.id
+                                ? 'Close'
+                                : 'Link claims to this option'}
+                            </button>
+                          </p>
+                        )}
+                        {linkingOption === a.entity.id && (
+                          <LinkClaims
+                            session={session}
+                            workspace={workspace}
+                            target={{
+                              id: a.entity.id,
+                              version: a.entity.version,
+                              kind: 'alternative',
+                              title: a.entity.title,
+                            }}
+                            problemTitle={d.cmp.problem.title}
+                            onLinked={detail.reload}
+                            open={open}
+                          />
                         )}
                         {s && s.disagreements.length > 0 && (
                           <p className="small">
