@@ -3781,7 +3781,7 @@ export class ConnectionStore extends WebDiscoveryStore {
         if (await runningQueueId(c, conn.id))
           throw fail(
             'INVALID_TRANSITION',
-            'A queue is qualifying tasks on this connection one after another. Wait for it to finish, or cancel it under "Qualify several tasks", then start this one.',
+            'A queue is qualifying tasks on this connection one after another. Wait for it to finish, or cancel it under Models and connections › Qualify several tasks, then start this one.',
           );
         await this.#checkQualificationStart(c, conn, req);
         q = await this.#insertQualification(c, conn, req, ctx.actorId);
@@ -3998,7 +3998,7 @@ export class ConnectionStore extends WebDiscoveryStore {
     if (read.queue_id && read.queue_id !== queueId)
       throw fail(
         'INVALID_TRANSITION',
-        'A queue is qualifying tasks on this connection one after another. Wait for it to finish, or cancel it under "Qualify several tasks", then press Run.',
+        'A queue is qualifying tasks on this connection one after another. Wait for it to finish, or cancel it under Models and connections › Qualify several tasks, then press Run.',
       );
     if (this.#runningQualifications.has(key))
       throw fail(

@@ -753,7 +753,7 @@ function ready(a: FixAction, d: PlanConnectionDetail): boolean {
 
 /** Review 7 M-1: what a press that qualifies says while a P24 queue holds the connection. */
 export const QUEUE_BUSY =
-  'A queue is qualifying tasks on this connection; wait for it to finish, or cancel it under Models and connections.';
+  'A queue is qualifying tasks on this connection; wait for it to finish, or cancel it under Models and connections › Qualify several tasks.';
 /** Review 8 N-2: and while a Run is executing there (by hand, or another fix's Qualify now). */
 export const RUN_BUSY =
   'A qualification is running on this connection now, and it sends one request at a time; wait for it to finish.';
