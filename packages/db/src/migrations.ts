@@ -3240,6 +3240,45 @@ create unique index plan_qualification_queue_items_one_running on plan_qualifica
  (qualification_id) where state = 'running';
 `,
   },
+  {
+    // ADR-0092 (P13): an unattended autopilot over one run's main path. Its steps are kept as one
+    // JSON array that only the studio's guarded updates change (each update names the version it
+    // read). At most one autopilot runs per run. Migration 56 is held by #179, so this is 57.
+    version: 57,
+    name: 'autopilots',
+    sql: `
+create table autopilots (
+ id uuid primary key,
+ workspace_id uuid not null references workspaces(id),
+ run_id uuid not null,
+ fixture boolean not null,
+ config jsonb not null check (jsonb_typeof(config) = 'object'),
+ config_hash char(64) not null,
+ summary text[] not null check (cardinality(summary) >= 1),
+ policy_version text not null,
+ state text not null check (state in ('running','finished')),
+ stage text not null check (stage in ('research','explore','brief','discover','assess','select',
+   'proposal','spec')),
+ outcome text check (outcome in ('proposal','insufficient_evidence','no_eligible_option',
+   'needs_person','needs_authority','limit_reached','failed','cancelled')),
+ explanation text not null default '' check (length(explanation) <= 1200),
+ steps jsonb not null default '[]' check (jsonb_typeof(steps) = 'array'),
+ calls_reserved integer not null default 0 check (calls_reserved >= 0),
+ version integer not null check (version >= 1),
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ updated_at timestamptz not null default clock_timestamp(),
+ finished_at timestamptz,
+ foreign key (workspace_id, run_id) references run_controls (workspace_id, run_id),
+ unique (workspace_id, id),
+ check ((state = 'finished') = (finished_at is not null)),
+ check ((state = 'finished') = (outcome is not null))
+);
+create index autopilots_by_workspace on autopilots (workspace_id, created_at desc);
+create unique index autopilots_one_running on autopilots (workspace_id, run_id)
+ where state = 'running';
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {
