@@ -770,8 +770,17 @@ export class ConnectionStore extends WebDiscoveryStore {
         },
       );
       let chat: CopyPlanConnectionResult['chat_answers'] = 'not_requested';
+      let chatOn: boolean | null = null;
       if (req.chat_answers) {
-        const from = await chatSettings(c, source);
+        const from = await chatSettings(c, source, true);
+        if (
+          req.chat_answers_version !== undefined &&
+          from.version !== req.chat_answers_version
+        )
+          throw fail(
+            'VERSION_CONFLICT',
+            'Chat answers here changed since you opened this; read the note again and copy.',
+          );
         if (from.connection_id !== conn.id) chat = 'source_not_using';
         else {
           const put = await c.query(
@@ -791,6 +800,7 @@ export class ConnectionStore extends WebDiscoveryStore {
           );
           if (put.rowCount) {
             chat = 'copied';
+            chatOn = from.enabled;
             const next = {
               enabled: from.enabled,
               connection_id: copied,
@@ -830,6 +840,7 @@ export class ConnectionStore extends WebDiscoveryStore {
         target_workspace_id: target,
         connection: await this.#connection(c, target, copied),
         chat_answers: chat,
+        chat_answers_enabled: chatOn,
       };
     });
   }

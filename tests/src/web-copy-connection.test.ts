@@ -91,6 +91,15 @@ test('review 1 L-2: before Copy, the form says Chat answers will be on there and
     /snapshot/,
   );
   assert.match(t.chatCopyNote({ ...on, enabled: false }, 'c1')!, /off/);
+  // Re-review N2-2: off with no model chosen says so.
+  assert.match(
+    t.chatCopyNote({ ...on, enabled: false, model_id: null }, 'c1')!,
+    /no model chosen yet/,
+  );
+  assert.match(
+    t.chatCopyNote({ ...on, enabled: false }, 'c1')!,
+    /off, using the copy with gpt-x/,
+  );
   assert.match(
     t.copiedSteps('chatgpt_plan', 'B', 'Plan', 'copied', true).join(' '),
     /Chat answers there are on/,

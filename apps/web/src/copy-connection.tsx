@@ -10,7 +10,7 @@ import {
   type SessionInfo,
   type Workspace,
 } from '@creator/contracts';
-import { api, message } from './oversight.js';
+import { ApiError, api, message } from './oversight.js';
 import {
   chatCopyNote,
   copiedSteps,
@@ -84,17 +84,28 @@ export function CopyConnection({
             target_workspace_id: target,
             label: label.trim(),
             chat_answers: chat && note !== null,
+            // Re-review N2-1: the server refuses the copy if this setting changed since the
+            // note was read, so the note is what gets copied.
+            ...(chat && here ? { chat_answers_version: here.version } : {}),
           },
         },
       );
       setDone({
         out,
         target: targets?.find((w) => w.id === target)?.name ?? 'that workspace',
-        chatOn: Boolean(here?.enabled),
+        chatOn: Boolean(out.chat_answers_enabled),
       });
       setOpen(false);
     } catch (e) {
       setError(message(e));
+      // A stale Chat answers note is read again, so the next press copies what it says.
+      if (e instanceof ApiError && e.code === 'VERSION_CONFLICT')
+        await api(
+          ChatSettingsSchema,
+          `workspaces/${workspace.id}/chat-settings`,
+        )
+          .then(setHere)
+          .catch(() => {});
     } finally {
       setBusy(false);
     }

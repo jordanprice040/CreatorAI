@@ -173,15 +173,38 @@ test('ADR-0095: a copy has the settings and nothing else, and the source is unch
   ).credential_ref;
   assert.ok(credentialBefore);
 
+  // Re-review N2-1: a copy that names an older Chat answers version than the one saved is
+  // refused before anything is written, so the form's note is what gets copied.
+  await rejects(
+    'VERSION_CONFLICT',
+    store.copyPlanConnection(owner, ws.id, conn.id, {
+      expected_version: conn.version,
+      target_workspace_id: target.id,
+      chat_answers: true,
+      chat_answers_version: 0,
+    }),
+    /Chat answers here changed/,
+  );
+  assert.equal(
+    (
+      await s.db.pool.query(
+        'select 1 from plan_connections where workspace_id = $1',
+        [target.id],
+      )
+    ).rowCount,
+    0,
+  );
   const out = CopyPlanConnectionResultSchema.parse(
     await store.copyPlanConnection(owner, ws.id, conn.id, {
       expected_version: conn.version,
       target_workspace_id: target.id,
       chat_answers: true,
+      chat_answers_version: 1,
     }),
   );
   const copy = out.connection;
   assert.equal(out.chat_answers, 'copied');
+  assert.equal(out.chat_answers_enabled, true);
   assert.equal(copy.workspace_id, target.id);
   assert.notEqual(copy.id, conn.id);
   assert.equal(copy.label, conn.label);
@@ -282,6 +305,7 @@ test('ADR-0095: a copy has the settings and nothing else, and the source is unch
   });
   // Review 1 L-2: copying the Chat answers setting is opted into, never the default.
   assert.equal(third.chat_answers, 'not_requested');
+  assert.equal(third.chat_answers_enabled, null);
 });
 
 test('ADR-0095: only the owner of both workspaces copies, within fixture or real, at the version seen', async (t) => {

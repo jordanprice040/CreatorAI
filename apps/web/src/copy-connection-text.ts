@@ -73,8 +73,9 @@ export function chatCopyNote(
   connectionId: string,
 ): string | null {
   if (!here || here.connection_id !== connectionId) return null;
-  const model = here.model_id ?? 'its model';
   if (!here.enabled)
-    return `Chat answers are off here. If that workspace has no Chat answers setting yet, it gets this one: off, using the copy with ${model}.`;
+    return `Chat answers are off here. If that workspace has no Chat answers setting yet, it gets this one: off, using the copy${here.model_id ? ` with ${here.model_id}` : ', with no model chosen yet'}.`;
+  // On always has a model (the server refuses on without one).
+  const model = here.model_id ?? 'the chosen model';
   return `Chat answers are on here. If that workspace has no Chat answers setting yet, Chat answers will be ON there, using the copy with ${model}, as soon as you verify the model there. Each answer then sends the conversation${here.include_snapshot ? " and a snapshot of that workspace's records" : ''} to the model's provider.`;
 }

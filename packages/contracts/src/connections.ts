@@ -144,6 +144,12 @@ export const CopyPlanConnectionRequestSchema = z.strictObject({
   label: label.optional(),
   /** Opt in (review 1 L-2): the form says first what the copied setting turns on there. */
   chat_answers: z.boolean().default(false),
+  /**
+   * Re-review N2-1: the version of this workspace's Chat answers setting the form described.
+   * When given and the setting has changed since, the copy is refused, so what was said
+   * before Copy is what is copied.
+   */
+  chat_answers_version: z.number().int().min(0).optional(),
 });
 export const CopyChatAnswersOutcomeSchema = z.enum([
   /** The target's Chat answers now use the copy, with the source's model, limit and choices. */
@@ -160,6 +166,8 @@ export const CopyPlanConnectionResultSchema = z.strictObject({
   target_workspace_id: id,
   connection: z.lazy(() => PlanConnectionSchema),
   chat_answers: CopyChatAnswersOutcomeSchema,
+  /** Whether the copied Chat answers setting is on in the target; null unless `copied`. */
+  chat_answers_enabled: z.boolean().nullable(),
 });
 export type CopyPlanConnectionResult = z.infer<
   typeof CopyPlanConnectionResultSchema
