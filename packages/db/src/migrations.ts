@@ -3290,6 +3290,76 @@ create trigger gate_rule_versions_immutable before update or delete on gate_rule
  for each row execute function creator_reject_change();
 `,
   },
+  {
+    // ADR-0096 (P31): "Fill in with <model>" on a Chat card. One row per press holds exactly
+    // what was sent to the chat model, its reply and the proposals the studio could read. The
+    // proposals answer nothing: the person uses them (saving the card's answers as usual) and
+    // still presses Send. Rows change once, from pending to their outcome, and go only with
+    // their card (and so with their conversation).
+    version: 61,
+    name: 'chat_action_fills',
+    sql: `
+create table chat_action_fills (
+ id uuid primary key,
+ workspace_id uuid not null,
+ conversation_id uuid not null,
+ action_id uuid not null references chat_actions(id) on delete cascade,
+ client_id uuid not null,
+ state text not null check (state in ('pending','completed','failed','refused')),
+ connection_id uuid not null references plan_connections(id),
+ connection_kind text not null check (connection_kind in ('chatgpt_plan','claude_code')),
+ fixture boolean not null,
+ model_id text not null,
+ logical_operation_id uuid not null unique,
+ plan_request_id uuid references plan_requests(id),
+ instructions_version text not null,
+ instructions_hash char(64) not null,
+ questions jsonb not null check (jsonb_typeof(questions) = 'array'),
+ records boolean not null,
+ history_items integer not null check (history_items >= 0),
+ input text not null,
+ input_hash char(64) not null,
+ text text,
+ output_hash char(64),
+ fill_values jsonb not null default '{}' check (jsonb_typeof(fill_values) = 'object'),
+ dropped integer not null default 0 check (dropped >= 0),
+ reason text check (reason is null or length(reason) <= 2000),
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ finished_at timestamptz,
+ foreign key (workspace_id, conversation_id) references chat_conversations (workspace_id, id)
+   on delete cascade,
+ unique (action_id, client_id),
+ check ((state = 'completed') = (text is not null and output_hash is not null)),
+ check ((state = 'pending') = (finished_at is null))
+);
+create unique index chat_action_fills_one_pending on chat_action_fills (action_id)
+ where state = 'pending';
+create index chat_action_fills_conversation on chat_action_fills (conversation_id, created_at);
+create function chat_action_fills_settle_once() returns trigger language plpgsql as $$
+begin
+ -- A fill goes with its card or its conversation, whichever cascade reaches it first (the
+ -- order of the two cascades depends on trigger names, which a restore can change).
+ if tg_op = 'DELETE' and (
+      not exists (select 1 from chat_actions where id = old.action_id)
+   or not exists (select 1 from chat_conversations where id = old.conversation_id)) then
+   return old;
+ end if;
+ if tg_op = 'DELETE' or old.state <> 'pending' or new.state = 'pending'
+   or (to_jsonb(new) - array['state','plan_request_id','text','output_hash','fill_values',
+         'dropped','reason','finished_at'])
+      is distinct from (to_jsonb(old) - array['state','plan_request_id','text','output_hash',
+         'fill_values','dropped','reason','finished_at'])
+ then
+   raise exception 'chat card fills change only once, from pending to their outcome'
+     using errcode = 'P0001';
+ end if;
+ return new;
+end $$;
+create trigger chat_action_fills_settle_once before update or delete on chat_action_fills
+ for each row execute function chat_action_fills_settle_once();
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

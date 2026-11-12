@@ -3267,6 +3267,17 @@ details.routine > summary {
 .chat-card-dismissed {
   opacity: 0.75;
 }
+/* ADR-0096 (P31): a model's proposals and Explore for me inside a card. */
+.chat-card-fill,
+.chat-card-explore {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.chat-card-explore .explore {
+  margin: 0;
+}
 .chat-card-question {
   display: grid;
   gap: 6px;
