@@ -18,6 +18,8 @@ Not done: the batch adapter (X02 context batches) still uses only the environmen
 
 - **Re-review amendment (PR #182 review 2, November 12).** L-1: a damaged key entry is never quoted anywhere: the vault's parse error is replaced by the fixed "A saved key is damaged." (Node's `JSON.parse` message quotes the text around the fault), and the unlock-failure log is fixed text naming only the reference; a test checks that no six characters of the key reach the log. L-2: Remove or Replace in a studio with no key store says the old file "was not touched" (`unused_file_left` is true) instead of claiming it was deleted. N-1: the leftover note says the retry happens only until the studio restarts. N-2: after a failed unlock the studio waits a minute before trying (and logging) again. N-3: `/api/health` says "OpenAI keys can be saved per workspace" only when the studio has a key store. N-4: Change model is hidden where keys cannot be used, the same model again is not a change (no version or audit row), and a redundant leftover line is gone.
 
+- **Re-review 3 amendment (PR #182 re-review 3, November 12).** N-1: calls that wait on one unlock share it, so a failing unlock is tried and logged once, not once per waiting call. N-2: after Remove in a studio with no key store, the note names the missing store once.
+
 ## ADR-0087 — Fix it here: coded plan refusals and owner-only fix buttons where a refusal shows (November 11, 2026)
 
 P27 of the [installed-walk fix plan](../docs/FIX_PLAN_INSTALLED_WALK_2026-11-11.md) (walk items 16 and the rest of 8), with correction L-2 of the plan review (`PR169_FIX_PLAN_REVIEW.md`). Builds on ADR-0084 (P23). No migration, no model call and no spending was needed to build or verify it.

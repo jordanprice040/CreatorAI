@@ -132,6 +132,41 @@ test('the studio’s own key wins over a saved one; a failed unlock is not remem
   assert.equal((await retry.status(ctx, randomUUID())).in_use, 'saved');
 });
 
+test('re-review 3 N-1: callers waiting on one failing unlock share it and it is logged once', async () => {
+  const ref = newApiKeyRef();
+  let unlocks = 0;
+  const vault = Object.assign(new MemoryVault(), {
+    getApiKey: async () => {
+      unlocks += 1;
+      await new Promise((r) => setTimeout(r, 20));
+      throw new Error('locked');
+    },
+  });
+  const store = {
+    workspaceApiKey: async () => null,
+    workspaceApiKeyRef: async () => ({
+      credential_ref: ref,
+      model_id: 'gpt-6-astra',
+    }),
+    saveWorkspaceApiKey: async () => assert.fail('not called'),
+    removeWorkspaceApiKey: async () => assert.fail('not called'),
+    changeWorkspaceApiKeyModel: async () => assert.fail('not called'),
+  };
+  const logged: string[] = [];
+  const svc = new ApiKeyService({
+    store,
+    vault,
+    environment: null,
+    log: (m) => logged.push(m),
+  });
+  const ctx = { actorId: randomUUID() };
+  const ws = randomUUID();
+  const all = await Promise.all([1, 2, 3, 4].map(() => svc.liveFor(ctx, ws)));
+  assert.deepEqual(all, [null, null, null, null]);
+  assert.equal(unlocks, 1);
+  assert.equal(logged.length, 1);
+});
+
 test('review 2 L-1: a damaged key file is never quoted in the log', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'creator-damaged-'));
   const vault = new FileDevVault(dir);
@@ -278,6 +313,8 @@ test('review 1 L-2, N-5: a failed delete is reported and retried; a key changed 
   assert.equal(s.in_use, 'none');
   assert.equal(s.unused_file_left, true);
   assert.match(s.note ?? '', /was not touched/);
+  // Re-review 3 N-2: the missing store is said once.
+  assert.equal(s.note!.match(/no protected store/g)?.length, 1);
 });
 
 async function load<T>(file: string) {

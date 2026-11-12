@@ -94,7 +94,7 @@ export class ApiKeyService {
       leftover === 'failed'
         ? "The old key's protected file could not be deleted from this computer. It is no longer used by anything; the studio tries again the next time a key is saved or removed here before it restarts."
         : leftover === 'no_store'
-          ? "This studio has no protected store for keys, so the old key's protected file (if it is in another studio's store, such as the desktop app's) was not touched. Nothing uses it any more."
+          ? "The old key's protected file, if it is in another studio's store such as the desktop app's, was not touched here. Nothing uses it any more."
           : null,
     ].filter((n): n is string => n !== null);
     return parse(ApiKeyStatusSchema, {
@@ -209,27 +209,28 @@ export class ApiKeyService {
     if ((this.#failedUntil.get(cacheKey) ?? 0) > this.#now()) return null;
     let pending = this.#adapters.get(cacheKey);
     if (!pending) {
+      // Re-review 3 N-1: one unlock per key at a time; every caller waiting on it shares its
+      // outcome, so a failure is logged once.
       pending = vault
         .getApiKey(rec.credential_ref)
-        .then((key) => (key ? this.#adapter(key, rec.model_id) : null));
+        .then((key) => (key ? this.#adapter(key, rec.model_id) : null))
+        .catch(() => {
+          // A failed unlock is tried again after a minute rather than remembered. Review 2
+          // L-1: the log is fixed text naming the reference only; an error's own message
+          // could quote part of the key.
+          this.#failedUntil.set(cacheKey, this.#now() + UNLOCK_RETRY_MS);
+          this.#log(
+            `The saved OpenAI key ${rec.credential_ref} could not be opened on this computer (missing protected store access, a damaged file, or another Windows account).`,
+          );
+          return null;
+        });
       this.#adapters.set(cacheKey, pending);
     }
-    try {
-      const adapter = await pending;
-      // A missing file is asked again next time (it may be restored), not remembered.
-      if (!adapter) this.#adapters.delete(cacheKey);
-      return adapter;
-    } catch {
-      // A failed unlock is tried again after a minute rather than remembered. Review 2 L-1:
-      // the log is fixed text naming the reference only; an error's own message could quote
-      // part of the key.
+    const adapter = await pending;
+    // A missing file or failed unlock is not kept (the file may be restored).
+    if (!adapter && this.#adapters.get(cacheKey) === pending)
       this.#adapters.delete(cacheKey);
-      this.#failedUntil.set(cacheKey, this.#now() + UNLOCK_RETRY_MS);
-      this.#log(
-        `The saved OpenAI key ${rec.credential_ref} could not be opened on this computer (missing protected store access, a damaged file, or another Windows account).`,
-      );
-      return null;
-    }
+    return adapter;
   }
 
   /**
