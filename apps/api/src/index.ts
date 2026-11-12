@@ -23,6 +23,7 @@ import {
   PROPOSAL_MAX_BODY_BYTES,
   SaveProposalFileRequestSchema,
   SaveRunbookFileRequestSchema,
+  RunCapabilityCheckRequestSchema,
 } from '@creator/contracts';
 import {
   allowedHosts,
@@ -37,6 +38,7 @@ import {
   serviceConfig,
   sourcePolicyHash,
   prepareThemeResearchPlan,
+  checkOutcome,
 } from '@creator/domain';
 import { dirname, resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
@@ -140,6 +142,11 @@ import {
   disposition,
 } from './files.js';
 import { createOps } from './ops.js';
+import {
+  runCapabilityCheck,
+  studioMachine,
+  type CapabilityRunner,
+} from './team-checks.js';
 
 const MAX_BODY = 65536;
 /**
@@ -261,6 +268,8 @@ export function createApi(
       store: ConnectionStore,
       extra: { patchScorer: PlanServiceDeps['patchScorer'] },
     ) => PlanConnectionService;
+    /** Test seam: runs a built-in capability check's program (ADR-0090). */
+    capabilityRunner?: CapabilityRunner;
   } = {},
 ) {
   // X06: NAME_FILE secrets (Docker/systemd credentials) are loaded before anything reads env.
@@ -675,6 +684,13 @@ export function createApi(
   const NOTES_ROUTE =
     /^\/api\/workspaces\/([^/]+)\/(notes)(?:\/([^/]+)(?:\/(rename|archive))?)?$/;
   const ACTIVITY_NOW_ROUTE = /^\/api\/workspaces\/([^/]+)\/(activity-now)$/;
+  // ADR-0090: the team profile and its built-in checks, the auto-clear rule, and the owner's
+  // confirmation of one gate on one option.
+  const TEAM_PROFILE_ROUTE =
+    /^\/api\/workspaces\/([^/]+)\/(team-profile)(?:\/(checks))?$/;
+  const GATE_RULE_ROUTE = /^\/api\/workspaces\/([^/]+)\/(gate-rule)$/;
+  const GATE_CONFIRM_ROUTE =
+    /^\/api\/workspaces\/([^/]+)\/(problems)\/([^/]+)\/(gate-confirmations)$/;
   async function records(req: IncomingMessage, res: ServerResponse, url: URL) {
     const match =
       RECORD_ROUTE.exec(url.pathname) ??
@@ -696,7 +712,10 @@ export function createApi(
       MODEL_CHOICE_ROUTE.exec(url.pathname) ??
       NOTES_ROUTE.exec(url.pathname) ??
       FILES_ROUTE.exec(url.pathname) ??
-      ACTIVITY_NOW_ROUTE.exec(url.pathname);
+      ACTIVITY_NOW_ROUTE.exec(url.pathname) ??
+      TEAM_PROFILE_ROUTE.exec(url.pathname) ??
+      GATE_RULE_ROUTE.exec(url.pathname) ??
+      GATE_CONFIRM_ROUTE.exec(url.pathname);
     if (!match) return false;
     if (!store)
       throw new ContractError(
@@ -896,6 +915,117 @@ export function createApi(
       )
         return true;
       throw new ContractError('NOT_FOUND', 'Unknown files route.');
+    }
+    if (ws && TEAM_PROFILE_ROUTE.test(url.pathname)) {
+      const host = {
+        machine: studioMachine(),
+        checks: deployment.mode !== 'hosted',
+      };
+      if (!item) {
+        if (method === 'GET')
+          return send(200, await store.teamProfile(ctx, ws, host), false);
+        if (method === 'POST')
+          return send(
+            200,
+            await store.saveTeamProfile(ctx, ws, await readJson(req), host),
+            true,
+          );
+      } else if (method === 'POST') {
+        // The owner check comes before anything runs on this computer.
+        const body = parse(
+          RunCapabilityCheckRequestSchema,
+          await readJson(req),
+        );
+        await store.requireTeamProfileOwner(ctx, ws);
+        if (!host.checks)
+          throw new ContractError(
+            'INVALID_TRANSITION',
+            'Built-in checks test the computer the studio runs on, which here is the hosting server, not the team’s; tick the answers yourself.',
+          );
+        const ran = await runCapabilityCheck(
+          body.capability,
+          deps.capabilityRunner,
+        );
+        const current = await store.teamProfile(ctx, ws, host);
+        if (!ran.passed)
+          return send(
+            200,
+            {
+              capability: body.capability,
+              passed: false,
+              saved: false,
+              detail: ran.detail,
+              profile: current,
+            },
+            false,
+          );
+        // A re-check that finds what is recorded changes nothing (assessments stay current), and
+        // a check never overrules the owner's declared No.
+        const outcome =
+          current.version === body.expected_version
+            ? checkOutcome(current.profile, body.capability, ran.check)
+            : 'record';
+        if (outcome !== 'record')
+          return send(
+            200,
+            {
+              capability: body.capability,
+              passed: true,
+              saved: false,
+              detail:
+                outcome === 'same'
+                  ? `Still found ${ran.check.detail}; nothing changed, so your assessments stay current.`
+                  : `Found ${ran.check.detail}, but you set this to No, so it stays No. Change it to Yes yourself if the team may use it.`.slice(
+                      0,
+                      300,
+                    ),
+              profile: current,
+            },
+            false,
+          );
+        return send(
+          200,
+          {
+            capability: body.capability,
+            passed: true,
+            saved: true,
+            detail:
+              `Found ${ran.check.detail} on ${ran.check.machine}. Saved; assess options again so they read it.`.slice(
+                0,
+                300,
+              ),
+            profile: await store.recordCapabilityCheck(
+              ctx,
+              ws,
+              body,
+              ran.check,
+              host,
+            ),
+          },
+          true,
+        );
+      }
+      throw new ContractError('NOT_FOUND', 'Unknown team profile route.');
+    }
+    if (ws && GATE_RULE_ROUTE.test(url.pathname)) {
+      if (method === 'GET')
+        return send(200, await store.gateRule(ctx, ws), false);
+      if (method === 'POST')
+        return send(
+          200,
+          await store.setGateRule(ctx, ws, await readJson(req)),
+          true,
+        );
+      throw new ContractError('NOT_FOUND', 'Unknown auto-clear rule route.');
+    }
+    if (ws && item && GATE_CONFIRM_ROUTE.test(url.pathname)) {
+      if (method === 'POST')
+        return send(
+          201,
+          await store.confirmGate(ctx, ws, item, await readJson(req)),
+          true,
+        );
+      throw new ContractError('NOT_FOUND', 'Unknown gate confirmation route.');
     }
     if (ws && ACTIVITY_NOW_ROUTE.test(url.pathname)) {
       if (method === 'GET')
@@ -1190,7 +1320,7 @@ export function createApi(
             req,
             collection === 'plan-connections' && item && method === 'POST'
               ? action === 'qualifications'
-                ? // A bundled benchmark manifest; assessment-synthetic-v1 is ~132 KiB minified.
+                ? // A bundled benchmark manifest; assessment-synthetic-v2 is ~190 KiB minified.
                   256 * 1024
                 : action === 'qualification-queues'
                   ? // ADR-0088: several bundled manifests (all five today are ~200 KiB).
@@ -2513,3 +2643,9 @@ import {
 export { visitorKey } from './desktop.js';
 export { createPreviewServer } from './artifacts.js';
 export { WebDiscoveryRunner, stepId, answerJson } from './web-discovery.js';
+export {
+  checkCwd,
+  checkEnv,
+  runCapabilityCheck,
+  type CapabilityRunner,
+} from './team-checks.js';

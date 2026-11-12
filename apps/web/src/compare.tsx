@@ -45,6 +45,7 @@ import {
   yours,
 } from './scorecard.js';
 import { AssessmentLines, AutoAssess, RangeWhy } from './assess.js';
+import { GateLines } from './gates.js';
 import { LinkClaims } from './link-claims.js';
 import { Routine, WhatWillHappen } from './routine.js';
 import {
@@ -830,6 +831,21 @@ export function Compare({
                             </div>
                           )}
                         </dl>
+                        <GateLines
+                          cand={s}
+                          alternative={{
+                            id: a.entity.id,
+                            version: a.entity.version,
+                          }}
+                          base={base}
+                          problemId={d.report.problem.id}
+                          session={session}
+                          canConfirm={workspace.role === 'owner'}
+                          onOpenSettings={() =>
+                            open('settings', 'team-profile')
+                          }
+                          onDone={() => detail.reload()}
+                        />
                         <AssessmentLines
                           rubrics={[
                             { rubric: 'suitability', cand: s },

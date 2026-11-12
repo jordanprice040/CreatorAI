@@ -185,7 +185,8 @@ test('eight long options and thirty claims: every request is under the cap and r
     assert.ok(p.ok);
     return p.packet.claims.length;
   };
-  assert.equal(at(24_000), 4);
+  // ADR-0090's longer assessor prompt (the team block sentence) leaves room for three here.
+  assert.equal(at(24_000), 3);
   assert.ok(at(40_000) > at(24_000));
   assert.equal(at(120_000), 30);
 });

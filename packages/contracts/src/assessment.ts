@@ -1,6 +1,7 @@
 import { z, id, hash, version, timestamp } from './primitives.js';
 import { ExplorationClaimSchema } from './exploration.js';
 import { GateStatusSchema, RubricIdSchema } from './selection.js';
+import { PacketTeamSchema } from './team.js';
 
 // P08 automatic assessments (ADR-0074). A system assessor proposes 1–5 ratings with written,
 // evidence-linked rationales for every option of one problem on the rubrics that apply; the
@@ -78,6 +79,11 @@ export const AssessmentPacketSchema = z.strictObject({
   rubrics: z.array(PacketRubricSchema).min(1).max(2),
   /** What the packet left out, so a thin assessment can be read honestly. */
   notes: z.array(z.string().max(300)).max(10),
+  /**
+   * ADR-0090: what the owner says the team can run, install and do with data. Absent when no
+   * team profile has been saved (and on packets built before schema 56).
+   */
+  team: PacketTeamSchema.optional(),
   assessed_at: timestamp,
 });
 export type AssessmentPacket = z.infer<typeof AssessmentPacketSchema>;
