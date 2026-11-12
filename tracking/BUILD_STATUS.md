@@ -10,7 +10,8 @@ Limits: an edited pick's own brief is not archived from a card; no live model ca
 
 Review 1 fixes (PR #181, 1 Medium, 6 Lows, 6 nits; see the ADR-0096 amendment): a conversation with a fill can be deleted after a restore (migration 61's trigger), a database missing migrations names them, migrations are checked to be in order, the server sets each question's type and saved answer, typed answers are replaced only on a second press, an Explore pick always sets the card's claims and roles. Checked: `pnpm typecheck`, `pnpm format:check`, `pnpm test:db` (1046 tests: 1012 pass, 29 skipped, only the 5 PowerShell-wrapper failures). The restore-order test fails on the old trigger and passes on the new one. The P20 Chat walk (`tracking/evidence/p20-chat-actions/walk.cjs`) passed again on this branch on the reviewer ports with a throwaway database and the worker on: the refused fetch is still refused, held for a decision then answered and sent again, and the stale card refused (409). Explore for me inside a card started and finished an exploration, but the fixture explorer proposed nothing without claims, so "Use this" filling a card is covered by `web-chat-cards.test.ts` only.
 
-Re-review 2's four nits fixed (see the ADR-0096 re-review 2 amendment). Checked again: `pnpm typecheck`, `pnpm format:check`, `pnpm test:db` (1046 tests: 1012 pass, 29 skipped, only the 5 PowerShell-wrapper failures).
+Re-review 3's three nits fixed too (ADR-0096 re-review 3 amendment; new test in `web-chat-cards.test.ts`). Re-review 2's four nits fixed (see the ADR-0096 re-review 2 amendment). Checked again: `pnpm typecheck`, `pnpm format:check`, `pnpm test:db` (1046 tests: 1012 pass, 29 skipped, only the 5 PowerShell-wrapper failures).
+After re-review 3: `pnpm test:db` 1047 tests, 1013 pass, 29 skipped, only the 5 PowerShell-wrapper failures.
 
 ## November 11 update — P27 fix it here (ADR-0087)
 

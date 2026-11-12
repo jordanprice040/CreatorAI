@@ -89,7 +89,8 @@ test('migrations apply once, refuse edited history, and gate an unmigrated schem
   const db = await freshDatabase(t);
   if (!db) return;
   assert.deepEqual(await migrate(db.pool), []);
-  assert.equal(await assertSchemaCurrent(db.pool), 61);
+  // Re-review R3-N2: the newest listed migration, so no edit is needed per migration.
+  assert.equal(await assertSchemaCurrent(db.pool), migrations.at(-1)!.version);
   await db.pool.query(
     `update schema_migrations set checksum = repeat('0', 64) where version = 1`,
   );
@@ -105,7 +106,7 @@ test('migrations apply once, refuse edited history, and gate an unmigrated schem
   await assert.rejects(assertSchemaCurrent(db.pool), (e: unknown) => {
     assert.ok(e instanceof ContractError);
     assert.equal(e.code, 'STORAGE_UNAVAILABLE');
-    // Re-review R2-N4: the newest version is read, so this needs no edit per migration.
+    // Re-review R2-N4: the newest version is read, so this message needs no edit per migration.
     assert.ok(
       e.message.includes(
         `missing migration 55 (code expects ${migrations.at(-1)!.version})`,

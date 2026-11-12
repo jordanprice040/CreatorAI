@@ -27,7 +27,9 @@ import {
   LABEL,
   answersFromPick,
   cardView,
+  exploreWaitNote,
   fill,
+  fillOutcomeNote,
   fillPath,
   pick,
   type CardData,
@@ -236,6 +238,14 @@ export function ActionCard({
       : {};
   const proposedKeys = Object.keys(proposed);
   const used = applied && proposedKeys.length === 0;
+  /** Re-review R3-N1: proposals that equal the card's answers already. */
+  const matching =
+    lastFill?.state === 'completed'
+      ? Object.entries(lastFill.values).filter(
+          ([k, v]) => fillable.some((q) => q.key === k) && input[k] === v,
+        ).length
+      : 0;
+  const exploreWait = exploreWaitNote(data !== null, loadError);
   // Review L-4: a proposal never replaces a typed answer unless the person asks for that.
   const typed = (k: string) => {
     const v = input[k];
@@ -600,12 +610,8 @@ export function ActionCard({
                   className="secondary"
                   aria-expanded={exploring}
                   // Re-review R2-N1: a pick needs the card's records to keep its claims.
-                  disabled={busy !== '' || data === null}
-                  title={
-                    data === null
-                      ? 'Waiting for this card’s records'
-                      : undefined
-                  }
+                  disabled={busy !== '' || exploreWait !== null}
+                  title={exploreWait ?? undefined}
                   onClick={() => setExploring((x) => !x)}
                 >
                   {exploring ? 'Hide Explore for me' : 'Explore for me'}
@@ -627,6 +633,7 @@ export function ActionCard({
               model={modelHelp?.model ?? lastFill.model_id}
               proposed={proposed}
               replacing={replacing}
+              matching={matching}
               partly={applied}
               labels={Object.fromEntries(fillable.map((q) => [q.key, q.label]))}
               busy={busy}
@@ -1003,6 +1010,7 @@ function FillResult({
   model,
   proposed,
   replacing,
+  matching,
   partly,
   labels,
   busy,
@@ -1015,6 +1023,8 @@ function FillResult({
   replacing: string[];
   /** Some of these proposals are already the card's answers. */
   partly: boolean;
+  /** How many proposals equal the card's answers already. */
+  matching: number;
   labels: Record<string, string>;
   /** The card's busy state: 'use' or 'use-all' while this saves. */
   busy: string;
@@ -1080,11 +1090,7 @@ function FillResult({
           </p>
         </>
       ) : (
-        <p className="small">
-          {fill.state === 'completed'
-            ? (fill.reason ?? 'Nothing to propose.')
-            : `${fill.state === 'refused' ? 'Not sent' : 'Failed'}: ${fill.reason ?? ''}`}
-        </p>
+        <p className="small">{fillOutcomeNote(fill, matching)}</p>
       )}
       {fill.sent && (
         <details className="chat-sent">

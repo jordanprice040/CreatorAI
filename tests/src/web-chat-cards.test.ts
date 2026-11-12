@@ -69,6 +69,11 @@ type Mod = {
     claims: { claim_id: string; contrary: boolean }[],
     known: ReadonlySet<string>,
   ) => Record<string, unknown>;
+  fillOutcomeNote: (
+    fill: { state: string; reason: string | null },
+    matching: number,
+  ) => string;
+  exploreWaitNote: (loaded: boolean, loadError: string) => string | null;
 };
 
 const cards = () => loadWeb('chat-cards.ts') as Promise<Mod>;
@@ -501,4 +506,38 @@ test("ADR-0096: an Explore for me pick fills a discovery card; unedited, it star
 
   // "Send again" starts from the person's answers without the pick (a new brief).
   assert.ok(!('_explored' in m.againInput('start_discovery', input)));
+});
+
+test('PR #181 re-review 3: a fill that matches the answers says so, and Explore names a failed read', async () => {
+  const { fillOutcomeNote, exploreWaitNote } = await cards();
+  // R3-N1: proposals equal to the card's answers are not "nothing to propose".
+  const done = { state: 'completed', reason: null };
+  assert.equal(
+    fillOutcomeNote(done, 1),
+    'The proposal matches the answer already on this card.',
+  );
+  assert.equal(
+    fillOutcomeNote(done, 3),
+    'All 3 proposals match the answers already on this card.',
+  );
+  assert.equal(fillOutcomeNote(done, 0), 'Nothing to propose.');
+  assert.equal(
+    fillOutcomeNote({ state: 'completed', reason: 'No usable text.' }, 0),
+    'No usable text.',
+  );
+  assert.equal(
+    fillOutcomeNote({ state: 'refused', reason: 'Chat is off.' }, 2),
+    'Not sent: Chat is off.',
+  );
+  assert.equal(
+    fillOutcomeNote({ state: 'failed', reason: 'Timed out.' }, 0),
+    'Failed: Timed out.',
+  );
+  // R3-N3: a failed read is not "waiting".
+  assert.equal(exploreWaitNote(true, ''), null);
+  assert.equal(exploreWaitNote(false, ''), 'Waiting for this card’s records');
+  const failed = exploreWaitNote(false, 'API error 500');
+  assert.ok(
+    failed && /could not be read/.test(failed) && !/Waiting/.test(failed),
+  );
 });

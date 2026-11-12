@@ -2095,3 +2095,34 @@ export function cardForStep(
       return null;
   }
 }
+
+/**
+ * ADR-0096: what a fill's box says when it has no proposal left to offer. Re-review R3-N1:
+ * proposals equal to the card's answers are not "nothing to propose".
+ */
+export function fillOutcomeNote(
+  fill: { state: string; reason: string | null },
+  matching: number,
+): string {
+  if (fill.state !== 'completed')
+    return `${fill.state === 'refused' ? 'Not sent' : 'Failed'}: ${fill.reason ?? ''}`;
+  if (matching > 0)
+    return matching === 1
+      ? 'The proposal matches the answer already on this card.'
+      : `All ${matching} proposals match the answers already on this card.`;
+  return fill.reason ?? 'Nothing to propose.';
+}
+
+/**
+ * ADR-0096: why Explore for me on a card is not yet pressable (re-review R2-N1, R3-N3), or
+ * null when it is. A pick needs the card's records to keep its claims.
+ */
+export function exploreWaitNote(
+  loaded: boolean,
+  loadError: string,
+): string | null {
+  if (loaded) return null;
+  return loadError
+    ? 'This card’s records could not be read; press Read again above first.'
+    : 'Waiting for this card’s records';
+}
