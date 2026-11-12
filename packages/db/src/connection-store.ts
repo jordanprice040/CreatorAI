@@ -3,6 +3,9 @@ import type { PoolClient } from 'pg';
 import {
   BenchmarkCheckSchema,
   AcceptPlanCapsRequestSchema,
+  GrantExtraRequestsRequestSchema,
+  type PlanExtra,
+  PLAN_EXTRA_HOURS,
   AttestCreditsRequestSchema,
   ContractError,
   CreatePlanConnectionRequestSchema,
@@ -105,6 +108,8 @@ import {
   assessmentRoleInput,
   ASSESSMENT_ROLE_VERSION,
   admissionRefusals,
+  dailyCap,
+  nextRequestAt,
   canonicalHash,
   connectionBlockers,
   connectionRefusals,
@@ -652,6 +657,13 @@ async function modelChoice(
   };
 }
 
+/** ADR-0094: admission's counts plus the window's start times and extras, read together. */
+type WindowUsage = PlanUsageCounts & {
+  extras: PlanExtra[];
+  starts_ms: number[];
+  now_ms: number;
+};
+
 export class ConnectionStore extends WebDiscoveryStore {
   /**
    * PR #126 review L-1: chat answers this studio process has begun and not yet finished. A reply
@@ -808,8 +820,13 @@ export class ConnectionStore extends WebDiscoveryStore {
     return this.tx(async (c) => {
       await this.role(c, uuid(ws), ctx.actorId, false);
       const owner = await this.isCeilingOwner(c, ctx.actorId);
-      return usageSummary(c, uuid(ws), this.spending, owner, (r) =>
-        connectionBlockers(toConnection(r)),
+      return usageSummary(
+        c,
+        uuid(ws),
+        this.spending,
+        owner,
+        (r) => connectionBlockers(toConnection(r)),
+        await this.isPolicyOwner(c, uuid(ws), ctx.actorId),
       );
     });
   }
@@ -2548,7 +2565,7 @@ export class ConnectionStore extends WebDiscoveryStore {
     const ctx = normalize(ctxIn);
     return this.tx(async (c) => {
       await this.role(c, uuid(ws), ctx.actorId, false);
-      return this.#detail(c, ws, uuid(id));
+      return this.#detail(c, ws, uuid(id), ctx.actorId);
     });
   }
 
@@ -3301,8 +3318,7 @@ export class ConnectionStore extends WebDiscoveryStore {
       const usage = await this.#usage(c, conn.id, run.run_id, null);
       const caps = conn.settings.caps;
       const runRoom = caps.responses.max_requests_per_run - usage.run_requests;
-      const dayRoom =
-        caps.shared.max_model_requests_per_day - usage.last_24h_requests;
+      const dayRoom = dailyCap(caps, usage) - usage.last_24h_requests;
       if (runRoom < 2)
         out.push(
           `This run has room for ${Math.max(0, runRoom)} more plan request${runRoom === 1 ? '' : 's'} on this connection; a build needs at least 2 (builder and reviewer). Raise the per-run cap in Settings or use a fresh run.`,
@@ -5221,6 +5237,7 @@ export class ConnectionStore extends WebDiscoveryStore {
     c: PoolClient,
     ws: string,
     id: string,
+    actorId: string,
   ): Promise<PlanConnectionDetail> {
     const connection = await this.#connection(c, ws, id);
     const grants = await c.query(
@@ -5261,6 +5278,13 @@ export class ConnectionStore extends WebDiscoveryStore {
         last_24h_codex_builds: usage.last_24h_codex_builds,
         in_flight: usage.in_flight,
         unresolved: usage.unresolved,
+        extra_requests: usage.extra_requests,
+        extras: usage.extras,
+        next_frees_at: this.#nextFreesAt(connection, usage),
+        can_add_extra:
+          usage.last_24h_requests >=
+            dailyCap(connection.settings.caps, usage) &&
+          (await this.isPolicyOwner(c, ws, actorId)),
       },
       open_requests: (open.rows as Row[]).map((r) => {
         const flying = r.state === 'in_flight';
@@ -5283,10 +5307,12 @@ export class ConnectionStore extends WebDiscoveryStore {
     id: string,
     runId: string | null,
     buildId: string | null,
-  ): Promise<PlanUsageCounts> {
+  ): Promise<WindowUsage> {
     const { rows } = await c.query(
       `select
-         count(*) filter (where started_at > clock_timestamp() - interval '24 hours') as day,
+         coalesce(array_agg(started_at order by started_at)
+           filter (where started_at > clock_timestamp() - interval '24 hours'), '{}') as starts,
+         clock_timestamp() as now,
          count(distinct build_id) filter (where path = 'codex' and started_at > clock_timestamp() - interval '24 hours') as builds,
          count(*) filter (where $2::uuid is not null and run_id = $2 and path = 'responses') as run,
          count(*) filter (where $3::uuid is not null and build_id = $3) as build,
@@ -5296,14 +5322,117 @@ export class ConnectionStore extends WebDiscoveryStore {
       [id, runId, buildId],
     );
     const r = rows[0] as Row;
+    const extras = await this.#extras(c, id);
+    // The window's count and its start times come from one statement (re-review 2 N-3), so
+    // "full", the offer and the next-request time agree.
+    const starts = (r.starts as Date[]).map((d) => new Date(d).getTime());
     return {
-      last_24h_requests: Number(r.day),
+      last_24h_requests: starts.length,
+      starts_ms: starts,
+      now_ms: new Date(r.now as Date).getTime(),
       last_24h_codex_builds: Number(r.builds),
       run_requests: Number(r.run),
       build_requests: Number(r.build),
       in_flight: Number(r.in_flight),
       unresolved: Number(r.unresolved),
+      extra_requests: extras.reduce((n, x) => n + x.requests, 0),
+      extras,
     };
+  }
+
+  /**
+   * ADR-0094 (review L-3, re-review 2 N-2): when one more request is admitted, by the same rule
+   * as the usage indicator (`nextRequestAt`), from the counts `#usage` read.
+   */
+  #nextFreesAt(conn: PlanConnection, usage: WindowUsage): string | null {
+    const t = nextRequestAt(
+      usage.starts_ms,
+      conn.settings.caps.shared.max_model_requests_per_day,
+      usage.extras.map((x) => ({
+        requests: x.requests,
+        expires_ms: Date.parse(x.expires_at),
+      })),
+      usage.now_ms,
+    );
+    return t === null ? null : new Date(t).toISOString();
+  }
+
+  /** ADR-0094: a connection's unexpired extra requests, soonest expiry first. */
+  async #extras(c: PoolClient, id: string): Promise<PlanExtra[]> {
+    const { rows } = await c.query(
+      `select requests, expires_at from plan_extra_requests
+        where connection_id = $1 and expires_at > clock_timestamp()
+        order by expires_at, granted_at`,
+      [id],
+    );
+    return (rows as Row[]).map((x) => ({
+      requests: Number(x.requests),
+      expires_at: iso(x.expires_at),
+    }));
+  }
+
+  /**
+   * ADR-0094 (P29, walk item 6): the owner adds 20 requests to a connection's daily cap for the
+   * next 24 hours, the length of the rolling window, so only the window in use now is raised.
+   * Offered only while the cap (with any earlier extra) is used up, and again each time it runs
+   * out; a second press after the first succeeded is refused because there is room again. The
+   * configured cap, recorded usage, the provider's own limit and the runtime spending ceiling
+   * are not changed. The connection's version moves on and the grant is audited.
+   */
+  async grantExtraRequests(
+    ctxIn: CommandContext,
+    ws: string,
+    id: string,
+    body: unknown,
+  ): Promise<PlanConnection> {
+    const ctx = normalize(ctxIn);
+    const req = parse(GrantExtraRequestsRequestSchema, body);
+    return this.#ownerChange(
+      ctx,
+      ws,
+      id,
+      req.expected_version,
+      'extra_requests_granted',
+      async (c, conn) => {
+        const usage = await this.#usage(c, conn.id, null, null);
+        const configured = conn.settings.caps.shared.max_model_requests_per_day;
+        const cap = dailyCap(conn.settings.caps, usage);
+        if (usage.last_24h_requests < cap)
+          throw fail(
+            'INVALID_TRANSITION',
+            `This connection still has room today (${usage.last_24h_requests} of ${cap} requests used); extra requests are added only once the daily cap is used up.`,
+          );
+        const { rows } = await c.query(
+          `insert into plan_extra_requests (id, connection_id, requests, configured_cap,
+             used_at_grant, settings_hash, connection_version, granted_by, expires_at)
+           values ($1,$2,$3,$4,$5,$6,$7,$8, clock_timestamp() + make_interval(hours => $9))
+           returning id, granted_at, expires_at`,
+          [
+            randomUUID(),
+            conn.id,
+            req.requests,
+            configured,
+            usage.last_24h_requests,
+            conn.settings_hash,
+            conn.version,
+            ctx.actorId,
+            PLAN_EXTRA_HOURS,
+          ],
+        );
+        const g = rows[0] as Row;
+        return {
+          grant_id: String(g.id),
+          requests: req.requests,
+          configured_cap: configured,
+          used_at_grant: usage.last_24h_requests,
+          cap_before: cap,
+          cap_now: cap + req.requests,
+          granted_at: iso(g.granted_at),
+          expires_at: iso(g.expires_at),
+          summary: `Added ${req.requests} requests to today's cap (${cap} → ${cap + req.requests}) until ${iso(g.expires_at)}; the configured cap stays ${configured}.`,
+        };
+      },
+    );
   }
 
   async #access(c: PoolClient, id: string): Promise<PlanModelAccess[]> {

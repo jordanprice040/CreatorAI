@@ -178,3 +178,24 @@
 .model-note-warn {
   color: var(--warn);
 }
+/* ADR-0094: the extra-requests notice and its confirmation, here and on the Models card. */
+.extra-notice {
+  margin: 8px 0;
+}
+.extra-requests {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 6px 0;
+}
+.extra-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.extra-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

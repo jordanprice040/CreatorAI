@@ -709,6 +709,7 @@ export class SelectionStore extends TeamStore {
         candidates,
         evidence,
         linked_hash,
+        problem_linked_hash,
         team_hash,
         checklist_hash,
       } = await this.gather(c, ws, problemId);
@@ -722,6 +723,7 @@ export class SelectionStore extends TeamStore {
         shortlist_size: 3,
         evidence,
         linked_hash,
+        problem_linked_hash,
         team_hash,
         checklist_hash,
       });
