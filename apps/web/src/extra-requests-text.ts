@@ -33,3 +33,21 @@ export function extraLine(
     ? `${head} until ${atText(extras[0]!.expires_at)}; after that ${back}`
     : `${head}: ${each.slice(0, -1).join(', ')} and ${each.at(-1)}; after the last expires ${back}`;
 }
+
+/**
+ * The connection's daily cap in force, with any extra requests named (ADR-0094, re-review 3
+ * N-2): "60 requests now, 20 of them extra" while an extra is in force, else "40 requests".
+ */
+export function capWords(d: {
+  connection: {
+    settings: { caps: { shared: { max_model_requests_per_day: number } } };
+  };
+  usage: { extra_requests: number };
+}): string {
+  const configured =
+    d.connection.settings.caps.shared.max_model_requests_per_day;
+  const extra = d.usage.extra_requests;
+  return extra > 0
+    ? `${configured + extra} requests now, ${extra} of them extra`
+    : `${configured} requests`;
+}

@@ -29,6 +29,7 @@ export async function usageSummary(
    */
   workspaceOwner = false,
 ): Promise<UsageSummary> {
+  // When this summary was read (shown as "Updated …"); the plans' own clock is in `conns`.
   const now = await c.query<{ now: Date }>('select clock_timestamp() as now');
   const conns = await c.query(
     `select p.*,
@@ -38,7 +39,16 @@ export async function usageSummary(
        max(r.started_at) filter (where r.started_at > clock_timestamp() - interval '24 hours') as newest,
        count(r.id) filter (where r.state = 'in_flight') as in_flight,
        count(r.id) filter (where r.state = 'unknown') as unresolved,
-       count(r.id) as total
+       count(r.id) as total,
+       -- Re-review 3 N-1: the window's start times, the clock and the unexpired extras come
+       -- from this one statement, so "full", the cap and the next-request time agree.
+       coalesce(array_agg(r.started_at order by r.started_at)
+         filter (where r.started_at > clock_timestamp() - interval '24 hours'), '{}') as starts,
+       clock_timestamp() as now,
+       (select coalesce(json_agg(json_build_object('requests', x.requests,
+           'expires_at', x.expires_at) order by x.expires_at, x.granted_at), '[]')
+          from plan_extra_requests x
+         where x.connection_id = p.id and x.expires_at > clock_timestamp()) as extras
      from plan_connections p left join plan_requests r on r.connection_id = p.id
      where p.workspace_id = $1
      group by p.id order by p.created_at limit 50`,
@@ -64,54 +74,35 @@ export async function usageSummary(
       order by max(r.started_at) desc`,
     [ws],
   );
-  // Start times in the window, oldest first, to find when admission would allow one more.
-  const inWindow = await c.query(
-    `select connection_id, started_at from plan_requests
-      where started_at > clock_timestamp() - interval '24 hours'
-        and connection_id in (select id from plan_connections where workspace_id = $1)
-      order by started_at`,
-    [ws],
-  );
-  // ADR-0094: unexpired extra requests, soonest expiry first.
-  const extrasRows = await c.query(
-    `select connection_id, requests, expires_at from plan_extra_requests
-      where expires_at > clock_timestamp()
-        and connection_id in (select id from plan_connections where workspace_id = $1)
-      order by expires_at, granted_at`,
-    [ws],
-  );
-  const nowMs = new Date((now.rows[0] as { now: Date }).now).getTime();
   const later = (t: unknown) =>
     t
       ? new Date(new Date(t as Date).getTime() + 86_400_000).toISOString()
       : null;
   const plans = (conns.rows as Row[]).map((r) => {
     const caps = (r.settings as { caps: PlanCaps }).caps;
-    const used = Number(r.day);
+    const starts = (r.starts as Date[]).map((d) => new Date(d).getTime());
+    const used = starts.length;
     // ADR-0094: admission's cap is the configured one plus unexpired extra requests.
     const configured = caps.shared.max_model_requests_per_day;
-    const extras = (extrasRows.rows as Row[])
-      .filter((x) => String(x.connection_id) === String(r.id))
-      .map((x) => ({
+    const extras = (r.extras as { requests: number; expires_at: string }[]).map(
+      (x) => ({
         requests: Number(x.requests),
-        expires_at: iso(x.expires_at),
-      }));
+        expires_at: new Date(x.expires_at).toISOString(),
+      }),
+    );
     const extra = extras.reduce((n, x) => n + x.requests, 0);
     const cap = configured + extra;
     const quota = r.quota as { state: string; observed_at: string | null };
-    const starts = (inWindow.rows as Row[]).filter(
-      (x) => String(x.connection_id) === String(r.id),
-    );
     // When admission allows one more: requests leaving the window and, at the cap, extras
     // expiring before then (nextRequestAt, ADR-0094 review L-2).
     const next = nextRequestAt(
-      starts.map((x) => new Date(x.started_at as Date).getTime()),
+      starts,
       configured,
       extras.map((x) => ({
         requests: x.requests,
         expires_ms: Date.parse(x.expires_at),
       })),
-      nowMs,
+      new Date(r.now as Date).getTime(),
     );
     return {
       connection_id: String(r.id),

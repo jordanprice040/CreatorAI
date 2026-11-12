@@ -444,3 +444,17 @@ test('re-review 2 N-1: every unexpired extra is listed; the contracts set no cap
   assert.ok(detail.safeParse(extras).success);
   assert.ok(summary.safeParse(extras).success);
 });
+
+test('re-review 3 N-2: the Chat answers line names the cap in force while an extra is', async () => {
+  const m = (await loadWeb('extra-requests-text.ts')) as {
+    capWords: (d: unknown) => string;
+  };
+  const d = (extra: number) => ({
+    connection: {
+      settings: { caps: { shared: { max_model_requests_per_day: 40 } } },
+    },
+    usage: { extra_requests: extra },
+  });
+  assert.equal(m.capWords(d(0)), '40 requests');
+  assert.equal(m.capWords(d(20)), '60 requests now, 20 of them extra');
+});

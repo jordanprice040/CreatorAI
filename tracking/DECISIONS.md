@@ -14,6 +14,8 @@ P29 of the [installed-walk fix plan](../docs/FIX_PLAN_INSTALLED_WALK_2026-11-11.
 
 - **Re-review 2 amendment (PR #184, November 12).** L-1: the fix-it-here button beside a `daily_cap_reached` refusal is offered only when the detail's `can_add_extra` is true (`ready` in `fix-buttons.tsx`), and otherwise says "Only the workspace owner, signed in as a person, can add requests." N-1: `extras` has no length cap in the contracts, since the server lists every unexpired grant. N-2: the detail's `next_frees_at` follows the usage summary's rule (`nextRequestAt`, the oldest leaving when there is room). N-3: the detail's count, start times and clock come from one statement in `#usage`, so "full", the offer and the time agree.
 
+- **Re-review 3 amendment (PR #184, November 12).** N-1: the usage summary reads each connection's window start times, clock and unexpired extras in the same statement as its other counts (`used` is the number of start times), as `#usage` does for the detail. N-2: Models › Chat answers names the cap in force ("60 requests now, 20 of them extra", `capWords`) while an extra is in force.
+
 Rejected: changing `max_model_requests_per_day` and changing it back later (it rewrites the accepted caps and needs a timer that could fail); the review's "raise by what was used" reset (Jordan chose a fixed 20); granting in advance while there is room (the walk asked for it when the window runs out, and it keeps the extra bounded); an owner-chosen amount (one decided number keeps it simple; the configured cap is the place for a different daily amount).
 
 ## ADR-0087 — Fix it here: coded plan refusals and owner-only fix buttons where a refusal shows (November 11, 2026)
