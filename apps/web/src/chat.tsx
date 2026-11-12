@@ -268,6 +268,24 @@ export function Chat({
     settings?.include_snapshot === false &&
     (scope === 'project' || scope === 'selected');
 
+  /** PR #123 re-review L-1: wait as long as the chosen connection may take. */
+  async function answerWait(): Promise<number> {
+    if (!settings?.connection_id) return ANSWER_TIMEOUT_MS;
+    try {
+      const d = await api(
+        ConnectionTimeoutSchema,
+        `workspaces/${workspace.id}/plan-connections/${settings.connection_id}`,
+      );
+      return Math.max(
+        ANSWER_TIMEOUT_MS,
+        planWaitMs(d.connection.settings.caps.responses.request_timeout_ms),
+      );
+    } catch {
+      // Keep the default wait; the request itself reports real problems.
+      return ANSWER_TIMEOUT_MS;
+    }
+  }
+
   /** ADR-0057: asks the chosen plan to answer one saved message. */
   async function ask(conversation: string, messageId: string) {
     if (!owner || asking) return;
@@ -279,21 +297,7 @@ export function Chat({
     setAsking(messageId);
     setError('');
     try {
-      // PR #123 re-review L-1: wait as long as the chosen connection may take.
-      let timeoutMs = ANSWER_TIMEOUT_MS;
-      if (settings?.connection_id)
-        try {
-          const d = await api(
-            ConnectionTimeoutSchema,
-            `workspaces/${workspace.id}/plan-connections/${settings.connection_id}`,
-          );
-          timeoutMs = Math.max(
-            ANSWER_TIMEOUT_MS,
-            planWaitMs(d.connection.settings.caps.responses.request_timeout_ms),
-          );
-        } catch {
-          // Keep the default wait; the answer request itself reports real problems.
-        }
+      const timeoutMs = await answerWait();
       await api(
         ChatAnswerSchema,
         `${base}/${conversation}/messages/${messageId}/answer`,
@@ -436,6 +440,41 @@ export function Chat({
     // It goes to the end of the conversation, where the person is now.
     return startCard(card.kind, latestMessage.current, input, card.id);
   }
+  /**
+   * ADR-0096 (P31): what "Next step" on the conversation's latest finished card does: the
+   * Path's next step as a card (by the same rules as "Do it here"), or its tab when that step
+   * has no card. Nothing when a draft of that card is already open here.
+   */
+  function nextFor(c: ChatAction) {
+    const actions = detail?.actions ?? [];
+    if (c.state !== 'done' || actions.at(-1)?.id !== c.id) return null;
+    const f = replyFacts(facts, true);
+    if (!f.step) return null;
+    const kind = f.pending
+      ? 'answer_decision'
+      : cardForStep(f.step.view, {
+          sources: facts?.sources ?? 0,
+          scorecards: facts?.scorecards ?? 0,
+        });
+    if (kind)
+      return actions.some(
+        (x) => x.kind === kind && !CHAT_ACTION_FINAL.includes(x.state),
+      )
+        ? null
+        : {
+            label: `Next step: ${LABEL[kind].toLowerCase()}`,
+            run: () => void startCard(kind, latestMessage.current),
+            busy: carding,
+          };
+    const view = f.step.view;
+    return view
+      ? {
+          label: `Next step: open ${placeLabel(view as View, 'chat')}`,
+          run: () => open(view as View),
+          busy: false,
+        }
+      : null;
+  }
   const renderCard = (c: ChatAction) => (
     <ActionCard
       key={c.id}
@@ -448,6 +487,17 @@ export function Chat({
       reload={() => loadDetail(c.conversation_id)}
       open={open}
       again={again}
+      modelHelp={
+        owner && answersOn && settings?.model_id
+          ? {
+              model: settings.model_id,
+              fills: (detail?.fills ?? []).filter((f) => f.action_id === c.id),
+              wait: answerWait,
+            }
+          : null
+      }
+      next={canWrite ? nextFor(c) : null}
+      workspace={workspace}
     />
   );
 

@@ -1,10 +1,14 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import {
+  ChatActionFillSchema,
   ChatActionSchema,
   ChatActionSentSchema,
+  fillableKey,
   z,
   type ChatAction,
+  type ChatActionFill,
   type SessionInfo,
+  type Workspace,
 } from '@creator/contracts';
 import { api, ApiError, message as errorText, when } from './oversight.js';
 import { useViewMode } from './view-mode.js';
@@ -17,9 +21,11 @@ import {
   routeFixes,
   useQualifyOffers,
 } from './fix-buttons.js';
+import { Explore, type ExploredPick } from './explore.js';
 import {
   FORM_VIEW,
   LABEL,
+  answersFromPick,
   cardView,
   fill,
   fillPath,
@@ -94,6 +100,9 @@ export function ActionCard({
   reload,
   open,
   again,
+  modelHelp = null,
+  next = null,
+  workspace = null,
 }: {
   card: ChatAction;
   session: SessionInfo;
@@ -107,6 +116,21 @@ export function ActionCard({
   open: (view: View) => void;
   /** Makes a new draft card with the same answers. */
   again: (card: ChatAction) => Promise<void>;
+  /**
+   * ADR-0096 (P31): the owner's chat model, offered to propose this card's text answers
+   * ("Fill in with <model>"), with this card's fills so far. Null when chat answers are off
+   * or the person is not the owner.
+   */
+  modelHelp?: {
+    model: string;
+    fills: ChatActionFill[];
+    /** How long to wait for the plan's reply. */
+    wait: () => Promise<number>;
+  } | null;
+  /** ADR-0096: "Next step" on a finished card adds the Path's next card (or opens its tab). */
+  next?: { label: string; run: () => void; busy: boolean } | null;
+  /** ADR-0096: the workspace, for Explore for me on a discovery card. */
+  workspace?: Workspace | null;
 }) {
   const { standard } = useViewMode();
   // ADR-0087: the server's discovery benchmarks, so a fix can qualify a discovery task.
@@ -118,6 +142,9 @@ export function ActionCard({
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
   const [changing, setChanging] = useState<string | null>(null);
+  const [exploring, setExploring] = useState(false);
+  // One id per Fill press, reused if the same press is retried, so it never asks twice.
+  const fillId = useRef<string | null>(null);
   const draft = card.state === 'draft';
   const input = card.input as Input;
   const ctx = {
@@ -176,6 +203,25 @@ export function ActionCard({
   const asking: Question | null =
     (changing ? view.questions.find((q) => q.key === changing) : null) ??
     view.current;
+  // ADR-0096: the questions a model may propose text for (never a pick, judgment or routine).
+  const fillable = view.questions.filter(
+    (q) =>
+      (q.type === 'text' || q.type === 'long') &&
+      !q.routine &&
+      fillableKey(card.kind, q.key),
+  );
+  const lastFill = modelHelp?.fills.at(-1) ?? null;
+  const used = lastFill !== null && input._fill === lastFill.id;
+  /** Proposals for questions this card still asks, by key. */
+  const proposed: Record<string, string> =
+    lastFill?.state === 'completed' && !used
+      ? Object.fromEntries(
+          Object.entries(lastFill.values).filter(([k]) =>
+            fillable.some((q) => q.key === k),
+          ),
+        )
+      : {};
+  const proposedKeys = Object.keys(proposed);
 
   async function save(patch: Input, viewFor: CardView | null) {
     const next: Input = {
@@ -202,6 +248,80 @@ export function ActionCard({
       setError(errorText(e));
     } finally {
       setBusy('');
+    }
+  }
+
+  /** ADR-0096: asks the chat model to propose this card's text answers. Nothing is saved. */
+  async function fillIn() {
+    if (!modelHelp || fillable.length === 0) return;
+    setBusy('fill');
+    setError('');
+    fillId.current ??= crypto.randomUUID();
+    try {
+      const done = await api(ChatActionFillSchema, `${base}/fill`, {
+        csrf: session.csrf_token,
+        body: {
+          client_id: fillId.current,
+          expected_version: card.version,
+          questions: fillable.map((q) => {
+            const cur = input[q.key];
+            return {
+              key: q.key,
+              label: q.label.slice(0, 200),
+              prompt: q.prompt.slice(0, 600),
+              ...(q.help ? { help: q.help.slice(0, 1200) } : {}),
+              type: q.type as 'text' | 'long',
+              ...(typeof cur === 'string' && cur.trim()
+                ? { current: cur.slice(0, 4000) }
+                : {}),
+            };
+          }),
+        },
+        timeoutMs: await modelHelp.wait(),
+      });
+      fillId.current = null;
+      if (done.state !== 'completed') setError(done.reason ?? 'No proposals.');
+      await reload();
+    } catch (e) {
+      setError(
+        `${errorText(e)} Press Fill in again to retry; it will not be sent twice.`,
+      );
+    } finally {
+      setBusy('');
+    }
+  }
+
+  /** The person's click: the proposals become this card's answers, still to check and send. */
+  async function useProposals() {
+    if (!lastFill || proposedKeys.length === 0) return;
+    setBusy('use');
+    setError('');
+    try {
+      const patch: Input = { ...proposed, _fill: lastFill.id };
+      await save(patch, cardView(card.kind, { ...input, ...patch }, data, ctx));
+      setChanging(null);
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy('');
+    }
+  }
+
+  /** ADR-0096: an Explore for me pick fills the discovery card (the person's "Use this"). */
+  async function usePick(pick: ExploredPick) {
+    setError('');
+    try {
+      const known = new Set(
+        data && 'claims' in data && Array.isArray(data.claims)
+          ? data.claims.map((c) => c.id)
+          : [],
+      );
+      const patch = answersFromPick(pick.brief, pick.claims, known);
+      await save(patch, cardView(card.kind, { ...input, ...patch }, data, ctx));
+      setExploring(false);
+      setChanging(null);
+    } catch (e) {
+      setError(errorText(e));
     }
   }
 
@@ -423,6 +543,73 @@ export function ActionCard({
               </button>
             </p>
           )}
+          {(modelHelp && fillable.length > 0) ||
+          (card.kind === 'start_discovery' && workspace) ? (
+            <p className="chat-actions chat-card-help">
+              {modelHelp && fillable.length > 0 && (
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={busy !== '' || lastFill?.state === 'pending'}
+                  onClick={() => void fillIn()}
+                >
+                  {busy === 'fill' || lastFill?.state === 'pending'
+                    ? `Asking ${modelHelp.model}…`
+                    : `Fill in with ${modelHelp.model}`}
+                </button>
+              )}
+              {card.kind === 'start_discovery' && workspace && (
+                <button
+                  type="button"
+                  className="secondary"
+                  aria-expanded={exploring}
+                  disabled={busy !== ''}
+                  onClick={() => setExploring((x) => !x)}
+                >
+                  {exploring ? 'Hide Explore for me' : 'Explore for me'}
+                </button>
+              )}
+            </p>
+          ) : null}
+          {modelHelp && fillable.length > 0 && (
+            <p className="small">
+              {modelHelp.model} proposes text for this card&apos;s descriptive
+              questions from this conversation, as one chat request. It never
+              picks, rates or decides anything; you check each proposal, and
+              nothing is sent until you press Send.
+            </p>
+          )}
+          {lastFill && lastFill.state !== 'pending' && !used && (
+            <FillResult
+              fill={lastFill}
+              model={modelHelp?.model ?? lastFill.model_id}
+              proposed={proposed}
+              labels={Object.fromEntries(fillable.map((q) => [q.key, q.label]))}
+              busy={busy !== ''}
+              use={() => void useProposals()}
+            />
+          )}
+          {used && lastFill && (
+            <p className="small">
+              Answers below include {lastFill.model_id}&apos;s proposals; check
+              each before you send.
+            </p>
+          )}
+          {exploring && workspace && (
+            <div className="chat-card-explore">
+              <p className="small">
+                The same Explore for me as on Discover. “Use this” on a problem
+                fills this card with its brief and the claims that support it;
+                you still check every answer and press Send.
+              </p>
+              <Explore
+                session={session}
+                workspace={workspace}
+                onUse={(pick) => void usePick(pick)}
+                open={(v) => open(v)}
+              />
+            </div>
+          )}
           {asking && (
             <QuestionField
               key={`${asking.key}:${card.version}`}
@@ -430,7 +617,14 @@ export function ActionCard({
               start={
                 Object.hasOwn(input, asking.key)
                   ? view.values[asking.key]!
-                  : (asking.fallback ?? (asking.type === 'multi' ? [] : ''))
+                  : (proposed[asking.key] ??
+                    asking.fallback ??
+                    (asking.type === 'multi' ? [] : ''))
+              }
+              proposedBy={
+                !Object.hasOwn(input, asking.key) && proposed[asking.key]
+                  ? (modelHelp?.model ?? null)
+                  : null
               }
               busy={busy !== ''}
               cancel={changing ? () => setChanging(null) : null}
@@ -540,6 +734,18 @@ export function ActionCard({
         </>
       )}
       {!draft && card.state !== 'sending' && <Finished card={card} />}
+      {next && card.state === 'done' && (
+        <p className="chat-actions">
+          <button
+            type="button"
+            className="secondary strong"
+            disabled={next.busy}
+            onClick={next.run}
+          >
+            {next.label}
+          </button>
+        </p>
+      )}
       {['refused', 'partial', 'unconfirmed', 'stale'].includes(card.state) ||
       (card.state === 'done' && card.outcome?.code === 'needs_human')
         ? canWrite && (
@@ -568,12 +774,15 @@ export function ActionCard({
 function QuestionField({
   q,
   start,
+  proposedBy = null,
   busy,
   cancel,
   submit,
 }: {
   q: Question;
   start: Value;
+  /** ADR-0096: the model whose proposal the field starts from, if it does. */
+  proposedBy?: string | null;
   busy: boolean;
   cancel: (() => void) | null;
   submit: (v: Value) => void;
@@ -630,6 +839,11 @@ function QuestionField({
         <>
           <label htmlFor={id}>{q.prompt}</label>
           {q.help && <p className="small">{q.help}</p>}
+          {proposedBy && (
+            <p className="small source">
+              Proposed by {proposedBy}; change it as you like before Next.
+            </p>
+          )}
           {q.type === 'long' ? (
             <textarea
               id={id}
@@ -730,6 +944,78 @@ function Answered({
         );
       })}
     </dl>
+  );
+}
+
+/** ADR-0096: how a fill ended, its proposals and exactly what was sent. */
+function FillResult({
+  fill,
+  model,
+  proposed,
+  labels,
+  busy,
+  use,
+}: {
+  fill: ChatActionFill;
+  model: string;
+  proposed: Record<string, string>;
+  labels: Record<string, string>;
+  busy: boolean;
+  use: () => void;
+}) {
+  const keys = Object.keys(proposed);
+  return (
+    <div className="chat-card-fill" role="group" aria-label="Proposals">
+      {keys.length > 0 ? (
+        <>
+          <p className="chat-meta">
+            Proposed by {model} · {when(fill.created_at)} · not used yet
+          </p>
+          <dl className="chat-card-answers">
+            {keys.map((k) => (
+              <div key={k}>
+                <dt>{labels[k] ?? k}</dt>
+                <dd>{proposed[k]}</dd>
+              </div>
+            ))}
+          </dl>
+          {fill.reason && <p className="small">{fill.reason}</p>}
+          <p className="chat-actions">
+            <button
+              type="button"
+              className="secondary strong"
+              disabled={busy}
+              onClick={use}
+            >
+              {busy ? 'Saving…' : 'Use these'}
+            </button>
+          </p>
+          <p className="small">
+            Using them saves them as this card&apos;s answers, which you can
+            change. Nothing is sent until you press Send.
+          </p>
+        </>
+      ) : (
+        <p className="small">
+          {fill.state === 'completed'
+            ? (fill.reason ?? 'Nothing to propose.')
+            : `${fill.state === 'refused' ? 'Not sent' : 'Failed'}: ${fill.reason ?? ''}`}
+        </p>
+      )}
+      {fill.sent && (
+        <details className="chat-sent">
+          <summary>What was sent to {fill.model_id}</summary>
+          <p className="small">
+            {fill.sent.input_chars} characters
+            {fill.sent.records
+              ? ', including studio records the owner allows in chat answers'
+              : ', without studio records'}
+            ; instructions {fill.sent.instructions_version}.
+          </p>
+          <pre>{fill.sent.input}</pre>
+        </details>
+      )}
+    </div>
   );
 }
 

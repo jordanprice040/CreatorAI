@@ -47,6 +47,17 @@ import {
   CHAT_HISTORY_TURNS,
   CHAT_INSTRUCTIONS,
   CHAT_INSTRUCTIONS_VERSION,
+  CHAT_ACTION_LABEL,
+  CHAT_FILL_INSTRUCTIONS,
+  CHAT_FILL_INSTRUCTIONS_VERSION,
+  CHAT_FILL_OUTPUT_MAX,
+  ChatActionFillQuestionSchema,
+  ChatActionFillRequestSchema,
+  fillableKey,
+  readFillValues,
+  type ChatActionFill,
+  type ChatActionFillQuestion,
+  type ChatActionFillState,
   ChatAnswerRequestSchema,
   ChatCreateRequestSchema,
   ChatMessageRequestSchema,
@@ -131,8 +142,11 @@ import {
   chatAction,
   chatActionEvents,
   chatActionStale,
+  chatActionFills,
   chatActions,
+  fillInput,
   toChatAction,
+  toChatActionFill,
 } from './chat-action-store.js';
 import { toRun } from './oversight-store.js';
 import {
@@ -644,6 +658,8 @@ export class ConnectionStore extends WebDiscoveryStore {
    * restart, when the stored timeout rule alone applies.
    */
   readonly #liveChatAnswers = new Set<string>();
+  /** ADR-0096: fills this studio process is still waiting on. */
+  readonly #liveChatFills = new Set<string>();
   /**
    * ADR-0064: plan requests this studio process admitted and has not settled yet. The owner
    * cannot close one of these from the app, whatever its age: its result can still come back.
@@ -823,6 +839,7 @@ export class ConnectionStore extends WebDiscoveryStore {
         messages: await chatMessages(c, conversation.id),
         answers: await chatAnswers(c, conversation.id),
         actions: await chatActions(c, conversation.id),
+        fills: await chatActionFills(c, conversation.id),
       };
     });
   }
@@ -913,6 +930,8 @@ export class ConnectionStore extends WebDiscoveryStore {
           `select 1 from chat_messages where conversation_id = $1 and author_id <> $2
            union all
            select 1 from chat_answers where conversation_id = $1
+           union all
+           select 1 from chat_action_fills where conversation_id = $1
            limit 1`,
           [conversation.id, ctx.actorId],
         );
@@ -938,6 +957,18 @@ export class ConnectionStore extends WebDiscoveryStore {
         throw fail(
           'INVALID_TRANSITION',
           'An answer is still on its way in this conversation. Delete it once the answer is back.',
+        );
+      // ADR-0096: the same for a card's fill on its way.
+      const filling = await c.query(
+        `select 1 from chat_action_fills ca where ca.conversation_id = $1 and ca.state = 'pending'
+           and (ca.created_at >= ${CHAT_ANSWER_STALE_POINT} or ca.id = any($2::uuid[]))
+         limit 1`,
+        [conversation.id, [...this.#liveChatFills]],
+      );
+      if (filling.rows.length)
+        throw fail(
+          'INVALID_TRANSITION',
+          "A card's fill is still on its way in this conversation. Delete it once the fill is back.",
         );
       const answers = Number(
         (
@@ -2090,6 +2121,282 @@ export class ConnectionStore extends WebDiscoveryStore {
     });
     if (!begun.replay) this.#liveChatAnswers.add(begun.answer.id);
     return begun;
+  }
+
+  /**
+   * ADR-0096 (P31): records one "Fill in with <model>" press on a draft card and works out
+   * exactly what will be sent. Owner only, like chat answers, and only while chat answers are
+   * on (the same connection, model, daily limit and private-data rule apply at admission).
+   * Only the card's descriptive text questions may be asked about (`fillableKey`); a retried
+   * press (same `client_id`) or a fill still on its way returns that fill. Nothing is sent
+   * here, and nothing on the card changes.
+   */
+  async beginChatActionFill(
+    ctxIn: CommandContext,
+    ws: string,
+    conversationId: string,
+    actionId: string,
+    raw: unknown,
+  ): Promise<{
+    fill: ChatActionFill;
+    replay: boolean;
+    input: string;
+    logical_operation_id: string;
+    connection_id: string;
+    questions: ChatActionFillQuestion[];
+  }> {
+    const ctx = normalize(ctxIn);
+    const req = parse(ChatActionFillRequestSchema, raw);
+    const begun = await this.tx(async (c) => {
+      await this.requireOwner(c, uuid(ws), ctx.actorId);
+      const conversation = await chatConversation(
+        c,
+        uuid(ws),
+        uuid(conversationId),
+        true,
+      );
+      const card = await chatAction(
+        c,
+        uuid(ws),
+        conversation.id,
+        uuid(actionId),
+      );
+      // A fill left pending by a studio that stopped mid-request is closed as failed (the same
+      // stale point as chat answers), so the card can be filled again.
+      await c.query(
+        `update chat_action_fills ca set state = 'failed', finished_at = clock_timestamp(),
+           reason = 'The studio stopped before this fill was recorded. Nothing more is known about it.'
+         where ca.action_id = $1 and ca.state = 'pending'
+           and ca.created_at < ${CHAT_ANSWER_STALE_POINT}
+           and not (ca.id = any($2::uuid[]))`,
+        [card.id, [...this.#liveChatFills]],
+      );
+      const prior = (
+        await c.query(
+          `select * from chat_action_fills where action_id = $1
+           and (client_id = $2 or state = 'pending')
+           order by (client_id = $2) desc limit 1`,
+          [card.id, req.client_id],
+        )
+      ).rows[0] as Row | undefined;
+      if (prior)
+        return {
+          fill: toChatActionFill(prior),
+          replay: true,
+          input: String(prior.input),
+          logical_operation_id: String(prior.logical_operation_id),
+          connection_id: String(prior.connection_id),
+          questions: parse(
+            z.array(ChatActionFillQuestionSchema),
+            prior.questions,
+          ),
+        };
+      if (card.state !== 'draft')
+        throw fail(
+          'INVALID_TRANSITION',
+          'Only a card that has not been sent can be filled in.',
+        );
+      cardVersion(card, req.expected_version);
+      const refused = req.questions.filter(
+        (q) => !fillableKey(card.kind, q.key),
+      );
+      if (refused.length)
+        throw fail(
+          'ACCESS_DENIED',
+          `A model may propose only a card's descriptive text, never a pick, a rating, a gate, a reason or a routine setting (${refused.map((q) => q.key).join(', ')}).`,
+        );
+      const settings = await chatSettings(c, uuid(ws));
+      if (!settings.enabled || !settings.connection_id || !settings.model_id)
+        throw fail(
+          'ACCESS_DENIED',
+          'Chat answers are turned off. The owner can turn them on in Models and connections.',
+        );
+      const conn = await this.#connection(c, uuid(ws), settings.connection_id);
+      // The person's messages always go. Model answers that used studio records go only when
+      // the owner's chat setting lets studio records go (ADR-0070), as do the card's records.
+      const records = settings.include_snapshot;
+      const turns = await c.query(
+        `select m.text, a.text as answer,
+           (a.context in ('project','selected') or (a.context is null and a.snapshot)) as studio
+         from chat_messages m
+         left join lateral (select text, context, snapshot from chat_answers
+           where message_id = m.id and state = 'completed'
+           order by created_at desc limit 1) a on true
+         where m.conversation_id = $1
+         order by m.seq desc limit $2`,
+        [conversation.id, CHAT_HISTORY_TURNS],
+      );
+      const history: { who: 'person' | 'assistant'; text: string }[] = [];
+      for (const t of turns.rows.reverse() as Row[]) {
+        history.push({ who: 'person', text: String(t.text) });
+        if (t.answer && (records || !t.studio))
+          history.push({ who: 'assistant', text: String(t.answer) });
+      }
+      const built = fillInput({
+        step: CHAT_ACTION_LABEL[card.kind],
+        history,
+        questions: req.questions,
+        records,
+        maxChars: Math.max(
+          500,
+          conn.settings.caps.responses.max_input_chars -
+            CHAT_FILL_INSTRUCTIONS.length,
+        ),
+      });
+      if (!built)
+        throw fail(
+          'INVALID_CONTRACT',
+          "The card's questions alone are longer than the connection's input limit, so nothing was sent. Fill it in by hand.",
+        );
+      const id = randomUUID();
+      const op = randomUUID();
+      const { rows } = await c.query(
+        `insert into chat_action_fills (id, workspace_id, conversation_id, action_id, client_id,
+           state, connection_id, connection_kind, fixture, model_id, logical_operation_id,
+           instructions_version, instructions_hash, questions, records, history_items, input,
+           input_hash, created_by)
+         values ($1,$2,$3,$4,$5,'pending',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+         returning *`,
+        [
+          id,
+          uuid(ws),
+          conversation.id,
+          card.id,
+          req.client_id,
+          conn.id,
+          conn.kind,
+          conn.fixture,
+          settings.model_id,
+          op,
+          CHAT_FILL_INSTRUCTIONS_VERSION,
+          createHash('sha256').update(CHAT_FILL_INSTRUCTIONS).digest('hex'),
+          JSON.stringify(req.questions),
+          records,
+          built.history_items,
+          built.input,
+          createHash('sha256').update(built.input).digest('hex'),
+          ctx.actorId,
+        ],
+      );
+      await this.append(c, ctx, {
+        workspaceId: uuid(ws),
+        action: 'chat.action_fill_requested',
+        subjectKind: 'chat_conversation',
+        subjectId: conversation.id,
+        subjectVersion: null,
+        contentHash: canonicalHash({ input: built.input }),
+        // Ids, route and question keys only; the words stay with the fill.
+        payload: {
+          fill_id: id,
+          action_id: card.id,
+          kind: card.kind,
+          connection_id: conn.id,
+          model_id: settings.model_id,
+          keys: req.questions.map((q) => q.key),
+          records,
+        },
+      });
+      return {
+        fill: toChatActionFill(rows[0] as Row),
+        replay: false,
+        input: built.input,
+        logical_operation_id: op,
+        connection_id: conn.id,
+        questions: req.questions,
+      };
+    });
+    if (!begun.replay) this.#liveChatFills.add(begun.fill.id);
+    return begun;
+  }
+
+  /** ADR-0096: records how a pending fill ended, with the proposals the studio could read. */
+  async finishChatActionFill(
+    ctxIn: CommandContext,
+    ws: string,
+    fillId: string,
+    outcome: {
+      state: Exclude<ChatActionFillState, 'pending'>;
+      plan_request_id: string | null;
+      text: string | null;
+      reason: string | null;
+    },
+  ): Promise<ChatActionFill> {
+    const ctx = normalize(ctxIn);
+    try {
+      return await this.tx(async (c) => {
+        const cur = (
+          await c.query(
+            'select * from chat_action_fills where workspace_id = $1 and id = $2 for update',
+            [uuid(ws), uuid(fillId)],
+          )
+        ).rows[0] as Row | undefined;
+        if (!cur)
+          throw fail(
+            'NOT_FOUND',
+            'The card or its conversation was deleted while this fill was on its way, so the proposals were not kept. The plan request is still counted.',
+          );
+        if (cur.state !== 'pending') return toChatActionFill(cur);
+        const text =
+          outcome.state === 'completed' ? (outcome.text ?? '') : null;
+        const questions = parse(
+          z.array(ChatActionFillQuestionSchema),
+          cur.questions,
+        );
+        const read =
+          text === null
+            ? { values: {}, dropped: 0, readable: true }
+            : readFillValues(text.slice(0, CHAT_FILL_OUTPUT_MAX), questions);
+        const n = Object.keys(read.values).length;
+        const reason =
+          text === null
+            ? (outcome.reason?.slice(0, 2000) ?? null)
+            : !read.readable
+              ? 'The reply was not the JSON the studio asked for, so nothing was proposed.'
+              : n === 0
+                ? `The model proposed nothing it could support from the conversation${read.dropped ? ` (${read.dropped} ${read.dropped === 1 ? 'proposal was' : 'proposals were'} left out)` : ''}.`
+                : read.dropped
+                  ? `${read.dropped} ${read.dropped === 1 ? 'proposal was' : 'proposals were'} left out: not a question asked, not text, empty or too long.`
+                  : null;
+        const { rows } = await c.query(
+          `update chat_action_fills set state = $2, plan_request_id = $3, text = $4,
+             output_hash = $5, fill_values = $6, dropped = $7, reason = $8,
+             finished_at = clock_timestamp()
+           where id = $1 returning *`,
+          [
+            cur.id,
+            outcome.state,
+            outcome.plan_request_id || null,
+            text,
+            text === null
+              ? null
+              : createHash('sha256').update(text).digest('hex'),
+            JSON.stringify(read.values),
+            read.dropped,
+            reason,
+          ],
+        );
+        await this.append(c, ctx, {
+          workspaceId: uuid(ws),
+          action: 'chat.action_filled',
+          subjectKind: 'chat_conversation',
+          subjectId: String(cur.conversation_id),
+          subjectVersion: null,
+          contentHash: canonicalHash({ state: outcome.state, text }),
+          payload: {
+            fill_id: String(cur.id),
+            action_id: String(cur.action_id),
+            state: outcome.state,
+            model_id: String(cur.model_id),
+            plan_request_id: outcome.plan_request_id || null,
+            proposed: Object.keys(read.values),
+            dropped: read.dropped,
+          },
+        });
+        return toChatActionFill(rows[0] as Row);
+      });
+    } finally {
+      this.#liveChatFills.delete(fillId);
+    }
   }
 
   /** ADR-0057: records how a pending chat answer ended. A settled answer never changes. */

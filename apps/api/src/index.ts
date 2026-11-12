@@ -668,7 +668,7 @@ export function createApi(
   const CHAT_SETTINGS_ROUTE = /^\/api\/workspaces\/([^/]+)\/(chat-settings)$/;
   // ADR-0083: action cards in a conversation; their answers, send, outcome and dismissal.
   const CHAT_ACTION_ROUTE =
-    /^\/api\/workspaces\/([^/]+)\/(chats)\/([^/]+)\/actions(?:\/([^/]+)(?:\/(send|outcome|dismiss))?)?$/;
+    /^\/api\/workspaces\/([^/]+)\/(chats)\/([^/]+)\/actions(?:\/([^/]+)(?:\/(send|outcome|dismiss|fill))?)?$/;
   // ADR-0081: the person's current connection and model (the picker beside usage).
   const MODEL_CHOICE_ROUTE = /^\/api\/workspaces\/([^/]+)\/(model-choice)$/;
   // ADR-0073: the person's named notes; one note, its rename and its archive switch.
@@ -953,6 +953,20 @@ export function createApi(
     if (ws && cardMatch && method === 'POST') {
       const [, , , conversation, card, step] = cardMatch;
       const body = await readJson(req);
+      // ADR-0096 (P31): the chat model proposes text for the card's questions. It answers
+      // nothing and sends nothing; the person uses the proposals and still presses Send.
+      if (card && step === 'fill') {
+        if (!planService)
+          throw new ContractError(
+            'INVALID_CONFIG',
+            'Plan connections are not configured, so a card cannot ask a model.',
+          );
+        return send(
+          200,
+          await planService.chatActionFill(ctx, ws, conversation!, card, body),
+          true,
+        );
+      }
       if (!card)
         return send(
           201,
