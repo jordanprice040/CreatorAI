@@ -21,14 +21,14 @@ All open items from the November 2 audit are now fixed on main (see "Earlier aud
 
 ## Checks run
 
-| Check | Result |
-| --- | --- |
-| `pnpm typecheck` | Pass |
-| `pnpm format:check` | Pass |
-| `pnpm audit` (prod and dev) | No known vulnerabilities |
-| `cargo check --target x86_64-pc-windows-gnu` (desktop crate) | Pass |
-| `cargo clippy` (same target) | 1 warning (N-5) |
-| `pnpm test:db` on PostgreSQL 16 | 1159 tests: 1125 pass, 29 skipped, 5 fail (the known PowerShell-wrapper tests; no `pwsh` in the cloud container). `test:dev-safety` did not run because `pnpm test` stops on those 5 failures. |
+| Check                                                        | Result                                                                                                                                                                                         |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm typecheck`                                             | Pass                                                                                                                                                                                           |
+| `pnpm format:check`                                          | Pass                                                                                                                                                                                           |
+| `pnpm audit` (prod and dev)                                  | No known vulnerabilities                                                                                                                                                                       |
+| `cargo check --target x86_64-pc-windows-gnu` (desktop crate) | Pass                                                                                                                                                                                           |
+| `cargo clippy` (same target)                                 | 1 warning (N-5)                                                                                                                                                                                |
+| `pnpm test:db` on PostgreSQL 16                              | 1159 tests: 1125 pass, 29 skipped, 5 fail (the known PowerShell-wrapper tests; no `pwsh` in the cloud container). `test:dev-safety` did not run because `pnpm test` stops on those 5 failures. |
 
 ## What was read
 
@@ -78,12 +78,12 @@ Fix: keep the last good data when a quiet refresh fails, and show a small "could
 
 Pages stay mounted while hidden (`apps/web/src/page-active.ts:3`). Overview (`overview.tsx:80-85`) and Oversight (`oversight.tsx:731-740`) pause their polls when the page is not shown or the window is hidden. These four do not:
 
-| Panel | File | Every | Requests each time |
-| --- | --- | --- | --- |
-| Autopilot | `autopilot.tsx:97-101` | 3 s | 4 + one per plan connection (autopilots, connections, budgets, pricing, each connection's detail) |
-| Automation levels | `automation.tsx:176-180` | 10 s | about 6 + one per connection |
-| Build | `build.tsx:337-341` | 2 s | — |
-| Gallery terminal | `gallery.tsx:768-772` | 3 s | — |
+| Panel             | File                     | Every | Requests each time                                                                                |
+| ----------------- | ------------------------ | ----- | ------------------------------------------------------------------------------------------------- |
+| Autopilot         | `autopilot.tsx:97-101`   | 3 s   | 4 + one per plan connection (autopilots, connections, budgets, pricing, each connection's detail) |
+| Automation levels | `automation.tsx:176-180` | 10 s  | about 6 + one per connection                                                                      |
+| Build             | `build.tsx:337-341`      | 2 s   | —                                                                                                 |
+| Gallery terminal  | `gallery.tsx:768-772`    | 3 s   | —                                                                                                 |
 
 Case: Jordan starts "Whole process" (up to days), then works on Chat or minimises the window. The open studio window keeps making well over a thousand requests an hour against the local API for a panel nobody sees.
 
@@ -121,6 +121,7 @@ Fix: refresh `CURRENT_STATUS.md` (header, schema, matrix rows for discovery and 
   - the `*_POLICY_VERSION` constants in `contracts` `assessment`, `connections`, `discovery`, `exploration`, `routing`
 
   The policy-version constants may be kept on purpose as dated markers. If so, say so in a comment; otherwise delete them with the rest.
+
 - **N-3: The Codex pin is written twice.** `CODEX_PIN` (`packages/executor/src/codex-host.ts:22-30`) repeats the version and SHA-256 that `scripts/install-codex-wsl.sh:10-12` actually checks. Nothing reads the TypeScript copy, so the two can drift apart silently. Delete one, or have a test compare them.
 - **N-4: Three copies of "end time from hours", and the form's end time goes stale.**
   - The copies: `automation.tsx:752` (caps at 90 days), `routine-policy.tsx:57`, and `autopilot.tsx:121-127`.
@@ -132,21 +133,21 @@ Fix: refresh `CURRENT_STATUS.md` (header, schema, matrix rows for discovery and 
 
   Case: a problem's assessment succeeds and is chosen on. Later it is re-assessed and that run fails. The level now never acts on that problem until another assessment succeeds. The panel doesn't say why.
 
-  Either count only newer *succeeded* (or still running) assessments, or show "waiting: the latest assessment failed" on the level's card.
+  Either count only newer _succeeded_ (or still running) assessments, or show "waiting: the latest assessment failed" on the level's card.
 
 ## Earlier audits: what changed
 
 November 2 audit ([FULL_AUDIT_2026-11-02.md](FULL_AUDIT_2026-11-02.md)): every item left open then is fixed on main.
 
-| Item | Status |
-| --- | --- |
+| Item                                        | Status                                                            |
+| ------------------------------------------- | ----------------------------------------------------------------- |
 | L-8, feedback to spec revision was CLI-only | Fixed (Try shows "became spec vN"; the in-app revise path exists) |
-| L-9, capped lists kept the oldest records | Fixed (`packages/db/src/paging.ts`, newest first with cursors) |
-| L-10, pages loaded once | Fixed (`useOnShow` / `useShown` in `useLoad`) |
-| L-11, Codex packet bound | Fixed (#122) |
-| L-12, MSIX redirected data home | Fixed (`home.rs` `redirected_package`) |
-| N-1..N-3 | Fixed (#122) |
-| #107 L-B, old runs never dot | Still present; left as Jordan chose |
+| L-9, capped lists kept the oldest records   | Fixed (`packages/db/src/paging.ts`, newest first with cursors)    |
+| L-10, pages loaded once                     | Fixed (`useOnShow` / `useShown` in `useLoad`)                     |
+| L-11, Codex packet bound                    | Fixed (#122)                                                      |
+| L-12, MSIX redirected data home             | Fixed (`home.rs` `redirected_package`)                            |
+| N-1..N-3                                    | Fixed (#122)                                                      |
+| #107 L-B, old runs never dot                | Still present; left as Jordan chose                               |
 
 October 18–20 audits: their items were closed by #17 and the later audit PRs. Nothing from them came up again here.
 
