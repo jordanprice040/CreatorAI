@@ -3291,6 +3291,30 @@ create trigger gate_rule_versions_immutable before update or delete on gate_rule
 `,
   },
   {
+    // ADR-0093 (P28): a workspace's own OpenAI API key, added in Models and connections. The key
+    // itself is never here: credential_ref names the studio's protected vault entry (DPAPI on
+    // Windows). Only the last four characters are kept, to tell keys apart. One key per real
+    // workspace; saving again replaces it (version + 1) and removing deletes the row. Each change
+    // is in the audit log.
+    version: 58,
+    name: 'workspace_api_keys',
+    sql: `
+create table workspace_api_keys (
+ workspace_id uuid not null,
+ fixture boolean not null check (not fixture),
+ provider text not null check (provider = 'openai'),
+ model_id text not null check (length(model_id) between 1 and 200),
+ credential_ref text not null unique check (credential_ref ~ '^openai-api-key/[0-9a-f-]{36}$'),
+ last_four text not null check (last_four ~ '^[A-Za-z0-9_-]{4}$'),
+ version integer not null check (version >= 1),
+ saved_by uuid not null references actors(id),
+ saved_at timestamptz not null default clock_timestamp(),
+ primary key (workspace_id, provider),
+ foreign key (workspace_id, fixture) references workspaces (id, fixture)
+);
+`,
+  },
+  {
     // ADR-0096 (P31): "Fill in with <model>" on a Chat card. One row per press holds exactly
     // what was sent to the chat model, its reply and the proposals the studio could read. The
     // proposals answer nothing: the person uses them (saving the card's answers as usual) and

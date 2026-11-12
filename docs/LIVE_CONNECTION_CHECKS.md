@@ -33,21 +33,28 @@ Owner steps:
 
 1. An OpenAI platform account (platform.openai.com) with an API key and prepaid credit. This is
    separate from the ChatGPT plan.
-2. In the PowerShell window that starts the dev studio, before starting it:
+2. Since P28 (ADR-0093): in the real workspace, Models and connections › Other routes › **Your
+   OpenAI API key**, paste the key and press **Save key**. The studio seals it in Windows'
+   protected storage for your account; only its last four characters are shown again. **Replace
+   key…** and **Remove key…** are beside it. Removing it does not revoke it at OpenAI; do that on
+   the OpenAI dashboard.
+
+   The older way still works and wins over a saved key: in the PowerShell window that starts the
+   dev studio, before starting it,
 
    ```powershell
    $env:CREATOR_LIVE_PROVIDER = 'openai'
    $env:OPENAI_API_KEY = Read-Host 'OpenAI API key'
    ```
 
-   `Read-Host` keeps the key out of the shell history file. Then start the studio from the same
-   window.
+   `Read-Host` keeps the key out of the shell history file.
 
 3. In the real workspace: fund a budget with at least $0.05 on Monitor › Budgets if none has room,
    add the documented price when the check offers it, then **Test connection…** › **Send one paid
    request**.
 
-To turn the route off again, start the studio without `CREATOR_LIVE_PROVIDER`.
+To turn the route off again, remove the saved key, and start the studio without
+`CREATOR_LIVE_PROVIDER` if it was set.
 
 The plan routes (ChatGPT plan, Claude Code) keep their own check on the same page: "One approved
 model check" sends one plan request at no per-request charge.

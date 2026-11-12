@@ -14,6 +14,7 @@ import {
   planVaultFromEnv,
   ModelBroker,
   liveAdapterFromEnv,
+  ApiKeyService,
 } from '@creator/broker';
 import { Worker } from './worker.js';
 
@@ -39,14 +40,26 @@ await ops.claimEnvironment(
   deployment.environment,
 );
 const store = new ConnectionStore(pool);
-const broker = new ModelBroker(store, {
-  fixture: new FixtureAdapter(),
-  live: liveAdapterFromEnv(env),
+const live = liveAdapterFromEnv(env);
+const vault = planVaultFromEnv(env);
+// ADR-0093: a workspace's own saved OpenAI key, as in the API process.
+const apiKeys = new ApiKeyService({
+  store,
+  vault,
+  environment: live,
+  ...(env.CREATOR_OPENAI_BASE_URL
+    ? { baseUrl: env.CREATOR_OPENAI_BASE_URL }
+    : {}),
 });
+const broker = new ModelBroker(
+  store,
+  { fixture: new FixtureAdapter(), live },
+  { liveFor: (ctx, ws) => apiKeys.liveFor(ctx, ws) },
+);
 const worker = new Worker(store, broker, {
   planService: new PlanConnectionService({
     store,
-    vault: planVaultFromEnv(env),
+    vault,
   }),
   log: (m) => console.log(m),
   ...(env.CREATOR_WORKER_POLL_MS

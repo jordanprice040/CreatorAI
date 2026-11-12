@@ -38,7 +38,7 @@ try {
   );
   server.listen(config.api_port, config.host, () =>
     console.log(
-      `Creator Agent API: http://${config.host}:${config.api_port}/api/health (${inference.api_model ? `API adapter ${inference.api_model} configured, unverified` : 'no live API adapter configured'}; plan connections ${inference.plan_connections ? 'available when configured' : 'unavailable without saved records'}; ${process.env.CREATOR_DATABASE_URL || process.env.CREATOR_DATABASE_URL_FILE ? 'PostgreSQL records' : 'no persistence: CREATOR_DATABASE_URL unset'})\nCalls require the matching settings, grants and resource limits.\n${loginNotice(authMode, loginCode, config.web_port)}`,
+      `Creator Agent API: http://${config.host}:${config.api_port}/api/health (${inference.api_model ? `API adapter ${inference.api_model} configured, unverified` : 'no live API adapter configured at startup (a workspace owner can save an OpenAI key in Models and connections)'}; plan connections ${inference.plan_connections ? 'available when configured' : 'unavailable without saved records'}; ${process.env.CREATOR_DATABASE_URL || process.env.CREATOR_DATABASE_URL_FILE ? 'PostgreSQL records' : 'no persistence: CREATOR_DATABASE_URL unset'})\nCalls require the matching settings, grants and resource limits.\n${loginNotice(authMode, loginCode, config.web_port)}`,
     ),
   );
   preview.on('error', (e) => console.error(`Preview origin: ${e.message}`));
