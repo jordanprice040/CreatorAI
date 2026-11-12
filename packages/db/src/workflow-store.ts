@@ -52,6 +52,7 @@ import {
   checkExplorationOutput,
   checkAssessmentOutput,
   coordinateAssessment,
+  joinSummaries,
   assessmentContext,
   packetForOptions,
   assessmentScorecards,
@@ -1002,12 +1003,10 @@ export class WorkflowStore extends BudgetStore {
         const recorded: AssessmentResult | null = results.length
           ? {
               ...results[0]!,
-              summary:
-                results
-                  .map((r) => r.summary)
-                  .filter(Boolean)
-                  .join(' ')
-                  .slice(0, 1200) || null,
+              // Review N-1: shorter parts keep their text; a part cut to fit ends with "…".
+              summary: joinSummaries(
+                results.flatMap((r) => (r.summary ? [r.summary] : [])),
+              ),
               scorecards: results.flatMap((r) => r.scorecards),
               replaced: results.flatMap((r) => r.replaced),
               not_covered: [
