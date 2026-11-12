@@ -3394,6 +3394,30 @@ create trigger plan_extra_requests_no_delete before delete on plan_extra_request
 `,
   },
   {
+    // ADR-0097: the owner's gate checklist (up to 12 items, each for the ethics or the access
+    // gate), one append-only version per save; and the checklist gate rule, under which code
+    // clears a gate only when every current automatic assessment passed every item for it.
+    version: 60,
+    name: 'gate_checklists',
+    sql: `
+create table gate_checklist_versions (
+ workspace_id uuid not null references workspaces(id),
+ version integer not null check (version > 0),
+ items jsonb not null check (jsonb_typeof(items) = 'array' and jsonb_array_length(items) <= 12),
+ items_hash char(64) not null,
+ actor_id uuid not null references actors(id),
+ event_id uuid not null references audit_events(id),
+ created_at timestamptz not null default clock_timestamp(),
+ primary key (workspace_id, version)
+);
+create trigger gate_checklist_versions_immutable before update or delete on gate_checklist_versions
+ for each row execute function creator_reject_change();
+alter table gate_rule_versions drop constraint gate_rule_versions_mode_check;
+alter table gate_rule_versions add constraint gate_rule_versions_mode_check
+ check (mode in ('owner','team_profile','model','checklist'));
+`,
+  },
+  {
     // ADR-0096 (P31): "Fill in with <model>" on a Chat card. One row per press holds exactly
     // what was sent to the chat model, its reply and the proposals the studio could read. The
     // proposals answer nothing: the person uses them (saving the card's answers as usual) and

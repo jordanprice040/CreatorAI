@@ -239,7 +239,8 @@ test('the packet says how each answer is known without naming the computer, and 
     assessed_at: '2026-11-11T23:00:00.000Z',
   })[0]!.text;
   assert.match(system, /team block/);
-  assert.match(system, /r08-assessor\/1\.2/);
+  assert.match(system, /r08-assessor\/2\.0/);
+  assert.match(system, /When the packet has a checklist/);
 });
 
 test('checks run in an empty studio-made folder, made again if a temp clean-up deleted it', () => {

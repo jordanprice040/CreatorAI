@@ -1,8 +1,11 @@
 import {
+  CHECKABLE_CAPABILITIES,
   TEAM_CAPABILITIES,
   TeamProfileBodySchema,
   capabilityLabel,
   type CapabilityCheck,
+  type GateChecklistItem,
+  type PacketChecklist,
   type PacketTeam,
   type SaveTeamProfileRequest,
   type TeamCapability,
@@ -128,6 +131,7 @@ export function packetTeam(
   return {
     version,
     capabilities: profile.capabilities.map((c) => ({
+      key: c.key,
       capability: capabilityLabel(c.key),
       status: c.status,
       basis: (c.basis === 'check' && c.check
@@ -149,8 +153,54 @@ export function packetTeam(
  */
 export const teamHash = (team: PacketTeam | undefined): string =>
   team
-    ? canonicalHash({ capabilities: team.capabilities, notes: team.notes })
+    ? canonicalHash({
+        // The key (ADR-0097) only names the label's capability, so it is left out: adding it
+        // does not make earlier assessments stale.
+        capabilities: team.capabilities.map(({ key: _key, ...c }) => c),
+        notes: team.notes,
+      })
     : '';
+
+/**
+ * ADR-0097: the capabilities the app itself can vouch for now: Yes in the current profile and,
+ * for one a built-in check can test, found by a check on this computer (a declared Yes or a
+ * check on another computer does not count); for one no check can test, declared Yes by the
+ * owner. The checklist gate rule clears access only when every needed capability is here.
+ */
+export function verifiedCapabilities(
+  profile: TeamProfileBody,
+  machine: string,
+): TeamCapabilityKey[] {
+  return profile.capabilities
+    .filter((c) => {
+      if (c.status !== 'yes') return false;
+      const checkable = CHECKABLE_CAPABILITIES.includes(c.key as never);
+      return checkable
+        ? c.basis === 'check' && !!c.check && c.check.machine === machine
+        : c.basis === 'declared';
+    })
+    .map((c) => c.key);
+}
+
+/** The checklist block a packet carries: undefined when no item is saved. */
+export function packetChecklist(
+  items: readonly GateChecklistItem[],
+  version: number,
+): PacketChecklist | undefined {
+  if (version < 1 || !items.length) return undefined;
+  return {
+    version,
+    items: items.map((x, i) => ({
+      ref: `K${i + 1}`,
+      gate: x.gate,
+      text: x.text,
+    })),
+  };
+}
+
+/** A hash of the checklist items the model reads ('' for none); a change makes cards stale. */
+export const checklistHash = (c: PacketChecklist | undefined): string =>
+  c ? canonicalHash(c.items) : '';
 
 /** How many capabilities the block answers (yes or no); the auto-clear rule needs at least one. */
 export const teamAnswers = (team: PacketTeam | undefined): number =>

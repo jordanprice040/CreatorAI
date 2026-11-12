@@ -428,7 +428,7 @@ test('plan connection API and CLI: create, block, sign in, confirm credits, acce
   assert.equal(byName.status, 400, JSON.stringify(byName.body));
   assert.match(JSON.stringify(byName.body), /real ones only real ones/);
   const route = `workspaces/${ws}/plan-connections/${conn.id}/qualifications`;
-  const tooBig = await post(route, { padding: 'x'.repeat(256 * 1024) });
+  const tooBig = await post(route, { padding: 'x'.repeat(512 * 1024) });
   assert.equal(tooBig.status, 413);
   const ordinary = await post(
     `workspaces/${ws}/plan-connections/${conn.id}/settings`,
@@ -467,8 +467,8 @@ test('plan connection API and CLI: create, block, sign in, confirm credits, acce
           resolve('ECONNRESET');
         else reject(e);
       });
-      req.write('{"padding":"' + 'x'.repeat(140000));
-      req.end('x'.repeat(140000) + '"}');
+      req.write('{"padding":"' + 'x'.repeat(280000));
+      req.end('x'.repeat(280000) + '"}');
     },
   );
   assert.ok(
