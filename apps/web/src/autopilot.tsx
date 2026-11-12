@@ -6,11 +6,7 @@ import {
   AUTOPILOT_STAGE_LABEL,
   AutopilotConfigSchema,
   AutopilotSchema,
-  EnvelopeSchema,
   EvidenceRoleSchema,
-  PlanConnectionDetailSchema,
-  PlanConnectionSchema,
-  PricingSnapshotSchema,
   RunControlSchema,
   StoredEntitySchema,
   WebDiscoveryPreviewSchema,
@@ -25,8 +21,14 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
-import { newestFirst } from './versions.js';
-import { envelopesFor } from './build-defaults.js';
+import {
+  AUTOPILOTS_CHANGED,
+  loadRoutes,
+  pickRoute,
+  planOf,
+  resourceSetupOf,
+  routesOf,
+} from './autopilot-routes.js';
 import { Empty, Status, useLoad } from './ui.js';
 
 // P13 (ADR-0092): "Run it for me". One form sets up a new run with routine approvals covering
@@ -66,17 +68,6 @@ const list = (s: string) =>
     .map((x) => x.trim())
     .filter(Boolean);
 
-type Route =
-  | {
-      kind: 'plan';
-      key: string;
-      label: string;
-      connection: string;
-      model: string;
-      chatgpt: boolean;
-    }
-  | { kind: 'api'; key: string; label: string };
-
 export function Autopilot({
   session,
   workspace,
@@ -88,35 +79,19 @@ export function Autopilot({
   const owner = workspace.role === 'owner';
   const fixture = workspace.record_mode === 'fixture';
   const ctx = useLoad(async () => {
-    const [autopilots, connections, envelopes, pricing] = await Promise.all([
+    const [autopilots, routing] = await Promise.all([
       api(z.array(AutopilotSchema), `${base}/autopilots`),
-      api(z.array(PlanConnectionSchema), `${base}/plan-connections`).catch(
-        () => [],
-      ),
-      api(z.array(EnvelopeSchema), `${base}/budgets`).catch(() => []),
-      api(z.array(PricingSnapshotSchema), `${base}/pricing`).catch(() => []),
+      loadRoutes(base),
     ]);
-    const details = (
-      await Promise.all(
-        connections.map((c) =>
-          api(
-            PlanConnectionDetailSchema.passthrough(),
-            `${base}/plan-connections/${c.id}`,
-          ).catch(() => null),
-        ),
-      )
-    ).filter((d) => d !== null);
-    return {
-      autopilots,
-      details,
-      envelope: envelopesFor(
-        newestFirst(envelopes.filter((e) => e.status === 'active')),
-        '',
-      )[0],
-      pricing: newestFirst(pricing)[0],
-    };
+    return { autopilots, ...routing };
   }, [workspace.id]);
   const c = ctx.data;
+  // The automation levels panel starts autopilots too (P33).
+  useEffect(() => {
+    const again = () => ctx.refresh();
+    window.addEventListener(AUTOPILOTS_CHANGED, again);
+    return () => window.removeEventListener(AUTOPILOTS_CHANGED, again);
+  }, [workspace.id]);
   // Read again while one runs; the server drives it, the page only watches.
   const running = c?.autopilots.some((a) => a.state === 'running') ?? false;
   useEffect(() => {
@@ -125,36 +100,9 @@ export function Autopilot({
     return () => clearInterval(t);
   }, [running]);
 
-  const routes: Route[] = [
-    ...(c?.details ?? []).flatMap((d) =>
-      d.model_access
-        .filter((a) => a.path === 'responses' && a.access === 'verified')
-        .map((a): Route => ({
-          kind: 'plan',
-          key: `${d.connection.id}:${a.model_id}`,
-          label: `${d.connection.label} · ${a.model_id}`,
-          connection: d.connection.id,
-          model: a.model_id,
-          chatgpt: d.connection.kind === 'chatgpt_plan',
-        })),
-    ),
-    ...(c?.envelope && c.pricing
-      ? [
-          {
-            kind: 'api' as const,
-            key: 'api',
-            label: fixture
-              ? 'Fixture model (budget and pricing)'
-              : `API budget “${c.envelope.name}”`,
-          },
-        ]
-      : []),
-  ];
+  const routes = routesOf(c ?? null, fixture);
   const [routeKey, setRouteKey] = useState('');
-  const route =
-    routes.find((r) => r.key === routeKey) ??
-    (fixture ? routes.find((r) => r.kind === 'api') : undefined) ??
-    routes[0];
+  const route = pickRoute(routes, routeKey, fixture);
   const [search, setSearch] = useState(false);
   const [interests, setInterests] = useState('');
   const [groups, setGroups] = useState('');
@@ -191,10 +139,7 @@ export function Autopilot({
         ? 'synthetic'
         : 'public'
       : pickedClass;
-  const plan =
-    route?.kind === 'plan'
-      ? c?.details.find((d) => d.connection.id === route.connection)
-      : undefined;
+  const plan = planOf(c ?? null, route);
   const researchOn = search && route?.kind === 'plan' && route.chatgpt;
   const webScope = {
     interests: list(interests),
@@ -207,22 +152,7 @@ export function Autopilot({
     max_claims: 8,
   };
   const draft = AutopilotConfigSchema.safeParse({
-    resource_setup:
-      route?.kind === 'plan'
-        ? {
-            kind: 'subscription',
-            connection_id: route.connection,
-            model_id: route.model,
-            settings_hash: plan?.connection.settings_hash ?? '',
-            max_output_chars:
-              plan?.connection.settings.caps.responses.max_output_chars ??
-              16000,
-          }
-        : {
-            kind: 'api',
-            envelope_id: c?.envelope?.id ?? '',
-            pricing_snapshot_id: c?.pricing?.id ?? '',
-          },
+    resource_setup: resourceSetupOf(c ?? null, route),
     data_class: dataClass,
     research: researchOn
       ? {
@@ -586,6 +516,11 @@ export function Autopilot({
                           words(a.outcome ?? ''))}
                     </strong>{' '}
                     <span className="small">
+                      {a.automation_id
+                        ? 'Automate selection · '
+                        : a.config.start
+                          ? 'Automate the rest · '
+                          : ''}
                       started {when(a.created_at)} · {a.calls_reserved} of{' '}
                       {a.config.limits.max_calls} calls set aside
                       {a.state === 'running' && !a.active

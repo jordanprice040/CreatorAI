@@ -48,6 +48,7 @@ import { money } from './budgets.js';
 import { ThemeIntent } from './theme-intent.js';
 import { Explore, type ExploredPick } from './explore.js';
 import { Autopilot } from './autopilot.js';
+import { Automation } from './automation.js';
 import { WebDiscover } from './web-discovery.js';
 import { Empty, Status, runNames, useLoad, type View } from './ui.js';
 import { runLabel } from './labels.js';
@@ -969,6 +970,11 @@ export function Submit({
       />
       <Autopilot
         key={`autopilot-${workspace.id}`}
+        session={session}
+        workspace={workspace}
+      />
+      <Automation
+        key={`automation-${workspace.id}`}
         session={session}
         workspace={workspace}
       />

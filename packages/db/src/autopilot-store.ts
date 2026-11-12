@@ -8,6 +8,7 @@ import {
   AutopilotControlRequestSchema,
   AutopilotStepSchema,
   ROUTINE_STAGE_ACTIONS,
+  routineStopFix,
   StartAutopilotRequestSchema,
   autopilotStagesNeeded,
   autopilotSummary,
@@ -17,9 +18,11 @@ import {
   type AutopilotOutcome,
   type AutopilotStage,
   type AutopilotStep,
+  type RoutinePolicyChange,
 } from '@creator/contracts';
 import { canonicalHash, nextAutopilotStage } from '@creator/domain';
 import { WebDiscoveryStore } from './web-discovery-store.js';
+import { routineStopReason } from './routine-stops.js';
 import {
   fail,
   iso,
@@ -35,7 +38,7 @@ import {
 // two steps always wins and a step that moved on is never written over. Only the workspace owner
 // starts, stops or continues an autopilot; nothing here admits a step (each step's own route does).
 
-const toAutopilot = (r: Row): Autopilot => ({
+export const toAutopilot = (r: Row): Autopilot => ({
   id: String(r.id),
   workspace_id: String(r.workspace_id),
   run_id: String(r.run_id),
@@ -56,6 +59,7 @@ const toAutopilot = (r: Row): Autopilot => ({
   updated_at: iso(r.updated_at),
   finished_at: r.finished_at ? iso(r.finished_at) : null,
   active: false,
+  automation_id: r.automation_id ? String(r.automation_id) : null,
 });
 
 /** What the runner may change in one guarded step. */
@@ -135,7 +139,16 @@ export class AutopilotStore extends WebDiscoveryStore {
               'SCOPE_EXCEEDED',
               'Autopilots are not used for frozen study runs; their conditions stay as frozen.',
             );
-          await this.#checkPolicy(c, ws, runId, req.config);
+          // P33 (review L-1): the approvals change and the start succeed or fail together; the
+          // run is checked first, so a refused run never writes a policy (review 2 N-2).
+          await this.applyRoutinePolicyChange(
+            c,
+            ctx,
+            ws,
+            runId,
+            req.routine_policy,
+          );
+          await this.checkAutopilotPolicy(c, ws, runId, req.config);
           if (req.config.start) {
             const p = (
               await c.query(
@@ -205,11 +218,74 @@ export class AutopilotStore extends WebDiscoveryStore {
   }
 
   /**
+   * ADR-0099 (P33, review L-1): sets or widens the run's routine approvals in the caller's
+   * transaction (after the run lock), with the same checks and records as Monitor › Approvals.
+   */
+  protected async applyRoutinePolicyChange(
+    c: PoolClient,
+    ctx: CommandContext,
+    ws: string,
+    runId: string,
+    change: RoutinePolicyChange,
+  ) {
+    if (!change) return;
+    if (change.kind === 'new') {
+      await this.setRoutinePolicyIn(
+        c,
+        ctx,
+        ws,
+        runId,
+        this.checkRoutineInput(change.policy),
+      );
+      return;
+    }
+    const { expected_version, ...rest } = change.policy;
+    const input = this.checkRoutineInput(rest);
+    const policyId = uuid(change.policy_id);
+    const owned = await c.query(
+      `select workspace_id, run_id, stop_on, confirmed_at, status
+         from routine_policies where workspace_id = $1 and id = $2`,
+      [ws, policyId],
+    );
+    const row = owned.rows[0] as Row | undefined;
+    if (String(row?.run_id ?? '') !== runId)
+      throw fail(
+        'INVALID_CONTRACT',
+        'The routine approvals to change are not this run’s.',
+      );
+    // Review 3 L-1: a revision is a fresh confirmation, which would clear a person-rejects stop
+    // without the owner seeing it. A level only widens approvals that stopped for steps or time;
+    // a stop condition stays for the owner to look at under Monitor › Approvals.
+    const stopped =
+      row!.status === 'active'
+        ? await routineStopReason(c, {
+            workspace_id: String(row!.workspace_id),
+            run_id: String(row!.run_id),
+            stop_on: row!.stop_on as string[],
+            confirmed_at: row!.confirmed_at as Date,
+          })
+        : null;
+    if (stopped)
+      throw fail(
+        'INVALID_TRANSITION',
+        `This run’s routine approvals stopped: ${stopped} ${routineStopFix(stopped)}`,
+      );
+    await this.reviseRoutinePolicyIn(
+      c,
+      ctx,
+      ws,
+      policyId,
+      expected_version,
+      input,
+    );
+  }
+
+  /**
    * The run's active routine policy must cover every stage the autopilot's steps need, its data
    * class, and last at least until the autopilot's end time; otherwise the start is refused with
    * what to change, instead of every step stopping to ask.
    */
-  async #checkPolicy(
+  protected async checkAutopilotPolicy(
     c: PoolClient,
     ws: string,
     runId: string,
@@ -488,7 +564,7 @@ export class AutopilotStore extends WebDiscoveryStore {
         ).rows[0] as Row;
         if (run.state !== 'active')
           throw fail('INVALID_TRANSITION', 'The run is no longer active.');
-        await this.#checkPolicy(c, ws, cur.run_id, cur.config);
+        await this.checkAutopilotPolicy(c, ws, cur.run_id, cur.config);
         const { rows } = await c.query(
           `update autopilots set state = 'running', outcome = null, finished_at = null,
              explanation = $3, version = version + 1, updated_at = clock_timestamp()
