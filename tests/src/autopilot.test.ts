@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { readFileSync } from 'node:fs';
 import {
+  AUTOPILOT_MIN_CALLS,
   AutopilotConfigSchema,
   AutopilotSchema,
+  autopilotContinuable,
   ContractError,
   WebDiscoveryScopeSchema,
   autopilotSummary,
@@ -16,6 +18,7 @@ import {
   type RankedCandidate,
   type RoutinePolicyInput,
   type ScorecardBody,
+  type Selection,
   type SelectionReport,
   type WebDiscovery,
 } from '@creator/contracts';
@@ -23,13 +26,15 @@ import {
   DISCOVERY_SCENARIOS,
   autopilotChildLimits,
   autopilotChoice,
+  autopilotProblem,
   checkSelection,
   nextAutopilotStage,
+  personChoice,
   pickExplored,
   refusalOutcome,
 } from '@creator/domain';
 import { FixtureAdapter } from '@creator/broker';
-import { ConnectionStore } from '@creator/db';
+import { AUTOPILOT_ACTOR_ID, ConnectionStore } from '@creator/db';
 import {
   AutopilotRunner,
   DEFAULT_OWNER_ACTOR_ID,
@@ -311,7 +316,14 @@ test('the choice rule advances only a clear, stable, unblocked first place; ever
     report([
       cand('a', 'use_existing', 1),
       cand('b', 'change_process', 2),
-      cand('c', 'human_led', null),
+      cand('c', 'human_led', null, {
+        gates: {
+          ethics_access: 'clear',
+          discovery: 'rejected',
+          humility: 'not_applicable',
+          blocked: {},
+        },
+      }),
     ]),
   );
   assert.ok(ok.ok);
@@ -327,7 +339,14 @@ test('the choice rule advances only a clear, stable, unblocked first place; ever
       report([
         cand('a', 'use_existing', 1),
         cand('b', 'change_process', 2),
-        cand('c', 'human_led', null),
+        cand('c', 'human_led', null, {
+          gates: {
+            ethics_access: 'clear',
+            discovery: 'rejected',
+            humility: 'not_applicable',
+            blocked: {},
+          },
+        }),
       ]),
       ok.request,
     );
@@ -355,8 +374,38 @@ test('the choice rule advances only a clear, stable, unblocked first place; ever
   assert.ok(
     !unscored.ok &&
       unscored.outcome === 'needs_person' &&
-      /unknown ratings are not neutral/.test(unscored.reason),
+      /unknown ratings are not neutral/i.test(unscored.reason),
   );
+  // Review M-2: an option that could be chosen and is not fully scored stops the rule, even when
+  // another option ranks first; the person sees which criteria are unknown.
+  const partly = autopilotChoice(
+    report([
+      cand('a', 'use_existing', 1),
+      cand('c', 'human_led', null, {
+        unknown_criteria: ['adoption_cost'],
+      }),
+    ]),
+  );
+  assert.ok(
+    !partly.ok &&
+      partly.outcome === 'needs_person' &&
+      /Option c.*adoption cost/.test(partly.reason),
+  );
+  // Review N-5: an option discovery did not keep as a candidate (one a person added later) is
+  // never advanced by the rule.
+  const added = autopilotChoice(
+    report([
+      cand('a', 'use_existing', 1, {
+        gates: {
+          ethics_access: 'clear',
+          discovery: null,
+          humility: 'not_applicable',
+          blocked: {},
+        },
+      }),
+    ]),
+  );
+  assert.ok(!added.ok && added.outcome === 'no_eligible_option');
   const blocked = autopilotChoice(
     report([
       cand('a', 'use_existing', 1, {
@@ -429,6 +478,129 @@ test('refusals map to honest outcomes; the summary says what never happens', () 
   assert.match(autopilotKey('a', 'select', 1), /^[A-Za-z0-9_.:-]{8,200}$/);
 });
 
+test('a person’s choice under Decide carries the autopilot on; part-way starts and Continue limits', () => {
+  const since = '2026-11-12T00:00:00.000Z';
+  const sel = (o: Partial<Selection> = {}): Selection =>
+    ({
+      id: 's',
+      workspace_id: 'w',
+      run_id: 'r',
+      problem: { id: 'p', version: 2 },
+      report_hash: 'b'.repeat(64),
+      report: report([cand('a', 'use_existing', 1), cand('b', 'build', 1)]),
+      dispositions: [
+        {
+          alternative: { id: 'a', version: 1 },
+          disposition: 'recommend_alternative',
+          reasons: ['Mine.'],
+          reverse_if: 'x',
+        },
+        {
+          alternative: { id: 'b', version: 1 },
+          disposition: 'defer',
+          reasons: ['Later.'],
+          reverse_if: 'x',
+        },
+      ],
+      overrides: [],
+      override_reason: null,
+      rationale: 'Mine.',
+      admission_id: 'ad',
+      actor_id: 'person',
+      autopilot_id: null,
+      created_at: '2026-11-12T01:00:00.000Z',
+      current: true,
+      ...o,
+    }) as Selection;
+  const carry = personChoice(sel(), since);
+  assert.ok(carry.kind === 'carry' && carry.option.id === 'a');
+  assert.equal(carry.kind === 'carry' && carry.option.kind, 'use_existing');
+  // Not the person's, not current, or older than the autopilot: the rule runs as before.
+  assert.equal(personChoice(sel({ autopilot_id: 'ap' }), since).kind, 'none');
+  assert.equal(personChoice(sel({ current: false }), since).kind, 'none');
+  assert.equal(
+    personChoice(sel({ created_at: '2026-11-11T00:00:00.000Z' }), since).kind,
+    'none',
+  );
+  assert.equal(personChoice(null, since).kind, 'none');
+  const none = personChoice(
+    sel({
+      dispositions: sel().dispositions.map((d) => ({
+        ...d,
+        disposition: 'defer' as const,
+      })),
+    }),
+    since,
+  );
+  assert.ok(none.kind === 'stop' && none.outcome === 'no_eligible_option');
+  const build = personChoice(
+    sel({
+      dispositions: [
+        { ...sel().dispositions[0]!, disposition: 'defer' },
+        { ...sel().dispositions[1]!, disposition: 'select_for_build' },
+      ],
+    }),
+    since,
+  );
+  assert.ok(build.kind === 'carry' && build.option.kind === 'build');
+  assert.equal(
+    nextAutopilotStage({ research: null }, [
+      step('select', 'done', build.kind === 'carry' ? build.option : null),
+    ]),
+    'spec',
+  );
+
+  // Review L-8: an autopilot can enter at assessment or selection of a recorded problem.
+  const start = { stage: 'select' as const, problem: { id: 'p', version: 3 } };
+  assert.equal(nextAutopilotStage({ research: null, start }, []), 'select');
+  assert.deepEqual(autopilotProblem({ start }, []), { id: 'p', version: 3 });
+  assert.equal(autopilotProblem({ start: null }, []), null);
+
+  // Review L-3 and N-4: Continue cannot get past a stop marked final, or a full step list.
+  const finished = {
+    state: 'finished' as const,
+    outcome: 'needs_person' as const,
+    steps: [step('select', 'stopped')],
+  };
+  assert.ok(autopilotContinuable(finished).ok);
+  const spec = autopilotContinuable({
+    ...finished,
+    steps: [{ ...step('spec', 'stopped'), no_retry: 'The spec is yours.' }],
+  });
+  assert.ok(!spec.ok && spec.reason === 'The spec is yours.');
+  assert.ok(
+    !autopilotContinuable({
+      ...finished,
+      steps: Array.from({ length: 56 }, () => step('select', 'stopped')),
+    }).ok,
+  );
+  assert.ok(
+    !autopilotContinuable({ ...finished, outcome: 'proposal' as const }).ok,
+  );
+  // Review N-2: fewer calls than the shortest path needs is refused up front.
+  assert.equal(AUTOPILOT_MIN_CALLS, 8);
+  const lim = autopilotChildLimits({
+    stage: 'discover',
+    route: 'api',
+    timeout_ms: null,
+    per_run: null,
+    remaining: 3,
+    seconds_left: 7200,
+    width: 2,
+  });
+  assert.ok(!lim.ok && /cannot be raised/.test(lim.final ?? ''));
+  const capped = autopilotChildLimits({
+    stage: 'discover',
+    route: 'subscription',
+    timeout_ms: null,
+    per_run: 3,
+    remaining: 100,
+    seconds_left: 7200,
+    width: 2,
+  });
+  assert.ok(!capped.ok && capped.final === undefined);
+});
+
 // ---- Store and runner (PostgreSQL, fixture model) ------------------------------------------
 
 async function setup(t: test.TestContext) {
@@ -498,6 +670,7 @@ async function setup(t: test.TestContext) {
     excluded: [],
     max_revisions: 1,
     limits: { max_calls: 80, ends_at: inHours(2) },
+    start: null,
     ...over,
   });
   const body = (c: AutopilotConfig) => ({
@@ -626,6 +799,19 @@ test('an autopilot runs explore → brief → discover → assess, stops at a ti
   const sel = (await h.store.listSelections(owner, h.ws.id, problem.id))[0]!;
   assert.equal(sel.run_id, runId);
   assert.match(sel.rationale, /unattended autopilot/);
+  // Review H-1: the selection names the autopilot, not the owner, as the one who chose.
+  assert.equal(sel.actor_id, AUTOPILOT_ACTOR_ID);
+  assert.equal(sel.autopilot_id, a.id);
+  const recordedBy = await h.db.pool.query(
+    `select actor_id, payload from audit_events where action = 'selection.recorded'
+      and subject_id = $1`,
+    [sel.id],
+  );
+  assert.equal(recordedBy.rows[0].actor_id, AUTOPILOT_ACTOR_ID);
+  assert.deepEqual(recordedBy.rows[0].payload.autopilot, {
+    id: a.id,
+    started_by: owner.actorId,
+  });
   for (const d of sel.dispositions)
     assert.equal(
       d.disposition,
@@ -651,12 +837,235 @@ test('an autopilot runs explore → brief → discover → assess, stops at a ti
   );
 });
 
+type Harness = NonNullable<Awaited<ReturnType<typeof setup>>>;
+/** A person scores the options `pick` chooses (replacing the automatic cards), gates clear. */
+async function personScores(
+  h: Harness,
+  problemId: string,
+  pick: (c: RankedCandidate) => boolean,
+  rating: number,
+) {
+  const rep = await h.store.selectionReport(owner, h.ws.id, problemId);
+  const cards = (await h.store.listEntities(owner, h.ws.id, {
+    kind: 'scorecard',
+  })) as { id: string; version: number; body: unknown }[];
+  for (const c of rep.suitability.candidates.filter(pick))
+    for (const sc of c.scorecards) {
+      const sys = cards.find((x) => x.id === sc.id)!;
+      const b = sys.body as ScorecardBody;
+      const { assessment: _a, ...plain } = b;
+      await h.store.recordScorecard(owner, h.ws.id, {
+        title: 'Owner scores',
+        body: {
+          ...plain,
+          reviewer: { kind: 'human', label: 'Owner' },
+          ratings: Object.fromEntries(
+            Object.entries(b.ratings).map(([k, v]) => [
+              k,
+              { ...v, rating, rationale: 'Owner knowledge (test).' },
+            ]),
+          ),
+          gates: {
+            ethics: { status: 'clear', note: 'Checked (test).' },
+            access: { status: 'clear', note: 'Checked (test).' },
+          },
+          edit_of: {
+            scorecard: { id: sys.id, version: sys.version },
+            reason: 'Owner knowledge (test).',
+          },
+        } as unknown as Record<string, unknown>,
+      });
+    }
+}
+
+test('review M-1: after a tie, a choice recorded under Decide is the one Continue goes on with', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  const runId = await h.run();
+  const a = await h.start(runId);
+  assert.equal(a.outcome, 'needs_person', a.explanation);
+  assert.match(a.explanation, /tie for first.*Choose one under Decide/);
+  const problem = a.steps[2]!.problem!;
+  let rep = await h.store.selectionReport(owner, h.ws.id, problem.id);
+  const target = rep.suitability.candidates.find(
+    (c) => c.alternative.kind === 'use_existing',
+  )!;
+  // The owner clears the target's gates in one click (ADR-0090) and chooses it by hand.
+  for (const gate of ['ethics', 'access'] as const)
+    await h.store.confirmGate(owner, h.ws.id, problem.id, {
+      alternative: {
+        id: target.alternative.id,
+        version: target.alternative.version,
+      },
+      gate,
+      reason: 'I checked this one (test).',
+      concerns_seen:
+        target.gates.gate_details
+          ?.find((d) => d.gate === gate)
+          ?.concerns.map((x) => x.scorecard) ?? [],
+    });
+  rep = await h.store.selectionReport(owner, h.ws.id, problem.id);
+  const mine = await h.store.select(owner, h.ws.id, runId, {
+    problem: { id: rep.problem.id, version: rep.problem.version },
+    report_hash: rep.report_hash,
+    dispositions: rep.suitability.candidates.map((c) => ({
+      alternative: { id: c.alternative.id, version: c.alternative.version },
+      disposition:
+        c.alternative.id === target.alternative.id
+          ? 'recommend_alternative'
+          : 'defer',
+      reasons: ['My call between tied options (test).'],
+      reverse_if: 'New evidence.',
+    })),
+    override_reason: null,
+    rationale: 'I chose between the tied options (test).',
+    shortlist_size: 3,
+    data_class: 'synthetic',
+  });
+  assert.equal(mine.status, 'recorded', mine.admission.explanation);
+  // A person's selection is the person's.
+  assert.equal(mine.selection!.actor_id, owner.actorId);
+  assert.equal(mine.selection!.autopilot_id, null);
+  await h.runner.retry(owner, h.ws.id, a.id, { expected_version: a.version });
+  await h.runner.settled(a.id);
+  const b = await h.store.getAutopilot(owner, h.ws.id, a.id);
+  assert.equal(b.outcome, 'proposal', b.explanation);
+  const chose = b.steps.find(
+    (s) => s.stage === 'select' && s.state === 'done',
+  )!;
+  assert.equal(chose.child!.id, mine.selection!.id);
+  assert.equal(chose.option!.id, target.alternative.id);
+  assert.match(chose.note, /your choice under Decide/);
+  // The autopilot recorded no selection of its own.
+  const sels = await h.store.listSelections(owner, h.ws.id, problem.id);
+  assert.equal(sels.length, 1);
+});
+
+test('review H-1: with gates cleared on the model’s word, the autopilot’s choice stops and asks a person', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  await h.store.setGateRule(owner, h.ws.id, {
+    expected_version: 0,
+    mode: 'model',
+  });
+  const runId = await h.run();
+  const a = await h.start(runId);
+  assert.equal(a.outcome, 'needs_person', a.explanation);
+  const problem = a.steps[2]!.problem!;
+  const rep = await h.store.selectionReport(owner, h.ws.id, problem.id);
+  const target = rep.suitability.candidates.find(
+    (c) => c.alternative.kind === 'use_existing',
+  )!;
+  // The target keeps only the automatic cards, its ethics cleared by the rule; a person scores
+  // the other options lower, so the target ranks first alone.
+  await personScores(
+    h,
+    problem.id,
+    (c) => c.alternative.id !== target.alternative.id,
+    1,
+  );
+  const row = (
+    await h.store.selectionReport(owner, h.ws.id, problem.id)
+  ).suitability.candidates.find(
+    (c) => c.alternative.id === target.alternative.id,
+  )!;
+  assert.equal(row.rank, 1);
+  assert.equal(
+    row.gates.gate_details?.find((d) => d.gate === 'ethics')?.state,
+    'auto_cleared',
+  );
+  await h.runner.retry(owner, h.ws.id, a.id, { expected_version: a.version });
+  await h.runner.settled(a.id);
+  const b = await h.store.getAutopilot(owner, h.ws.id, a.id);
+  assert.equal(b.outcome, 'needs_authority', b.explanation);
+  assert.match(b.explanation, /A person decides/);
+  assert.equal(
+    (await h.store.listSelections(owner, h.ws.id, problem.id)).length,
+    0,
+  );
+  const decisions = await h.store.listDecisions(owner, h.ws.id, { runId });
+  assert.equal(decisions.length, 1);
+  assert.equal(decisions[0]!.reason, 'ethical_judgment');
+  // The question was asked by the autopilot, on the owner's authority.
+  const asked = await h.db.pool.query(
+    `select actor_id, payload from audit_events where action = 'decision.requested'
+      and subject_id = $1`,
+    [decisions[0]!.id],
+  );
+  assert.equal(asked.rows[0].actor_id, AUTOPILOT_ACTOR_ID);
+  // The ethics question is the person's: choosing by hand under Decide is that answer, and
+  // Continue goes on with it (review M-1). A person's choice is not flagged.
+  const now = await h.store.selectionReport(owner, h.ws.id, problem.id);
+  const mine = await h.store.select(owner, h.ws.id, runId, {
+    problem: { id: now.problem.id, version: now.problem.version },
+    report_hash: now.report_hash,
+    dispositions: now.suitability.candidates.map((c) => ({
+      alternative: { id: c.alternative.id, version: c.alternative.version },
+      disposition:
+        c.alternative.id === target.alternative.id
+          ? 'recommend_alternative'
+          : 'defer',
+      reasons: ['I looked at its ethics (test).'],
+      reverse_if: 'New evidence.',
+    })),
+    override_reason: null,
+    rationale: 'I looked at its ethics myself (test).',
+    shortlist_size: 3,
+    data_class: 'synthetic',
+  });
+  assert.equal(mine.status, 'recorded', mine.admission.explanation);
+  await h.runner.retry(owner, h.ws.id, a.id, { expected_version: b.version });
+  await h.runner.settled(a.id);
+  const c = await h.store.getAutopilot(owner, h.ws.id, a.id);
+  assert.equal(c.outcome, 'proposal', c.explanation);
+  assert.equal(
+    c.steps.find((s) => s.stage === 'select' && s.state === 'done')!.child!.id,
+    mine.selection!.id,
+  );
+});
+
+test('review L-8: an autopilot can start at the choice of a recorded problem, under selection approvals only', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  const first = await h.start(await h.run());
+  const problem = first.steps[2]!.problem!;
+  const runId = await h.run(h.policy(['selection']));
+  const c = h.config({ start: { stage: 'select', problem } });
+  await rejects(
+    'VERSION_CONFLICT',
+    h.store.startAutopilot(
+      owner,
+      h.ws.id,
+      runId,
+      h.body(
+        h.config({
+          start: {
+            stage: 'select',
+            problem: { ...problem, version: problem.version + 1 },
+          },
+        }),
+      ),
+    ),
+    /now version/,
+  );
+  const a = await h.start(runId, c);
+  assert.deepEqual(
+    a.steps.map((s) => [s.stage, s.state]),
+    [['select', 'stopped']],
+  );
+  assert.match(a.explanation, /tie for first/);
+  assert.equal(a.calls_reserved, 0);
+});
+
 test('a start is refused without routine approvals that cover its steps, with a changed summary, by a non-owner, or beside a running one', async (t) => {
   const h = await setup(t);
   if (!h) return;
   await h.seed();
   const ws = h.ws.id;
-  // No policy at all: it says to turn routine approvals on; a campaign never approves itself.
+  // No policy at all: it says to turn routine approvals on; an autopilot never approves itself.
   await rejects(
     'ACCESS_DENIED',
     h.runner.start(owner, ws, await h.run(null), h.body(h.config())),
@@ -731,12 +1140,21 @@ test('an empty workspace ends as insufficient evidence; a tight call limit stops
   const runId = await h.run();
   const tight = await h.start(
     runId,
-    h.config({ limits: { max_calls: 6, ends_at: inHours(2) } }),
+    h.config({ limits: { max_calls: 8, ends_at: inHours(2) } }),
   );
   assert.equal(tight.outcome, 'limit_reached', tight.explanation);
   assert.match(
     tight.explanation,
-    /Find the problem and options needs at least 7 model calls; the autopilot has 4 left/,
+    /Find the problem and options needs at least 7 model calls; the autopilot has 6 left/,
+  );
+  // Review L-3: its own call limit cannot be raised, so Continue is refused with what to do.
+  assert.match(tight.steps.at(-1)!.no_retry ?? '', /start a new autopilot/);
+  await rejects(
+    'INVALID_TRANSITION',
+    h.runner.retry(owner, h.ws.id, tight.id, {
+      expected_version: tight.version,
+    }),
+    /cannot be raised/,
   );
   assert.deepEqual(
     tight.steps.map((s) => [s.stage, s.state]),
@@ -967,7 +1385,11 @@ test('HTTP: start, list, read, stop and a refused continue go through the worksp
   });
   api.server.listen(0, '127.0.0.1');
   await once(api.server, 'listening');
-  t.after(() => api.close());
+  // Close the studio before the database is dropped: a driver that is still stopping its step
+  // (review L-1 cancels a workflow it started just as Stop came in) must finish first.
+  let closed: Promise<void> | null = null;
+  const close = () => (closed ??= api.close());
+  t.after(close);
   await api.ready();
   const origin = `http://127.0.0.1:${(api.server.address() as { port: number }).port}/api`;
   const auth = await login(origin);
@@ -1071,4 +1493,5 @@ test('HTTP: start, list, read, stop and a refused continue go through the worksp
     expected_version: stop.body.version,
   });
   assert.equal(again.status, 409);
+  await close();
 });

@@ -14,8 +14,10 @@ import {
 import {
   autopilotChildLimits,
   autopilotChoice,
+  autopilotProblem,
   carried,
   nextAutopilotStage,
+  personChoice,
   pickExplored,
   refusalOutcome,
 } from '@creator/domain';
@@ -85,7 +87,8 @@ export function autopilotKey(
   return `autopilot:${h}`;
 }
 
-type Stop = { outcome: AutopilotOutcome; note: string };
+/** `final`: Continue cannot get past this stop; why, and what to do instead (review L-3). */
+type Stop = { outcome: AutopilotOutcome; note: string; final?: string };
 type Done = {
   note: string;
   problem?: AutopilotStep['problem'];
@@ -96,11 +99,23 @@ type Done = {
 };
 type Result = { stop: Stop } | { done: Done };
 
+const stopOf = (l: {
+  outcome: AutopilotOutcome;
+  reason: string;
+  final?: string;
+}): Stop => ({
+  outcome: l.outcome,
+  note: l.reason,
+  ...(l.final ? { final: l.final } : {}),
+});
+
 export interface AutopilotRunnerOptions {
   /** How often a running workflow is read again. */
   pollMs?: number;
   /** Called on every wait (tests use it to run the workflow worker). */
   onWait?: () => Promise<unknown>;
+  /** How often `watch` looks for running autopilots no driver holds (review L-7). */
+  recoverMs?: number;
 }
 
 export class AutopilotRunner {
@@ -110,6 +125,8 @@ export class AutopilotRunner {
   >();
   readonly #pollMs: number;
   readonly #onWait: (() => Promise<unknown>) | null;
+  readonly #recoverMs: number;
+  #watch: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private readonly store: ConnectionStore,
@@ -118,6 +135,7 @@ export class AutopilotRunner {
   ) {
     this.#pollMs = options.pollMs ?? 2000;
     this.#onWait = options.onWait ?? null;
+    this.#recoverMs = options.recoverMs ?? 60_000;
   }
 
   isActive(id: string) {
@@ -132,6 +150,8 @@ export class AutopilotRunner {
   }
   /** Stops every driver in this process without changing records (shutdown). */
   async close() {
+    if (this.#watch) clearInterval(this.#watch);
+    this.#watch = null;
     for (const { abort } of this.#live.values())
       abort.abort(new Error('closing'));
     await Promise.all([...this.#live.values()].map((l) => l.done));
@@ -153,14 +173,24 @@ export class AutopilotRunner {
     const a = await this.store.cancelAutopilot(ctx, ws, id, body);
     this.#live.get(a.id)?.abort.abort(new Error('cancelled'));
     // Stop the step's own work too; what it made so far stays.
-    const child = a.steps.at(-1)?.child;
+    await this.#cancelChild(
+      ctx,
+      ws,
+      a.steps.at(-1)?.child,
+      'The autopilot was stopped.',
+    );
+    return this.with(a);
+  }
+
+  /** Cancels a step's running workflow or web discovery; finished ones are left as they are. */
+  async #cancelChild(
+    ctx: CommandContext,
+    ws: string,
+    child: AutopilotStep['child'] | undefined,
+    reason: string,
+  ) {
     if (child?.kind === 'workflow')
-      await this.#cancelWorkflow(
-        ctx,
-        ws,
-        child.id,
-        'The autopilot was stopped.',
-      );
+      await this.#cancelWorkflow(ctx, ws, child.id, reason);
     if (child?.kind === 'web_discovery' && this.web)
       await this.web
         .read(ctx, ws, child.id)
@@ -168,12 +198,11 @@ export class AutopilotRunner {
           ['searching', 'fetching', 'reading'].includes(d.state)
             ? this.web!.cancel(ctx, ws, d.id, {
                 expected_version: d.version,
-                reason: 'The autopilot was stopped.',
+                reason,
               })
             : null,
         )
         .catch(() => null);
-    return this.with(a);
   }
 
   /** Picks up autopilots a stopped studio left running. */
@@ -182,11 +211,26 @@ export class AutopilotRunner {
       this.#launch(r.created_by, r.workspace_id, r.id);
   }
 
+  /**
+   * Recovers now and then again every `recoverMs`, so an autopilot whose driver stopped on an
+   * error it could not even record (a database blip) is picked up without a restart (review L-7).
+   */
+  watch() {
+    void this.recover().catch(() => undefined);
+    if (this.#watch) return;
+    this.#watch = setInterval(
+      () => void this.recover().catch(() => undefined),
+      this.#recoverMs,
+    );
+    this.#watch.unref?.();
+  }
+
   #launch(actorId: string, ws: string, id: string) {
     const key = id.toLowerCase();
     if (this.#live.has(key)) return;
     const abort = new AbortController();
-    const ctx: CommandContext = { actorId };
+    // The owner's authority, recorded as the autopilot's step (ADR-0092, review H-1).
+    const ctx: CommandContext = { actorId, autopilot: { id: key } };
     const done = this.#drive(ctx, ws, key, abort.signal)
       .catch(async (e: unknown) => {
         if (abort.signal.aborted) return;
@@ -234,9 +278,16 @@ export class AutopilotRunner {
         if (step.state !== 'running') continue;
       }
       if (Date.parse(current.config.limits.ends_at) <= Date.now()) {
+        // The step's own work stops too (review L-2).
+        await this.#cancelChild(
+          ctx,
+          ws,
+          step.child,
+          "The autopilot's end time passed.",
+        );
         await this.#finish(ctx, ws, current, {
           outcome: 'limit_reached',
-          note: "The autopilot's end time passed.",
+          note: "The autopilot's end time passed; the step's work was stopped and what it made is kept.",
         });
         return;
       }
@@ -349,6 +400,7 @@ export class AutopilotRunner {
             ...base,
             state: 'stopped',
             note: planned.note.slice(0, 1200),
+            no_retry: planned.final ?? null,
             finished_at: now,
           },
         ],
@@ -420,6 +472,8 @@ export class AutopilotRunner {
           return {
             outcome: 'limit_reached',
             note: `Searching the web needs 2 plan requests; the autopilot has ${remaining} left.`,
+            final:
+              'Its call limit is used up and cannot be raised; start a new autopilot with a higher limit.',
           };
         return {
           calls: 2,
@@ -433,7 +487,7 @@ export class AutopilotRunner {
       }
       case 'explore': {
         const l = await limitsFor('explore', 1);
-        if (!l.ok) return { outcome: l.outcome, note: l.reason };
+        if (!l.ok) return stopOf(l);
         return {
           calls: l.calls,
           request: {
@@ -456,7 +510,7 @@ export class AutopilotRunner {
           };
         const picked = (brief.request?.claims as string[] | undefined) ?? [];
         const l = await limitsFor('discover', c.perspectives.length);
-        if (!l.ok) return { outcome: l.outcome, note: l.reason };
+        if (!l.ok) return stopOf(l);
         return {
           calls: l.calls,
           request: {
@@ -479,12 +533,13 @@ export class AutopilotRunner {
         };
       }
       case 'assess': {
-        const found = carried(a.steps, 'discover');
-        if (!found?.problem)
+        const problem = autopilotProblem(c, a.steps);
+        if (!problem)
           return {
             outcome: 'failed',
             note: 'The problem to assess is missing.',
           };
+        const found = { problem };
         const preview = await this.store.previewAssessment(
           ctx,
           ws,
@@ -496,10 +551,10 @@ export class AutopilotRunner {
         if (preview.packet.problem.version !== found.problem.version)
           return {
             outcome: 'needs_person',
-            note: 'The problem changed after discovery found it; assess it by hand or start a new autopilot.',
+            note: 'The problem changed after it was found; assess it by hand or start a new autopilot.',
           };
         const l = await limitsFor('assess', preview.requests);
-        if (!l.ok) return { outcome: l.outcome, note: l.reason };
+        if (!l.ok) return stopOf(l);
         return {
           calls: l.calls,
           problem: found.problem,
@@ -536,7 +591,7 @@ export class AutopilotRunner {
         case 'assess':
           return await this.#workflowStep(ctx, keyed, ws, a, step, signal);
         case 'brief':
-          return await this.#brief(ctx, ws, a, step);
+          return await this.#brief(ctx, ws, a);
         case 'select':
           return await this.#select(ctx, keyed, ws, a);
         case 'proposal':
@@ -547,6 +602,8 @@ export class AutopilotRunner {
             stop: {
               outcome: 'needs_person',
               note: `“${sel?.option?.title ?? 'The option'}” was selected for a bounded build. Writing and freezing its spec stays with you for now (Build › Spec); the autopilot does not write specs.`,
+              final:
+                'Writing and freezing the spec stays with you (Build › Spec); Continue cannot do it.',
             },
           };
         }
@@ -596,14 +653,28 @@ export class AutopilotRunner {
     if (!id) {
       const d = await this.web.start(keyed, ws, a.run_id, step.request);
       id = d.id;
-      await this.#record(ctx, ws, a, { kind: 'web_discovery', id });
+      const child = { kind: 'web_discovery' as const, id };
+      if (!(await this.#record(ctx, ws, a, child))) {
+        // Stopped between the start and the record: stop what was just started (review L-1).
+        await this.#cancelChild(ctx, ws, child, 'The autopilot was stopped.');
+        return { stop: { outcome: 'cancelled', note: 'Stopped.' } };
+      }
     }
     for (;;) {
       const d = await this.web.read(ctx, ws, id);
       if (['searching', 'fetching', 'reading'].includes(d.state)) {
         // A discovery a stopped studio left: resume it (a request already out is not repeated).
         if (!this.web.isActive(d.id)) await this.web.resume(ctx, ws, d.id);
-        if (!(await this.#wait(signal, a))) return this.#late(a);
+        if (!(await this.#wait(signal, a))) {
+          if (!signal.aborted)
+            await this.#cancelChild(
+              ctx,
+              ws,
+              { kind: 'web_discovery', id },
+              "The autopilot's end time passed.",
+            );
+          return this.#late(a);
+        }
         continue;
       }
       if (d.state === 'done') {
@@ -658,7 +729,11 @@ export class AutopilotRunner {
                 step.request,
               );
       id = started.workflow.id;
-      await this.#record(ctx, ws, a, { kind: 'workflow', id });
+      if (!(await this.#record(ctx, ws, a, { kind: 'workflow', id }))) {
+        // Stopped between the start and the record: stop what was just started (review L-1).
+        await this.#cancelWorkflow(ctx, ws, id, 'The autopilot was stopped.');
+        return { stop: { outcome: 'cancelled', note: 'Stopped.' } };
+      }
     }
     let wf: Workflow;
     for (;;) {
@@ -743,7 +818,15 @@ export class AutopilotRunner {
         done: {
           child,
           problem: { id: problem.id, version: problem.version },
-          note: `Discovery recorded a problem with ${d.catalog_records.alternatives.length} option(s).`,
+          note: `Discovery recorded a problem with ${d.catalog_records.alternatives.length} option(s).${
+            (step.request?.evidence as unknown[] | undefined)?.length === 30 &&
+            ((
+              carried(a.steps, 'brief')?.request?.claims as
+                unknown[] | undefined
+            )?.length ?? 0) > 30
+              ? ` It read the first 30 of the brief's ${(carried(a.steps, 'brief')!.request!.claims as unknown[]).length} claims (discovery reads at most 30).`
+              : ''
+          }`,
         },
       };
     }
@@ -756,12 +839,7 @@ export class AutopilotRunner {
     };
   }
 
-  async #brief(
-    ctx: CommandContext,
-    ws: string,
-    a: Autopilot,
-    step: AutopilotStep,
-  ): Promise<Result> {
+  async #brief(ctx: CommandContext, ws: string, a: Autopilot): Promise<Result> {
     const ex = carried(a.steps, 'explore');
     if (!ex?.child)
       return {
@@ -772,6 +850,23 @@ export class AutopilotRunner {
       ExplorationResultSchema.parse(wf.result?.exploration),
     );
     if (!pick.ok) return { stop: { outcome: pick.outcome, note: pick.reason } };
+    // The request (which candidate, which claims) is recorded before the brief is written; the
+    // brief's version is added after. A repeated write returns the same brief for the same card.
+    const before = await this.store.getAutopilot(ctx, ws, a.id);
+    const recorded = await this.store.advanceAutopilot(
+      ctx,
+      ws,
+      a.id,
+      before.version,
+      {
+        steps: before.steps.map((s, i) =>
+          i === before.steps.length - 1
+            ? { ...s, request: { candidate: pick.ref, claims: pick.claims } }
+            : s,
+        ),
+      },
+    );
+    if (!recorded) return { stop: { outcome: 'cancelled', note: 'Stopped.' } };
     const made = await this.store.createExploredBrief(
       ctx,
       ws,
@@ -797,7 +892,6 @@ export class AutopilotRunner {
           : s,
       ),
     });
-    void step;
     return {
       done: {
         child: { kind: 'search_brief', id: made.brief.id },
@@ -815,10 +909,30 @@ export class AutopilotRunner {
     ws: string,
     a: Autopilot,
   ): Promise<Result> {
-    const found = carried(a.steps, 'discover');
-    if (!found?.problem)
+    const problem = autopilotProblem(a.config, a.steps);
+    if (!problem)
       return { stop: { outcome: 'failed', note: 'The problem is missing.' } };
-    const report = await this.store.selectionReport(ctx, ws, found.problem.id);
+    // A choice you recorded under Decide while the autopilot waited is the choice (review M-1).
+    const current =
+      (await this.store.listSelections(ctx, ws, problem.id)).find(
+        (x) => x.current,
+      ) ?? null;
+    const mine = personChoice(current, a.created_at);
+    if (mine.kind === 'stop')
+      return { stop: { outcome: mine.outcome, note: mine.reason } };
+    if (mine.kind === 'carry')
+      return {
+        done: {
+          child: { kind: 'selection', id: current!.id },
+          problem: current!.problem,
+          option: mine.option,
+          note: `Going on with your choice under Decide: “${mine.option.title}” (${mine.disposition.replaceAll('_', ' ')}).`.slice(
+            0,
+            1200,
+          ),
+        },
+      };
+    const report = await this.store.selectionReport(ctx, ws, problem.id);
     const choice = autopilotChoice(report);
     if (!choice.ok)
       return { stop: { outcome: choice.outcome, note: choice.reason } };
@@ -830,10 +944,11 @@ export class AutopilotRunner {
       return {
         stop: {
           outcome: 'needs_authority',
-          note: `The choice of “${choice.option.title}” was not admitted (${out.admission.reason_code}): ${out.admission.explanation}`.slice(
-            0,
-            1200,
-          ),
+          note: `The choice of “${choice.option.title}” was not admitted (${out.admission.reason_code}): ${out.admission.explanation}${
+            out.admission.decision_id
+              ? ' A person decides: choose under Decide yourself (the question also waits under Monitor › Approvals), then continue, and the autopilot goes on with your choice.'
+              : ''
+          }`.slice(0, 1200),
         },
       };
     return {
@@ -932,6 +1047,7 @@ export class AutopilotRunner {
             ...s,
             state: 'stopped' as const,
             note: stop.note.slice(0, 1200),
+            no_retry: stop.final ?? null,
             finished_at: now,
           }
         : s,

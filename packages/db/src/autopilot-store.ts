@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import {
+  AUTOPILOT_MAX_STEPS,
   AUTOPILOT_POLICY_VERSION,
-  AUTOPILOT_RETRYABLE,
+  autopilotContinuable,
   AutopilotConfigSchema,
   AutopilotControlRequestSchema,
   AutopilotStepSchema,
@@ -135,6 +136,25 @@ export class AutopilotStore extends WebDiscoveryStore {
               'Autopilots are not used for frozen study runs; their conditions stay as frozen.',
             );
           await this.#checkPolicy(c, ws, runId, req.config);
+          if (req.config.start) {
+            const p = (
+              await c.query(
+                `select version, status from entities
+                  where workspace_id = $1 and id = $2 and kind = 'problem'`,
+                [ws, req.config.start.problem.id.toLowerCase()],
+              )
+            ).rows[0] as Row | undefined;
+            if (!p || p.status !== 'active')
+              throw fail(
+                'NOT_FOUND',
+                'The problem to start from was not found.',
+              );
+            if (Number(p.version) !== req.config.start.problem.version)
+              throw fail(
+                'VERSION_CONFLICT',
+                `The problem is now version ${String(p.version)}; read it again and start from that.`,
+              );
+          }
           const id = randomUUID();
           const first = nextAutopilotStage(req.config, [])!;
           await c.query(
@@ -202,7 +222,7 @@ export class AutopilotStore extends WebDiscoveryStore {
         [ws, runId],
       )
     ).rows[0] as Row | undefined;
-    const needed = autopilotStagesNeeded(!!config.research);
+    const needed = autopilotStagesNeeded(!!config.research, config.start);
     if (!policy)
       throw fail(
         'ACCESS_DENIED',
@@ -297,6 +317,11 @@ export class AutopilotStore extends WebDiscoveryStore {
       const cur = await this.#read(c, ws, id, true);
       if (cur.state !== 'running' || cur.version !== expected) return null;
       const steps = patch.steps ?? cur.steps;
+      if (steps.length > AUTOPILOT_MAX_STEPS)
+        throw fail(
+          'LIMIT_EXCEEDED',
+          `An autopilot records at most ${AUTOPILOT_MAX_STEPS} steps.`,
+        );
       const reserved = patch.calls_reserved ?? cur.calls_reserved;
       if (reserved > cur.config.limits.max_calls)
         throw fail(
@@ -441,15 +466,13 @@ export class AutopilotStore extends WebDiscoveryStore {
             'VERSION_CONFLICT',
             `The autopilot is at version ${cur.version}.`,
           );
-        if (
-          cur.state !== 'finished' ||
-          !AUTOPILOT_RETRYABLE.includes(cur.outcome!)
-        )
+        const can = autopilotContinuable(cur);
+        if (!can.ok)
           throw fail(
             'INVALID_TRANSITION',
             cur.state === 'running'
               ? 'The autopilot is still running.'
-              : `An autopilot that ended ${cur.outcome!.replaceAll('_', ' ')} cannot continue; start a new one.`,
+              : can.reason,
           );
         if (Date.parse(cur.config.limits.ends_at) <= Date.now())
           throw fail(

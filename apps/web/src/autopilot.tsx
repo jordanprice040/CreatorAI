@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import {
+  AUTOPILOT_MIN_CALLS,
   AUTOPILOT_RETRYABLE,
+  autopilotContinuable,
   AUTOPILOT_STAGE_LABEL,
   AutopilotConfigSchema,
   AutopilotSchema,
@@ -178,7 +180,17 @@ export function Autopilot({
       ).toISOString(),
     );
   }, [hours]);
-  const dataClass = fixture ? 'synthetic' : 'public';
+  const [pickedClass, setPickedClass] = useState<
+    'synthetic' | 'public' | 'private_approved'
+  >(fixture ? 'synthetic' : 'public');
+  // Web search reads public pages, so the data class is public (synthetic in a fixture workspace)
+  // while it is on; otherwise the owner picks it, as in Explore for me (review L-4).
+  const dataClass =
+    search && route?.kind === 'plan' && route.chatgpt
+      ? fixture
+        ? 'synthetic'
+        : 'public'
+      : pickedClass;
   const plan =
     route?.kind === 'plan'
       ? c?.details.find((d) => d.connection.id === route.connection)
@@ -414,6 +426,26 @@ export function Autopilot({
                     />{' '}
                     Search the web first (ChatGPT plan models only)
                   </label>
+                  <label htmlFor="ap-class">Evidence sharing class</label>
+                  <select
+                    id="ap-class"
+                    value={dataClass}
+                    disabled={search && route?.kind === 'plan' && route.chatgpt}
+                    onChange={(e) =>
+                      setPickedClass(e.target.value as typeof pickedClass)
+                    }
+                  >
+                    <option value="synthetic">Synthetic</option>
+                    <option value="public">Public</option>
+                    <option value="private_approved">
+                      Private · approved provider sharing required
+                    </option>
+                  </select>
+                  <p className="small">
+                    {search && route?.kind === 'plan' && route.chatgpt
+                      ? 'Searching the web works with public data only; untick it to work from private claims.'
+                      : 'Every step sends claims of this class to the model; the connection and the run’s approvals must allow it.'}
+                  </p>
                   <fieldset>
                     <legend>
                       What the chosen problem's claims show (your judgment)
@@ -446,10 +478,14 @@ export function Autopilot({
                       <input
                         id="ap-calls"
                         type="number"
-                        min={4}
+                        min={AUTOPILOT_MIN_CALLS}
                         value={maxCalls}
                         onChange={(e) => setMaxCalls(Number(e.target.value))}
                       />
+                      <p className="small">
+                        At least {AUTOPILOT_MIN_CALLS}: exploring, discovery and
+                        assessment need about that many on the shortest path.
+                      </p>
                     </div>
                     <div>
                       <label htmlFor="ap-hours">Stop after (hours)</label>
@@ -570,15 +606,21 @@ export function Autopilot({
                   {owner &&
                     a.state === 'finished' &&
                     a.outcome &&
-                    AUTOPILOT_RETRYABLE.includes(a.outcome) && (
-                      <button
-                        disabled={busy}
-                        onClick={() => void control(a, 'continue')}
-                      >
-                        Continue from{' '}
-                        {AUTOPILOT_STAGE_LABEL[a.stage].toLowerCase()}
-                      </button>
-                    )}
+                    AUTOPILOT_RETRYABLE.includes(a.outcome) &&
+                    (() => {
+                      const can = autopilotContinuable(a);
+                      return can.ok ? (
+                        <button
+                          disabled={busy}
+                          onClick={() => void control(a, 'continue')}
+                        >
+                          Continue from{' '}
+                          {AUTOPILOT_STAGE_LABEL[a.stage].toLowerCase()}
+                        </button>
+                      ) : (
+                        <p className="small">{can.reason}</p>
+                      );
+                    })()}
                 </article>
               ))
             )}

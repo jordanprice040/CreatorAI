@@ -3327,6 +3327,16 @@ create table autopilots (
 create index autopilots_by_workspace on autopilots (workspace_id, created_at desc);
 create unique index autopilots_one_running on autopilots (workspace_id, run_id)
  where state = 'running';
+alter table autopilots add constraint autopilots_steps_max check (jsonb_array_length(steps) <= 60);
+-- The agent every autopilot step is recorded under; the owner who started it is kept beside it.
+insert into actors (id, kind, display_name)
+ values ('00000000-0000-4000-8000-0000000000a1', 'agent', 'Autopilot') on conflict (id) do nothing;
+-- A selection the autopilot recorded names it, so a person's choice and the rule's stay apart.
+alter table selections add column autopilot_id uuid;
+alter table selections add constraint selections_autopilot_fk
+ foreign key (workspace_id, autopilot_id) references autopilots (workspace_id, id);
+alter table selections add constraint selections_autopilot_actor
+ check ((autopilot_id is null) = (actor_id <> '00000000-0000-4000-8000-0000000000a1'));
 `,
   },
 ];

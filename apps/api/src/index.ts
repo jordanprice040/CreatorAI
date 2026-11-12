@@ -612,7 +612,7 @@ export function createApi(
     worker?.start();
     qualificationQueue?.start();
     // Autopilots a stopped studio left running carry on (each step's start is idempotent).
-    void autopilot?.recover().catch(() => undefined);
+    autopilot?.watch();
     if (portfolioScheduler === 'on') portfolio?.start();
   }
   let ready = init();

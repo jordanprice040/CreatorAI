@@ -115,17 +115,28 @@ export const AutopilotStepSchema = z.strictObject({
   request: z.record(z.string(), z.unknown()).nullable(),
   key: z.string().max(200).nullable(),
   note: z.string().max(1200),
+  /**
+   * Set on a stopped step that Continue cannot get past (the call limit is the autopilot's own
+   * and cannot be raised; the spec is the owner's): why, and what to do instead.
+   */
+  no_retry: z.string().max(300).nullable().optional(),
   started_at: timestamp,
   finished_at: timestamp.nullable(),
 });
 export type AutopilotStep = z.infer<typeof AutopilotStepSchema>;
+
+/**
+ * The fewest calls the shortest path can use: exploring (2), discovery with two response types (4)
+ * and assessing one request (2). Fewer would be certain to stop at the call limit (review N-2).
+ */
+export const AUTOPILOT_MIN_CALLS = 8;
 
 export const AutopilotLimitsSchema = z.strictObject({
   /**
    * Model calls (or plan requests) the whole autopilot may use, every step together, with their
    * repairs. Each step sets aside its own maximum before it starts.
    */
-  max_calls: z.number().int().min(4).max(1000),
+  max_calls: z.number().int().min(AUTOPILOT_MIN_CALLS).max(1000),
   /** The autopilot stops when this passes; steps are sized to finish before it. */
   ends_at: timestamp,
 });
@@ -139,6 +150,16 @@ export const AutopilotResearchSchema = z.strictObject({
   /** The web discovery preview's input hash the owner saw. */
   input_hash: hash,
 });
+
+/**
+ * Where an autopilot enters the path (for P33's "automate the rest"): from the beginning (null),
+ * or at assessment or selection of a problem already recorded, at its current version.
+ */
+export const AutopilotStartSchema = z.strictObject({
+  stage: z.enum(['assess', 'select']),
+  problem: z.strictObject({ id, version }),
+});
+export type AutopilotStart = z.infer<typeof AutopilotStartSchema>;
 
 export const AutopilotConfigSchema = z
   .strictObject({
@@ -169,6 +190,8 @@ export const AutopilotConfigSchema = z
       .default([]),
     max_revisions: z.number().int().min(0).max(2).default(1),
     limits: AutopilotLimitsSchema,
+    /** Enter the path part way, at a recorded problem (null: from the beginning). */
+    start: AutopilotStartSchema.nullable().default(null),
   })
   .superRefine((r, ctx) => {
     const named = [...r.perspectives, ...r.excluded.map((e) => e.perspective)];
@@ -193,6 +216,13 @@ export const AutopilotConfigSchema = z
         code: 'custom',
         path: ['research'],
         message: 'Web search reads public pages; use public or synthetic data.',
+      });
+    if (r.start && r.research)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['research'],
+        message:
+          'An autopilot that starts at a recorded problem does not search the web first.',
       });
   });
 export type AutopilotConfig = z.infer<typeof AutopilotConfigSchema>;
@@ -241,6 +271,34 @@ export const AutopilotSchema = z.strictObject({
 });
 export type Autopilot = z.infer<typeof AutopilotSchema>;
 
+/**
+ * Whether Continue can get past where a finished autopilot stopped, and if not, why. A stop for a
+ * person or an approval, a connection cap or a failed step can be continued; a stop at the spec,
+ * at the autopilot's own call limit, or after a cancel or a final result cannot.
+ */
+export function autopilotContinuable(
+  a: Pick<Autopilot, 'state' | 'outcome' | 'steps'>,
+): { ok: true } | { ok: false; reason: string } {
+  if (a.state !== 'finished') return { ok: false, reason: 'It is running.' };
+  if (!a.outcome || !AUTOPILOT_RETRYABLE.includes(a.outcome))
+    return {
+      ok: false,
+      reason: `An autopilot that ended ${(a.outcome ?? 'running').replaceAll('_', ' ')} cannot continue; start a new one.`,
+    };
+  const last = a.steps.at(-1);
+  if (last?.no_retry) return { ok: false, reason: last.no_retry };
+  if (a.steps.length >= AUTOPILOT_MAX_STEPS - 4)
+    return {
+      ok: false,
+      reason:
+        'This autopilot has taken as many steps as one may; start a new one.',
+    };
+  return { ok: true };
+}
+
+/** Steps one autopilot may record (the database refuses more). */
+export const AUTOPILOT_MAX_STEPS = 60;
+
 /** Every route the autopilot can take, written from its settings. The owner confirms these lines. */
 export function autopilotSummary(c: AutopilotConfig): string[] {
   const route =
@@ -250,22 +308,36 @@ export function autopilotSummary(c: AutopilotConfig): string[] {
         ? `the local model ${c.resource_setup.model_id}`
         : 'the API budget and pricing chosen';
   const until = new Date(c.limits.ends_at).toISOString();
+  const path = c.start
+    ? [
+        c.start.stage === 'assess'
+          ? `It starts at the recorded problem (version ${c.start.problem.version}) and assesses every option.`
+          : `It starts at the recorded problem (version ${c.start.problem.version}) and chooses from the scores already recorded; it makes no model call before choosing.`,
+      ]
+    : [
+        c.research
+          ? `First it searches the web once with ${c.research.model_id} and reads up to ${c.research.scope.max_fetches} pages; checked claims are added only where this run's routine approvals cover the evidence stage.`
+          : 'It works from the claims already recorded in the workspace; it does not search the web.',
+        `Then it explores the claims, writes a brief from the first candidate problem, runs discovery (${c.perspectives.length} response types, up to ${c.max_revisions} revision round${c.max_revisions === 1 ? '' : 's'}) and assesses every option.`,
+        `Discovery reads the chosen problem's claims as evidence of: ${c.evidence_roles.map((r) => r.replaceAll('_', ' ')).join(', ')}.`,
+      ];
   return [
     `The studio runs this run's main path for you with ${route}, one step after another, and stops with a reason when a step needs you.`,
-    c.research
-      ? `First it searches the web once with ${c.research.model_id} and reads up to ${c.research.scope.max_fetches} pages; checked claims are added only where this run's routine approvals cover the evidence stage.`
-      : 'It works from the claims already recorded in the workspace; it does not search the web.',
-    `Then it explores the claims, writes a brief from the first candidate problem, runs discovery (${c.perspectives.length} response types, up to ${c.max_revisions} revision round${c.max_revisions === 1 ? '' : 's'}) and assesses every option.`,
-    `Discovery reads the chosen problem's claims as evidence of: ${c.evidence_roles.map((r) => r.replaceAll('_', ' ')).join(', ')}.`,
-    'It records a choice only when one option ranks first on suitability with no tie, the ranking holds when any criterion is removed or doubled, and nothing blocks that choice. The others are deferred with that reason.',
-    'For a non-code option it saves a proposal drafted from the records. For a software option it stops: writing and freezing a spec stays with you.',
+    ...path,
+    'It records a choice only when one option ranks first on suitability with no tie, every option that could be chosen is fully scored, the ranking holds when any criterion is removed or doubled, and nothing blocks that choice. The others are deferred with that reason. Its choice is recorded as the autopilot’s, not yours.',
+    'If an option’s ethics gate was cleared only on the model’s word, it stops and asks you before choosing it. If you choose under Decide while it waits, Continue goes on with your choice.',
+    'For a non-code option it saves a proposal drafted from the records. A software option first needs your humility review to be chosen, and writing and freezing its spec stays with you, so it stops there.',
     `Limits: at most ${c.limits.max_calls} model calls in all, each step setting aside its maximum first; it stops at ${until.slice(0, 10)} ${until.slice(11, 16)} UTC. The run's routine approvals, budgets, spending limits and connection caps still apply.`,
     'It never publishes, sends messages, spends outside the run, changes permissions or answers a question for you. Stop it at any time; what it made so far is kept.',
   ];
 }
 
 /** The routine stages an autopilot's steps need the run's policy to cover (sorted). */
-export function autopilotStagesNeeded(research: boolean): RoutineStage[] {
+export function autopilotStagesNeeded(
+  research: boolean,
+  start: AutopilotStart | null = null,
+): RoutineStage[] {
+  if (start?.stage === 'select') return ['selection'];
   return (
     research
       ? ['evidence', 'model_work', 'research', 'selection']
@@ -283,7 +355,7 @@ export function autopilotRoutinePolicy(
   maxTotalNanoUsd: string | null,
 ): RoutinePolicyInput {
   return {
-    stages: autopilotStagesNeeded(!!c.research),
+    stages: autopilotStagesNeeded(!!c.research, c.start),
     data_classes: [
       ...new Set([c.data_class, ...(c.research ? (['public'] as const) : [])]),
     ].sort(),
