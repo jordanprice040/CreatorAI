@@ -62,8 +62,15 @@ export const rubricsForKind = (kind: string): RubricId[] =>
 // by ",", "/", "&", "and", "or", "to", "through" or a dash is one citation and is renamed
 // whole: when it follows a citation mark or word (any case), or when it lists two or more
 // refs ("Compare C3 and C5"). A lone ref elsewhere ("C3 shows exports.") is left as it is.
-const DRAFT_RUN =
-  /\bC[1-9][0-9]?\b(?:\s*(?:[,/&–—-]|\b(?:and|or|to|through)\b)\s*C[1-9][0-9]?\b)*/g;
+// Re-review 4: joining words match in any case ("C3 OR C5"), and a ref already written
+// "draft-C3" is never renamed again.
+const anyCase = (w: string) =>
+  w.replace(/[a-z]/g, (c) => `[${c}${c.toUpperCase()}]`);
+const DRAFT_REF_ONE = '(?<!draft-)\\bC[1-9][0-9]?\\b';
+const DRAFT_RUN = new RegExp(
+  `${DRAFT_REF_ONE}(?:\\s*(?:[,/&–—-]|\\b(?:${['and', 'or', 'to', 'through'].map(anyCase).join('|')})\\b)\\s*${DRAFT_REF_ONE})*`,
+  'g',
+);
 const CITES_BEFORE =
   /(?:[:(,;[]|\b(?:claims?|cites?|cited|see|and|per|from))\s*$/i;
 const draftRefs = (s: string) =>
