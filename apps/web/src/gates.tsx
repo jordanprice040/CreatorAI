@@ -121,7 +121,9 @@ export function GateLines({
                 {d.state === 'auto_cleared'
                   ? d.confirmation?.rule_mode === 'model'
                     ? 'cleared on the model’s word (no person looked)'
-                    : 'cleared by the model, from your team profile (no person looked)'
+                    : d.confirmation?.rule_mode === 'team_profile'
+                      ? 'cleared by the model, from your team profile (no person looked)'
+                      : STATE[d.state]
                   : STATE[d.state]}
               </span>
               {d.confirmation && (

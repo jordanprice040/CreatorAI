@@ -457,8 +457,9 @@ export function AutoAssess({
         option and rubric, and computes the totals and ranks itself. You can
         edit any rating below as your own scorecard; the original stays. Only
         you clear ethics and access gates, unless you chose in Settings › Team
-        profile to let your team profile or the model’s word clear them, and
-        nothing is selected for you.
+        profile to let the model clear them. Selection stays with you, or with a
+        routine policy you set; a run stops and asks you when only the model
+        cleared ethics.
       </p>
       {ctx.error && <p className="error">{ctx.error}</p>}
       {c && (

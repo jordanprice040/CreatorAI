@@ -2701,6 +2701,7 @@ export {
   type AutopilotWeb,
 } from './autopilot.js';
 export {
+  checkCwd,
   checkEnv,
   runCapabilityCheck,
   type CapabilityRunner,

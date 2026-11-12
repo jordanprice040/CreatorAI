@@ -4,6 +4,9 @@ import { randomUUID } from 'node:crypto';
 import {
   AssessmentPacketSchema,
   ContractError,
+  routinePolicySummary,
+  type RoutineStage,
+  type SelectRequest,
   type AssessorOutput,
   type ErrorCode,
   type RankedCandidate,
@@ -458,6 +461,98 @@ test('the owner confirms a gate as it is now; a newer concern makes it stale; th
   assert.equal(modelClearedEthics(report2, pick('select_for_build')), true);
   assert.equal(modelClearedEthics(report2, pick('defer')), false);
   assert.equal(gate(row2, 'ethics').rule, 'model');
+
+  // End to end (review 3 L-2): an agent selecting under a routine policy is stopped for a
+  // person; the owner selecting by hand is not; "proceed" lets the same request through.
+  const agent = { actorId: randomUUID() };
+  await s.store.ensureActor({
+    id: agent.actorId,
+    kind: 'agent',
+    display_name: 'Selection agent',
+  });
+  await s.store.addMember(owner, s.ws.id, agent.actorId, 'editor');
+  const routineRun = async () => {
+    const runId = await s.run();
+    const input = {
+      stages: ['model_work', 'selection'] as RoutineStage[],
+      data_classes: ['synthetic' as const],
+      max_actions: 20,
+      max_total_nano_usd: null,
+      stop_on: [],
+      expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+      rationale: 'Routine synthetic selection (test).',
+    };
+    await s.store.setRoutinePolicy(owner, s.ws.id, runId, {
+      ...input,
+      summary_seen: routinePolicySummary(input),
+    });
+    return runId;
+  };
+  const selectReq = async (advance: boolean): Promise<SelectRequest> => {
+    const r = await s.report();
+    // An option whose ethics only the model cleared, and that may proceed to validation.
+    const lead = r.suitability.candidates.find(
+      (c) =>
+        !(c.gates.blocked.proceed_to_validation ?? []).length &&
+        gate(c, 'ethics').confirmation?.rule_mode === 'model',
+    );
+    assert.ok(lead, 'an option may proceed on a model-cleared ethics gate');
+    return {
+      problem: { id: r.problem.id, version: r.problem.version },
+      report_hash: r.report_hash,
+      dispositions: r.suitability.candidates.map((c) => ({
+        alternative: { id: c.alternative.id, version: c.alternative.version },
+        disposition:
+          advance && c.alternative.id === lead.alternative.id
+            ? ('proceed_to_validation' as const)
+            : ('defer' as const),
+        reasons: ['Synthetic disposition (test).'],
+        reverse_if: 'New evidence (test).',
+      })),
+      override_reason: advance ? 'Validate this option first (test).' : null,
+      rationale: 'Routine selection (test).',
+      shortlist_size: 3,
+      data_class: 'synthetic',
+    };
+  };
+  // Deferring everything advances nothing, so the agent is not stopped.
+  const deferred = await s.store.select(
+    agent,
+    s.ws.id,
+    await routineRun(),
+    await selectReq(false),
+  );
+  assert.equal(deferred.status, 'recorded', deferred.admission.explanation);
+  const agentRun = await routineRun();
+  const advanceReq = await selectReq(true);
+  const stopped = await s.store.select(agent, s.ws.id, agentRun, advanceReq);
+  assert.equal(stopped.status, 'needs_human');
+  assert.equal(stopped.selection, null);
+  const asked = await s.store.getDecision(
+    owner,
+    s.ws.id,
+    stopped.admission.decision_id!,
+  );
+  assert.match(JSON.stringify(asked), /model’s word only/);
+  // The owner selecting by hand under the same kind of policy is that person.
+  const byHand = await s.store.select(
+    owner,
+    s.ws.id,
+    await routineRun(),
+    advanceReq,
+  );
+  assert.equal(byHand.status, 'recorded', byHand.admission.explanation);
+  await s.store.answerDecision(owner, s.ws.id, asked.id, {
+    choice: 'choose_option',
+    option_id: 'proceed',
+    rationale: 'I read the option; ethics is fine (test).',
+    coverage_hash: asked.coverage.coverage_hash,
+    standing_expires_at: null,
+    time_spent_ms: 500,
+    interruption: null,
+  });
+  const retried = await s.store.select(agent, s.ws.id, agentRun, advanceReq);
+  assert.equal(retried.status, 'recorded', retried.admission.explanation);
 
   // Back to the owner: every clear the rule made ends.
   await s.store.setGateRule(owner, s.ws.id, {
