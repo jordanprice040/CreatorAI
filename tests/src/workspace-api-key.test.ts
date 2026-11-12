@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import { createServer, type ServerResponse } from 'node:http';
-import { mkdtemp, readdir, readFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import ts from 'typescript';
@@ -109,22 +109,72 @@ test('the studio’s own key wins over a saved one; a failed unlock is not remem
       return KEY_1;
     },
   });
+  let clock = 1_000_000;
   const retry = new ApiKeyService({
     store,
     vault: flaky,
     environment: null,
     log: (m) => logged.push(m),
+    now: () => clock,
   });
   assert.equal(await retry.liveFor(ctx, randomUUID()), null);
   assert.equal(
     (await retry.status(ctx, randomUUID())).in_use,
     'saved_unavailable',
   );
-  assert.ok(logged.length >= 1 && logged.every((m) => m.includes(ref)));
-  assert.ok(!logged.some((m) => m.includes(KEY_1)));
+  // Review 2 N-2: one unlock attempt and one log line per minute, not one per page load.
+  assert.equal(logged.length, 1);
+  assert.ok(logged[0]!.includes(ref) && !logged[0]!.includes(KEY_1));
   fail = false;
+  assert.equal(await retry.liveFor(ctx, randomUUID()), null, 'still waiting');
+  clock += 60_001;
   assert.equal((await retry.liveFor(ctx, randomUUID()))?.live, true);
   assert.equal((await retry.status(ctx, randomUUID())).in_use, 'saved');
+});
+
+test('review 2 L-1: a damaged key file is never quoted in the log', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'creator-damaged-'));
+  const vault = new FileDevVault(dir);
+  const ref = newApiKeyRef();
+  const file = join(
+    dir,
+    `${ref.slice('openai-api-key/'.length)}.api-key.secret`,
+  );
+  const ctx = { actorId: randomUUID() };
+  const store = {
+    workspaceApiKey: async () => null,
+    workspaceApiKeyRef: async () => ({
+      credential_ref: ref,
+      model_id: 'gpt-6-astra',
+    }),
+    saveWorkspaceApiKey: async () => assert.fail('not called'),
+    removeWorkspaceApiKey: async () => assert.fail('not called'),
+    changeWorkspaceApiKeyModel: async () => assert.fail('not called'),
+  };
+  // Damaged plaintext the way a bad unseal or a hand edit could leave it: Node's own
+  // JSON.parse message would quote the start of the key.
+  for (const damaged of [
+    KEY_1,
+    `{"api_key":${KEY_1}}`,
+    `{"api_key":"${KEY_1}`,
+  ]) {
+    await writeFile(file, damaged);
+    const logged: string[] = [];
+    const svc = new ApiKeyService({
+      store,
+      vault,
+      environment: null,
+      log: (m) => logged.push(m),
+    });
+    assert.equal(await svc.liveFor(ctx, randomUUID()), null);
+    assert.equal(logged.length, 1);
+    for (let i = 0; i + 6 <= KEY_1.length; i++)
+      assert.ok(!logged[0]!.includes(KEY_1.slice(i, i + 6)), logged[0]);
+    await assert.rejects(
+      vault.getApiKey(ref),
+      /^Error: A saved key is damaged\.$/,
+    );
+  }
 });
 
 test('review 1 L-2, N-5: a failed delete is reported and retried; a key changed elsewhere is forgotten', async () => {
@@ -217,6 +267,17 @@ test('review 1 L-2, N-5: a failed delete is reported and retried; a key changed 
   s = await svc.save(ctx, ws, body(KEY_1, null));
   assert.equal(s.unused_file_left, false);
   assert.equal(await inner.getApiKey(otherRef), null);
+  // Review 2 L-2: a studio with no key store does not claim it deleted the file.
+  const noStore = new ApiKeyService({
+    store: store as never,
+    vault: null,
+    environment: null,
+    log: (m) => logged.push(m),
+  });
+  s = await noStore.remove(ctx, ws, { expected_version: version });
+  assert.equal(s.in_use, 'none');
+  assert.equal(s.unused_file_left, true);
+  assert.match(s.note ?? '', /was not touched/);
 });
 
 async function load<T>(file: string) {
@@ -524,6 +585,12 @@ test('API key in Models and connections: save, use, replace, remove; never shown
   status = await caller.post(`${w}/api-keys/openai/model`, {
     model_id: 'gpt-6-astra',
     expected_version: 3,
+  });
+  assert.equal(status.saved.version, 4);
+  // Review 2 N-4: the same model again is not a change: same version, no audit row.
+  status = await caller.post(`${w}/api-keys/openai/model`, {
+    model_id: 'gpt-6-astra',
+    expected_version: 4,
   });
   assert.equal(status.saved.version, 4);
   assert.equal((await check()).outcome?.kind, 'connected');

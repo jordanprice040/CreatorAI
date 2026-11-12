@@ -60,8 +60,16 @@ export const newCredentialRef = () => `chatgpt-plan/${randomUUID()}`;
 export const newApiKeyRef = () => `openai-api-key/${randomUUID()}`;
 const keyEntry = (key: string) => JSON.stringify({ api_key: key });
 const keyOf = (raw: string): string => {
-  const v = JSON.parse(raw) as { api_key?: unknown };
-  if (typeof v.api_key !== 'string') throw new Error('A saved key is damaged.');
+  // Review 2 L-1: JSON.parse's own message quotes the text around the fault, which here is
+  // the key, so it is never passed on.
+  let v: { api_key?: unknown } | null;
+  try {
+    v = JSON.parse(raw) as { api_key?: unknown } | null;
+  } catch {
+    throw new Error('A saved key is damaged.');
+  }
+  if (typeof v?.api_key !== 'string')
+    throw new Error('A saved key is damaged.');
   return v.api_key;
 };
 

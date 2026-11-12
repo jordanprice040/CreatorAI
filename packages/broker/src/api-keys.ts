@@ -21,6 +21,9 @@ import { newApiKeyRef, type PlanVault } from './plan-vault.js';
  * when both exist. A key is not permission to spend: every call still needs a grant, a funded
  * budget and room under the overall ceiling, which the broker checks as for any paid call.
  */
+type Discarded = 'deleted' | 'failed' | 'no_store';
+const UNLOCK_RETRY_MS = 60_000;
+
 export class ApiKeyService {
   /** Adapters by vault reference and model; a replaced key has a new reference. */
   readonly #adapters = new Map<string, Promise<ModelAdapter | null>>();
@@ -28,6 +31,15 @@ export class ApiKeyService {
   readonly #current = new Map<string, string>();
   /** Unused vault entries whose delete failed; retried at the next save or remove. */
   readonly #leftovers = new Set<string>();
+  /** Review 2 N-2: when a failed unlock may be tried again, per cache entry. */
+  readonly #failedUntil = new Map<string, number>();
+  #now(): number {
+    return (this.deps.now ?? Date.now)();
+  }
+  /** Whether keys can be saved in this studio (it has a protected store). */
+  get canSave(): boolean {
+    return this.deps.vault !== null;
+  }
   constructor(
     private readonly deps: {
       store: Pick<
@@ -45,13 +57,15 @@ export class ApiKeyService {
       baseUrl?: string;
       /** Where unlock and delete failures are reported (references only, never a key). */
       log?: (m: string) => void;
+      /** Tests: the clock for the unlock retry wait. */
+      now?: () => number;
     },
   ) {}
 
   async status(
     ctx: CommandContext,
     ws: string,
-    leftover = false,
+    leftover: Discarded = 'deleted',
   ): Promise<ApiKeyStatus> {
     const saved = await this.deps.store.workspaceApiKey(ctx, ws);
     const env = this.deps.environment;
@@ -77,9 +91,11 @@ export class ApiKeyService {
       !this.deps.vault && in_use !== 'saved_unavailable'
         ? 'This studio has no protected store for keys, so a key cannot be saved here. The desktop app has one.'
         : null,
-      leftover
-        ? "The old key's protected file could not be deleted from this computer. It is no longer used by anything; it is removed the next time a key is saved or removed here."
-        : null,
+      leftover === 'failed'
+        ? "The old key's protected file could not be deleted from this computer. It is no longer used by anything; the studio tries again the next time a key is saved or removed here before it restarts."
+        : leftover === 'no_store'
+          ? "This studio has no protected store for keys, so the old key's protected file (if it is in another studio's store, such as the desktop app's) was not touched. Nothing uses it any more."
+          : null,
     ].filter((n): n is string => n !== null);
     return parse(ApiKeyStatusSchema, {
       provider: 'openai',
@@ -89,7 +105,7 @@ export class ApiKeyService {
       model_id: env?.model_id ?? saved?.model_id ?? null,
       can_save: this.deps.vault !== null,
       note: notes.length ? notes.join(' ').slice(0, 800) : null,
-      unused_file_left: leftover,
+      unused_file_left: leftover !== 'deleted',
     });
   }
 
@@ -122,11 +138,11 @@ export class ApiKeyService {
         })
       ).replaced_credential_ref;
     } catch (e) {
-      if (!(await this.#discard(ref))) this.#leftovers.add(ref);
+      await this.#discard(ref);
       throw e;
     }
     // The record already points at the new key, so the old file is unused by any call.
-    const leftover = replaced ? !(await this.#discard(replaced)) : false;
+    const leftover = replaced ? await this.#discard(replaced) : 'deleted';
     await this.#retryLeftovers();
     return this.status(ctx, ws, leftover);
   }
@@ -158,7 +174,7 @@ export class ApiKeyService {
       ws,
       b.expected_version,
     );
-    const leftover = !(await this.#discard(credential_ref));
+    const leftover = await this.#discard(credential_ref);
     await this.#retryLeftovers();
     return this.status(ctx, ws, leftover);
   }
@@ -189,6 +205,8 @@ export class ApiKeyService {
     }
     this.#current.set(id, cacheKey);
     const vault = this.deps.vault;
+    // Review 2 N-2: after a failed unlock, wait a minute before trying (and logging) again.
+    if ((this.#failedUntil.get(cacheKey) ?? 0) > this.#now()) return null;
     let pending = this.#adapters.get(cacheKey);
     if (!pending) {
       pending = vault
@@ -201,31 +219,40 @@ export class ApiKeyService {
       // A missing file is asked again next time (it may be restored), not remembered.
       if (!adapter) this.#adapters.delete(cacheKey);
       return adapter;
-    } catch (e) {
-      // A failed unlock is retried on the next call rather than remembered. The log names the
-      // reference only, never the key.
+    } catch {
+      // A failed unlock is tried again after a minute rather than remembered. Review 2 L-1:
+      // the log is fixed text naming the reference only; an error's own message could quote
+      // part of the key.
       this.#adapters.delete(cacheKey);
+      this.#failedUntil.set(cacheKey, this.#now() + UNLOCK_RETRY_MS);
       this.#log(
-        `The saved OpenAI key ${rec.credential_ref} could not be opened (${e instanceof Error ? e.message : String(e)}).`,
+        `The saved OpenAI key ${rec.credential_ref} could not be opened on this computer (missing protected store access, a damaged file, or another Windows account).`,
       );
       return null;
     }
   }
 
-  /** Deletes a vault entry; false (and a log line naming the reference) when that failed. */
-  async #discard(ref: string): Promise<boolean> {
+  /**
+   * Deletes a vault entry: `failed` (logged by reference, retried later in this process) when
+   * the delete threw, `no_store` when this studio has no vault to delete from (review 2 L-2).
+   */
+  async #discard(ref: string): Promise<Discarded> {
     for (const k of this.#adapters.keys())
-      if (k.startsWith(`${ref}#`)) this.#adapters.delete(k);
+      if (k.startsWith(`${ref}#`)) {
+        this.#adapters.delete(k);
+        this.#failedUntil.delete(k);
+      }
+    if (!this.deps.vault) return 'no_store';
     try {
-      await this.deps.vault?.delete(ref);
+      await this.deps.vault.delete(ref);
       this.#leftovers.delete(ref);
-      return true;
-    } catch (e) {
+      return 'deleted';
+    } catch {
       this.#leftovers.add(ref);
       this.#log(
-        `The unused OpenAI key file ${ref} could not be deleted (${e instanceof Error ? e.message : String(e)}); it is retried at the next save or remove.`,
+        `The unused OpenAI key file ${ref} could not be deleted; it is retried at the next save or remove before the studio restarts.`,
       );
-      return false;
+      return 'failed';
     }
   }
   async #retryLeftovers() {

@@ -183,7 +183,7 @@ export function ApiKeyCheck({
       setKeys(next);
       setKeyDone(
         next.unused_file_left
-          ? 'Removed. Calls from this workspace no longer use that key; its protected file is still on this computer (see the note above).'
+          ? 'Removed. Calls from this workspace no longer use that key; its protected file was not deleted (see the note above).'
           : 'Removed. Calls from this workspace no longer use that key, and its protected file is deleted from this computer.',
       );
     } catch (e) {
@@ -408,19 +408,21 @@ export function ApiKeyCheck({
                   Replace key…
                 </button>
               )}
-              <button
-                className="secondary"
-                disabled={busy || !session}
-                onClick={() => {
-                  setDraftModel(
-                    keys.saved?.model_id ?? DEFAULT_OPENAI_KEY_MODEL,
-                  );
-                  setKeyDone('');
-                  setEditing('model');
-                }}
-              >
-                Change model…
-              </button>
+              {keys.can_save && (
+                <button
+                  className="secondary"
+                  disabled={busy || !session}
+                  onClick={() => {
+                    setDraftModel(
+                      keys.saved?.model_id ?? DEFAULT_OPENAI_KEY_MODEL,
+                    );
+                    setKeyDone('');
+                    setEditing('model');
+                  }}
+                >
+                  Change model…
+                </button>
+              )}
               {!removing ? (
                 <button
                   className="secondary"

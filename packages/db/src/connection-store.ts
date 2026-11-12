@@ -5190,6 +5190,13 @@ export class ConnectionStore extends WebDiscoveryStore {
         ctx.actorId,
         'Only the workspace owner, signed in as a person, can change its API key.',
       );
+      // Review 2 N-4: the same model is not a change (no new version, no audit row).
+      const same = await c.query(
+        `select model_id, last_four, version, saved_at, saved_by from workspace_api_keys
+          where workspace_id = $1 and provider = 'openai' and version = $2 and model_id = $3`,
+        [w, expectedVersion, modelId],
+      );
+      if (same.rows[0]) return toApiKey(same.rows[0] as Row);
       const { rows } = await c.query(
         `update workspace_api_keys set model_id = $3, version = version + 1,
            saved_by = $4, saved_at = clock_timestamp()

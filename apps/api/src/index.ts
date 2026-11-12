@@ -2325,8 +2325,8 @@ export function createApi(
               live || sourceConfig.adapter ? 'live_configured' : 'fixture',
             provider: live
               ? `${live.provider}/${live.model_id} (configured, unverified) + deterministic-fixture-v1`
-              : apiKeys
-                ? 'deterministic-fixture-v1 + OpenAI keys saved per workspace'
+              : apiKeys?.canSave
+                ? 'deterministic-fixture-v1; OpenAI keys can be saved per workspace'
                 : 'deterministic-fixture-v1',
             live_enabled: Boolean(live || sourceConfig.adapter),
             live: {
