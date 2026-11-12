@@ -75,17 +75,20 @@ export function currentLevel(
     (latest.state === 'running' ||
       (latest.outcome !== null && AUTOPILOT_RETRYABLE.includes(latest.outcome)))
   ) {
+    // An autopilot a selection level started that is still working or waiting after the level
+    // ended: the run is Manual now (review L-3, review 2 N-1).
+    if (latest.automation_id)
+      return {
+        level: 'manual',
+        note:
+          latest.state === 'running'
+            ? 'a choice Automate selection started is still working; stop it under Run it for me'
+            : 'a choice Automate selection started is waiting for you; see Run it for me',
+      };
     const note =
       latest.state === 'running'
         ? 'its autopilot is working now; stop it under Run it for me'
         : 'its autopilot stopped and waits for you; see Run it for me';
-    // An autopilot a selection level started is that level's, even after the level ended
-    // (review L-3).
-    if (latest.automation_id)
-      return {
-        level: 'selection',
-        note: `the level is off, but ${note.replace('its autopilot', 'the choice it started')}`,
-      };
     return { level: latest.config.start ? 'rest' : 'whole', note };
   }
   return { level: 'manual', note: 'you take every step' };
@@ -114,6 +117,7 @@ export function policyStep(
     extraActions: need.extraActions,
     max_total_nano_usd: fresh.max_total_nano_usd,
     used: view.used_actions,
+    used_nano_usd: view.used_nano_usd,
   });
   return next
     ? { kind: 'revise', input: next, view }
@@ -289,7 +293,13 @@ export function Automation({
     ...(level === 'rest' && !restDraft.success
       ? restDraft.error.issues.map((i) => i.message)
       : []),
-    ...(level !== 'whole' && view && view.state !== 'active'
+    // Used-up steps or a passed end time are what the widened approvals fix, so Apply goes
+    // ahead with them; any other pause (a rejected decision, an unknown outcome) is the
+    // owner's to look at first (review 2 L-1).
+    ...(level !== 'whole' &&
+    view &&
+    view.state === 'paused' &&
+    view.used_actions < view.policy.max_actions
       ? [
           `This run's routine approvals admit nothing now: ${view.state_reason ?? view.state}. Fix that under Monitor › Approvals first.`,
         ]
@@ -631,7 +641,11 @@ export function Automation({
                             {step.kind === 'new'
                               ? 'Routine approvals this run gets'
                               : step.kind === 'revise'
-                                ? 'This run’s routine approvals, widened to cover it'
+                                ? `This run’s routine approvals, widened to cover it${
+                                    step.view.state !== 'active'
+                                      ? ` (now they admit nothing: ${step.view.state_reason ?? step.view.state})`
+                                      : ''
+                                  }`
                                 : `This run’s routine approvals already cover it (${step.view.policy.max_actions - step.view.used_actions} of ${step.view.policy.max_actions} steps left)`}
                           </strong>
                         </p>

@@ -116,14 +116,6 @@ export class AutopilotStore extends WebDiscoveryStore {
             )
           ).rows[0] as Row | undefined;
           if (!run) throw fail('NOT_FOUND', 'Run is not registered.');
-          // P33 (review L-1): the approvals change and the start succeed or fail together.
-          await this.applyRoutinePolicyChange(
-            c,
-            ctx,
-            ws,
-            runId,
-            req.routine_policy,
-          );
           if (
             run.state !== 'active' ||
             run.experiment_condition === 'human_only' ||
@@ -145,6 +137,15 @@ export class AutopilotStore extends WebDiscoveryStore {
               'SCOPE_EXCEEDED',
               'Autopilots are not used for frozen study runs; their conditions stay as frozen.',
             );
+          // P33 (review L-1): the approvals change and the start succeed or fail together; the
+          // run is checked first, so a refused run never writes a policy (review 2 N-2).
+          await this.applyRoutinePolicyChange(
+            c,
+            ctx,
+            ws,
+            runId,
+            req.routine_policy,
+          );
           await this.checkAutopilotPolicy(c, ws, runId, req.config);
           if (req.config.start) {
             const p = (

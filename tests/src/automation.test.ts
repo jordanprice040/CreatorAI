@@ -178,6 +178,23 @@ test('an active policy that covers a level is kept; one that does not is widened
       extraActions: 0,
     }),
   );
+  // Review 2 L-1: money the policy has already admitted counts against its limit.
+  const need = {
+    stages: ['model_work'] as const,
+    data_classes: ['synthetic'] as const,
+    ends_at: inHours(4),
+    extraActions: 1,
+    max_total_nano_usd: '500000000',
+  };
+  assert.equal(
+    policyCovering(current, { ...need, used_nano_usd: '400000000' }),
+    null,
+  );
+  const spent = policyCovering(current, {
+    ...need,
+    used_nano_usd: '800000000',
+  })!;
+  assert.equal(spent.max_total_nano_usd, '1300000000');
 });
 
 // ---- Store and runner (PostgreSQL, fixture model) ------------------------------------------

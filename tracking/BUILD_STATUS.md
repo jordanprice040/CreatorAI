@@ -8,6 +8,8 @@ Checked in the cloud container on PostgreSQL 16: `pnpm typecheck`, `pnpm format:
 
 Review 1 fixes (November 12): applying a level changes the run's approvals in the same transaction as the level or autopilot, so a refused start changes nothing; an archived problem no longer stalls the level; a policy with too few steps left is offered widened; the status line and audit log name who stopped or started what. Tests now also cover a level that chooses and saves a proposal, and the stop when ethics was cleared only on the model's word (11 automation tests). Rechecked: `pnpm typecheck`, `pnpm format:check`, `pnpm test:db` (1138 tests: 1104 pass, 29 skipped, the 5 known PowerShell-wrapper failures), `test:dev-safety` (19 pass), and the browser walk again.
 
+Review 2 fixes (November 12): money the run's approvals have already admitted counts when the panel checks whether they cover a level, and used-up or expired approvals are offered widened instead of blocking; the panel shows Manual (with a note) while a choice Automate selection started is still working after the level was stopped; a start's approvals change now comes after the run's own checks; ADR-0099 notes the stop's lock order.
+
 Limits: up to a minute between an assessment finishing and its choice; one autopilot per run at a time; Whole process still stops a software option at the spec (spec, build, review and QA are a later P13 slice); no live run was made (none needed; a live run on the dev studio needs Jordan's typed OK and the dev studio upgraded to this schema).
 
 ## November 12 update — the owner's gate checklist (ADR-0097, migration 60)

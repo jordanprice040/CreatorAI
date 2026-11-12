@@ -232,6 +232,8 @@ export function policyCovering(
      * not cover the level (review L-2): it would stop for approval after a few steps.
      */
     used?: number;
+    /** Money the policy's admitted steps have stated so far (review 2 L-1). */
+    used_nano_usd?: string;
   },
 ): RoutinePolicyInput | null {
   const stages = [...new Set([...current.stages, ...need.stages])].sort();
@@ -242,12 +244,17 @@ export function policyCovering(
     Date.parse(current.expires_at),
     Date.parse(need.ends_at),
   );
-  const money =
+  // Money the level needs on top of what the policy has already admitted (review 2 L-1).
+  const required =
     need.max_total_nano_usd == null
+      ? null
+      : BigInt(need.max_total_nano_usd) + BigInt(need.used_nano_usd ?? '0');
+  const money =
+    required === null
       ? current.max_total_nano_usd
       : current.max_total_nano_usd === null ||
-          BigInt(need.max_total_nano_usd) > BigInt(current.max_total_nano_usd)
-        ? need.max_total_nano_usd
+          required > BigInt(current.max_total_nano_usd)
+        ? String(required)
         : current.max_total_nano_usd;
   const covered =
     stages.length === current.stages.length &&
