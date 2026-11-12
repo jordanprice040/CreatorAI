@@ -100,12 +100,18 @@ test('migrations apply once, refuse edited history, and gate an unmigrated schem
     [migrationChecksumOf(1)],
   );
   // Review of PR #181, L-1: a gap below the highest applied number is named, not hidden
-  // behind "at 61; expects 61".
+  // behind "at N; expects N".
   await db.pool.query('delete from schema_migrations where version = 55');
   await assert.rejects(assertSchemaCurrent(db.pool), (e: unknown) => {
     assert.ok(e instanceof ContractError);
     assert.equal(e.code, 'STORAGE_UNAVAILABLE');
-    assert.match(e.message, /missing migration 55 \(code expects 61\)/);
+    // Re-review R2-N4: the newest version is read, so this needs no edit per migration.
+    assert.ok(
+      e.message.includes(
+        `missing migration 55 (code expects ${migrations.at(-1)!.version})`,
+      ),
+      e.message,
+    );
     return true;
   });
   await db.pool.query('drop table schema_migrations');

@@ -220,17 +220,22 @@ export function ActionCard({
       fillableKey(card.kind, q.key),
   );
   const lastFill = modelHelp?.fills.at(-1) ?? null;
-  const used = lastFill !== null && input._fill === lastFill.id;
-  /** Proposals for questions this card still asks, by key. */
+  const applied = lastFill !== null && input._fill === lastFill.id;
+  /**
+   * Proposals for questions this card still asks, by key, that the card's answer does not
+   * already hold. Re-review R2-N2: after "Use the N for unanswered questions" the ones that
+   * would replace a typed answer stay on offer, without another Fill in.
+   */
   const proposed: Record<string, string> =
-    lastFill?.state === 'completed' && !used
+    lastFill?.state === 'completed'
       ? Object.fromEntries(
-          Object.entries(lastFill.values).filter(([k]) =>
-            fillable.some((q) => q.key === k),
+          Object.entries(lastFill.values).filter(
+            ([k, v]) => fillable.some((q) => q.key === k) && input[k] !== v,
           ),
         )
       : {};
   const proposedKeys = Object.keys(proposed);
+  const used = applied && proposedKeys.length === 0;
   // Review L-4: a proposal never replaces a typed answer unless the person asks for that.
   const typed = (k: string) => {
     const v = input[k];
@@ -300,9 +305,10 @@ export function ActionCard({
       if (done.state !== 'completed') setError(done.reason ?? 'No proposals.');
       await reload();
     } catch (e) {
-      // Review N-1: a refusal the server gave is final; only a lost answer is worth a retry.
+      // Review N-1: a refusal the server gave is final; a lost answer or a server error
+      // (5xx, re-review R2-N3) is worth a retry.
       setError(
-        e instanceof ApiError
+        e instanceof ApiError && e.status < 500
           ? errorText(e)
           : `${errorText(e)} Press Fill in again to retry; it will not be sent twice.`,
       );
@@ -315,7 +321,7 @@ export function ActionCard({
   async function useProposals(replace: boolean) {
     const keys = replace ? proposedKeys : freshKeys;
     if (!lastFill || keys.length === 0) return;
-    setBusy('use');
+    setBusy(replace ? 'use-all' : 'use');
     setError('');
     try {
       const patch: Input = {
@@ -593,7 +599,13 @@ export function ActionCard({
                   type="button"
                   className="secondary"
                   aria-expanded={exploring}
-                  disabled={busy !== ''}
+                  // Re-review R2-N1: a pick needs the card's records to keep its claims.
+                  disabled={busy !== '' || data === null}
+                  title={
+                    data === null
+                      ? 'Waiting for this card’s records'
+                      : undefined
+                  }
                   onClick={() => setExploring((x) => !x)}
                 >
                   {exploring ? 'Hide Explore for me' : 'Explore for me'}
@@ -615,12 +627,13 @@ export function ActionCard({
               model={modelHelp?.model ?? lastFill.model_id}
               proposed={proposed}
               replacing={replacing}
+              partly={applied}
               labels={Object.fromEntries(fillable.map((q) => [q.key, q.label]))}
-              busy={busy !== ''}
+              busy={busy}
               use={(replace) => void useProposals(replace)}
             />
           )}
-          {used && lastFill && (
+          {applied && lastFill && (
             <p className="small">
               Answers below include {lastFill.model_id}&apos;s proposals; check
               each before you send.
@@ -990,6 +1003,7 @@ function FillResult({
   model,
   proposed,
   replacing,
+  partly,
   labels,
   busy,
   use,
@@ -999,8 +1013,11 @@ function FillResult({
   proposed: Record<string, string>;
   /** Proposals for questions that already have the person's answer. */
   replacing: string[];
+  /** Some of these proposals are already the card's answers. */
+  partly: boolean;
   labels: Record<string, string>;
-  busy: boolean;
+  /** The card's busy state: 'use' or 'use-all' while this saves. */
+  busy: string;
   use: (replace: boolean) => void;
 }) {
   const keys = Object.keys(proposed);
@@ -1010,7 +1027,8 @@ function FillResult({
       {keys.length > 0 ? (
         <>
           <p className="chat-meta">
-            Proposed by {model} · {when(fill.created_at)} · not used yet
+            Proposed by {model} · {when(fill.created_at)} ·{' '}
+            {partly ? 'partly used' : 'not used yet'}
           </p>
           <dl className="chat-card-answers">
             {keys.map((k) => (
@@ -1031,10 +1049,10 @@ function FillResult({
               <button
                 type="button"
                 className="secondary strong"
-                disabled={busy}
+                disabled={busy !== ''}
                 onClick={() => use(false)}
               >
-                {busy
+                {busy === 'use'
                   ? 'Saving…'
                   : replacing.length
                     ? `Use the ${fresh} for unanswered questions`
@@ -1045,12 +1063,14 @@ function FillResult({
               <button
                 type="button"
                 className="secondary"
-                disabled={busy}
+                disabled={busy !== ''}
                 onClick={() => use(true)}
               >
-                {fresh > 0
-                  ? 'Use all, replacing my answers'
-                  : 'Replace my answers with these'}
+                {busy === 'use-all'
+                  ? 'Saving…'
+                  : fresh > 0
+                    ? 'Use all, replacing my answers'
+                    : 'Replace my answers with these'}
               </button>
             )}
           </p>
