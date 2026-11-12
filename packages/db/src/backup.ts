@@ -88,6 +88,10 @@ const COUNTED = [
   'workspace_files',
   'workspace_file_versions',
   'workspace_file_links',
+  // ADR-0090: the team profile, the owner's gate confirmations and auto-clear rule.
+  'team_profile_versions',
+  'gate_confirmations',
+  'gate_rule_versions',
 ] as const;
 
 /** Splits the password out so it reaches pg tools by environment, never by argv or logs. */

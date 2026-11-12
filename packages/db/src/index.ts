@@ -8,6 +8,7 @@ export * from './workflow-store.js';
 export * from './research-store.js';
 export * from './discovery-store.js';
 export * from './selection-store.js';
+export { studioMachine, type StudioHost } from './team-store.js';
 export * from './catalog-store.js';
 export * from './proposal-store.js';
 export * from './runbook-store.js';
