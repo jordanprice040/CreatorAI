@@ -3841,9 +3841,13 @@ export class ConnectionStore extends AutomationStore {
       let task: Row | undefined;
       if (workflow) {
         const peek = await c.query(
-          'select workflow_id from workflow_tasks where id=$1',
-          [uuid(workflow.task_id)],
+          'select t.workflow_id, w.run_id from workflow_tasks t join workflows w on w.id = t.workflow_id where t.id=$1 and w.workspace_id=$2',
+          [uuid(workflow.task_id), ws],
         );
+        // ADR-0098 (re-review 2 M-1): the run is locked before the workflow, as every workflow
+        // writer does (lockWorkflowRun); the later lockRun re-locks a row already held.
+        if (peek.rows[0])
+          await this.lockRun(c, ws, String(peek.rows[0].run_id));
         wf = (
           await c.query(
             'select * from workflows where id=$1 and workspace_id=$2 for update',

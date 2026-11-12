@@ -54,6 +54,11 @@ function job(r: Row): DesktopJob {
   });
 }
 
+// Overdue as of this statement's start, so the lock and the update agree on the set.
+const OVERDUE_JOB = `((state = 'queued' and expires_at <= statement_timestamp()) or
+  (state in ('leased', 'running') and (lease_expires_at <= statement_timestamp()
+    or expires_at <= statement_timestamp())))`;
+
 export class DesktopJobStore extends DesktopStore {
   protected override async desktopControlChanged(
     c: PoolClient,
@@ -61,6 +66,12 @@ export class DesktopJobStore extends DesktopStore {
     state: string,
   ) {
     if (state === 'active') return;
+    // ADR-0098 (re-review 2 M-2): the device's jobs are locked in id order, the order expireJobs
+    // locks overdue jobs in, before one update would lock them in scan order.
+    await c.query(
+      `select 1 from desktop_jobs where device_id=$1 and state in ('queued','leased','running') order by id for update`,
+      [deviceId],
+    );
     await c.query(
       `update desktop_jobs set cancel_requested=true,
       state=case when state in ('queued','leased') then 'cancelled' else state end
@@ -68,12 +79,26 @@ export class DesktopJobStore extends DesktopStore {
       [deviceId],
     );
   }
-  private async expireJobs(c: PoolClient) {
+  /**
+   * Expires overdue jobs. ADR-0098 (review 1 M-1): the jobs it changes, and with `queuedOf`
+   * that device's queued jobs, are locked in one statement in id order before anything is
+   * written or appended, so two callers never lock each other's jobs in opposite orders, and
+   * a cancel (which locks its job and then appends) never waits behind the audit lock here.
+   */
+  private async expireJobs(c: PoolClient, queuedOf: string | null = null) {
     // An expired dispatched job is never requeued; its actual outcome needs reconciliation.
-    const expired =
-      await c.query(`update desktop_jobs set state=case when state='running' then 'reconciling' else 'expired' end,
-      cancel_requested=true where (state='queued' and expires_at<=clock_timestamp()) or
-      (state in ('leased','running') and (lease_expires_at<=clock_timestamp() or expires_at<=clock_timestamp())) returning *`);
+    const locked = await c.query<{ id: string; overdue: boolean }>(
+      `select id, ${OVERDUE_JOB} as overdue from desktop_jobs
+        where ${OVERDUE_JOB} or (device_id = $1 and state = 'queued') order by id for update`,
+      [queuedOf],
+    );
+    const due = locked.rows.filter((r) => r.overdue).map((r) => r.id);
+    if (!due.length) return;
+    const expired = await c.query(
+      `update desktop_jobs set state=case when state='running' then 'reconciling' else 'expired' end,
+       cancel_requested=true where id = any($1::uuid[]) returning *`,
+      [due],
+    );
     if (expired.rows.length) {
       await c.query(
         `insert into actors(id,kind,display_name) values($1,'system','Workflow orchestrator') on conflict(id) do nothing`,
@@ -255,7 +280,9 @@ export class DesktopJobStore extends DesktopStore {
           'ACCESS_DENIED',
           'Presence capability does not authorize execution.',
         );
-      await this.expireJobs(c);
+      // ADR-0098: this device's queued jobs are locked with the overdue ones, before expiring
+      // appends to the audit log; a cancel locks its job and then appends.
+      await this.expireJobs(c, String(device.id));
       const r = await c.query(
         `select * from desktop_jobs where device_id=$1 and state='queued' order by created_at limit 1 for update`,
         [device.id],

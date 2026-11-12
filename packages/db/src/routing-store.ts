@@ -1161,6 +1161,10 @@ export class RoutingStore extends GitHubStore {
           'INVALID_CONTRACT',
           'Related operations exclude the routed call itself.',
         );
+      // ADR-0098 (re-review 3 L-2): the promotion is locked before the outcome is written and
+      // appended. Two outcomes of one promotion each key-share-lock it with their insert, so
+      // locking it for update only after appending deadlocked one against the other.
+      if (target.promotion) await this.lockPromotion(c, ws, target.promotion);
       const own = await this.operationCost(
         c,
         ws,

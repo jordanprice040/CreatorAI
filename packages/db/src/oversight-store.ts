@@ -502,6 +502,19 @@ export class OversightStore extends Store {
          where workspace_id = $1 and run_id = $2 and status = 'pending' returning id, version`,
         [ws, runId],
       );
+      // ADR-0098: lock order is run, decision, routine policy, grant, and every row lock is
+      // taken before the first audit append; a revoke waiting on the audit lock while holding
+      // the grant would otherwise deadlock with this cancel.
+      await c.query(
+        `select 1 from routine_policies where workspace_id = $1 and run_id = $2
+           and status = 'active' order by id for update`,
+        [ws, runId],
+      );
+      const grants = await c.query(
+        `select * from grants where workspace_id = $1 and run_id = $2 and status = 'active'
+          order by id for update`,
+        [ws, runId],
+      );
       for (const d of closed.rows)
         await this.append(c, ctx, {
           workspaceId: ws,
@@ -513,10 +526,6 @@ export class OversightStore extends Store {
           payload: { status: 'cancelled', reason: 'run_cancelled' },
           relatedIds: [runId],
         });
-      const grants = await c.query(
-        `select * from grants where workspace_id = $1 and run_id = $2 and status = 'active' for update`,
-        [ws, runId],
-      );
       for (const g of grants.rows)
         await this.writeGrant(c, ctx, toGrant(g as Row), 'grant.revoked', {
           status: 'revoked',
@@ -634,9 +643,10 @@ export class OversightStore extends Store {
     );
     if (!rows[0]) throw fail('VERSION_CONFLICT', 'Grant changed concurrently.');
     const grant = toGrant(rows[0] as Row);
-    await this.recordGrantVersion(c, ctx, grant, action);
     // ADR-0079: however a policy's grant is revoked (the policy, the grant list, a stopped
-    // run), the policy is recorded as revoked with it.
+    // run), the policy is recorded as revoked with it. ADR-0098: the policy row is written
+    // before the audit append, and callers lock it before the grant (lockGrantForWrite).
+    let policy: RoutinePolicy | null = null;
     if (action === 'grant.revoked') {
       const revoked = await c.query(
         `update routine_policies set status = 'revoked', version = version + 1,
@@ -648,14 +658,10 @@ export class OversightStore extends Store {
           String(change.revoke_reason ?? 'Revoked').slice(0, 500),
         ],
       );
-      if (revoked.rows[0])
-        await this.recordRoutineVersion(
-          c,
-          ctx,
-          toRoutinePolicy(revoked.rows[0] as Row),
-          'revoked',
-        );
+      if (revoked.rows[0]) policy = toRoutinePolicy(revoked.rows[0] as Row);
     }
+    await this.recordGrantVersion(c, ctx, grant, action);
+    if (policy) await this.recordRoutineVersion(c, ctx, policy, 'revoked');
     return grant;
   }
   private async lockGrant(
@@ -676,6 +682,29 @@ export class OversightStore extends Store {
         `Expected grant version ${expected}, but it is at ${grant.version}.`,
       );
     return grant;
+  }
+  /**
+   * ADR-0098: locks a grant for a direct change in the oversight lock order: its run (which
+   * cancels and admissions hold first), then its routine policy, then the grant itself.
+   */
+  private async lockGrantForWrite(
+    c: PoolClient,
+    ws: string,
+    grantId: string,
+    expected: number,
+  ) {
+    const { rows } = await c.query(
+      'select run_id from grants where workspace_id = $1 and id = $2',
+      [ws, grantId],
+    );
+    if (!rows[0]) throw fail('NOT_FOUND', 'Grant not found.');
+    if (rows[0].run_id) await this.lockRun(c, ws, String(rows[0].run_id));
+    const policy = await c.query(
+      'select 1 from routine_policies where grant_id = $1 for update',
+      [grantId],
+    );
+    const grant = await this.lockGrant(c, ws, grantId, expected);
+    return { grant, routine: !!policy.rowCount };
   }
   private checkExpiry(expiresAt: string) {
     const ms = Date.parse(expiresAt) - Date.now();
@@ -727,19 +756,18 @@ export class OversightStore extends Store {
     this.checkExpiry(req.expires_at);
     return this.tx(async (c) => {
       await this.requireOwner(c, ws, ctx.actorId);
-      const g = await this.lockGrant(c, ws, grantId, req.expected_version);
+      const { grant: g, routine } = await this.lockGrantForWrite(
+        c,
+        ws,
+        grantId,
+        req.expected_version,
+      );
       if (g.scope !== 'standing' || g.status !== 'active')
         throw fail(
           'INVALID_TRANSITION',
           'Only active standing grants can be revised.',
         );
-      if (
-        (
-          await c.query('select 1 from routine_policies where grant_id = $1', [
-            g.id,
-          ])
-        ).rowCount
-      )
+      if (routine)
         throw fail(
           'INVALID_TRANSITION',
           'This grant belongs to a routine approval policy. Change the policy instead, so its summary is confirmed again.',
@@ -768,7 +796,12 @@ export class OversightStore extends Store {
     const req = parse(RevokeGrantRequestSchema, raw);
     return this.tx(async (c) => {
       await this.requireOwner(c, ws, ctx.actorId);
-      const g = await this.lockGrant(c, ws, grantId, req.expected_version);
+      const { grant: g } = await this.lockGrantForWrite(
+        c,
+        ws,
+        grantId,
+        req.expected_version,
+      );
       if (g.status !== 'active')
         throw fail('INVALID_TRANSITION', `Grant is already ${g.status}.`);
       return this.writeGrant(c, ctx, g, 'grant.revoked', {
@@ -1627,20 +1660,21 @@ export class OversightStore extends Store {
     });
     const result = await this.tx(async (c) => {
       const role: Role = await this.role(c, ws, ctx.actorId, true);
+      // ADR-0098: the run is locked before the decision, as a cancel does. An approval's
+      // grant references the run, so holding the decision and then waiting on the run
+      // deadlocked with a cancel that held the run and waited on the decision.
+      const owning = await c.query(
+        'select run_id from decision_requests where workspace_id = $1 and id = $2',
+        [ws, decisionId],
+      );
+      if (!owning.rows[0]) throw fail('NOT_FOUND', 'Decision not found.');
+      const run = await this.lockRun(c, ws, String(owning.rows[0].run_id));
       const locked = await c.query(
         'select * from decision_requests where workspace_id = $1 and id = $2 for update',
         [ws, decisionId],
       );
       const row = locked.rows[0] as Row | undefined;
       if (!row) throw fail('NOT_FOUND', 'Decision not found.');
-      const run = toRun(
-        (
-          await c.query(
-            'select * from run_controls where workspace_id = $1 and run_id = $2',
-            [ws, row.run_id],
-          )
-        ).rows[0] as Row,
-      );
       if (row.status === 'answered') {
         if ((row.response as Row).answer_hash === answerHash)
           return { decision: await this.toDecision(c, row, run) };
@@ -1861,6 +1895,23 @@ export class OversightStore extends Store {
     });
   }
 
+  /**
+   * ADR-0098: the grants an admission in this run may use, locked. A caller that will append to
+   * the audit log before it admits (several claims in one transaction, say) calls this first,
+   * after the run lock, so no admission waits on a grant while holding the audit lock.
+   */
+  protected async lockAdmissionGrants(
+    c: PoolClient,
+    ws: string,
+    runId: string,
+  ) {
+    const { rows } = await c.query(
+      `select * from grants where workspace_id = $1 and status = 'active'
+         and (run_id is null or run_id = $2) order by scope, created_at, id for update`,
+      [ws, runId],
+    );
+    return rows.map((r: Row) => toGrant(r));
+  }
   protected async admitIn(
     c: PoolClient,
     ctx: CommandContext,
@@ -1876,18 +1927,16 @@ export class OversightStore extends Store {
   ): Promise<Admission> {
     {
       await this.role(c, ws, ctx.actorId, true);
-      await this.expireDue(c, ctx, ws);
+      // ADR-0098: the run and the grants are locked before expiring decisions, which locks
+      // decision rows and appends. A cancel holds the run and then waits on its decisions, and
+      // a revoke holds its grant and then waits for the audit lock.
       const run = await this.lockRun(c, ws, runId);
-      const { binding, stale } = await this.bind(c, ws, runId, req);
+      const allGrants = await this.lockAdmissionGrants(c, ws, runId);
+      // Re-review 3 N-1: the portfolio job fence locks its job row before expiry appends too.
       await portfolioEffectFence(c, ws, runId, ctx.idempotencyKey);
+      await this.expireDue(c, ctx, ws);
+      const { binding, stale } = await this.bind(c, ws, runId, req);
       const hash = bindingHash(binding);
-      const allGrants = (
-        await c.query(
-          `select * from grants where workspace_id = $1 and status = 'active'
-             and (run_id is null or run_id = $2) order by scope, created_at for update`,
-          [ws, runId],
-        )
-      ).rows.map((r: Row) => toGrant(r));
       // ADR-0079: a policy's grant is never matched as an ordinary grant; only the policy
       // path below may use it, with the policy's limits and stop conditions.
       const routine = await this.routineFor(

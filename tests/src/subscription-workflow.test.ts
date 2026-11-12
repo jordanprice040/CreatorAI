@@ -1,7 +1,7 @@
 import test from 'node:test';
 import { once } from 'node:events';
 import { createApi } from '@creator/api';
-import { LOGIN_CODE, login } from './pg-harness.js';
+import { LOGIN_CODE, login, hold, lockWaiters } from './pg-harness.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -11,6 +11,7 @@ import {
   DISCOVERY_TASK_CLASSES,
   StartDiscoveryRequestSchema,
   WorkflowDetailSchema,
+  workflowTaskClass,
 } from '@creator/contracts';
 import {
   canonicalHash,
@@ -690,3 +691,62 @@ for (const historicalVersion of [1, 2, 3])
     );
     assert.equal(s.calls(), 1);
   });
+
+test('ADR-0098 re-review 2 M-1: a workflow plan request and an owner pause do not deadlock', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  await s.qualify();
+  const started = await s.store.startDiscovery(owner, s.ws.id, s.runId, s.req);
+  const orch = { actorId: ORCHESTRATOR_ACTOR_ID };
+  const [lease] = await s.store.claimTasks(orch, 'w-review', 1, 60_000);
+  assert.ok(lease);
+  // Park the plan request after it has locked the workflow, on the task row.
+  const release = await hold(
+    s.db.pool,
+    'select 1 from workflow_tasks where id = $1 for update',
+    [lease.task.id],
+  );
+  const plan = s.store.admitPlanRequest(
+    orch,
+    s.ws.id,
+    {
+      connection_id: s.resource.connection_id,
+      logical_operation_id: lease.task.logical_operation_id,
+      path: 'responses',
+      purpose: 'task',
+      model_id: s.resource.model_id,
+      task_class: workflowTaskClass(lease.task.kind),
+      data_class: lease.dataClass,
+      run_id: lease.runId,
+      build_id: null,
+      grant_id: null,
+      qualification_id: null,
+      input_chars: 10,
+    },
+    undefined,
+    {
+      task_id: lease.task.id,
+      lease_token: lease.token,
+      input_hash: 'x'.repeat(64),
+    },
+  );
+  await lockWaiters(s.db.pool, 1);
+  const wf = await s.store.getWorkflow(owner, s.ws.id, started.workflow.id);
+  const pause = s.store.controlWorkflow(
+    owner,
+    s.ws.id,
+    started.workflow.id,
+    'pause',
+    {
+      expected_version: wf.workflow.version,
+      reason: 'review',
+    },
+  );
+  await lockWaiters(s.db.pool, 2);
+  await release();
+  const out = await Promise.allSettled([plan, pause]);
+  const errs = out.flatMap((o) =>
+    o.status === 'rejected' ? [String(o.reason)] : [],
+  );
+  assert.ok(!errs.some((e) => /deadlock/.test(e)), errs.join('; '));
+});

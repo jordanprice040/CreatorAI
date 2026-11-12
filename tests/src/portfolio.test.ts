@@ -21,7 +21,7 @@ import {
 } from '@creator/executor';
 import { PortfolioService } from '../../apps/api/dist/portfolio.js';
 import { resolve } from 'node:path';
-import { freshDatabase } from './pg-harness.js';
+import { freshDatabase, holdAudit, lockWaiters } from './pg-harness.js';
 import { portfolioFixture } from './portfolio-harness.js';
 import { marketingRelease } from './marketing-harness.js';
 
@@ -631,4 +631,66 @@ test('scheduler failures are durable, visible and bounded; the owner resumes a s
   assert.equal(row.consecutive_failures, 0);
   assert.equal(row.last_error_code, null);
   assert.equal((await s.store.schedulerSummary()).stopped_scopes, 0);
+});
+
+test('ADR-0098 re-review 3 L-4: claiming tasks across two workflows and revoking bound knowledge never deadlock', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const body: KnowledgeProposal = {
+    key: 'check-evidence',
+    kind: 'skill',
+    title: 'Bounded evidence check',
+    guidance: ['Ask for contrary evidence before recommending a build.'],
+    permitted_lanes: ['improvement'],
+    data_class: 'synthetic',
+    permitted_use: 'task_review_guidance',
+    provenance: [
+      {
+        entity_id: s.problem.id,
+        version: s.problem.version,
+        content_hash: s.problem.content_hash,
+        locator: 'body.statement',
+      },
+    ],
+    limitations: 'Structural fixture evidence, no empirical quality claim.',
+  };
+  const k = await s.store.proposeKnowledge(s.ctx, s.ws, body);
+  const reg = await s.store.verifyKnowledge(s.ctx, s.ws, k.id);
+  await s.store.reviewKnowledge(s.ctx, s.ws, k.id, {
+    body_hash: k.body_hash,
+    regression_id: reg.id,
+    reason: 'Review.',
+  });
+  await s.store.activateKnowledge(s.ctx, s.ws, {
+    candidate_id: k.id,
+    expected_active_id: null,
+    reason: 'Use it.',
+  });
+  // Workflow 1 has no knowledge; workflow 2 (created later, claimed second) is bound to it.
+  const r1 = await s.run('improvement');
+  await s.store.startWorkflow(s.ctx, s.ws, r1.id, r1.request);
+  const r2 = await s.run('improvement');
+  await s.store.startWorkflow(s.ctx, s.ws, r2.id, {
+    ...r2.request,
+    knowledge_keys: [body.key],
+  });
+  const release = await holdAudit(s.pool);
+  const claim = s.store.claimTasks(s.ctx, 'fixture-worker', 10, 10000);
+  await lockWaiters(s.pool, 1);
+  const revoke = s.store.revokeKnowledge(s.ctx, s.ws, k.id, {
+    reason: 'Revoke while a worker claims.',
+  });
+  await lockWaiters(s.pool, 2);
+  await release();
+  const [c, r] = await Promise.allSettled([claim, revoke]);
+  for (const x of [c, r])
+    assert.ok(
+      !(x.status === 'rejected' && /deadlock/i.test(String(x.reason))),
+      String(x.status === 'rejected' && x.reason),
+    );
+  assert.equal(c.status, 'fulfilled');
+  assert.ok(
+    c.status === 'fulfilled' && c.value.length >= 1,
+    'workflow 1 was leased',
+  );
 });

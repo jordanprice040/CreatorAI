@@ -1348,6 +1348,10 @@ export class Store {
     );
     return true;
   }
+  /** Whether `consume` takes row locks and appends for this topic (one per drain transaction). */
+  protected consumerLocks(_topic: string): boolean {
+    return false;
+  }
   /** Extra outbox consumers; each must claim the event in consumer_inbox itself. */
   protected async consume(_c: PoolClient, _event: Row): Promise<void> {}
 
@@ -1368,23 +1372,32 @@ export class Store {
   async drainOutbox(batch = 100): Promise<number> {
     let total = 0;
     for (;;) {
-      const n = await this.tx(async (c) => {
-        const { rows } = await c.query<{ event_id: string }>(
-          `select event_id from outbox where delivered_at is null
+      const { n, more } = await this.tx(async (c) => {
+        const { rows } = await c.query<{ event_id: string; topic: string }>(
+          `select event_id, topic from outbox where delivered_at is null
            order by sequence limit $1 for update skip locked`,
           [batch],
         );
+        let done = 0;
+        let locked = false;
         for (const r of rows) {
+          // A consumer that locks rows and appends goes first in its own transaction, so it never
+          // waits on a row lock while holding the audit lock from an earlier event in the batch.
+          if (this.consumerLocks(r.topic)) {
+            if (locked || done) break;
+            locked = true;
+          }
           await this.project(c, r.event_id);
           await c.query(
             'update outbox set attempts = attempts + 1, delivered_at = now() where event_id = $1',
             [r.event_id],
           );
+          done += 1;
         }
-        return rows.length;
+        return { n: done, more: rows.length === batch || done < rows.length };
       });
       total += n;
-      if (n < batch) return total;
+      if (!more || !n) return total;
     }
   }
 

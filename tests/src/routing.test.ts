@@ -16,7 +16,7 @@ import {
   runPromotionBenchmark,
 } from '@creator/broker';
 import { canonicalHash, registryRequestFromConfig } from '@creator/domain';
-import { freshDatabase } from './pg-harness.js';
+import { freshDatabase, holdAudit, lockWaiters } from './pg-harness.js';
 
 const root = new URL('../../', import.meta.url);
 const read = (p: string) =>
@@ -565,4 +565,104 @@ test('a real workspace refuses fixture models and unverified reference models', 
       read('config/routing/benchmark.fixture.json'),
     ),
   );
+});
+
+test('ADR-0098 re-review 3 L-2: two route outcomes of one promotion never deadlock', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const { store, broker } = s;
+  const { ws, run, envelope } = await s.workspace('fixture');
+  const reg = await store.registerModelRegistry(
+    owner,
+    ws,
+    registryRequestFromConfig(
+      read('config/routing/model-registry.fixture.json'),
+      read,
+    ),
+  );
+  await store.setRoutePolicy(owner, ws, {
+    scope: { kind: 'workspace' },
+    body: {
+      format: 'route-policy/1',
+      mode: 'economy',
+      fixed_model: null,
+      quality_floor: { numerator: 7, denominator: 8 },
+      allowed_models: null,
+      rationale: 'Cheapest route that keeps the held-out quality floor.',
+    },
+  });
+  const bench = await store.registerBenchmark(
+    owner,
+    ws,
+    read('config/routing/benchmark.fixture.json'),
+  );
+  const econ = await store.createPromotion(owner, ws, {
+    registry_id: reg.id,
+    task_class: 'summarization',
+    candidate: ECON,
+    benchmark_id: bench.id,
+    criteria,
+    rationale: 'Cheaper fixture model.',
+  });
+  const p = await runPromotionBenchmark(store, broker, owner, ws, econ.id, {
+    run_id: run,
+    envelope_id: envelope,
+    timeout_ms: 5000,
+  });
+  assert.equal(p.state, 'shadow');
+  const decide = async () => {
+    const d = await store.decideRoute(agent, ws, {
+      run_id: run,
+      task_id: null,
+      project_id: null,
+      logical_operation_id: randomUUID(),
+      task_class: 'summarization',
+      action_type: 'model.generate',
+      tools: [],
+      data_class: 'synthetic',
+      estimated_input_tokens: 400,
+      max_output_tokens: 200,
+      max_latency_ms: null,
+    });
+    assert.ok(d.shadow);
+    await broker.callRouted(agent, ws, d.id, 'shadow', {
+      envelope_id: envelope,
+      action_type: 'model.generate',
+      task_id: null,
+      logical_operation_id: d.shadow.logical_operation_id,
+      pricing_snapshot_id: d.shadow.pricing_snapshot_id,
+      data_class: 'synthetic',
+      input: [{ role: 'user', text: 'Summarize the synthetic note as JSON.' }],
+      max_output_tokens: 200,
+      output_format: 'json',
+      tool: null,
+      max_attempts: 1,
+      timeout_ms: 5000,
+      justification: 'Routed fixture call.',
+    });
+    return d;
+  };
+  const d1 = await decide();
+  const d2 = await decide();
+  const pool = (store as unknown as { pool: import('pg').Pool }).pool;
+  const release = await holdAudit(pool);
+  // Two shadow outcomes of one promotion: each insert key-share-locks the promotion row.
+  const outcome = (d: RouteDecision) =>
+    store.recordRouteOutcome(agent, ws, d.id, {
+      variant: 'shadow',
+      signal: 'accepted',
+      related_operation_ids: [],
+      note: null,
+    });
+  const one = outcome(d1);
+  await lockWaiters(pool, 1);
+  const two = outcome(d2);
+  await lockWaiters(pool, 2);
+  await release();
+  const [o, r] = await Promise.allSettled([one, two]);
+  for (const x of [o, r])
+    assert.ok(
+      !(x.status === 'rejected' && /deadlock/i.test(String(x.reason))),
+      String(x.status === 'rejected' && x.reason),
+    );
 });
