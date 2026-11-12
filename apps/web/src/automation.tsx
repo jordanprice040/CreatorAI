@@ -23,6 +23,8 @@ import {
   type Autopilot,
   type RoutinePolicyInput,
   type RoutinePolicyView,
+  routineStopFix,
+  routineIdleReasons,
   type RunAutomation,
   type RunControl,
   type SessionInfo,
@@ -98,20 +100,6 @@ export function currentLevel(
  * The routine approvals step a level needs on the run: a new policy (none active), a revision
  * of the active one (it does not cover the level yet), or nothing (it already covers it).
  */
-/** Every reason a run's approvals admit nothing now, not only the first (review 3 N-1). */
-export function idleReasons(v: RoutinePolicyView): string[] {
-  const out: string[] = [];
-  if (Date.parse(v.policy.expires_at) <= Date.now())
-    out.push('Its end time has passed.');
-  if (v.used_actions >= v.policy.max_actions)
-    out.push(
-      `Its limit of ${v.policy.max_actions} step${v.policy.max_actions === 1 ? '' : 's'} is used up.`,
-    );
-  if (v.stop_reason) out.push(v.stop_reason);
-  if (!out.length && v.state_reason) out.push(v.state_reason);
-  return out;
-}
-
 export function policyStep(
   view: RoutinePolicyView | undefined,
   fresh: RoutinePolicyInput,
@@ -313,7 +301,7 @@ export function Automation({
     ...(level !== 'whole' && view && view.state !== 'revoked'
       ? view.stop_reason
         ? [
-            `This run's routine approvals stopped: ${view.stop_reason} Look at it under Monitor › Approvals first.`,
+            `This run's routine approvals stopped: ${view.stop_reason} ${routineStopFix(view.stop_reason)}`,
           ]
         : view.state === 'paused' && view.used_actions < view.policy.max_actions
           ? [
@@ -660,7 +648,7 @@ export function Automation({
                               : step.kind === 'revise'
                                 ? `This run’s routine approvals, widened to cover it${
                                     step.view.state !== 'active'
-                                      ? ` (now they admit nothing: ${idleReasons(step.view).join(' ')})`
+                                      ? ` (now they admit nothing: ${routineIdleReasons(step.view).join(' ')})`
                                       : ''
                                   }`
                                 : `This run’s routine approvals already cover it (${step.view.policy.max_actions - step.view.used_actions} of ${step.view.policy.max_actions} steps left)`}

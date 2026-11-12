@@ -1,4 +1,8 @@
 import type { PoolClient } from 'pg';
+import {
+  ROUTINE_STOP_REJECTED,
+  ROUTINE_STOP_UNKNOWN,
+} from '@creator/contracts';
 
 /**
  * ADR-0079: why a routine approval policy's stop condition holds now (null: none does). Used
@@ -20,8 +24,7 @@ export async function routineStopReason(
          and (response->>'responded_at')::timestamptz > $3 limit 1`,
       [p.workspace_id, p.run_id, p.confirmed_at],
     );
-    if (rowCount)
-      return 'A person rejected a decision in this run after the policy was confirmed, so it stopped. Confirm the policy again to continue.';
+    if (rowCount) return ROUTINE_STOP_REJECTED;
   }
   if (p.stop_on.includes('unknown_outcome')) {
     const { rowCount } = await c.query(
@@ -29,8 +32,7 @@ export async function routineStopReason(
          and status = 'unknown' limit 1`,
       [p.workspace_id, p.run_id],
     );
-    if (rowCount)
-      return 'A paid call in this run has an unknown outcome that is not reconciled yet.';
+    if (rowCount) return ROUTINE_STOP_UNKNOWN;
   }
   return null;
 }

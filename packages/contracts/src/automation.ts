@@ -1,6 +1,7 @@
 import { z, id, hash, version, timestamp } from './primitives.js';
 import {
   DataClassSchema,
+  type RoutinePolicyView,
   type RoutinePolicy,
   type RoutinePolicyInput,
   type RoutineStage,
@@ -273,4 +274,41 @@ export function policyCovering(
       Math.max(current.max_actions, need.used ?? 0) + need.extraActions,
     max_total_nano_usd: money,
   };
+}
+
+/** ADR-0079 stop texts (`routineStopReason`), so the panel can say what clears each one. */
+export const ROUTINE_STOP_REJECTED =
+  'A person rejected a decision in this run after the policy was confirmed, so it stopped. Confirm the policy again to continue.';
+export const ROUTINE_STOP_UNKNOWN =
+  'A paid call in this run has an unknown outcome that is not reconciled yet.';
+
+/**
+ * Where the owner clears a stop (review 4 N-1): a rejection by confirming the approvals again
+ * under Monitor › Approvals; an unknown outcome only by reconciling the paid call, since
+ * confirming again does not clear it.
+ */
+export function routineStopFix(reason: string): string {
+  return reason === ROUTINE_STOP_UNKNOWN
+    ? 'Reconcile that paid call under Monitor › Budgets (Recent calls) first; confirming the approvals again does not clear it.'
+    : 'Look at it under Monitor › Approvals first, then confirm the approvals again there.';
+}
+
+/** Every reason a run's approvals admit nothing now, not only the first (review 3 N-1). */
+export function routineIdleReasons(
+  v: Pick<
+    RoutinePolicyView,
+    'policy' | 'used_actions' | 'state_reason' | 'stop_reason'
+  >,
+  now = Date.now(),
+): string[] {
+  const out: string[] = [];
+  if (Date.parse(v.policy.expires_at) <= now)
+    out.push('Its end time has passed.');
+  if (v.used_actions >= v.policy.max_actions)
+    out.push(
+      `Its limit of ${v.policy.max_actions} step${v.policy.max_actions === 1 ? '' : 's'} is used up.`,
+    );
+  if (v.stop_reason) out.push(v.stop_reason);
+  if (!out.length && v.state_reason) out.push(v.state_reason);
+  return out;
 }

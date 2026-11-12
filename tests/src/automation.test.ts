@@ -10,6 +10,10 @@ import {
   automationStagesNeeded,
   autopilotSummary,
   policyCovering,
+  routineIdleReasons,
+  routineStopFix,
+  ROUTINE_STOP_REJECTED,
+  ROUTINE_STOP_UNKNOWN,
   policyInputOf,
   restRoutinePolicy,
   routinePolicySummary,
@@ -19,6 +23,7 @@ import {
   type ErrorCode,
   type RankedCandidate,
   type RoutinePolicyInput,
+  type RoutinePolicyView,
   type RunAutomationConfig,
   type ScorecardBody,
 } from '@creator/contracts';
@@ -196,6 +201,28 @@ test('an active policy that covers a level is kept; one that does not is widened
     used_nano_usd: '800000000',
   })!;
   assert.equal(spent.max_total_nano_usd, '1300000000');
+});
+
+test('review 4: the panel lists every reason approvals admit nothing, and says what clears each stop', () => {
+  const policy = {
+    expires_at: new Date(Date.now() - 60_000).toISOString(),
+    max_actions: 2,
+  } as RoutinePolicyView['policy'];
+  const both = routineIdleReasons({
+    policy,
+    used_actions: 2,
+    state_reason:
+      'Its end time has passed. Change the policy to set a new one.',
+    stop_reason: ROUTINE_STOP_REJECTED,
+  });
+  assert.deepEqual(both, [
+    'Its end time has passed.',
+    'Its limit of 2 steps is used up.',
+    ROUTINE_STOP_REJECTED,
+  ]);
+  assert.match(routineStopFix(ROUTINE_STOP_REJECTED), /Monitor › Approvals/);
+  assert.match(routineStopFix(ROUTINE_STOP_UNKNOWN), /Monitor › Budgets/);
+  assert.doesNotMatch(routineStopFix(ROUTINE_STOP_UNKNOWN), /Approvals/);
 });
 
 // ---- Store and runner (PostgreSQL, fixture model) ------------------------------------------
@@ -941,6 +968,66 @@ test('review 3 L-1: a level never widens approvals that stopped for a rejected d
   );
   assert.equal((await view(stopped)).policy.version, v.policy.version);
   assert.equal((await h.store.listRunAutomations(owner, ws)).length, 0);
+  // Review 4 N-3: the same with used-up steps instead of a passed end time (review 3's case).
+  const used = await h.run({ ...h.policy(['model_work']), max_actions: 1 });
+  await h.db.pool.query(
+    `insert into decision_requests (id, workspace_id, run_id, version, kind, reason, status,
+       dedupe_key, request, expires_at, requested_by, response, answered_by, answered_at)
+     values ($1, $2, $3, 1, 'clarification', 'material_assumption', 'answered', $4, '{}',
+       now() + interval '1 hour', $5,
+       jsonb_build_object('choice', 'reject', 'responded_at', clock_timestamp()), $5, now())`,
+    [randomUUID(), ws, used, 'e'.repeat(64), owner.actorId],
+  );
+  const u = await view(used);
+  await h.db.pool.query(
+    `insert into action_admissions (id, workspace_id, run_id, binding, binding_hash, verdict,
+       outcome, reason_code, reasons, explanation, policy_version, grant_id, grant_version,
+       provisional_assumptions, actor_id)
+     select $1, workspace_id, run_id, '{"action_type":"model.generate"}', $2, 'allow',
+       'admitted', 'covered_by_routine_policy', '{}', 'Test step.', 'test', grant_id,
+       grant_version, '{}', $3
+       from routine_policies where id = $4`,
+    [randomUUID(), 'c'.repeat(64), owner.actorId, u.policy.id],
+  );
+  const uv = await view(used);
+  assert.equal(uv.used_actions, 1);
+  assert.equal(uv.state, 'paused');
+  assert.match(uv.state_reason ?? '', /used up/);
+  assert.match(uv.stop_reason ?? '', /rejected a decision/);
+  await rejects(
+    'INVALID_TRANSITION',
+    h.store.setRunAutomation(owner, ws, used, widen(uv)),
+    /Monitor › Approvals/,
+  );
+  // Review 4 N-1: an unknown paid outcome points to reconciling the call, not to Approvals.
+  const unknown = await h.run(h.policy(['model_work']));
+  await h.db.pool.query(
+    `update routine_policies set stop_on = '{unknown_outcome}' where run_id = $1`,
+    [unknown],
+  );
+  await h.db.pool.query(
+    `insert into budget_reservations (id, workspace_id, fixture, envelope_id, run_id,
+       logical_operation_id, attempt, request_hash, action_type, provider, model_id, status,
+       reason_code, explanation, reserved_nano, created_by, finished_at)
+     values ($1, $2, true, $3, $4, $5, 1, $6, 'model.generate', 'fixture', 'fixture-model-v1',
+       'unknown', 'timeout', 'No answer came back.', 10, $7, now())`,
+    [
+      randomUUID(),
+      ws,
+      (await h.store.listEnvelopes(owner, ws))[0]!.id,
+      unknown,
+      randomUUID(),
+      'b'.repeat(64),
+      owner.actorId,
+    ],
+  );
+  const k = await view(unknown);
+  assert.equal(k.stop_reason, ROUTINE_STOP_UNKNOWN);
+  await rejects(
+    'INVALID_TRANSITION',
+    h.store.setRunAutomation(owner, ws, unknown, widen(k)),
+    /Monitor › Budgets/,
+  );
   // Without a rejection, approvals that only ran out of time are widened with the level.
   const late = await h.run(h.policy(['model_work']));
   await expire(late);

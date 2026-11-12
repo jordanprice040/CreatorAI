@@ -8,6 +8,7 @@ import {
   AutopilotControlRequestSchema,
   AutopilotStepSchema,
   ROUTINE_STAGE_ACTIONS,
+  routineStopFix,
   StartAutopilotRequestSchema,
   autopilotStagesNeeded,
   autopilotSummary,
@@ -267,7 +268,7 @@ export class AutopilotStore extends WebDiscoveryStore {
     if (stopped)
       throw fail(
         'INVALID_TRANSITION',
-        `This run’s routine approvals stopped: ${stopped} Look at it under Monitor › Approvals first.`,
+        `This run’s routine approvals stopped: ${stopped} ${routineStopFix(stopped)}`,
       );
     await this.reviseRoutinePolicyIn(
       c,
