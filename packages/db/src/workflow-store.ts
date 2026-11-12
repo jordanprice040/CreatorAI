@@ -332,8 +332,9 @@ function discoveryTaskContext(
 
 /**
  * Durable workflows (migration 4): a coordinator per run, tasks with leases and fencing
- * tokens, and wake-ups from decisions through the outbox. Lock order is always workflow row,
- * then task rows, then (inside the broker) run control and envelope.
+ * tokens, and wake-ups from decisions through the outbox. Lock order (ADR-0098) is run control,
+ * then workflow row, then task rows; the broker, in its own transaction, locks run control and
+ * then the envelope.
  */
 export class WorkflowStore extends BudgetStore {
   // ---- Start and read ----------------------------------------------------------------
@@ -798,6 +799,57 @@ export class WorkflowStore extends BudgetStore {
 
   // ---- Coordinator --------------------------------------------------------------------
 
+  /**
+   * ADR-0098 (review 1 M-2): a transaction that changes a workflow and then coordinates it
+   * locks the workflow's run first, as an answer to its question does (run, then decision).
+   * A stop closes waiting questions after earlier appends, so without the run lock a stop and
+   * an answer could each hold what the other waits for.
+   */
+  private async lockWorkflowRun(c: PoolClient, workflowId: string) {
+    const { rows } = await c.query(
+      'select workspace_id, run_id from workflows where id = $1',
+      [workflowId],
+    );
+    if (rows[0])
+      await this.lockRun(
+        c,
+        String(rows[0].workspace_id),
+        String(rows[0].run_id),
+      );
+    const wf = await this.lockWorkflow(c, workflowId);
+    if (wf.role === 'r08_assessment' && !wf.finished_at)
+      await this.lockAssessmentRows(c, wf);
+    return wf;
+  }
+  /**
+   * ADR-0098 (re-review 3 L-3): finishing an assessment share-locks its options and locks the
+   * older assessment scorecards it replaces, after task changes have appended. A person's edit
+   * of an option or scorecard locks it and then appends, so these rows are locked up front, in
+   * id order, by every entry point that may finish the workflow.
+   */
+  private async lockAssessmentRows(c: PoolClient, wf: Workflow) {
+    // Review 4 N-2: finishing assessments of one problem take turns, so one never reads the
+    // scorecard set before another's new scorecards are committed and then locks those late.
+    await c.query(
+      `select pg_advisory_xact_lock(hashtextextended('assessment:' || (context->'packet'->'problem'->>'id'), 0))
+         from workflows where id = $1`,
+      [wf.id],
+    );
+    const options = `select (o->>'alternative_id')::uuid from workflows w,
+        jsonb_array_elements(w.context->'packet'->'options') o where w.id = $2`;
+    // Review 4 N-3: compared as uuids, so the options are found by primary key.
+    await c.query(
+      `select 1 from entities where workspace_id = $1 and id = any(array(${options}))
+        order by id for share`,
+      [wf.workspace_id, wf.id],
+    );
+    await c.query(
+      `select 1 from entities where workspace_id = $1 and kind = 'scorecard' and status = 'active'
+          and body ? 'assessment' and (body->'subject'->>'id')::uuid = any(array(${options}))
+        order by id for update`,
+      [wf.workspace_id, wf.id],
+    );
+  }
   private async lockWorkflow(c: PoolClient, workflowId: string) {
     const { rows } = await c.query(
       'select * from workflows where id = $1 for update',
@@ -871,6 +923,21 @@ export class WorkflowStore extends BudgetStore {
       constraints: string[];
       perspectives: string[];
     };
+    // ADR-0098: a stop closes the questions of waiting tasks. Their decision rows are locked
+    // before the first task change appends to the audit log, since an answer holds its decision
+    // and then waits for the audit lock.
+    const asked = plan.actions.some(
+      (a) => a.type !== 'delegate' && a.type !== 'release_synthesis',
+    )
+      ? tasks.flatMap((t) =>
+          t.state === 'waiting_human' && t.decision_id ? [t.decision_id] : [],
+        )
+      : [];
+    if (asked.length)
+      await c.query(
+        'select 1 from decision_requests where id = any($1::uuid[]) order by id for update',
+        [asked],
+      );
     for (const a of plan.actions) {
       if (a.type === 'delegate') {
         const prior = a.repair_of
@@ -1679,6 +1746,8 @@ export class WorkflowStore extends BudgetStore {
       if (!rows[0]) throw fail('NOT_FOUND', 'Workflow not found.');
       const ws = String(rows[0].workspace_id);
       await this.role(c, ws, ctx.actorId, true);
+      // ADR-0098: run, workflow and (for an assessment) the rows it may write, before appending.
+      await this.lockWorkflowRun(c, workflowId);
       return this.coordinateIn(c, ctx, ws, workflowId);
     });
   }
@@ -1708,7 +1777,7 @@ export class WorkflowStore extends BudgetStore {
     const req = parse(WorkflowControlRequestSchema, raw);
     await this.tx(async (c) => {
       await this.requireOwner(c, ws, ctx.actorId);
-      const wf = await this.lockWorkflow(c, workflowId);
+      const wf = await this.lockWorkflowRun(c, workflowId);
       if (wf.workspace_id !== ws)
         throw fail('NOT_FOUND', 'Workflow not found.');
       if (wf.version !== req.expected_version)
@@ -1781,19 +1850,25 @@ export class WorkflowStore extends BudgetStore {
             and exists (select 1 from workflow_tasks t where t.workflow_id = w.id and t.state = 'queued')
           order by w.created_at for update skip locked`,
       );
-      const leases: TaskLease[] = [];
+      // ADR-0098 (re-review 3 L-4): every workflow's portfolio gate runs before the first lease
+      // appends, because the gate share-locks bound knowledge that a verification locks before
+      // it appends.
+      const open: Workflow[] = [];
       for (const raw of wfs) {
-        if (leases.length >= max) break;
         const wf = toWorkflow(raw as Row);
         if (
-          await portfolioActionGate(
+          !(await portfolioActionGate(
             c,
             wf.workspace_id,
             wf.run_id,
             'model.generate',
-          )
+          ))
         )
-          continue;
+          open.push(wf);
+      }
+      const leases: TaskLease[] = [];
+      for (const wf of open) {
+        if (leases.length >= max) break;
         const { rows: busy } = await c.query<{ n: string }>(
           `select count(*) as n from workflow_tasks where workflow_id = $1 and state = 'leased'`,
           [wf.id],
@@ -1943,7 +2018,7 @@ export class WorkflowStore extends BudgetStore {
       if (!p) throw fail('NOT_FOUND', 'Task not found.');
       const ws = String(p.workspace_id);
       await this.role(c, ws, ctx.actorId, true);
-      await this.lockWorkflow(c, String(p.workflow_id));
+      await this.lockWorkflowRun(c, String(p.workflow_id));
       const held = await c.query(
         `select 1 from workflow_tasks where id = $1 and state = 'leased' and lease_token = $2 for update`,
         [taskId, token],
@@ -1988,7 +2063,7 @@ export class WorkflowStore extends BudgetStore {
     let n = 0;
     for (const r of rows)
       n += await this.tx(async (c) => {
-        const wf = await this.lockWorkflow(c, r.workflow_id);
+        const wf = await this.lockWorkflowRun(c, r.workflow_id);
         const { rows: t } = await c.query(
           `select * from workflow_tasks where id = $1 and state = 'leased' and lease_expires_at < now() for update`,
           [r.id],
@@ -2021,6 +2096,9 @@ export class WorkflowStore extends BudgetStore {
 
   // ---- Decisions and unknown outcomes --------------------------------------------------
 
+  protected override consumerLocks(topic: string): boolean {
+    return topic === 'decision.answered' || topic === 'decision.closed';
+  }
   /** Outbox consumer: an answered or closed decision wakes the task waiting on it. */
   protected override async consume(c: PoolClient, event: Row): Promise<void> {
     if (
@@ -2071,6 +2149,9 @@ export class WorkflowStore extends BudgetStore {
     const approved =
       decision.status === 'answered' &&
       (choice === 'approve_once' || choice === 'approve_standing');
+    // ADR-0098: every run and workflow is locked before the first wake appends.
+    for (const id of [...new Set(waiting.map((t) => t.workflow_id))].sort())
+      await this.lockWorkflowRun(c, id);
     for (const t of waiting) {
       const wf = await this.lockWorkflow(c, t.workflow_id);
       const { rows } = await c.query(
@@ -2119,7 +2200,7 @@ export class WorkflowStore extends BudgetStore {
           'select workflow_id from workflow_tasks where id = $1',
           [r.id],
         );
-        const wf = await this.lockWorkflow(c, String(tr[0]?.workflow_id));
+        const wf = await this.lockWorkflowRun(c, String(tr[0]?.workflow_id));
         const { rows: t } = await c.query(
           `select * from workflow_tasks where id = $1 and state = 'reconciling' for update`,
           [r.id],

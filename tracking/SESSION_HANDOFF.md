@@ -1,5 +1,23 @@
 # Session handoff — November 10, 2026
 
+## November 12 handoff — Oversight lock order fixes (ADR-0098)
+
+Branch `claude/project-thread-iqbxmf`, no migration. `packages/db/src/oversight-store.ts`:
+- `cancelRun` locks routine policies and grants before it appends.
+- `lockGrantForWrite` locks run, policy, then grant, and returns `{ grant, routine }`. `revokeGrant` and `reviseGrant` use it.
+- `writeGrant` updates the policy row before it appends.
+- `answerDecision` locks the run first.
+- `admitIn` locks the run and grants (`lockAdmissionGrants`, protected) before `expireDue`.
+
+Other stores:
+- `web-discovery-store.ts`: `admitWebClaimsByPolicy` locks the discovery, the grants and the claims' sources up front.
+- `workflow-store.ts`: `lockWorkflowRun` (run, then workflow) is used by `controlWorkflow`, task finish, `sweepLeases`, `wakeIn` and `reconcileTasks`. `coordinateIn` locks waiting tasks' decisions before a stop's changes.
+- `desktop-job-store.ts`: `expireJobs(c, queuedOf)` locks overdue jobs, plus that device's queued jobs, in id order, then updates exactly those. `desktopControlChanged` locks the device's jobs in id order before updating them.
+- `connection-store.ts`: `#admitPlanRequest` locks a workflow task's run before its workflow.
+- Re-review 3: `Store.consumerLocks(topic)` (WorkflowStore: decision answered/closed), and `drainOutbox` delivers such an event first in its own transaction. `#lockClaimSources` is used by both web claim paths. `recordRouteOutcome` locks the promotion first. `lockAssessmentRows` runs from `lockWorkflowRun` for an unfinished assessment, and `coordinateWorkflow` uses `lockWorkflowRun`. `claimTasks` gates every workflow before leasing. `admitIn` takes the portfolio fence before `expireDue`.
+
+Tests: the lock-waiter helpers (`lockWaiters`, `hold`, `holdAudit`) are in `tests/src/pg-harness.ts`. #180's `copy-connection.test.ts` now uses the shared `lockWaiters` too.
+
 ## November 12 handoff — the last older review items (#128 N-6, #129 N-4, #90 N-4 leftover)
 
 Built on branch `claude/project-thread-kxrgo2`, no migration or ADR. `PlanRelay.#handle` (`packages/executor/src/codex-host.ts`) listens for the Codex response's `close` from admission on and aborts the upstream call with `CodexDisconnected` unless the response finished; `stopReason` classifies an abort as `codex_disconnected`, `relay_closed` (new `RelayClosed`, from `close()`) or `timeout`. `Oversight` (`apps/web/src/oversight.tsx`) keeps `loadFailed`: an error from a failed load is cleared by the next load that works; an action's error is not. Review nits fixed: `if (res.destroyed) gone()` after the listener covers a disconnect during admission. #129 N-4 is covered by `tracking/evidence/member-roles/walk.mjs` (role set with SQL as a test seam, since development sign-in has one member) rather than component unit tests: the pages load their data in effects, and the repo has no DOM test harness. #75 L-1, #77 L-1 and the first point of #90 N-4 were already fixed on main. Next: independent review in a separate thread. Older items still open: PR #150 N-1..N-3.

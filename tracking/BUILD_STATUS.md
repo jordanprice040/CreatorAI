@@ -1,5 +1,23 @@
 # Build status — November 10, 2026
 
+## November 12 update — Oversight lock order fixes (ADR-0098)
+
+What now works (no migration): cancelling a run, revoking or revising a grant, revising a routine policy, answering a decision and admitting an action no longer deadlock against each other. Oversight writes lock run, decision, routine policy and grant, in that order, before their first audit append. The scan of other audit appenders found the same pattern in three places, and each now takes its locks first. Routine admission of web discovery claims locks its discovery, grants and sources up front. Cancelling or otherwise changing a workflow locks the workflow's run first, so it cannot deadlock with an answer to the workflow's question. A desktop job lease locks overdue jobs in id order, so two workers leasing at once cannot deadlock.
+
+Checked: `pnpm typecheck`, `pnpm format:check`, `pnpm test:db` on a throwaway PostgreSQL 16 (after review 4 and merging main with #189: 1146 tests, 1112 pass, 29 skipped, the 5 PowerShell-wrapper failures that always fail in the cloud). New tests: `tests/src/oversight-lock-order.test.ts` (5), `tests/src/desktop-lock-order.test.ts` (2), plus one each in `workflow.test.ts`, `subscription-workflow.test.ts` and `web-discovery.test.ts`. Each parks two transactions where the old order deadlocked and fails with "deadlock detected" on the old code.
+
+Review 1 (2 Medium, 2 Low, 4 nits) fixed. M-1: the first lease fix deadlocked two workers; expiry now locks in one id-ordered statement. M-2: a workflow cancel against an answer still deadlocked; workflow entry points now lock the run first. L-1: claim sources are locked up front. L-2: the three reorders now have tests. Nits: `lockGrantForWrite` reports the policy row; the lock-waiter helpers moved to `pg-harness.ts`; the ADR names what is defence in depth.
+
+Re-review 2 (2 Medium, 3 nits) fixed: a subscription plan request for a workflow task now locks the run before the workflow (M-1), and pausing or revoking a device locks its jobs in id order (M-2), each with a test that deadlocks without the fix; the ADR and the workflow store's lock-order comment are corrected.
+
+Re-review 3 (1 Medium, 4 Lows, 2 nits, all also on main) fixed. M-1: the outbox relay delivers a decision wake in its own transaction, so it no longer deadlocks with a pause or task commit on another run. L-1: the owner's Add of web claims locks the claims' sources up front. L-2: a route outcome locks its promotion first. L-3: an assessment's options and older scorecards are locked up front by every workflow entry point. L-4: task claiming runs all portfolio gates before leasing. N-1: admission takes the portfolio job fence before expiring decisions. Tests for M-1 and L-1 (and, after review 4, L-2 to L-4).
+
+Review 4 (1 Low, 3 nits) fixed: tests for L-2, L-3 and L-4 from the reviewer's patch (each deadlocks on the old code); the ADR names the real L-2 cycle (two outcomes of one promotion); finishing assessments of one problem take turns on an advisory lock; the options lock uses the primary key.
+
+Limitations: four of the `lockWorkflowRun` call sites (task finish, lease sweep, decision wake, reconcile) are reasoned from the tested cancel path.
+
+Next eligible: unchanged (P33 after P13 merges).
+
 ## November 12 update — the last older review items (#128 N-6, #129 N-4, #90 N-4 leftover)
 
 Checked on main 9c6e751: #75 L-1 (stale-prompt rows read "historical pass (older prompt)"), #77 L-1 (`manifestCalls` test) and the first point of #90 N-4 (a failed Revoke or Stop keeps its message) were already fixed. What now works: the Codex plan relay stops the upstream call as soon as Codex disconnects, also while it waits for upstream data (before the headers or during a silent stretch), and records it as `codex_disconnected`; a relay closed by the builder records `relay_closed` instead of `timeout` (#128 N-6 and its note; `packages/executor/src/codex-host.ts`). Monitor › Approvals clears an error from a failed background poll when the next poll works, while an action's error stays (#90 re-review N-4, second point; `apps/web/src/oversight.tsx`). Review fixes (4 nits): a Codex disconnect during admission is noticed too, so nothing is sent upstream (test); the `relay_closed` test has a timeout; `poll-error.mjs` also checks that a refused Revoke keeps its error through a good poll (6/6 PASS); these logs say which point of #90 N-4 each change fixed. #129 N-4: a browser walk checks the owner-action buttons for each member role (owner, editor, viewer) on Models, Budgets, Library, Evidence and Runs, and that the server refuses each hidden action for that role (`tracking/evidence/member-roles/`). No migration, no ADR.

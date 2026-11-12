@@ -9,7 +9,6 @@ import {
   type ErrorCode,
   type PlanConnection,
 } from '@creator/contracts';
-import type { Pool } from 'pg';
 import {
   AUDIT_CHAIN_LOCK,
   ConnectionStore,
@@ -21,7 +20,7 @@ import {
 import { MemoryVault, PlanConnectionService } from '@creator/broker';
 import { once } from 'node:events';
 import { createApi } from '@creator/api';
-import { freshDatabase, LOGIN_CODE, login } from './pg-harness.js';
+import { freshDatabase, LOGIN_CODE, lockWaiters, login } from './pg-harness.js';
 import { fakePlan } from './plan-fakes.js';
 
 // ADR-0095 (P30): copying a connection into another workspace the same person owns. The copy
@@ -50,24 +49,6 @@ const until = async (f: () => boolean, ms = 5000) => {
     await new Promise((r) => setTimeout(r, 20));
   }
 };
-
-/**
- * Review 4 N4-1: waits until `n` sessions in this test database are waiting on a lock, so a
- * concurrency test orders its steps by what PostgreSQL reports, not by sleeping.
- */
-async function lockWaiters(pool: Pool, n: number, ms = 10_000) {
-  const end = Date.now() + ms;
-  for (;;) {
-    const { rows } = await pool.query(
-      `select count(*)::int as n from pg_stat_activity
-        where datname = current_database() and wait_event_type = 'Lock'`,
-    );
-    if (rows[0].n >= n) return;
-    if (Date.now() > end)
-      throw new Error(`timed out waiting for ${n} lock waiters`);
-    await new Promise((r) => setTimeout(r, 20));
-  }
-}
 
 async function setup(t: test.TestContext) {
   const db = await freshDatabase(t);

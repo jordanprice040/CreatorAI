@@ -552,6 +552,8 @@ export class WebDiscoveryStore extends PortfolioStore {
       async (c) => {
         await this.requireOwner(c, ws, ctx.actorId);
         const rows = await this.#lockProposals(c, ws, id, req.proposal_ids);
+        // ADR-0098 (re-review 3 L-1): the claims' sources, before the first claim appends.
+        await this.#lockClaimSources(c, ws, rows);
         for (const r of rows)
           await this.#admitOne(
             c,
@@ -626,6 +628,12 @@ export class WebDiscoveryStore extends PortfolioStore {
       if (!d) throw fail('NOT_FOUND', 'Web discovery not found.');
       const runId = String(d.run_id);
       await this.lockRun(c, ws, runId);
+      // ADR-0098: every row this transaction writes is locked before the first claim appends to
+      // the audit log: the discovery (updated at the end) and the grants each admission reads.
+      await c.query('select 1 from web_discoveries where id = $1 for update', [
+        id,
+      ]);
+      await this.lockAdmissionGrants(c, ws, runId);
       const pending = (
         await c.query(
           `select * from web_discovery_claims where discovery_id = $1 and decision = 'pending'
@@ -650,6 +658,9 @@ export class WebDiscoveryStore extends PortfolioStore {
           [ws, runId],
         )
       ).rowCount;
+      // ADR-0098 (review 1 L-1): adding a claim's support share-locks the passage's source,
+      // which a revision or archive locks before it appends; lock them before the first claim.
+      await this.#lockClaimSources(c, ws, hasPolicy ? observations : []);
       for (const r of hasPolicy ? observations : []) {
         const action = {
           action_type: 'claim.admit' as const,
@@ -759,6 +770,25 @@ export class WebDiscoveryStore extends PortfolioStore {
     return rows;
   }
 
+  /**
+   * ADR-0098: share-locks, in id order, the sources behind these claims' verified quotes.
+   * Adding a claim's support locks its source after the claim has appended, and an archive or
+   * revision of the source locks it and then appends, so callers take these first.
+   */
+  async #lockClaimSources(c: PoolClient, ws: string, claims: Row[]) {
+    const passages = claims.flatMap((r) =>
+      (r.proposal as CheckedProposal).evidence.flatMap((e) =>
+        e.verified && e.passage_id ? [e.passage_id] : [],
+      ),
+    );
+    if (passages.length)
+      await c.query(
+        `select 1 from entities where workspace_id = $1 and id in
+           (select source_id from source_passages where workspace_id = $1 and id = any($2::uuid[]))
+         order by id for share`,
+        [ws, passages],
+      );
+  }
   /** One claim and its verified support rows, in the caller's transaction. */
   async #admitOne(
     c: PoolClient,
