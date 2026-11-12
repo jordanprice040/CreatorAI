@@ -654,6 +654,9 @@ export function Oversight({
   // Each load gets a number; only the latest may write, so a slow poll that started before a
   // toggle cannot replace the list the toggle asked for.
   const loadSeq = useRef(0);
+  // PR #90 re-review N-4: the error on screen came from a failed load, so the next load that
+  // works clears it. An action's error is kept until the next action or manual load.
+  const loadFailed = useRef(false);
   /** `background`: a poll or return refresh, which keeps an error from an action on screen. */
   async function load(background = false) {
     if (!workspace) return;
@@ -693,6 +696,10 @@ export function Oversight({
         `workspaces/${workspace}/entities?kind=run`,
       ).catch(() => []);
       if (stale()) return;
+      if (loadFailed.current) {
+        loadFailed.current = false;
+        setError('');
+      }
       setRunNames(new Map(named.map((r) => [r.id, r.title])));
       setDecisions(
         [...linked, ...list].sort(
@@ -707,7 +714,9 @@ export function Oversight({
         ),
       );
     } catch (e) {
-      if (!stale()) setError(message(e));
+      if (stale()) return;
+      loadFailed.current = true;
+      setError(message(e));
     }
   }
   useEffect(() => {
@@ -742,6 +751,7 @@ export function Oversight({
         },
       });
     } catch (e) {
+      loadFailed.current = false;
       setError(message(e));
     }
     await load(true);
@@ -758,6 +768,7 @@ export function Oversight({
         },
       );
     } catch (e) {
+      loadFailed.current = false;
       setError(message(e));
     }
     await load(true);
