@@ -47,6 +47,19 @@ import {
   CHAT_HISTORY_TURNS,
   CHAT_INSTRUCTIONS,
   CHAT_INSTRUCTIONS_VERSION,
+  CHAT_ACTION_LABEL,
+  CHAT_FILL_INSTRUCTIONS,
+  CHAT_FILL_INSTRUCTIONS_VERSION,
+  CHAT_FILL_OUTPUT_MAX,
+  ChatActionFillQuestionSchema,
+  ChatActionFillRequestSchema,
+  CHAT_FILL_TEXT_MAX,
+  fillType,
+  fillableKey,
+  readFillValues,
+  type ChatActionFill,
+  type ChatActionFillQuestion,
+  type ChatActionFillState,
   ChatAnswerRequestSchema,
   ChatCreateRequestSchema,
   ChatMessageRequestSchema,
@@ -131,8 +144,11 @@ import {
   chatAction,
   chatActionEvents,
   chatActionStale,
+  chatActionFills,
   chatActions,
+  fillInput,
   toChatAction,
+  toChatActionFill,
 } from './chat-action-store.js';
 import { toRun } from './oversight-store.js';
 import {
@@ -644,6 +660,8 @@ export class ConnectionStore extends WebDiscoveryStore {
    * restart, when the stored timeout rule alone applies.
    */
   readonly #liveChatAnswers = new Set<string>();
+  /** ADR-0096: fills this studio process is still waiting on. */
+  readonly #liveChatFills = new Set<string>();
   /**
    * ADR-0064: plan requests this studio process admitted and has not settled yet. The owner
    * cannot close one of these from the app, whatever its age: its result can still come back.
@@ -823,6 +841,7 @@ export class ConnectionStore extends WebDiscoveryStore {
         messages: await chatMessages(c, conversation.id),
         answers: await chatAnswers(c, conversation.id),
         actions: await chatActions(c, conversation.id),
+        fills: await chatActionFills(c, conversation.id),
       };
     });
   }
@@ -913,6 +932,8 @@ export class ConnectionStore extends WebDiscoveryStore {
           `select 1 from chat_messages where conversation_id = $1 and author_id <> $2
            union all
            select 1 from chat_answers where conversation_id = $1
+           union all
+           select 1 from chat_action_fills where conversation_id = $1
            limit 1`,
           [conversation.id, ctx.actorId],
         );
@@ -938,6 +959,18 @@ export class ConnectionStore extends WebDiscoveryStore {
         throw fail(
           'INVALID_TRANSITION',
           'An answer is still on its way in this conversation. Delete it once the answer is back.',
+        );
+      // ADR-0096: the same for a card's fill on its way.
+      const filling = await c.query(
+        `select 1 from chat_action_fills ca where ca.conversation_id = $1 and ca.state = 'pending'
+           and (ca.created_at >= ${CHAT_ANSWER_STALE_POINT} or ca.id = any($2::uuid[]))
+         limit 1`,
+        [conversation.id, [...this.#liveChatFills]],
+      );
+      if (filling.rows.length)
+        throw fail(
+          'INVALID_TRANSITION',
+          "A card's fill is still on its way in this conversation. Delete it once the fill is back.",
         );
       const answers = Number(
         (
@@ -2090,6 +2123,300 @@ export class ConnectionStore extends WebDiscoveryStore {
     });
     if (!begun.replay) this.#liveChatAnswers.add(begun.answer.id);
     return begun;
+  }
+
+  /**
+   * ADR-0096 (P31): records one "Fill in with <model>" press on a draft card and works out
+   * exactly what will be sent. Owner only, like chat answers, and only while chat answers are
+   * on (the same connection, model, daily limit and private-data rule apply at admission).
+   * Only the card's descriptive text questions may be asked about (`fillableKey`); a retried
+   * press (same `client_id`) or a fill still on its way returns that fill. Nothing is sent
+   * here, and nothing on the card changes.
+   */
+  async beginChatActionFill(
+    ctxIn: CommandContext,
+    ws: string,
+    conversationId: string,
+    actionId: string,
+    raw: unknown,
+  ): Promise<{
+    fill: ChatActionFill;
+    replay: boolean;
+    input: string;
+    logical_operation_id: string;
+    connection_id: string;
+    questions: ChatActionFillQuestion[];
+  }> {
+    const ctx = normalize(ctxIn);
+    const req = parse(ChatActionFillRequestSchema, raw);
+    const begun = await this.tx(async (c) => {
+      await this.requireOwner(c, uuid(ws), ctx.actorId);
+      const conversation = await chatConversation(
+        c,
+        uuid(ws),
+        uuid(conversationId),
+        true,
+      );
+      const card = await chatAction(
+        c,
+        uuid(ws),
+        conversation.id,
+        uuid(actionId),
+      );
+      // A fill left pending by a studio that stopped mid-request is closed as failed (the same
+      // stale point as chat answers), so the card can be filled again.
+      await c.query(
+        `update chat_action_fills ca set state = 'failed', finished_at = clock_timestamp(),
+           reason = 'The studio stopped before this fill was recorded. Nothing more is known about it.'
+         where ca.action_id = $1 and ca.state = 'pending'
+           and ca.created_at < ${CHAT_ANSWER_STALE_POINT}
+           and not (ca.id = any($2::uuid[]))`,
+        [card.id, [...this.#liveChatFills]],
+      );
+      const prior = (
+        await c.query(
+          `select * from chat_action_fills where action_id = $1
+           and (client_id = $2 or state = 'pending')
+           order by (client_id = $2) desc limit 1`,
+          [card.id, req.client_id],
+        )
+      ).rows[0] as Row | undefined;
+      if (prior)
+        return {
+          fill: toChatActionFill(prior),
+          replay: true,
+          input: String(prior.input),
+          logical_operation_id: String(prior.logical_operation_id),
+          connection_id: String(prior.connection_id),
+          questions: parse(
+            z.array(ChatActionFillQuestionSchema),
+            prior.questions,
+          ),
+        };
+      if (card.state !== 'draft')
+        throw fail(
+          'INVALID_TRANSITION',
+          'Only a card that has not been sent can be filled in.',
+        );
+      cardVersion(card, req.expected_version);
+      const refused = req.questions.filter(
+        (q) => !fillableKey(card.kind, q.key),
+      );
+      if (refused.length)
+        throw fail(
+          'ACCESS_DENIED',
+          `A model may propose only a card's descriptive text, never a pick, a rating, a gate, a reason or a routine setting (${refused.map((q) => q.key).join(', ')}).`,
+        );
+      // Review L-3: each question's length and its answer so far come from the server (the
+      // card as saved), not from the page; only its wording comes from the page.
+      const questions: ChatActionFillQuestion[] = req.questions.map((q) => {
+        const saved = card.input[q.key];
+        const { current: _sent, ...rest } = q;
+        return {
+          ...rest,
+          type: fillType(q.key),
+          ...(typeof saved === 'string' && saved.trim()
+            ? { current: saved.slice(0, CHAT_FILL_TEXT_MAX.long) }
+            : {}),
+        };
+      });
+      const settings = await chatSettings(c, uuid(ws));
+      if (!settings.enabled || !settings.connection_id || !settings.model_id)
+        throw fail(
+          'ACCESS_DENIED',
+          'Chat answers are turned off. The owner can turn them on in Models and connections.',
+        );
+      const conn = await this.#connection(c, uuid(ws), settings.connection_id);
+      // Review N-6: say so before anything is recorded when the cap cannot hold a fill at all.
+      const room =
+        conn.settings.caps.responses.max_input_chars -
+        CHAT_FILL_INSTRUCTIONS.length;
+      if (room < 500)
+        throw fail(
+          'INVALID_CONTRACT',
+          `The connection's input limit (${conn.settings.caps.responses.max_input_chars} characters) is too small for a fill's instructions and questions, so nothing was sent. Fill the card in by hand, or raise the limit in Models and connections.`,
+        );
+      // The person's messages always go. Model answers that used studio records go only when
+      // the owner's chat setting lets studio records go (ADR-0070), as do the card's records.
+      const records = settings.include_snapshot;
+      const turns = await c.query(
+        `select m.text, a.text as answer,
+           (a.context in ('project','selected') or (a.context is null and a.snapshot)) as studio
+         from chat_messages m
+         left join lateral (select text, context, snapshot from chat_answers
+           where message_id = m.id and state = 'completed'
+           order by created_at desc limit 1) a on true
+         where m.conversation_id = $1
+         order by m.seq desc limit $2`,
+        [conversation.id, CHAT_HISTORY_TURNS],
+      );
+      const history: { who: 'person' | 'assistant'; text: string }[] = [];
+      for (const t of turns.rows.reverse() as Row[]) {
+        history.push({ who: 'person', text: String(t.text) });
+        if (t.answer && (records || !t.studio))
+          history.push({ who: 'assistant', text: String(t.answer) });
+      }
+      const built = fillInput({
+        step: CHAT_ACTION_LABEL[card.kind],
+        history,
+        questions,
+        records,
+        maxChars: room,
+      });
+      if (!built)
+        throw fail(
+          'INVALID_CONTRACT',
+          "The card's questions alone are longer than the connection's input limit, so nothing was sent. Fill it in by hand.",
+        );
+      const id = randomUUID();
+      const op = randomUUID();
+      const { rows } = await c.query(
+        `insert into chat_action_fills (id, workspace_id, conversation_id, action_id, client_id,
+           state, connection_id, connection_kind, fixture, model_id, logical_operation_id,
+           instructions_version, instructions_hash, questions, records, history_items, input,
+           input_hash, created_by)
+         values ($1,$2,$3,$4,$5,'pending',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+         returning *`,
+        [
+          id,
+          uuid(ws),
+          conversation.id,
+          card.id,
+          req.client_id,
+          conn.id,
+          conn.kind,
+          conn.fixture,
+          settings.model_id,
+          op,
+          CHAT_FILL_INSTRUCTIONS_VERSION,
+          createHash('sha256').update(CHAT_FILL_INSTRUCTIONS).digest('hex'),
+          JSON.stringify(questions),
+          records,
+          built.history_items,
+          built.input,
+          createHash('sha256').update(built.input).digest('hex'),
+          ctx.actorId,
+        ],
+      );
+      await this.append(c, ctx, {
+        workspaceId: uuid(ws),
+        action: 'chat.action_fill_requested',
+        subjectKind: 'chat_conversation',
+        subjectId: conversation.id,
+        subjectVersion: null,
+        contentHash: canonicalHash({ input: built.input }),
+        // Ids, route and question keys only; the words stay with the fill.
+        payload: {
+          fill_id: id,
+          action_id: card.id,
+          kind: card.kind,
+          connection_id: conn.id,
+          model_id: settings.model_id,
+          keys: questions.map((q) => q.key),
+          records,
+        },
+      });
+      return {
+        fill: toChatActionFill(rows[0] as Row),
+        replay: false,
+        input: built.input,
+        logical_operation_id: op,
+        connection_id: conn.id,
+        questions,
+      };
+    });
+    if (!begun.replay) this.#liveChatFills.add(begun.fill.id);
+    return begun;
+  }
+
+  /** ADR-0096: records how a pending fill ended, with the proposals the studio could read. */
+  async finishChatActionFill(
+    ctxIn: CommandContext,
+    ws: string,
+    fillId: string,
+    outcome: {
+      state: Exclude<ChatActionFillState, 'pending'>;
+      plan_request_id: string | null;
+      text: string | null;
+      reason: string | null;
+    },
+  ): Promise<ChatActionFill> {
+    const ctx = normalize(ctxIn);
+    try {
+      return await this.tx(async (c) => {
+        const cur = (
+          await c.query(
+            'select * from chat_action_fills where workspace_id = $1 and id = $2 for update',
+            [uuid(ws), uuid(fillId)],
+          )
+        ).rows[0] as Row | undefined;
+        if (!cur)
+          throw fail(
+            'NOT_FOUND',
+            'The card or its conversation was deleted while this fill was on its way, so the proposals were not kept. The plan request is still counted.',
+          );
+        if (cur.state !== 'pending') return toChatActionFill(cur);
+        const text =
+          outcome.state === 'completed' ? (outcome.text ?? '') : null;
+        const questions = parse(
+          z.array(ChatActionFillQuestionSchema),
+          cur.questions,
+        );
+        const read =
+          text === null
+            ? { values: {}, dropped: 0, readable: true }
+            : readFillValues(text.slice(0, CHAT_FILL_OUTPUT_MAX), questions);
+        const n = Object.keys(read.values).length;
+        const reason =
+          text === null
+            ? (outcome.reason?.slice(0, 2000) ?? null)
+            : !read.readable
+              ? 'The reply was not the JSON the studio asked for, so nothing was proposed.'
+              : n === 0
+                ? `The model proposed nothing it could support from the conversation${read.dropped ? ` (${read.dropped} ${read.dropped === 1 ? 'proposal was' : 'proposals were'} left out)` : ''}.`
+                : read.dropped
+                  ? `${read.dropped} ${read.dropped === 1 ? 'proposal was' : 'proposals were'} left out: not a question asked, not text, empty or too long.`
+                  : null;
+        const { rows } = await c.query(
+          `update chat_action_fills set state = $2, plan_request_id = $3, text = $4,
+             output_hash = $5, fill_values = $6, dropped = $7, reason = $8,
+             finished_at = clock_timestamp()
+           where id = $1 returning *`,
+          [
+            cur.id,
+            outcome.state,
+            outcome.plan_request_id || null,
+            text,
+            text === null
+              ? null
+              : createHash('sha256').update(text).digest('hex'),
+            JSON.stringify(read.values),
+            read.dropped,
+            reason,
+          ],
+        );
+        await this.append(c, ctx, {
+          workspaceId: uuid(ws),
+          action: 'chat.action_filled',
+          subjectKind: 'chat_conversation',
+          subjectId: String(cur.conversation_id),
+          subjectVersion: null,
+          contentHash: canonicalHash({ state: outcome.state, text }),
+          payload: {
+            fill_id: String(cur.id),
+            action_id: String(cur.action_id),
+            state: outcome.state,
+            model_id: String(cur.model_id),
+            plan_request_id: outcome.plan_request_id || null,
+            proposed: Object.keys(read.values),
+            dropped: read.dropped,
+          },
+        });
+        return toChatActionFill(rows[0] as Row);
+      });
+    } finally {
+      this.#liveChatFills.delete(fillId);
+    }
   }
 
   /** ADR-0057: records how a pending chat answer ended. A settled answer never changes. */
@@ -5027,6 +5354,249 @@ export class ConnectionStore extends WebDiscoveryStore {
     });
   }
 
+  // ---- ADR-0093 (P28): a workspace's own OpenAI API key -----------------------------------
+  // The key is in the studio's vault; these rows hold its reference, model and last four.
+
+  /** What any member may see: never the key or its vault reference. */
+  async workspaceApiKey(
+    ctxIn: CommandContext,
+    ws: string,
+  ): Promise<WorkspaceApiKey | null> {
+    const ctx = normalize(ctxIn);
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, false);
+      const { rows } = await c.query(
+        `select model_id, last_four, version, saved_at, saved_by from workspace_api_keys
+          where workspace_id = $1 and provider = 'openai'`,
+        [uuid(ws)],
+      );
+      return rows[0] ? toApiKey(rows[0] as Row) : null;
+    });
+  }
+
+  /**
+   * The vault reference a model call from this workspace reads. Members only (a call's own
+   * grant, budget and admission decide whether it may spend); the reference never leaves the
+   * studio process.
+   */
+  async workspaceApiKeyRef(
+    ctxIn: CommandContext,
+    ws: string,
+  ): Promise<{ credential_ref: string; model_id: string } | null> {
+    const ctx = normalize(ctxIn);
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, false);
+      const { rows } = await c.query(
+        `select credential_ref, model_id from workspace_api_keys
+          where workspace_id = $1 and provider = 'openai'`,
+        [uuid(ws)],
+      );
+      return rows[0]
+        ? {
+            credential_ref: String(rows[0].credential_ref),
+            model_id: String(rows[0].model_id),
+          }
+        : null;
+    });
+  }
+
+  /**
+   * Saves or replaces the key's record (owner only, real workspaces only). The caller has
+   * already sealed the key under `credential_ref`; the replaced reference is returned so the
+   * caller removes that vault entry.
+   */
+  async saveWorkspaceApiKey(
+    ctxIn: CommandContext,
+    ws: string,
+    k: {
+      model_id: string;
+      last_four: string;
+      credential_ref: string;
+      expected_version: number | null;
+    },
+  ): Promise<{
+    saved: WorkspaceApiKey;
+    replaced_credential_ref: string | null;
+  }> {
+    const ctx = normalize(ctxIn);
+    const w = uuid(ws);
+    return this.tx(async (c) => {
+      await this.requireOwner(
+        c,
+        w,
+        ctx.actorId,
+        'Only the workspace owner, signed in as a person, can add or change its API key.',
+      );
+      const fx = await c.query('select fixture from workspaces where id = $1', [
+        w,
+      ]);
+      if (fx.rows[0]?.fixture)
+        throw fail(
+          'INVALID_TRANSITION',
+          'Fixture workspaces never use a real API key.',
+        );
+      const old = (
+        await c.query(
+          `select credential_ref, version from workspace_api_keys
+            where workspace_id = $1 and provider = 'openai' for update`,
+          [w],
+        )
+      ).rows[0];
+      const current = old ? Number(old.version) : null;
+      if (current !== k.expected_version)
+        throw fail(
+          'VERSION_CONFLICT',
+          current === null
+            ? 'This workspace has no saved key now. Reload and try again.'
+            : 'The saved key changed since this page was read. Reload and try again.',
+        );
+      // A first save never overwrites one saved meanwhile, and a replace changes only the
+      // version it read, so a vault entry is never left without its record.
+      const { rows } = old
+        ? await c.query(
+            `update workspace_api_keys set model_id = $2, credential_ref = $3, last_four = $4,
+               version = version + 1, saved_by = $5, saved_at = clock_timestamp()
+             where workspace_id = $1 and provider = 'openai' and version = $6
+             returning model_id, last_four, version, saved_at, saved_by`,
+            [
+              w,
+              k.model_id,
+              k.credential_ref,
+              k.last_four,
+              ctx.actorId,
+              current,
+            ],
+          )
+        : await c.query(
+            `insert into workspace_api_keys
+               (workspace_id, fixture, provider, model_id, credential_ref, last_four, version, saved_by)
+             values ($1, false, 'openai', $2, $3, $4, 1, $5)
+             on conflict (workspace_id, provider) do nothing
+             returning model_id, last_four, version, saved_at, saved_by`,
+            [w, k.model_id, k.credential_ref, k.last_four, ctx.actorId],
+          );
+      if (!rows[0])
+        throw fail(
+          'VERSION_CONFLICT',
+          'The saved key changed since this page was read. Reload and try again.',
+        );
+      const saved = toApiKey(rows[0] as Row);
+      await this.append(c, ctx, {
+        workspaceId: w,
+        action: old ? 'api_key.replaced' : 'api_key.saved',
+        subjectKind: 'api_key',
+        subjectId: w,
+        subjectVersion: saved.version,
+        contentHash: null,
+        payload: {
+          provider: 'openai',
+          model_id: saved.model_id,
+          last_four: saved.last_four,
+        },
+      });
+      return {
+        saved,
+        replaced_credential_ref: old ? String(old.credential_ref) : null,
+      };
+    });
+  }
+
+  /** Review 1 N-6: re-points the saved key at another model (owner only); the key is kept. */
+  async changeWorkspaceApiKeyModel(
+    ctxIn: CommandContext,
+    ws: string,
+    modelId: string,
+    expectedVersion: number,
+  ): Promise<WorkspaceApiKey> {
+    const ctx = normalize(ctxIn);
+    const w = uuid(ws);
+    return this.tx(async (c) => {
+      await this.requireOwner(
+        c,
+        w,
+        ctx.actorId,
+        'Only the workspace owner, signed in as a person, can change its API key.',
+      );
+      // Review 2 N-4: the same model is not a change (no new version, no audit row).
+      const same = await c.query(
+        `select model_id, last_four, version, saved_at, saved_by from workspace_api_keys
+          where workspace_id = $1 and provider = 'openai' and version = $2 and model_id = $3`,
+        [w, expectedVersion, modelId],
+      );
+      if (same.rows[0]) return toApiKey(same.rows[0] as Row);
+      const { rows } = await c.query(
+        `update workspace_api_keys set model_id = $3, version = version + 1,
+           saved_by = $4, saved_at = clock_timestamp()
+         where workspace_id = $1 and provider = 'openai' and version = $2
+         returning model_id, last_four, version, saved_at, saved_by`,
+        [w, expectedVersion, modelId, ctx.actorId],
+      );
+      if (!rows[0])
+        throw fail(
+          'VERSION_CONFLICT',
+          'The saved key changed or was removed since this page was read. Reload and try again.',
+        );
+      const saved = toApiKey(rows[0] as Row);
+      await this.append(c, ctx, {
+        workspaceId: w,
+        action: 'api_key.model_changed',
+        subjectKind: 'api_key',
+        subjectId: w,
+        subjectVersion: saved.version,
+        contentHash: null,
+        payload: {
+          provider: 'openai',
+          model_id: saved.model_id,
+          last_four: saved.last_four,
+        },
+      });
+      return saved;
+    });
+  }
+
+  /** Removes the key's record (owner only); returns the vault reference to delete. */
+  async removeWorkspaceApiKey(
+    ctxIn: CommandContext,
+    ws: string,
+    expectedVersion: number,
+  ): Promise<{ credential_ref: string }> {
+    const ctx = normalize(ctxIn);
+    const w = uuid(ws);
+    return this.tx(async (c) => {
+      await this.requireOwner(
+        c,
+        w,
+        ctx.actorId,
+        'Only the workspace owner, signed in as a person, can remove its API key.',
+      );
+      const { rows } = await c.query(
+        `delete from workspace_api_keys
+          where workspace_id = $1 and provider = 'openai' and version = $2
+          returning credential_ref, model_id, last_four, version`,
+        [w, expectedVersion],
+      );
+      if (!rows[0])
+        throw fail(
+          'VERSION_CONFLICT',
+          'The saved key changed or was removed since this page was read. Reload and try again.',
+        );
+      await this.append(c, ctx, {
+        workspaceId: w,
+        action: 'api_key.removed',
+        subjectKind: 'api_key',
+        subjectId: w,
+        subjectVersion: Number(rows[0].version),
+        contentHash: null,
+        payload: {
+          provider: 'openai',
+          model_id: String(rows[0].model_id),
+          last_four: String(rows[0].last_four),
+        },
+      });
+      return { credential_ref: String(rows[0].credential_ref) };
+    });
+  }
+
   async #event(
     c: PoolClient,
     connectionId: string,
@@ -5039,4 +5609,22 @@ export class ConnectionStore extends WebDiscoveryStore {
       [randomUUID(), connectionId, kind, body, ctx.actorId],
     );
   }
+}
+
+/** ADR-0093: what is shown of a workspace's saved OpenAI API key. */
+export interface WorkspaceApiKey {
+  model_id: string;
+  last_four: string;
+  version: number;
+  saved_at: string;
+  saved_by: string;
+}
+function toApiKey(r: Row): WorkspaceApiKey {
+  return {
+    model_id: String(r.model_id),
+    last_four: String(r.last_four),
+    version: Number(r.version),
+    saved_at: new Date(r.saved_at as string).toISOString(),
+    saved_by: String(r.saved_by),
+  };
 }

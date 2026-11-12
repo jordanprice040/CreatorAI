@@ -66,20 +66,20 @@ The owner can raise any of them in Models › "Change caps or allowed work" with
 limit (ADR-0062); only the minimums stay, plus the two timeouts' timer bound (about 24.8
 days). Every change withdraws the caps acceptance until the owner accepts the new values.
 
-| Cap                            | Proposed                     | Why                                                                                                                                          |
-| ------------------------------ | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Requests in flight             | 1                            | Fixed; no parallel plan usage.                                                                                                               |
-| Requests per day, both paths   | 40                           | Leaves most of the shared allowance for Jordan.                                                                                              |
-| Direct requests per run        | 10                           | A summarization or specification run needs a few calls.                                                                                      |
-| Direct request timeout         | 120 s                        | Long enough for a streamed answer; then the outcome is unknown.                                                                              |
-| Output per direct request      | 16,000 characters            | The plan route refuses `max_output_tokens`, so the studio ends the stream.                                                                   |
-| Input per direct request       | 24,000 characters            | Keeps prompts small; larger inputs are refused before sending.                                                                               |
-| Codex builds per day           | 2                            | Path B is not active yet (see below).                                                                                                        |
-| Codex turns per build          | 1                            | One supervised turn per T12 build cycle.                                                                                                     |
-| Codex model requests per build | 25                           | Each Codex tool round trip is one request.                                                                                                   |
-| Codex build timeout            | 10 minutes                   | Then the jail is killed and the build is a checkpoint.                                                                                       |
-| Data classes                   | public, synthetic            | Jordan's answer Q6.                                                                                                                          |
-| Task classes                   | summarization, specification | Jordan's answer Q7; `code_build` is not enabled. `patch_build` and `independent_review` (T12 plan roles, ADR-0048) can be added in Settings. |
+| Cap                            | Proposed                     | Why                                                                                                                                                     |
+| ------------------------------ | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Requests in flight             | 1                            | Fixed; no parallel plan usage.                                                                                                                          |
+| Requests per day, both paths   | 40                           | Leaves most of the shared allowance for Jordan.                                                                                                         |
+| Direct requests per run        | 10                           | A summarization or specification run needs a few calls.                                                                                                 |
+| Direct request timeout         | 120 s                        | Long enough for a streamed answer; then the outcome is unknown.                                                                                         |
+| Output per direct request      | 16,000 characters            | The plan route refuses `max_output_tokens`, so the studio ends the stream.                                                                              |
+| Input per direct request       | 64,000 characters            | Jordan raised it from 24,000 for new connections on November 11 (ADR-0093); larger inputs are refused before sending. Existing connections keep theirs. |
+| Codex builds per day           | 2                            | Path B is not active yet (see below).                                                                                                                   |
+| Codex turns per build          | 1                            | One supervised turn per T12 build cycle.                                                                                                                |
+| Codex model requests per build | 25                           | Each Codex tool round trip is one request.                                                                                                              |
+| Codex build timeout            | 10 minutes                   | Then the jail is killed and the build is a checkpoint.                                                                                                  |
+| Data classes                   | public, synthetic            | Jordan's answer Q6.                                                                                                                                     |
+| Task classes                   | summarization, specification | Jordan's answer Q7; `code_build` is not enabled. `patch_build` and `independent_review` (T12 plan roles, ADR-0048) can be added in Settings.            |
 
 ## Command blocking in the Codex builder
 

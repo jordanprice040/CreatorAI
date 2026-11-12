@@ -110,7 +110,7 @@ works on either kind.
 ## Proposed caps (need Jordan's acceptance)
 
 `config/connections/claude-code.json`: one request at a time, 30 a day, 10 per run, 180 s
-timeout, 16,000 output and 24,000 input characters, synthetic and public data, summarization
+timeout, 16,000 output and 64,000 input characters (24,000 before November 11; ADR-0093), synthetic and public data, summarization
 and specification. The limits are shared with Jordan's own Claude and Claude Code use.
 
 ## Tests

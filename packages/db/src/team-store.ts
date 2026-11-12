@@ -182,6 +182,12 @@ export class TeamStore extends DiscoveryStore {
         "select pg_advisory_xact_lock(hashtext('gate-checklist:' || $1::text))",
         [ws],
       );
+      // PR #185 re-review N-1: the rule's lock too, so choosing the checklist rule and emptying
+      // the checklist cannot both commit at the same moment.
+      await c.query(
+        "select pg_advisory_xact_lock(hashtext('gate-rule:' || $1::text))",
+        [ws],
+      );
       const cur = await this.latestGateChecklist(c, ws);
       if (cur.version !== req.expected_version)
         throw fail(

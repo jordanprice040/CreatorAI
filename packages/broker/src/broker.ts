@@ -27,6 +27,11 @@ export interface BrokerOptions {
   lateWindowMs?: number;
   /** X01: where routed calls read their recorded route decision. */
   decisions?: RouteDecisionSource;
+  /**
+   * ADR-0093 (P28): the live adapter a real workspace's calls use when the live slot is empty,
+   * such as the workspace's own saved OpenAI key. Read after admission's workspace check.
+   */
+  liveFor?: (ctx: CommandContext, ws: string) => Promise<ModelAdapter | null>;
 }
 export interface RouteDecisionSource {
   getRouteDecision(
@@ -49,6 +54,7 @@ export class ModelBroker {
   readonly #retryCap: number;
   readonly #lateWindow: number;
   readonly #decisions: RouteDecisionSource | null;
+  readonly #liveFor: BrokerOptions['liveFor'] | null;
   constructor(
     private readonly store: BudgetStore,
     private readonly adapters: {
@@ -66,16 +72,27 @@ export class ModelBroker {
     this.#retryCap = options.retryCapMs ?? 2000;
     this.#lateWindow = options.lateWindowMs ?? LATE_RESULT_WINDOW_MS;
     this.#decisions = options.decisions ?? null;
+    this.#liveFor = options.liveFor ?? null;
+  }
+
+  /** The live adapter for a real workspace: the live slot, else the workspace's own. */
+  async #live(ctx: CommandContext, ws: string): Promise<ModelAdapter | null> {
+    if (this.adapters.live) return this.adapters.live;
+    return this.#liveFor ? this.#liveFor(ctx, ws) : null;
   }
 
   /**
    * The adapter for a named model: fixture adapters only in fixture workspaces and live ones
    * only in real workspaces. Null is recorded as a denial, never replaced.
    */
-  #adapterFor(fixture: boolean, model: ModelRef): ModelAdapter | null {
+  #adapterFor(
+    fixture: boolean,
+    model: ModelRef,
+    live: ModelAdapter | null,
+  ): ModelAdapter | null {
     const all = [
       this.adapters.fixture,
-      ...(this.adapters.live ? [this.adapters.live] : []),
+      ...(live ? [live] : []),
       ...(this.adapters.routes ?? []),
     ];
     return (
@@ -158,8 +175,15 @@ export class ModelBroker {
     model: ModelRef,
     raw: unknown,
   ): Promise<BrokerCallResult> {
-    return this.#call(ctx, ws, runId, raw, (fixture) => ({
-      adapter: this.#adapterFor(fixture, model),
+    return this.#call(ctx, ws, runId, raw, async (fixture) => ({
+      adapter: this.#adapterFor(
+        fixture,
+        model,
+        // Review 1 N-3: only an OpenAI model can use the workspace's OpenAI key.
+        fixture || model.provider !== 'openai'
+          ? (this.adapters.live ?? null)
+          : await this.#live(ctx, ws),
+      ),
       model,
     }));
   }
@@ -183,8 +207,10 @@ export class ModelBroker {
     raw: unknown,
   ): Promise<BrokerCallResult> {
     // Never a fallback: a real workspace without a live adapter is denied, not faked.
-    return this.#call(ctx, ws, runId, raw, (fixture) => {
-      const adapter = fixture ? this.adapters.fixture : this.adapters.live;
+    return this.#call(ctx, ws, runId, raw, async (fixture) => {
+      const adapter = fixture
+        ? this.adapters.fixture
+        : await this.#live(ctx, ws);
       return {
         adapter,
         model: {
@@ -200,10 +226,10 @@ export class ModelBroker {
     ws: string,
     runId: string,
     raw: unknown,
-    pick: (fixture: boolean) => {
+    pick: (fixture: boolean) => Promise<{
       adapter: ModelAdapter | null;
       model: ModelRef;
-    },
+    }>,
   ): Promise<BrokerCallResult> {
     const req = parse(BrokerCallRequestSchema, raw);
     runId = runId.toLowerCase();
@@ -234,7 +260,7 @@ export class ModelBroker {
     const earlier = await replay();
     if (earlier) return earlier;
     const fixture = await this.store.isFixtureWorkspace(ctx, ws);
-    const { adapter, model } = pick(fixture);
+    const { adapter, model } = await pick(fixture);
     const attempts: Reservation[] = [];
     for (let attempt = 1; attempt <= req.max_attempts; attempt += 1) {
       let prep;

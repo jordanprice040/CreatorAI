@@ -1,5 +1,15 @@
 # Integration readiness
 
+## OpenAI API key added in the app — November 12, 2026 (P28, ADR-0093)
+
+The OpenAI API key route can now be turned on per workspace from Models and connections › Other
+routes › "Your OpenAI API key", without `CREATOR_LIVE_PROVIDER`/`OPENAI_API_KEY` on the API process.
+The key is sealed in the studio's protected vault (DPAPI for the Windows user in the desktop app);
+the database keeps only its last four characters. A studio started with the environment key keeps
+using that key. Spending is unchanged: grants, a funded budget, pricing and the $20 ceiling.
+State: **fixture-tested only** (loopback Responses server, file-dev vault on Linux). DPAPI sealing
+of the key and a real "Test connection" with a saved key in the installed app need Jordan's typed OK.
+
 ## Plan-route web search used by Search the web (ADR-0086) — November 11, 2026
 
 PR #157's opt-in `web_search` plan option is now used by one route: the search stage of a web discovery (and the scout cases of the `web-discovery-v2` qualification). A plan request carrying `web_search` without a web discovery binding is refused (`web_search_not_bound`). Pages are fetched only by the studio's own SourceBroker under the evidence-site policy. Live on the dev studio since November 11 on Jordan's typed OK: gpt-6-astra qualified on `web-discovery-v2` and one discovery ran ([evidence](evidence/web-discovery-live-2026-11-11/README.md)); the installed app has not run it. The Brave adapter stays disabled; the Claude Code route still runs without tools.
