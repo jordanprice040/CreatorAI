@@ -64,6 +64,16 @@ type Mod = {
     view: string | null,
     f: { sources: number; scorecards: number },
   ) => string | null;
+  answersFromPick: (
+    brief: unknown,
+    claims: { claim_id: string; contrary: boolean }[],
+    known: ReadonlySet<string>,
+  ) => Record<string, unknown>;
+  fillOutcomeNote: (
+    fill: { state: string; reason: string | null },
+    matching: number,
+  ) => string;
+  exploreWaitNote: (loaded: boolean, loadError: string) => string | null;
 };
 
 const cards = () => loadWeb('chat-cards.ts') as Promise<Mod>;
@@ -387,5 +397,147 @@ test('a default never adds a grant: a new fetching run is always asked (review M
   assert.deepEqual(
     m.againInput('fund_budget', { name: 'x', _op: 'y', run: 'new' }),
     { name: 'x', run: 'new' },
+  );
+});
+
+test("ADR-0096: an Explore for me pick fills a discovery card; unedited, it starts on the pick's own brief", async () => {
+  const m = await cards();
+  const support = { id: randomUUID(), version: 1, title: 'Waits are long' };
+  const against = { id: randomUUID(), version: 3, title: 'Waits fell' };
+  const data = {
+    claims: [support, against],
+    route: {
+      kind: 'api',
+      envelope: randomUUID(),
+      pricing: randomUUID(),
+      label: 'fixture',
+    },
+    routeBlockers: [],
+  };
+  const brief = {
+    id: randomUUID(),
+    version: 1,
+    body: {
+      theme: 'Rural clinic waits',
+      fields: ['Clinic scheduling', 'Airline overbooking'],
+      target_users: 'Rural patients',
+      context: null,
+      measurable_problem: 'Median wait over 30 days',
+      outcome_measure: 'Median wait',
+      data_and_tools: ['Clinic booking logs'],
+      time_limit: '3 months',
+      budget_limit: 'No new spending',
+      nae_seed: null,
+      constraints: ['No patient data leaves the clinic'],
+    },
+  };
+  const filled = m.answersFromPick(
+    brief,
+    [
+      { claim_id: support.id, contrary: false },
+      { claim_id: against.id, contrary: true },
+      // A claim this workspace does not have is never attached.
+      { claim_id: randomUUID(), contrary: false },
+    ],
+    new Set([support.id, against.id]),
+  );
+  // Only the supporting claim, as bearing on the problem; the contrary one is left to the person.
+  assert.deepEqual(filled.claims, [support.id]);
+  assert.deepEqual(filled.roles, ['problem']);
+  const input = { ...filled, _op: randomUUID() };
+  const v = m.cardView('start_discovery', input, data, ctx());
+  assert.equal(v.current, null, 'every question answered by the pick');
+  assert.deepEqual(v.blockers, []);
+  // Nothing saves a second brief: the start names the pick's brief, which is re-checked.
+  assert.ok(!v.steps.some((s) => s.label.startsWith('Save the search brief')));
+  const start = v.steps.at(-1)!;
+  const got = { run_record: randomUUID(), run: randomUUID() };
+  const body = m.fill(start.body, got);
+  ok(StartDiscoveryRequestSchema, body, 'discovery');
+  assert.deepEqual((body as { brief: unknown }).brief, {
+    id: brief.id,
+    version: 1,
+  });
+  assert.ok(
+    v.subjects.some((x) => x.id === brief.id && x.version === 1),
+    'the pick brief is a subject, so a changed brief makes the card stale',
+  );
+
+  // An edit saves a new brief, carrying the pick's data and tools, as Discover does.
+  const edited = m.cardView(
+    'start_discovery',
+    { ...input, theme: 'Rural clinic waiting lists' },
+    data,
+    ctx(),
+  );
+  const save = edited.steps[0]!;
+  assert.match(save.label, /Save the search brief/);
+  ok(CreateEntityRequestSchema, save.body, 'brief');
+  const saved = save.body as {
+    body: { data_and_tools: string[]; theme: string };
+  };
+  assert.deepEqual(saved.body.data_and_tools, ['Clinic booking logs']);
+  assert.equal(saved.body.theme, 'Rural clinic waiting lists');
+  assert.deepEqual(
+    (
+      m.fill(edited.steps.at(-1)!.body, { brief: 'B', brief_version: 1 }) as {
+        brief: unknown;
+      }
+    ).brief,
+    { id: 'B', version: 1 },
+  );
+  // Review L-5: once edited, the card no longer uses the pick, so it is not re-checked.
+  assert.ok(!edited.subjects.some((x) => x.id === brief.id));
+  // A pick with no supporting claim here clears claims chosen for an earlier theme.
+  const bare = m.answersFromPick(
+    brief,
+    [{ claim_id: against.id, contrary: true }],
+    new Set([support.id, against.id]),
+  );
+  assert.deepEqual(bare.claims, []);
+  assert.deepEqual(bare.roles, []);
+  const again = m.cardView(
+    'start_discovery',
+    { ...input, ...bare },
+    data,
+    ctx(),
+  );
+  assert.equal(again.current?.key, 'claims', 'the claims are asked again');
+
+  // "Send again" starts from the person's answers without the pick (a new brief).
+  assert.ok(!('_explored' in m.againInput('start_discovery', input)));
+});
+
+test('PR #181 re-review 3: a fill that matches the answers says so, and Explore names a failed read', async () => {
+  const { fillOutcomeNote, exploreWaitNote } = await cards();
+  // R3-N1: proposals equal to the card's answers are not "nothing to propose".
+  const done = { state: 'completed', reason: null };
+  assert.equal(
+    fillOutcomeNote(done, 1),
+    'The proposal matches the answer already on this card.',
+  );
+  assert.equal(
+    fillOutcomeNote(done, 3),
+    'All 3 proposals match the answers already on this card.',
+  );
+  assert.equal(fillOutcomeNote(done, 0), 'Nothing to propose.');
+  assert.equal(
+    fillOutcomeNote({ state: 'completed', reason: 'No usable text.' }, 0),
+    'No usable text.',
+  );
+  assert.equal(
+    fillOutcomeNote({ state: 'refused', reason: 'Chat is off.' }, 2),
+    'Not sent: Chat is off.',
+  );
+  assert.equal(
+    fillOutcomeNote({ state: 'failed', reason: 'Timed out.' }, 0),
+    'Failed: Timed out.',
+  );
+  // R3-N3: a failed read is not "waiting".
+  assert.equal(exploreWaitNote(true, ''), null);
+  assert.equal(exploreWaitNote(false, ''), 'Waiting for this card’s records');
+  const failed = exploreWaitNote(false, 'API error 500');
+  assert.ok(
+    failed && /could not be read/.test(failed) && !/Waiting/.test(failed),
   );
 });
