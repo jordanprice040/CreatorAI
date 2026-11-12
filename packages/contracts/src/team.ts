@@ -164,6 +164,8 @@ export const PacketTeamSchema = z.strictObject({
   capabilities: z
     .array(
       z.strictObject({
+        /** ADR-0097: the capability's key, which a checklist answer cites (absent before it). */
+        key: TeamCapabilityKeySchema.optional(),
         capability: z.string().max(100),
         status: TeamCapabilityStatusSchema,
         /** "declared by the owner" or "found by a built-in check on the studio's computer (…)". */
@@ -220,10 +222,20 @@ export type GateConfirmation = z.infer<typeof GateConfirmationSchema>;
  *  - model: both gates also clear on the model's word: every current automatic assessment found
  *    no concern on that gate. No person looks at a gate cleared this way, and a routine approval
  *    policy can then select the option; the gate says so wherever it is shown.
+ *  - checklist (ADR-0097): a gate also clears when every current automatic assessment passed
+ *    every item of the owner's gate checklist for it, each pass citing the packet; access also
+ *    needs every capability the assessment says the option needs to be Yes in the current team
+ *    profile, found by a check on this computer (or declared by the owner when no check can test
+ *    it). Any fail or unknown keeps the gate open and is listed for the owner.
  * In every mode a concern raised by anyone still blocks and comes to the owner, and changing the
  * mode ends every clear the earlier one made.
  */
-export const GATE_CLEAR_MODES = ['owner', 'team_profile', 'model'] as const;
+export const GATE_CLEAR_MODES = [
+  'owner',
+  'team_profile',
+  'model',
+  'checklist',
+] as const;
 export const GateClearModeSchema = z.enum(GATE_CLEAR_MODES);
 export type GateClearMode = z.infer<typeof GateClearModeSchema>;
 
@@ -240,3 +252,76 @@ export const SetGateRuleRequestSchema = z.strictObject({
   mode: GateClearModeSchema,
 });
 export type SetGateRuleRequest = z.infer<typeof SetGateRuleRequestSchema>;
+
+// ---- The owner's gate checklist (ADR-0097) ---------------------------------------------------
+
+/**
+ * What the owner wants checked before an ethics or access gate may clear on its own: up to 12
+ * short items, each for one gate. Only the owner writes it; every save is a new version. The
+ * automatic assessment answers every item pass, fail or unknown, citing the packet; under the
+ * checklist gate rule, code clears a gate only when every item for it passed.
+ */
+export const MAX_CHECKLIST_ITEMS = 12;
+export const ChecklistItemRefSchema = z.string().regex(/^K(?:[1-9]|1[0-2])$/);
+export const GateChecklistItemSchema = z.strictObject({
+  gate: GateKindSchema,
+  text: z.string().trim().min(3).max(300),
+});
+export type GateChecklistItem = z.infer<typeof GateChecklistItemSchema>;
+
+/** A starter list the owner can adopt and edit; never applied without the owner saving it. */
+export const STARTER_GATE_CHECKLIST: readonly GateChecklistItem[] = [
+  {
+    gate: 'ethics',
+    text: 'Personal or sensitive data about people is used only with their consent or another clear, lawful basis.',
+  },
+  {
+    gate: 'ethics',
+    text: 'The option does not track, profile or monitor people without their knowledge.',
+  },
+  {
+    gate: 'ethics',
+    text: 'No group of people is harmed, left out or treated unfairly by the option.',
+  },
+  {
+    gate: 'access',
+    text: 'The team can run and install everything the option needs (see the team profile).',
+  },
+  {
+    gate: 'access',
+    text: 'The option needs no paid tool or service the team has not said it can pay for.',
+  },
+  {
+    gate: 'access',
+    text: 'Data stays where the team profile says it must (for example, on the team’s own computers).',
+  },
+];
+
+export const GateChecklistSchema = z.strictObject({
+  /** 0 while nothing has been saved. */
+  version: z.number().int().min(0),
+  items: z
+    .array(GateChecklistItemSchema.extend({ ref: ChecklistItemRefSchema }))
+    .max(MAX_CHECKLIST_ITEMS),
+  updated_at: timestamp.nullable(),
+  can_edit: z.boolean(),
+});
+export type GateChecklist = z.infer<typeof GateChecklistSchema>;
+
+export const SaveGateChecklistRequestSchema = z.strictObject({
+  expected_version: z.number().int().min(0),
+  items: z.array(GateChecklistItemSchema).max(MAX_CHECKLIST_ITEMS),
+});
+export type SaveGateChecklistRequest = z.infer<
+  typeof SaveGateChecklistRequestSchema
+>;
+
+/** The checklist block an assessment packet carries. */
+export const PacketChecklistSchema = z.strictObject({
+  version,
+  items: z
+    .array(GateChecklistItemSchema.extend({ ref: ChecklistItemRefSchema }))
+    .min(1)
+    .max(MAX_CHECKLIST_ITEMS),
+});
+export type PacketChecklist = z.infer<typeof PacketChecklistSchema>;

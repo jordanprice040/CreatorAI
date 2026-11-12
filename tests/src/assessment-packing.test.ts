@@ -183,8 +183,8 @@ test('eight long options and thirty claims: every request is under the cap and r
     assert.ok(p.ok);
     return p.packet.claims.length;
   };
-  // ADR-0090's longer assessor prompt (the team block sentence) leaves room for three here.
-  assert.equal(at(24_000), 3);
+  // ADR-0097's longer assessor prompt (the checklist sentences) leaves room for two here.
+  assert.equal(at(24_000), 2);
   assert.ok(at(40_000) > at(24_000));
   assert.equal(at(120_000), 30);
 });
@@ -210,12 +210,13 @@ test('the cap that reads every claim is reported, and reads them all', () => {
 });
 
 test('a finer split is used only when it reads clearly more claims (it costs more requests)', () => {
-  // Eight mid-sized options at 32,000: one option per request would read 10 claims in 8
-  // requests; two per request read 9 in 4, so the 4-request split is kept.
+  // Eight mid-sized options at 32,000: one option per request would read one or two claims
+  // more in 8 requests; two per request read 8 in 4, so the 4-request split is kept
+  // (ADR-0097's longer prompt reads one claim fewer than before).
   const plan = buildAssessmentPacket(large(32_000, 'mid'));
   assert.ok(plan.ok);
   assert.equal(plan.batches.length, 4);
-  assert.equal(plan.packet.claims.length, 9);
+  assert.equal(plan.packet.claims.length, 8);
   // When the finer split reads many more claims it is used: long options at 24,000.
   const long = buildAssessmentPacket(large(24_000));
   assert.ok(long.ok);

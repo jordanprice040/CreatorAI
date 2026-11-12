@@ -3399,6 +3399,25 @@ fieldset.gate-rule label.choice {
   display: block;
   margin: 0.4rem 0;
 }
+/* ADR-0097: the owner's gate checklist, one item per line. */
+fieldset.gate-checklist {
+  border: 0;
+  padding: 0;
+  margin: 0.5rem 0;
+}
+fieldset.gate-checklist ol {
+  padding-left: 1.5rem;
+}
+fieldset.gate-checklist li {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  margin: 0.3rem 0;
+}
+fieldset.gate-checklist li input {
+  flex: 1;
+  min-width: 0;
+}
 
 /* ADR-0087: a fix's confirmation panel, and its own lines, each on a line of its own. */
 .fix-here .fix-panel {

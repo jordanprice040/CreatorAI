@@ -1,7 +1,12 @@
 import { z, id, hash, version, timestamp } from './primitives.js';
 import { ExplorationClaimSchema } from './exploration.js';
 import { GateStatusSchema, RubricIdSchema } from './selection.js';
-import { PacketTeamSchema } from './team.js';
+import {
+  ChecklistItemRefSchema,
+  PacketChecklistSchema,
+  PacketTeamSchema,
+  TeamCapabilityKeySchema,
+} from './team.js';
 
 // P08 automatic assessments (ADR-0074). A system assessor proposes 1–5 ratings with written,
 // evidence-linked rationales for every option of one problem on the rubrics that apply; the
@@ -79,6 +84,11 @@ export const AssessmentPacketSchema = z.strictObject({
    * team profile has been saved (and on packets built before schema 56).
    */
   team: PacketTeamSchema.optional(),
+  /**
+   * ADR-0097: the owner's gate checklist, which the assessor answers item by item. Absent when
+   * none has been saved (and on packets built before schema 60).
+   */
+  checklist: PacketChecklistSchema.optional(),
   assessed_at: timestamp,
 });
 export type AssessmentPacket = z.infer<typeof AssessmentPacketSchema>;
@@ -131,6 +141,24 @@ export const AssessorRatingSchema = z.strictObject({
     maintenance: short,
   }),
   uncertainty: short,
+  /**
+   * ADR-0097: on suitability assessments when the packet has a checklist, every item answered
+   * once, keyed by its ref ("K1"...). A pass cites at least one claim or team capability.
+   */
+  checklist: z
+    .record(
+      ChecklistItemRefSchema,
+      z.strictObject({
+        answer: z.enum(['pass', 'fail', 'unknown']),
+        claim_refs: z.array(claimRef).max(10),
+        /** Team capability keys from the packet's team block. */
+        team_refs: z.array(TeamCapabilityKeySchema).max(11),
+        note: z.string().trim().min(1).max(200),
+      }),
+    )
+    .optional(),
+  /** ADR-0097: the team capabilities (keys) the option needs, with the checklist. */
+  access_needs: z.array(TeamCapabilityKeySchema).max(11).optional(),
 });
 export type AssessorRating = z.infer<typeof AssessorRatingSchema>;
 

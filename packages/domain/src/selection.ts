@@ -2,6 +2,8 @@ import {
   ADVANCING_DISPOSITIONS,
   RUBRICS,
   ScorecardBodySchema,
+  TEAM_CAPABILITIES,
+  capabilityLabel,
   kindAllows,
   type ExactScore,
   type RankedCandidate,
@@ -113,9 +115,19 @@ export interface CandidateInput {
   /** ADR-0090: the owner's gate rule, when it lets something other than a person clear. */
   auto_clear?: {
     version: number;
-    mode: 'team_profile' | 'model';
+    mode: 'team_profile' | 'model' | 'checklist';
     at: string;
   } | null;
+  /**
+   * ADR-0097: the owner's gate checklist now (null when none is saved) and the capabilities the
+   * app can vouch for in the current team profile (verifiedCapabilities).
+   */
+  checklist?: {
+    version: number;
+    hash: string;
+    items: readonly { ref: string; gate: 'ethics' | 'access'; text: string }[];
+  } | null;
+  verified?: readonly string[];
 }
 const SOFTWARE_KINDS = ['build', 'hybrid'];
 const HARD_DISCOVERY_BLOCKS = [
@@ -154,6 +166,8 @@ interface ParseEnv {
    * it, not checked. Only a change in what the model reads makes an assessment stale.
    */
   team_hash?: string | undefined;
+  /** ADR-0097: the hash of the checklist a packet built now would carry ('' for none). */
+  checklist_hash?: string | undefined;
 }
 const shortId = (id: string) => id.slice(0, 8);
 /** Why a card no longer rates what is current: option, cited evidence, problem, rubric, packet. */
@@ -204,6 +218,13 @@ function staleReasons(
     if (env.team_hash !== undefined && env.team_hash !== (a.team_hash ?? ''))
       out.push(
         'The team profile, or the computer its checks ran on, changed since this assessment; assess again so it reads the current one.',
+      );
+    if (
+      env.checklist_hash !== undefined &&
+      env.checklist_hash !== (a.checklist_hash ?? '')
+    )
+      out.push(
+        'Your gate checklist changed since this assessment; assess again so it answers the current one.',
       );
     if (ev)
       for (const e of a.evidence) {
@@ -330,12 +351,15 @@ export function gateState(
   // raised no concern. model: either gate clears on the model's word, every current automatic
   // assessment having found no concern on it (Jordan's explicit choice; no person looks).
   const rule = c.auto_clear ?? null;
+  const list = checklistResult(c, system, gate);
   const ruleClears =
     !!rule &&
     !concerns.length &&
     system.length > 0 &&
     (rule.mode === 'model' ||
-      (gate === 'access' &&
+      (rule.mode === 'checklist' && !!list?.passes) ||
+      (rule.mode === 'team_profile' &&
+        gate === 'access' &&
         system.every((p) => (p.body.assessment?.team_answers ?? 0) > 0)));
   const state:
     'clear' | 'confirmed' | 'auto_cleared' | 'unresolved' | 'not_assessed' =
@@ -369,17 +393,127 @@ export function gateState(
             id: null,
             rule_version: rule.version,
             rule_mode: rule.mode,
-            reason:
+            reason: clipNote(
               rule.mode === 'model'
                 ? `Cleared on the model’s word by your gate rule: the automatic assessment found no ${gate} concern. No person looked at this gate.`
-                : `Cleared by the model’s reading of your team profile (your gate rule): the automatic assessment read profile version ${Math.max(...system.map((p) => p.body.assessment?.team_version ?? 0))} and found no access concern. No person looked at this gate.`,
+                : rule.mode === 'checklist'
+                  ? gate === 'access'
+                    ? `Cleared by your gate checklist (version ${list!.result.version}): every automatic assessment passed all ${list!.result.items} access items, citing the packet, and the app found every capability needed (${list!.result.needs.map(capabilityLabel).join('; ')}) in your team profile. No person looked at this gate.`
+                    : `Cleared by your gate checklist (version ${list!.result.version}): every automatic assessment passed all ${list!.result.items} ethics items, citing the packet. Each item is the model’s judgment against your criteria; no person looked at this gate.`
+                  : `Cleared by the model’s reading of your team profile (your gate rule): the automatic assessment read profile version ${Math.max(...system.map((p) => p.body.assessment?.team_version ?? 0))} and found no access concern. No person looked at this gate.`,
+              300,
+            ),
             created_at: rule.at,
           }
         : null,
     stale_confirmation: stale,
     assessed: cards.length > 0,
     rule: rule?.mode ?? ('owner' as const),
+    ...(list ? { checklist: list.result } : {}),
   };
+}
+
+/**
+ * ADR-0097: how the current automatic assessments answered the owner's checklist for one gate,
+ * read from their suitability cards (the ones that answer it). Null when there is no checklist,
+ * no item for this gate, or no current card answered it. `passes` is what the checklist rule
+ * needs: every item passed on every such card and, for access, at least one needed capability
+ * named on each, every one of them confirmed by the app in the current team profile.
+ */
+function checklistResult(
+  c: CandidateInput,
+  system: readonly { body: ScorecardBody }[],
+  gate: 'ethics' | 'access',
+) {
+  const list = c.checklist;
+  if (!list) return null;
+  const items = list.items.filter((i) => i.gate === gate);
+  const cards = system
+    .filter((p) => p.body.rubric === 'suitability')
+    .map((p) => p.body.assessment!)
+    .filter((a) => (a.checklist_hash ?? '') === list.hash && a.checklist);
+  if (!items.length || !cards.length) return null;
+  const rank = { missing: 3, fail: 2, unknown: 1, pass: 0 } as const;
+  const failing = items.flatMap((i) => {
+    let worst: { answer: keyof typeof rank; note: string } = {
+      answer: 'pass',
+      note: '',
+    };
+    for (const a of cards) {
+      const r = a.checklist![i.ref];
+      const answer = r ? r.answer : 'missing';
+      if (rank[answer] > rank[worst.answer])
+        worst = {
+          answer,
+          note: r?.note ?? 'The assessment did not answer this item.',
+        };
+    }
+    return worst.answer === 'pass'
+      ? []
+      : [
+          {
+            item: i.ref,
+            text: i.text,
+            answer: worst.answer as 'fail' | 'unknown' | 'missing',
+            note: worst.note,
+          },
+        ];
+  });
+  const verified = new Set(c.verified ?? []);
+  const needs = [...new Set(cards.flatMap((a) => a.access_needs ?? []))].sort(
+    (a, b) => capabilityOrder(a) - capabilityOrder(b),
+  );
+  const needs_missing = needs.filter((k) => !verified.has(k));
+  const passes =
+    !failing.length &&
+    (gate === 'ethics' ||
+      (cards.every((a) => (a.access_needs ?? []).length > 0) &&
+        !needs_missing.length));
+  return {
+    passes,
+    result: {
+      version: list.version,
+      items: items.length,
+      failing,
+      needs: gate === 'access' ? needs : [],
+      needs_missing: gate === 'access' ? needs_missing : [],
+    },
+  };
+}
+const capabilityOrder = (k: string) =>
+  TEAM_CAPABILITIES.findIndex((c) => c.key === k);
+
+/**
+ * ADR-0097: under the checklist rule, what kept a gate from clearing, in one line: the items not
+ * passed and the needed capabilities the app could not confirm. Null when nothing is listed.
+ */
+function checklistMiss(
+  details: readonly ReturnType<typeof gateState>[],
+): string | null {
+  const parts = details
+    .filter((d) => d.state === 'not_assessed' && d.rule === 'checklist')
+    .flatMap((d) => {
+      const r = d.checklist;
+      if (!r) return [];
+      const what = [
+        ...r.failing.map((f) => `${f.item} ${f.answer}`),
+        ...(d.gate === 'access' && !r.needs.length
+          ? ['no needed capability named']
+          : []),
+        ...(r.needs_missing.length
+          ? [
+              `not confirmed: ${r.needs_missing.map(capabilityLabel).join(', ')}`,
+            ]
+          : []),
+      ];
+      return what.length ? [`${GATE_WORD[d.gate]}: ${what.join('; ')}`] : [];
+    });
+  return parts.length
+    ? clipNote(
+        `Your gate checklist did not clear this option (${parts.join('. ')}). See the gate for each item’s note, or confirm it yourself.`,
+        300,
+      )
+    : null;
 }
 
 function gatesFor(c: CandidateInput, cards: Parsed[], opportunity: string) {
@@ -415,7 +549,8 @@ function gatesFor(c: CandidateInput, cards: Parsed[], opportunity: string) {
         )
       : ethics === 'not_assessed'
         ? current.length
-          ? 'Only the automatic assessment looked at ethics or access, and it can’t clear them; a person must confirm them (Confirm on the option, edit the assessment or score it).'
+          ? (checklistMiss(details) ??
+            'Only the automatic assessment looked at ethics or access, and it can’t clear them; a person must confirm them (Confirm on the option, edit the assessment or score it).')
           : 'Ethics and access have not been assessed on the current version.'
         : null;
   const blocked: Partial<Record<SelectionDisposition, string[]>> = {};
@@ -740,6 +875,8 @@ export function selectionReport(input: {
   linked_hash?: string;
   /** ADR-0090: the hash of the team block a packet would carry now; without it, not checked. */
   team_hash?: string;
+  /** ADR-0097: the hash of the checklist a packet would carry now; without it, not checked. */
+  checklist_hash?: string;
 }): SelectionReport {
   const candidates = [...input.candidates].sort((a, b) =>
     a.alternative.id < b.alternative.id ? -1 : 1,
@@ -752,6 +889,7 @@ export function selectionReport(input: {
         evidence: input.evidence,
         linked_hash: input.linked_hash,
         team_hash: input.team_hash,
+        checklist_hash: input.checklist_hash,
       }),
     ]),
   );
@@ -1131,7 +1269,8 @@ export function modelClearedEthics(
     const ethics = row?.gates.gate_details?.find((g) => g.gate === 'ethics');
     return (
       ethics?.state === 'auto_cleared' &&
-      ethics.confirmation?.rule_mode === 'model'
+      (ethics.confirmation?.rule_mode === 'model' ||
+        ethics.confirmation?.rule_mode === 'checklist')
     );
   });
 }

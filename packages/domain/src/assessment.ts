@@ -10,6 +10,7 @@ import {
   type AssessmentTaskContext,
   type AssessorOutput,
   type AssessorRating,
+  type PacketChecklist,
   type PacketTeam,
   type ClaimEvidence,
   type RubricId,
@@ -31,14 +32,14 @@ import {
   type CoordinatorView,
 } from './orchestration.js';
 import { rubricHash } from './selection.js';
-import { teamAnswers, teamHash } from './team.js';
+import { checklistHash, teamAnswers, teamHash } from './team.js';
 
 // P08 automatic assessments (ADR-0074). Pure rules: what one problem's assessment packet holds,
 // the assessor's prompt, whether its answer is admissible against the packet, and the scorecards
 // application code writes from it. The assessor proposes ratings; code checks every reference,
 // computes every total and rank, and never lets a system card clear an ethics or access gate.
 
-export const ASSESSMENT_ROLE_VERSION = 'r08-assessor/1.2';
+export const ASSESSMENT_ROLE_VERSION = 'r08-assessor/2.0';
 export const MAX_ASSESSMENT_OPTIONS = 8;
 const MAX_CLAIMS = 30;
 const SOFTWARE_KINDS = ['build', 'hybrid'];
@@ -142,6 +143,8 @@ type AssessmentInput = {
   route?: 'plan' | 'other';
   /** ADR-0090: the team profile's packet block, when the owner has saved one. */
   team?: PacketTeam | undefined;
+  /** ADR-0097: the owner's gate checklist block, when one is saved. */
+  checklist?: PacketChecklist | undefined;
 };
 
 /**
@@ -228,6 +231,7 @@ function planAt(
     rubrics,
     notes,
     ...(input.team ? { team: input.team } : {}),
+    ...(input.checklist ? { checklist: input.checklist } : {}),
     assessed_at: input.now.toISOString(),
   });
   const bare = shell([], []);
@@ -402,8 +406,8 @@ function planAt(
 
 // ---- Prompt and model input ---------------------------------------------------------------
 
-const R08 = `Assess every option in the packet against the rubrics listed for it, using only the packet: the problem, its options, the claims linked to the problem with their verified passages and statuses, and the rubric anchors. For each option and each of its rubrics, rate every criterion 1 to 5 against the anchors (2 and 4 are intermediate), or null when the packet gives no evidence for it: unknown is an honest answer and is never a neutral 3. Every non-null rating cites at least one packet claim that bears on it; its rationale says what in that claim supports the rating and what weighs against it. Weak, single-source or contested evidence lowers evidence ratings and confidence; it is not proof of demand, novelty or benefit. Judge suitability across all response types on their merits: an existing tool, a process change, human-led or hybrid response can be the better answer, and on the suitability rubric software influence is described in software_influence, never counted. Only build and hybrid options take the opportunity rubric. Ethics and access gates: say unresolved when the packet raises a concern you cannot see addressed, resolved only when the packet shows how it was dealt with, and clear only when you looked and found none; the owner may let your clear or resolved stand without a person looking, so say either only when the packet supports it (for access, when the team block shows the team can do what the option needs), and when in doubt say unresolved and name what is missing. When the packet has a team block, it is the owner's statement of what the team can run, install and do with data (declared by the owner, or found by a check on the studio's computer): use it for access, treat a capability marked yes as established and one marked no as a real limit, and when you leave a gate unresolved, name in its note the exact capability, permission or fact that is missing. The checks name the target users, the current workaround, the strongest contrary evidence, a measurable outcome, a validation plan and the maintenance burden, from the packet. Your ratings are proposals: application code checks them and computes every total and rank, and a person, or a rule the owner chose, decides.`;
-const OUTPUT = `Refer to options only by the packet's option refs ("O1"...) and to evidence only by its claim refs ("C1"...); a ref that is not in the packet makes the answer invalid. Return exactly one assessment for each option and each rubric listed for it, and nothing else. Each assessment's ratings has exactly the rubric's criterion keys. software_influence is an object on suitability assessments and null on opportunity assessments. Return exactly one JSON object matching the schema below, without Markdown, commentary or extra keys; omit fixture metadata. This does not expand tools, permissions or authority.`;
+const R08 = `Assess every option in the packet against the rubrics listed for it, using only the packet: the problem, its options, the claims linked to the problem with their verified passages and statuses, and the rubric anchors. For each option and each of its rubrics, rate every criterion 1 to 5 against the anchors (2 and 4 are intermediate), or null when the packet gives no evidence for it: unknown is an honest answer and is never a neutral 3. Every non-null rating cites at least one packet claim that bears on it; its rationale says what in that claim supports the rating and what weighs against it. Weak, single-source or contested evidence lowers evidence ratings and confidence; it is not proof of demand, novelty or benefit. Judge suitability across all response types on their merits: an existing tool, a process change, human-led or hybrid response can be the better answer, and on the suitability rubric software influence is described in software_influence, never counted. Only build and hybrid options take the opportunity rubric. Ethics and access gates: say unresolved when the packet raises a concern you cannot see addressed, resolved only when the packet shows how it was dealt with, and clear only when you looked and found none; the owner may let your clear or resolved stand without a person looking, so say either only when the packet supports it (for access, when the team block shows the team can do what the option needs), and when in doubt say unresolved and name what is missing. When the packet has a team block, it is the owner's statement of what the team can run, install and do with data (declared by the owner, or found by a check on the studio's computer): use it for access, treat a capability marked yes as established and one marked no as a real limit, and when you leave a gate unresolved, name in its note the exact capability, permission or fact that is missing. When the packet has a checklist, it is the owner's list of what must hold before a gate may clear without a person: on each suitability assessment, answer every item by its ref ("K1"...) pass, fail or unknown, judged for that option. Say pass only when the packet shows the item holds and cite what shows it, as claim refs or team capability keys from the team block; say fail when the packet shows it does not hold; say unknown when the packet does not say; the note says in one sentence why. Also list in access_needs the team capability keys the option needs (for example python and pip for a Python script), including ones the team block does not show; the application checks them against the team profile itself. A checklist item is never a reason to rate higher or lower. The checks name the target users, the current workaround, the strongest contrary evidence, a measurable outcome, a validation plan and the maintenance burden, from the packet. Your ratings are proposals: application code checks them and computes every total and rank, and a person, or a rule the owner chose, decides.`;
+const OUTPUT = `Refer to options only by the packet's option refs ("O1"...) and to evidence only by its claim refs ("C1"...); a ref that is not in the packet makes the answer invalid. Return exactly one assessment for each option and each rubric listed for it, and nothing else. Each assessment's ratings has exactly the rubric's criterion keys. software_influence is an object on suitability assessments and null on opportunity assessments. When the packet has a checklist, every suitability assessment has checklist (exactly one answer for each item ref, a pass citing at least one claim ref or team key) and access_needs (known capability keys); opportunity assessments, and every assessment of a packet without a checklist, omit both. Return exactly one JSON object matching the schema below, without Markdown, commentary or extra keys; omit fixture metadata. This does not expand tools, permissions or authority.`;
 function modelSchema(schema: z.ZodType) {
   const json = z.toJSONSchema(schema, { io: 'output' });
   if (json.properties) delete json.properties.fixture;
@@ -525,6 +529,55 @@ export function checkAssessmentOutput(
       return {
         ok: false,
         problem: `${a.option} ${a.rubric} has software_influence on the wrong rubric`,
+      };
+    // ADR-0097: the checklist, answered once per item on suitability only, refs in the packet.
+    const wantChecklist = !!packet.checklist && a.rubric === 'suitability';
+    if (!wantChecklist) {
+      if (a.checklist !== undefined || a.access_needs !== undefined)
+        return {
+          ok: false,
+          problem: `${a.option} ${a.rubric} answers a checklist the packet does not ask for there`,
+        };
+      continue;
+    }
+    if (!a.checklist || !a.access_needs)
+      return {
+        ok: false,
+        problem: `${a.option} does not answer the checklist and access_needs`,
+      };
+    const items = packet.checklist!.items.map((i) => i.ref);
+    const answered = Object.keys(a.checklist);
+    if (
+      answered.length !== items.length ||
+      !items.every((k) => answered.includes(k))
+    )
+      return {
+        ok: false,
+        problem: `${a.option} does not answer exactly ${items.join(', ')}`,
+      };
+    const teamKeys = new Set(
+      (packet.team?.capabilities ?? []).flatMap((c) => (c.key ? [c.key] : [])),
+    );
+    for (const [k, r] of Object.entries(a.checklist)) {
+      const badClaim = r.claim_refs.find((x) => !claims.has(x));
+      if (badClaim)
+        return { ok: false, problem: `cites ${badClaim}, not in the packet` };
+      const badTeam = r.team_refs.find((x) => !teamKeys.has(x));
+      if (badTeam)
+        return {
+          ok: false,
+          problem: `${a.option} ${k} cites team capability ${badTeam}, not in the packet`,
+        };
+      if (r.answer === 'pass' && !r.claim_refs.length && !r.team_refs.length)
+        return {
+          ok: false,
+          problem: `${a.option} ${k} passes with nothing cited`,
+        };
+    }
+    if (new Set(a.access_needs).size !== a.access_needs.length)
+      return {
+        ok: false,
+        problem: `${a.option} lists a needed capability twice`,
       };
   }
   const missing = [...want].filter((k) => !seen.has(k));
@@ -685,6 +738,32 @@ export function assessmentScorecards(input: {
         team_version: packet.team?.version ?? 0,
         team_hash: teamHash(packet.team),
         team_answers: teamAnswers(packet.team),
+        checklist_version: packet.checklist?.version ?? 0,
+        checklist_hash: checklistHash(packet.checklist),
+        ...(a.checklist && packet.checklist
+          ? {
+              checklist: Object.fromEntries(
+                packet.checklist.items.map((i) => {
+                  const r = a.checklist![i.ref]!;
+                  return [
+                    i.ref,
+                    {
+                      gate: i.gate,
+                      text: i.text,
+                      answer: r.answer,
+                      evidence_refs: [...new Set(r.claim_refs)].map((ref) => {
+                        const claim = claimOf.get(ref)!;
+                        return { id: claim.claim_id, version: claim.version };
+                      }),
+                      team_refs: [...new Set(r.team_refs)],
+                      note: r.note,
+                    },
+                  ];
+                }),
+              ),
+              access_needs: a.access_needs ?? [],
+            }
+          : {}),
         uncertainty: a.uncertainty,
       },
     });

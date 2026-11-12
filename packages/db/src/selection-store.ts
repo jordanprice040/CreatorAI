@@ -40,6 +40,7 @@ import {
   taskHashes,
   taskImpact,
   modelClearedEthics,
+  checklistHash,
   teamHash,
   validateSpec,
   type CandidateInput,
@@ -465,12 +466,19 @@ export class SelectionStore extends TeamStore {
     }
     // ADR-0090: the owner's gate confirmations and the team profile version cards read.
     const confirmations = await this.gateConfirmations(c, ws, ids);
-    const team_hash = (await this.teamForPacket(c, ws)).hash;
+    const team = await this.teamForPacket(c, ws);
+    const team_hash = team.hash;
     const rule = await this.latestGateRule(c, ws);
     const auto_clear =
       rule.mode !== 'owner' && rule.at
         ? { version: rule.version, mode: rule.mode, at: rule.at }
         : null;
+    // ADR-0097: the owner's checklist now, and what the app can vouch for in the team profile.
+    const list = await this.checklistForPacket(c, ws);
+    const checklist_hash = list.hash;
+    const checklist = list.checklist
+      ? { version: list.version, hash: list.hash, items: list.checklist.items }
+      : null;
     const candidates: CandidateInput[] = alts.map((a) => {
       const kind = String(a.body?.kind);
       let humility: HumilityState = 'not_applicable';
@@ -514,6 +522,8 @@ export class SelectionStore extends TeamStore {
         humility_reasons: reasons,
         confirmations: confirmations.filter((x) => x.alternative_id === a.id),
         auto_clear,
+        checklist,
+        verified: team.verified,
       };
     });
     // ADR-0074: the current version of everything a card cites or an assessment read.
@@ -555,6 +565,7 @@ export class SelectionStore extends TeamStore {
       evidence: evidence as EvidenceVersions,
       linked_hash: await this.linkedClaimsHash(c, ws, problemId),
       team_hash,
+      checklist_hash,
     };
   }
 
@@ -607,8 +618,14 @@ export class SelectionStore extends TeamStore {
       throw fail('INVALID_CONTRACT', 'Shortlist size must be 1–10.');
     return this.tx(async (c) => {
       await this.role(c, ws, ctx.actorId, false);
-      const { problem, candidates, evidence, linked_hash, team_hash } =
-        await this.gather(c, ws, problemId);
+      const {
+        problem,
+        candidates,
+        evidence,
+        linked_hash,
+        team_hash,
+        checklist_hash,
+      } = await this.gather(c, ws, problemId);
       return selectionReport({
         problem: {
           id: problem.id,
@@ -620,6 +637,7 @@ export class SelectionStore extends TeamStore {
         evidence,
         linked_hash,
         team_hash,
+        checklist_hash,
       });
     });
   }
@@ -646,8 +664,14 @@ export class SelectionStore extends TeamStore {
         "select pg_advisory_xact_lock(hashtext('gate-confirm:' || $1::text))",
         [altId],
       );
-      const { problem, candidates, evidence, linked_hash, team_hash } =
-        await this.gather(c, ws, problemId);
+      const {
+        problem,
+        candidates,
+        evidence,
+        linked_hash,
+        team_hash,
+        checklist_hash,
+      } = await this.gather(c, ws, problemId);
       const report = selectionReport({
         problem: {
           id: problem.id,
@@ -659,6 +683,7 @@ export class SelectionStore extends TeamStore {
         evidence,
         linked_hash,
         team_hash,
+        checklist_hash,
       });
       const row = report.suitability.candidates.find(
         (x) => x.alternative.id === altId,
@@ -820,6 +845,14 @@ export class SelectionStore extends TeamStore {
             'VERSION_CONFLICT',
             'The team profile changed while the packet was built; start again.',
           );
+        if (
+          (await this.checklistForPacket(c, ws)).hash !==
+          checklistHash(built.packet.checklist)
+        )
+          throw fail(
+            'VERSION_CONFLICT',
+            'Your gate checklist changed while the packet was built; start again.',
+          );
         const workflowId = await this.insertWorkflow(c, ctx, ws, runId, {
           role: 'r08_assessment',
           roleVersion: ASSESSMENT_ROLE_VERSION,
@@ -980,7 +1013,9 @@ export class SelectionStore extends TeamStore {
       ).rows[0]?.body as Row | undefined;
       // ADR-0090: what the owner says the team can do goes with every assessment.
       const team = await this.teamForPacket(c, ws);
-      return { problem, alts, claims, brief, cap, team };
+      // ADR-0097: and the owner's gate checklist, which the assessor answers item by item.
+      const checklist = await this.checklistForPacket(c, ws);
+      return { problem, alts, claims, brief, cap, team, checklist };
     });
     const claims: {
       relation: 'supports' | 'contradicts';
@@ -1021,6 +1056,7 @@ export class SelectionStore extends TeamStore {
       ...(read.cap ? { input_cap: read.cap } : {}),
       route: route ? 'plan' : 'other',
       team: read.team.team,
+      checklist: read.checklist.checklist,
     });
     // BODY_TOO_LARGE (HTTP 413) marks the size refusal: the request the studio would send is
     // too large. Decide offers raising the cap only for it.
@@ -1070,8 +1106,14 @@ export class SelectionStore extends TeamStore {
         'select 1 from entities where workspace_id = $1 and id = $2 for update',
         [ws, problemId],
       );
-      const { problem, candidates, evidence, linked_hash, team_hash } =
-        await this.gather(c, ws, problemId);
+      const {
+        problem,
+        candidates,
+        evidence,
+        linked_hash,
+        team_hash,
+        checklist_hash,
+      } = await this.gather(c, ws, problemId);
       if (problem.version !== req.problem.version)
         throw fail(
           'VERSION_CONFLICT',
@@ -1088,6 +1130,7 @@ export class SelectionStore extends TeamStore {
         evidence,
         linked_hash,
         team_hash,
+        checklist_hash,
       });
       if (report.report_hash !== req.report_hash)
         throw fail(
@@ -1131,7 +1174,7 @@ export class SelectionStore extends TeamStore {
             ? [
                 {
                   reason: 'ethical_judgment' as const,
-                  note: 'An option this selection advances had its ethics gate cleared on the model’s word only (the owner’s gate rule); no person looked at it, so a person decides.',
+                  note: 'An option this selection advances had its ethics gate cleared on the model’s word only (the owner’s gate rule: the model’s word, or its answers to the gate checklist); no person looked at it, so a person decides.',
                   evidence_refs: [],
                 },
               ]
@@ -1429,8 +1472,14 @@ export class SelectionStore extends TeamStore {
     if (!alt || alt.version !== body.alternative.version)
       blockers.push('The selected alternative changed after it was selected.');
     else {
-      const { problem, candidates, evidence, linked_hash, team_hash } =
-        await this.gather(c, ws, selection.problem.id);
+      const {
+        problem,
+        candidates,
+        evidence,
+        linked_hash,
+        team_hash,
+        checklist_hash,
+      } = await this.gather(c, ws, selection.problem.id);
       const report = selectionReport({
         problem: {
           id: problem.id,
@@ -1442,6 +1491,7 @@ export class SelectionStore extends TeamStore {
         evidence,
         linked_hash,
         team_hash,
+        checklist_hash,
       });
       const row = report.suitability.candidates.find(
         (x) => x.alternative.id === altId,

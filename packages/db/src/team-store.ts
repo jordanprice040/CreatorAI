@@ -3,12 +3,16 @@ import { hostname } from 'node:os';
 import type { PoolClient } from 'pg';
 import {
   ConfirmGateRequestSchema,
+  GateChecklistItemSchema,
   RunCapabilityCheckRequestSchema,
+  SaveGateChecklistRequestSchema,
   SaveTeamProfileRequestSchema,
   SetGateRuleRequestSchema,
   TeamProfileBodySchema,
   parse,
   type CapabilityCheck,
+  type GateChecklist,
+  type GateChecklistItem,
   type GateClearMode,
   type GateConfirmation,
   type GateRule,
@@ -19,10 +23,13 @@ import {
   EMPTY_TEAM_PROFILE,
   canonicalHash,
   checkedTeamProfile,
+  checklistHash,
+  packetChecklist,
   packetTeam,
   sameTeamProfile,
   savedTeamProfile,
   teamHash,
+  verifiedCapabilities,
 } from '@creator/domain';
 import { DiscoveryStore } from './discovery-store.js';
 import {
@@ -84,11 +91,141 @@ export class TeamStore extends DiscoveryStore {
     };
   }
 
-  /** What an assessment packet carries from the profile now, its version and its hash. */
+  /**
+   * What an assessment packet carries from the profile now, its version and its hash, and
+   * (ADR-0097) the capabilities the app can vouch for on this computer.
+   */
   protected async teamForPacket(c: PoolClient, ws: string) {
     const t = await this.latestTeamProfile(c, ws);
-    const team = packetTeam(t.profile, t.version, studioMachine());
-    return { version: t.version, team, hash: teamHash(team) };
+    const machine = studioMachine();
+    const team = packetTeam(t.profile, t.version, machine);
+    return {
+      version: t.version,
+      team,
+      hash: teamHash(team),
+      verified: verifiedCapabilities(t.profile, machine),
+    };
+  }
+
+  // ---- The owner's gate checklist (ADR-0097) -------------------------------------------
+
+  /** The latest saved checklist (version 0 and empty when none was saved). */
+  protected async latestGateChecklist(
+    c: PoolClient,
+    ws: string,
+  ): Promise<{
+    version: number;
+    items: GateChecklistItem[];
+    at: string | null;
+  }> {
+    const { rows } = await c.query<{
+      version: number;
+      items: unknown;
+      created_at: Date;
+    }>(
+      `select version, items, created_at from gate_checklist_versions
+        where workspace_id = $1 order by version desc limit 1`,
+      [ws],
+    );
+    const r = rows[0];
+    if (!r) return { version: 0, items: [], at: null };
+    return {
+      version: Number(r.version),
+      items: GateChecklistItemSchema.array().parse(r.items),
+      at: iso(r.created_at),
+    };
+  }
+
+  /** What an assessment packet carries from the checklist now, and its hash ('' for none). */
+  protected async checklistForPacket(c: PoolClient, ws: string) {
+    const l = await this.latestGateChecklist(c, ws);
+    const checklist = packetChecklist(l.items, l.version);
+    return { version: l.version, checklist, hash: checklistHash(checklist) };
+  }
+
+  private checklistView(
+    l: { version: number; items: GateChecklistItem[]; at: string | null },
+    owner: boolean,
+  ): GateChecklist {
+    return {
+      version: l.version,
+      items: l.items.map((x, i) => ({ ref: `K${i + 1}`, ...x })),
+      updated_at: l.at,
+      can_edit: owner,
+    };
+  }
+
+  async gateChecklist(ctx: CommandContext, ws: string): Promise<GateChecklist> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    return this.tx(async (c) => {
+      await this.role(c, ws, ctx.actorId, false);
+      return this.checklistView(
+        await this.latestGateChecklist(c, ws),
+        await this.ownsWorkspace(c, ws, ctx.actorId),
+      );
+    });
+  }
+
+  /** Saves the owner's checklist as a new version: an owner's action, audited. */
+  async saveGateChecklist(
+    ctx: CommandContext,
+    ws: string,
+    raw: unknown,
+  ): Promise<GateChecklist> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    const req = parse(SaveGateChecklistRequestSchema, raw);
+    return this.tx(async (c) => {
+      await this.requireTeamOwner(c, ws, ctx.actorId);
+      await c.query(
+        "select pg_advisory_xact_lock(hashtext('gate-checklist:' || $1::text))",
+        [ws],
+      );
+      const cur = await this.latestGateChecklist(c, ws);
+      if (cur.version !== req.expected_version)
+        throw fail(
+          'VERSION_CONFLICT',
+          'The gate checklist changed since this page loaded it; reload and decide again.',
+        );
+      const items = req.items.map((x) => ({ gate: x.gate, text: x.text }));
+      const seen = new Set<string>();
+      for (const x of items) {
+        const k = `${x.gate}:${x.text.toLowerCase()}`;
+        if (seen.has(k))
+          throw fail(
+            'INVALID_CONTRACT',
+            `“${x.text}” is listed twice for the ${x.gate} gate.`,
+          );
+        seen.add(k);
+      }
+      if (canonicalHash(items) === canonicalHash(cur.items))
+        throw fail(
+          'INVALID_CONTRACT',
+          'Nothing changed in the gate checklist.',
+        );
+      const version = cur.version + 1;
+      const itemsHash = canonicalHash(items);
+      const eventId = await this.append(c, ctx, {
+        workspaceId: ws,
+        action: 'gate_checklist.saved',
+        subjectKind: 'gate_checklist',
+        subjectId: ws,
+        subjectVersion: version,
+        contentHash: itemsHash,
+        payload: { version, items },
+      });
+      const { rows } = await c.query<{ created_at: Date }>(
+        `insert into gate_checklist_versions (workspace_id, version, items, items_hash, actor_id,
+           event_id)
+         values ($1, $2, $3::jsonb, $4, $5, $6) returning created_at`,
+        [ws, version, JSON.stringify(items), itemsHash, ctx.actorId, eventId],
+      );
+      return this.checklistView(
+        { version, items, at: iso(rows[0]!.created_at) },
+        true,
+      );
+    });
   }
 
   /** What the page gets: the host name (where checks ran and would run) only for the owner. */
@@ -391,6 +528,14 @@ export class TeamStore extends DiscoveryStore {
         );
       if (cur.mode === req.mode)
         throw fail('INVALID_CONTRACT', 'That is already how gates clear.');
+      if (
+        req.mode === 'checklist' &&
+        !(await this.latestGateChecklist(c, ws)).items.length
+      )
+        throw fail(
+          'INVALID_CONTRACT',
+          'Save a gate checklist with at least one item first; until then nothing could clear by it.',
+        );
       const version = cur.version + 1;
       const payload = { version, mode: req.mode, previous: cur.mode };
       const eventId = await this.append(c, ctx, {

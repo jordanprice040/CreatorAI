@@ -689,6 +689,8 @@ export function createApi(
   const TEAM_PROFILE_ROUTE =
     /^\/api\/workspaces\/([^/]+)\/(team-profile)(?:\/(checks))?$/;
   const GATE_RULE_ROUTE = /^\/api\/workspaces\/([^/]+)\/(gate-rule)$/;
+  // ADR-0097: the owner's gate checklist.
+  const GATE_CHECKLIST_ROUTE = /^\/api\/workspaces\/([^/]+)\/(gate-checklist)$/;
   const GATE_CONFIRM_ROUTE =
     /^\/api\/workspaces\/([^/]+)\/(problems)\/([^/]+)\/(gate-confirmations)$/;
   async function records(req: IncomingMessage, res: ServerResponse, url: URL) {
@@ -715,6 +717,7 @@ export function createApi(
       ACTIVITY_NOW_ROUTE.exec(url.pathname) ??
       TEAM_PROFILE_ROUTE.exec(url.pathname) ??
       GATE_RULE_ROUTE.exec(url.pathname) ??
+      GATE_CHECKLIST_ROUTE.exec(url.pathname) ??
       GATE_CONFIRM_ROUTE.exec(url.pathname);
     if (!match) return false;
     if (!store)
@@ -1018,6 +1021,17 @@ export function createApi(
         );
       throw new ContractError('NOT_FOUND', 'Unknown auto-clear rule route.');
     }
+    if (ws && GATE_CHECKLIST_ROUTE.test(url.pathname)) {
+      if (method === 'GET')
+        return send(200, await store.gateChecklist(ctx, ws), false);
+      if (method === 'POST')
+        return send(
+          200,
+          await store.saveGateChecklist(ctx, ws, await readJson(req)),
+          true,
+        );
+      throw new ContractError('NOT_FOUND', 'Unknown gate checklist route.');
+    }
     if (ws && item && GATE_CONFIRM_ROUTE.test(url.pathname)) {
       if (method === 'POST')
         return send(
@@ -1320,10 +1334,10 @@ export function createApi(
             req,
             collection === 'plan-connections' && item && method === 'POST'
               ? action === 'qualifications'
-                ? // A bundled benchmark manifest; assessment-synthetic-v2 is ~190 KiB minified.
-                  256 * 1024
+                ? // A bundled benchmark manifest; assessment-synthetic-v3 is ~290 KiB minified.
+                  512 * 1024
                 : action === 'qualification-queues'
-                  ? // ADR-0088: several bundled manifests (all five today are ~200 KiB).
+                  ? // ADR-0088: several bundled manifests (all six today are ~400 KiB).
                     1024 * 1024
                   : action === 'build-calls' || action === 'codex-builds'
                     ? PLAN_BUILD_CALL_MAX_BODY
