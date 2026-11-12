@@ -1,5 +1,11 @@
 # Build status — November 10, 2026
 
+## November 12 update — the last older review items (#128 N-6, #129 N-4, #90 N-4 leftover)
+
+Checked on main 9c6e751: #75 L-1 (stale-prompt rows read "historical pass (older prompt)"), #77 L-1 (`manifestCalls` test) and the first point of #90 N-4 (a failed Revoke or Stop keeps its message) were already fixed. What now works: the Codex plan relay stops the upstream call as soon as Codex disconnects, also while it waits for upstream data (before the headers or during a silent stretch), and records it as `codex_disconnected`; a relay closed by the builder records `relay_closed` instead of `timeout` (#128 N-6 and its note; `packages/executor/src/codex-host.ts`). Monitor › Approvals clears an error from a failed background poll when the next poll works, while an action's error stays (#90 re-review N-4, second point; `apps/web/src/oversight.tsx`). Review fixes (4 nits): a Codex disconnect during admission is noticed too, so nothing is sent upstream (test); the `relay_closed` test has a timeout; `poll-error.mjs` also checks that a refused Revoke keeps its error through a good poll (6/6 PASS); these logs say which point of #90 N-4 each change fixed. #129 N-4: a browser walk checks the owner-action buttons for each member role (owner, editor, viewer) on Models, Budgets, Library, Evidence and Runs, and that the server refuses each hidden action for that role (`tracking/evidence/member-roles/`). No migration, no ADR.
+
+Checked (cloud container, throwaway PostgreSQL 16): `pnpm typecheck`, `pnpm format:check`, `pnpm test:db` (after the review fixes 1131 tests: 1097 pass, 29 skipped, 5 fail, all five the known PowerShell-wrapper tests; no pwsh in the container). New tests in `tests/src/codex-host.test.ts`: a disconnect before the upstream headers and during a silent stream each stop the upstream call and settle `codex_disconnected` (both fail with the new close listener removed), and closing the relay settles `relay_closed`. Walks on review ports 5183/4330/4340: `member-roles/walk.mjs` 27/27 PASS, `poll-error.mjs` 3/3 PASS (with the old `oversight.tsx` the error stayed after a good poll). Not independently reviewed yet. Still open from older reviews: PR #150 N-1..N-3.
+
 ## November 12 update — the owner's gate checklist (ADR-0097, migration 60)
 
 What now works (schema 60 on this branch; 57–59 and 61 are reserved by other open branches): Settings › Team profile › Gate checklist, where the owner writes up to 12 ethics or access items (or adopts a suggested list); every assessment answers each item pass, fail or unknown with citations and names the capabilities the option needs; a new gate rule "Gates clear when they pass your gate checklist" clears ethics when every ethics item passed and access when every access item passed and the app found every needed capability in the team profile (checked on this computer, or declared when no check can test it). Compare lists the items that did not pass and the needs the app could not confirm, with what to do. A changed checklist marks assessments stale. Assessor prompt `r08-assessor/2.0`; benchmark `assessment-synthetic-v3` (15 cases).
@@ -185,9 +191,9 @@ Open items:
 - **Windows verification:** no full Windows run of main since CI stopped.
 - **Owner pilot:** finished. Jordan marked it finished on November 10 (PR #155); its window ended
   November 6.
-- **Older review items still open:** #128 N-6, #129 N-4, PR #150 N-1..N-3. Health reports configuration,
-  not live state; the preview cookie-host limit remains. (#75 L-1 was repaired earlier; #77 L-1, #90 N-4
-  and PR #148 N-I are fixed by the November 10 cleanup.)
+- **Older review items still open:** PR #150 N-1..N-3 (#128 N-6 and #129 N-4 fixed November 12). Health reports configuration,
+  not live state; the preview cookie-host limit remains. (#75 L-1 was repaired earlier; #77 L-1, the first point of #90 N-4
+  and PR #148 N-I are fixed by the November 10 cleanup; the second point of #90 N-4, a stale poll error, on November 12.)
 - **The web qualification record** lives in source against the dev studio's connection id, so it does not
   apply to the installed app's connection.
 
@@ -709,7 +715,7 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   the results file; nothing removed). PR #150 review M-1 is restated as open for Jordan; the record is unchanged.
 - Fixes: `CREATOR_SESSION_FILE` is no longer read as a secret file by the API and migrations (L2, with a test);
   `pnpm cli help` prints plain usage and exits 0 (L7); the Windows-only foreign-listener safety test skips elsewhere (L8);
-  a failed Revoke or Stop keeps its message (#90 N-4); the comparison's call counts are tested (#77 L-1, `manifestCalls`);
+  a failed Revoke or Stop keeps its message (#90 N-4, first point; its second point, a stale poll error, was fixed November 12); the comparison's call counts are tested (#77 L-1, `manifestCalls`);
   no bare `: ` label for a control-character source title (PR #148 N-I).
 - Left open: `config/owner-pilot.json` status, the installed-app upgrade and the web record decision (Jordan); #128 N-6,
   #129 N-4, PR #150 N-1..N-3; the qualification record living in source (L1). `t17-test.log` stays (the X10 manifest lists it).
