@@ -13,7 +13,6 @@ import {
   parse,
   type AssessmentPacket,
   type AssessmentPreview,
-  type ClaimEvidence,
   type WorkflowDetail,
   type Admission,
   type FreezeOutcome,
@@ -33,6 +32,8 @@ import {
   assessmentPreviewHash,
   buildAssessmentPacket,
   supportHash,
+  type AssessmentInputClaim,
+  type OptionCoverage,
   canonicalHash,
   checkSelection,
   humilityGate,
@@ -147,6 +148,25 @@ export const PROBLEM_CLAIMS_SQL = `
     join entities e on e.id = l.to_id and e.status = 'active'
    where l.workspace_id = $1 and l.from_id = $2 and l.to_kind = 'claim'
      and l.relation = 'derived_from' and l.retracted_at is null`;
+
+/**
+ * ADR-0091: the claims an assessment reads ($1 workspace, $2 problem): the problem's claims
+ * (option_id null) and the active claims that support one of its active options. Assessment
+ * packets and their staleness (linked_hash) read this set; Compare still lists the problem's.
+ */
+export const ASSESSMENT_CLAIMS_SQL = `
+  select p.from_id, p.relation, p.created_at, null::uuid as option_id
+    from (${PROBLEM_CLAIMS_SQL}) p
+  union all
+  select l.from_id, 'supports' as relation, l.created_at, l.to_id as option_id
+    from entity_links l
+    join entities e on e.id = l.from_id and e.status = 'active'
+    join entities a on a.id = l.to_id and a.status = 'active'
+   where l.workspace_id = $1 and l.relation = 'supports' and l.from_kind = 'claim'
+     and l.to_kind = 'alternative' and l.retracted_at is null
+     and exists (select 1 from entity_links o
+                  where o.workspace_id = $1 and o.from_id = l.to_id and o.to_id = $2
+                    and o.relation = 'derived_from' and o.retracted_at is null)`;
 
 export class SelectionStore extends TeamStore {
   // ---- Scorecards ----------------------------------------------------------------------
@@ -555,7 +575,7 @@ export class SelectionStore extends TeamStore {
       problem,
       candidates,
       evidence: evidence as EvidenceVersions,
-      linked_hash: await this.linkedClaimsHash(c, ws, problemId),
+      ...(await this.linkedHashes(c, ws, problemId)),
       team_hash,
     };
   }
@@ -563,18 +583,36 @@ export class SelectionStore extends TeamStore {
   /**
    * Review M-1: the claims linked to a problem as an assessment reads them (active claims with
    * an unretracted supports/contradicts link), hashed as a set. A claim linked or unlinked
-   * since an assessment marks it stale.
+   * since an assessment marks it stale. ADR-0091: a claim supporting one of the problem's
+   * options counts as claim:option, so linking evidence to an option marks it stale too.
    */
   protected async linkedClaimsHash(
     c: PoolClient,
     ws: string,
     problemId: string,
   ) {
-    const { rows } = await c.query<{ id: string }>(
-      `select distinct x.from_id::text as id from (${PROBLEM_CLAIMS_SQL}) x`,
+    return (await this.linkedHashes(c, ws, problemId)).linked_hash;
+  }
+
+  /**
+   * linked_hash, and problem_linked_hash: the same set without option claims, which is what
+   * assessments made before ADR-0091 hashed. Review 2 L-2: an assessment whose hash equals it
+   * differs only by option claims it did not read, and its stale reason says so.
+   */
+  protected async linkedHashes(c: PoolClient, ws: string, problemId: string) {
+    const { rows } = await c.query<{ id: string; option: boolean }>(
+      `select distinct case when x.option_id is null then x.from_id::text
+                            else x.from_id::text || ':' || x.option_id::text end as id,
+              x.option_id is not null as option
+         from (${ASSESSMENT_CLAIMS_SQL}) x`,
       [ws, problemId],
     );
-    return supportHash(rows.map((r) => r.id));
+    return {
+      linked_hash: supportHash(rows.map((r) => r.id)),
+      problem_linked_hash: supportHash(
+        rows.filter((r) => !r.option).map((r) => r.id),
+      ),
+    };
   }
 
   /** Each claim's active support rows, hashed (ADR-0074): new or retracted support changes it. */
@@ -609,8 +647,14 @@ export class SelectionStore extends TeamStore {
       throw fail('INVALID_CONTRACT', 'Shortlist size must be 1–10.');
     return this.tx(async (c) => {
       await this.role(c, ws, ctx.actorId, false);
-      const { problem, candidates, evidence, linked_hash, team_hash } =
-        await this.gather(c, ws, problemId);
+      const {
+        problem,
+        candidates,
+        evidence,
+        linked_hash,
+        problem_linked_hash,
+        team_hash,
+      } = await this.gather(c, ws, problemId);
       return selectionReport({
         problem: {
           id: problem.id,
@@ -621,6 +665,7 @@ export class SelectionStore extends TeamStore {
         shortlist_size: shortlistSize,
         evidence,
         linked_hash,
+        problem_linked_hash,
         team_hash,
       });
     });
@@ -880,6 +925,8 @@ export class SelectionStore extends TeamStore {
       claims_left_out: built.claims_left_out,
       claims_over_max: built.claims_over_max,
       cap_for_all: built.cap_for_all,
+      option_coverage: built.option_coverage,
+      problem_claims_read: built.problem_claims_read,
     };
   }
 
@@ -908,7 +955,12 @@ export class SelectionStore extends TeamStore {
     ctx: CommandContext,
     ws: string,
     problemId: string,
-    route: { connection_id: string; settings_hash?: string } | null,
+    route: {
+      connection_id: string;
+      settings_hash?: string;
+      /** The run's answer cap, at most the connection's (review L-1). */
+      max_output_chars?: number;
+    } | null,
   ): Promise<{
     packet: AssessmentPacket;
     batches: string[][];
@@ -917,15 +969,25 @@ export class SelectionStore extends TeamStore {
     claims_left_out: number;
     claims_over_max: number;
     cap_for_all: number | null;
+    option_coverage: OptionCoverage[];
+    problem_claims_read: number;
     evidence: AssessmentWorkflowContext['evidence'];
     linked_hash: string;
   }> {
     const read = await this.tx(async (c) => {
       await this.role(c, ws, ctx.actorId, false);
       let cap: number | undefined;
+      let outputCap: number | undefined;
       if (route) {
         const conn = await c.query<{
-          settings: { caps?: { responses?: { max_input_chars?: number } } };
+          settings: {
+            caps?: {
+              responses?: {
+                max_input_chars?: number;
+                max_output_chars?: number;
+              };
+            };
+          };
           settings_hash: string;
         }>(
           'select settings, settings_hash from plan_connections where workspace_id = $1 and id = $2',
@@ -941,6 +1003,14 @@ export class SelectionStore extends TeamStore {
             'Connection settings changed; refresh run setup.',
           );
         cap = conn.rows[0].settings.caps?.responses?.max_input_chars;
+        // Review L-1: the worker sends the run's cap, and the plan service applies the
+        // smaller of it and the connection's, so the requests are sized to that.
+        const connCap = conn.rows[0].settings.caps?.responses?.max_output_chars;
+        const runCap = route.max_output_chars;
+        outputCap =
+          connCap !== undefined && runCap !== undefined
+            ? Math.min(connCap, runCap)
+            : (connCap ?? runCap);
       }
       const p = await c.query(
         `select * from entities where workspace_id = $1 and id = $2 and kind = 'problem'`,
@@ -964,13 +1034,38 @@ export class SelectionStore extends TeamStore {
           'INVALID_TRANSITION',
           'This problem has no options to assess.',
         );
-      const claims = (
-        await c.query<{ from_id: string; relation: string }>(
-          `select distinct on (x.from_id) x.from_id, x.relation, x.created_at from (${PROBLEM_CLAIMS_SQL}) x
-            order by x.from_id, x.created_at`,
+      // ADR-0091: one row per claim: its first relation to the problem (if linked there) and
+      // the options it supports.
+      const rows = (
+        await c.query<{
+          from_id: string;
+          relation: string;
+          option_id: string | null;
+        }>(
+          `select x.from_id::text as from_id, x.relation, x.option_id::text as option_id
+             from (${ASSESSMENT_CLAIMS_SQL}) x order by x.created_at, x.from_id`,
           [ws, problemId],
         )
       ).rows;
+      const byId = new Map<
+        string,
+        { from_id: string; relation: string | null; options: string[] }
+      >();
+      for (const r of rows) {
+        const cl = byId.get(r.from_id) ?? {
+          from_id: r.from_id,
+          relation: null,
+          options: [],
+        };
+        if (r.option_id === null) cl.relation ??= r.relation;
+        else if (!cl.options.includes(r.option_id))
+          cl.options.push(r.option_id);
+        byId.set(r.from_id, cl);
+      }
+      // Claim-id order, as before ADR-0091, so problems without option claims read the same.
+      const claims = [...byId.values()].sort((a, b) =>
+        a.from_id < b.from_id ? -1 : a.from_id > b.from_id ? 1 : 0,
+      );
       const brief = (
         await c.query(
           `select e.body from entity_links l join entities e on e.id = l.to_id
@@ -982,16 +1077,15 @@ export class SelectionStore extends TeamStore {
       ).rows[0]?.body as Row | undefined;
       // ADR-0090: what the owner says the team can do goes with every assessment.
       const team = await this.teamForPacket(c, ws);
-      return { problem, alts, claims, brief, cap, team };
+      return { problem, alts, claims, brief, cap, outputCap, team };
     });
-    const claims: {
-      relation: 'supports' | 'contradicts';
-      evidence: ClaimEvidence;
-    }[] = [];
+    const claims: AssessmentInputClaim[] = [];
     for (const cl of read.claims)
       claims.push({
         relation: cl.relation === 'contradicts' ? 'contradicts' : 'supports',
         evidence: await this.claimEvidence(ctx, ws, cl.from_id, 180),
+        ...(cl.options.length ? { options: cl.options } : {}),
+        ...(cl.relation === null ? { problem: false } : {}),
       });
     const str = (v: unknown) => (typeof v === 'string' ? v : '');
     const b = read.problem.body as Row | null;
@@ -1021,6 +1115,7 @@ export class SelectionStore extends TeamStore {
       claims,
       now: new Date(),
       ...(read.cap ? { input_cap: read.cap } : {}),
+      ...(read.outputCap ? { output_cap: read.outputCap } : {}),
       route: route ? 'plan' : 'other',
       team: read.team.team,
     });
@@ -1043,7 +1138,15 @@ export class SelectionStore extends TeamStore {
       claims_left_out: plan.claims_left_out,
       claims_over_max: plan.claims_over_max,
       cap_for_all: plan.cap_for_all,
-      linked_hash: supportHash(read.claims.map((x) => x.from_id)),
+      option_coverage: plan.option_coverage,
+      problem_claims_read: plan.problem_claims_read,
+      // Same keys as linkedClaimsHash: a problem claim by id, an option claim as claim:option.
+      linked_hash: supportHash(
+        read.claims.flatMap((x) => [
+          ...(x.relation !== null ? [x.from_id] : []),
+          ...x.options.map((o) => `${x.from_id}:${o}`),
+        ]),
+      ),
       evidence: packet.claims.map((x) => ({
         id: x.claim_id,
         version: x.version,
@@ -1072,8 +1175,14 @@ export class SelectionStore extends TeamStore {
         'select 1 from entities where workspace_id = $1 and id = $2 for update',
         [ws, problemId],
       );
-      const { problem, candidates, evidence, linked_hash, team_hash } =
-        await this.gather(c, ws, problemId);
+      const {
+        problem,
+        candidates,
+        evidence,
+        linked_hash,
+        problem_linked_hash,
+        team_hash,
+      } = await this.gather(c, ws, problemId);
       if (problem.version !== req.problem.version)
         throw fail(
           'VERSION_CONFLICT',
@@ -1089,6 +1198,7 @@ export class SelectionStore extends TeamStore {
         shortlist_size: req.shortlist_size,
         evidence,
         linked_hash,
+        problem_linked_hash,
         team_hash,
       });
       if (report.report_hash !== req.report_hash)
@@ -1434,8 +1544,14 @@ export class SelectionStore extends TeamStore {
     if (!alt || alt.version !== body.alternative.version)
       blockers.push('The selected alternative changed after it was selected.');
     else {
-      const { problem, candidates, evidence, linked_hash, team_hash } =
-        await this.gather(c, ws, selection.problem.id);
+      const {
+        problem,
+        candidates,
+        evidence,
+        linked_hash,
+        problem_linked_hash,
+        team_hash,
+      } = await this.gather(c, ws, selection.problem.id);
       const report = selectionReport({
         problem: {
           id: problem.id,
@@ -1446,6 +1562,7 @@ export class SelectionStore extends TeamStore {
         shortlist_size: 3,
         evidence,
         linked_hash,
+        problem_linked_hash,
         team_hash,
       });
       const row = report.suitability.candidates.find(

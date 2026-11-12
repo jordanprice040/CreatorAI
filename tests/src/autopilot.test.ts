@@ -953,12 +953,7 @@ async function ownerChooses(
           ?.find((d) => d.gate === gate)
           ?.concerns.map((x) => x.scorecard) ?? [],
     });
-  rep = await h.store.selectionReport(
-    owner,
-    h.ws.id,
-    problemId,
-    shortlistSize,
-  );
+  rep = await h.store.selectionReport(owner, h.ws.id, problemId, shortlistSize);
   const out = await h.store.select(owner, h.ws.id, runId, {
     problem: { id: rep.problem.id, version: rep.problem.version },
     report_hash: rep.report_hash,
