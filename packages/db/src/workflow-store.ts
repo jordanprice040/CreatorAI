@@ -798,6 +798,25 @@ export class WorkflowStore extends BudgetStore {
 
   // ---- Coordinator --------------------------------------------------------------------
 
+  /**
+   * ADR-0098 (review 1 M-2): a transaction that changes a workflow and then coordinates it
+   * locks the workflow's run first, as an answer to its question does (run, then decision).
+   * A stop closes waiting questions after earlier appends, so without the run lock a stop and
+   * an answer could each hold what the other waits for.
+   */
+  private async lockWorkflowRun(c: PoolClient, workflowId: string) {
+    const { rows } = await c.query(
+      'select workspace_id, run_id from workflows where id = $1',
+      [workflowId],
+    );
+    if (rows[0])
+      await this.lockRun(
+        c,
+        String(rows[0].workspace_id),
+        String(rows[0].run_id),
+      );
+    return this.lockWorkflow(c, workflowId);
+  }
   private async lockWorkflow(c: PoolClient, workflowId: string) {
     const { rows } = await c.query(
       'select * from workflows where id = $1 for update',
@@ -1723,7 +1742,7 @@ export class WorkflowStore extends BudgetStore {
     const req = parse(WorkflowControlRequestSchema, raw);
     await this.tx(async (c) => {
       await this.requireOwner(c, ws, ctx.actorId);
-      const wf = await this.lockWorkflow(c, workflowId);
+      const wf = await this.lockWorkflowRun(c, workflowId);
       if (wf.workspace_id !== ws)
         throw fail('NOT_FOUND', 'Workflow not found.');
       if (wf.version !== req.expected_version)
@@ -1958,7 +1977,7 @@ export class WorkflowStore extends BudgetStore {
       if (!p) throw fail('NOT_FOUND', 'Task not found.');
       const ws = String(p.workspace_id);
       await this.role(c, ws, ctx.actorId, true);
-      await this.lockWorkflow(c, String(p.workflow_id));
+      await this.lockWorkflowRun(c, String(p.workflow_id));
       const held = await c.query(
         `select 1 from workflow_tasks where id = $1 and state = 'leased' and lease_token = $2 for update`,
         [taskId, token],
@@ -2003,7 +2022,7 @@ export class WorkflowStore extends BudgetStore {
     let n = 0;
     for (const r of rows)
       n += await this.tx(async (c) => {
-        const wf = await this.lockWorkflow(c, r.workflow_id);
+        const wf = await this.lockWorkflowRun(c, r.workflow_id);
         const { rows: t } = await c.query(
           `select * from workflow_tasks where id = $1 and state = 'leased' and lease_expires_at < now() for update`,
           [r.id],
@@ -2086,6 +2105,9 @@ export class WorkflowStore extends BudgetStore {
     const approved =
       decision.status === 'answered' &&
       (choice === 'approve_once' || choice === 'approve_standing');
+    // ADR-0098: every run and workflow is locked before the first wake appends.
+    for (const id of [...new Set(waiting.map((t) => t.workflow_id))].sort())
+      await this.lockWorkflowRun(c, id);
     for (const t of waiting) {
       const wf = await this.lockWorkflow(c, t.workflow_id);
       const { rows } = await c.query(
@@ -2134,7 +2156,7 @@ export class WorkflowStore extends BudgetStore {
           'select workflow_id from workflow_tasks where id = $1',
           [r.id],
         );
-        const wf = await this.lockWorkflow(c, String(tr[0]?.workflow_id));
+        const wf = await this.lockWorkflowRun(c, String(tr[0]?.workflow_id));
         const { rows: t } = await c.query(
           `select * from workflow_tasks where id = $1 and state = 'reconciling' for update`,
           [r.id],

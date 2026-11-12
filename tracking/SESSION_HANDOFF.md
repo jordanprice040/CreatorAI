@@ -2,7 +2,19 @@
 
 ## November 12 handoff — Oversight lock order fixes (ADR-0098)
 
-Branch `claude/project-thread-iqbxmf`, no migration. `packages/db/src/oversight-store.ts`: `cancelRun` locks routine policies and grants before appending; `lockGrantForWrite` (run, policy, grant) used by `revokeGrant` and `reviseGrant`; `writeGrant` updates the policy row before appending; `answerDecision` locks the run first; `admitIn` locks run and grants (`lockAdmissionGrants`, protected) before `expireDue`. Also `web-discovery-store.ts` (`admitWebClaimsByPolicy` locks the discovery and grants up front), `workflow-store.ts` (`coordinateIn` locks waiting tasks' decisions before a stop's changes), `desktop-job-store.ts` (`leaseDesktopJob` locks the device's queued jobs before expiring). Tests: `tests/src/oversight-lock-order.test.ts` copies #180's `lockWaiters` helper; holding the audit lock (or an actor row) in a helper transaction parks each side where the old order deadlocked.
+Branch `claude/project-thread-iqbxmf`, no migration. `packages/db/src/oversight-store.ts`:
+- `cancelRun` locks routine policies and grants before it appends.
+- `lockGrantForWrite` locks run, policy, then grant, and returns `{ grant, routine }`. `revokeGrant` and `reviseGrant` use it.
+- `writeGrant` updates the policy row before it appends.
+- `answerDecision` locks the run first.
+- `admitIn` locks the run and grants (`lockAdmissionGrants`, protected) before `expireDue`.
+
+Other stores:
+- `web-discovery-store.ts`: `admitWebClaimsByPolicy` locks the discovery, the grants and the claims' sources up front.
+- `workflow-store.ts`: `lockWorkflowRun` (run, then workflow) is used by `controlWorkflow`, task finish, `sweepLeases`, `wakeIn` and `reconcileTasks`. `coordinateIn` locks waiting tasks' decisions before a stop's changes.
+- `desktop-job-store.ts`: `expireJobs(c, queuedOf)` locks overdue jobs, plus that device's queued jobs, in id order, then updates exactly those.
+
+Tests: the lock-waiter helpers (`lockWaiters`, `hold`, `holdAudit`) are in `tests/src/pg-harness.ts`. #180 still has its own copy of `lockWaiters` in `copy-connection.test.ts`; switch it to the shared one after both merge.
 
 ## November 12 handoff — P29 extra requests when the daily cap runs out (ADR-0094)
 

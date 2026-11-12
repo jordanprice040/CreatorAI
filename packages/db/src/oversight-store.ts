@@ -699,11 +699,12 @@ export class OversightStore extends Store {
     );
     if (!rows[0]) throw fail('NOT_FOUND', 'Grant not found.');
     if (rows[0].run_id) await this.lockRun(c, ws, String(rows[0].run_id));
-    await c.query(
+    const policy = await c.query(
       'select 1 from routine_policies where grant_id = $1 for update',
       [grantId],
     );
-    return this.lockGrant(c, ws, grantId, expected);
+    const grant = await this.lockGrant(c, ws, grantId, expected);
+    return { grant, routine: !!policy.rowCount };
   }
   private checkExpiry(expiresAt: string) {
     const ms = Date.parse(expiresAt) - Date.now();
@@ -755,7 +756,7 @@ export class OversightStore extends Store {
     this.checkExpiry(req.expires_at);
     return this.tx(async (c) => {
       await this.requireOwner(c, ws, ctx.actorId);
-      const g = await this.lockGrantForWrite(
+      const { grant: g, routine } = await this.lockGrantForWrite(
         c,
         ws,
         grantId,
@@ -766,13 +767,7 @@ export class OversightStore extends Store {
           'INVALID_TRANSITION',
           'Only active standing grants can be revised.',
         );
-      if (
-        (
-          await c.query('select 1 from routine_policies where grant_id = $1', [
-            g.id,
-          ])
-        ).rowCount
-      )
+      if (routine)
         throw fail(
           'INVALID_TRANSITION',
           'This grant belongs to a routine approval policy. Change the policy instead, so its summary is confirmed again.',
@@ -801,7 +796,7 @@ export class OversightStore extends Store {
     const req = parse(RevokeGrantRequestSchema, raw);
     return this.tx(async (c) => {
       await this.requireOwner(c, ws, ctx.actorId);
-      const g = await this.lockGrantForWrite(
+      const { grant: g } = await this.lockGrantForWrite(
         c,
         ws,
         grantId,

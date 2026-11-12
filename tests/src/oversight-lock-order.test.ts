@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import type { Pool } from 'pg';
 import {
   ContractError,
   routinePolicySummary,
@@ -9,12 +8,8 @@ import {
   type ErrorCode,
   type RoutinePolicyInput,
 } from '@creator/contracts';
-import {
-  AUDIT_CHAIN_LOCK,
-  OversightStore,
-  type CommandContext,
-} from '@creator/db';
-import { freshDatabase } from './pg-harness.js';
+import { OversightStore, type CommandContext } from '@creator/db';
+import { freshDatabase, hold, holdAudit, lockWaiters } from './pg-harness.js';
 
 // ADR-0098: oversight writes take their locks in one order (run, decision, routine policy,
 // grant) and every row lock before the audit lock. Each test parks the transactions at the
@@ -23,34 +18,6 @@ const owner: CommandContext = { actorId: randomUUID() };
 const agent: CommandContext = { actorId: randomUUID() };
 const inHours = (h: number) =>
   new Date(Date.now() + h * 3_600_000).toISOString();
-
-/** Waits until `n` sessions in this test database wait on a lock (from #180's tests). */
-async function lockWaiters(pool: Pool, n: number, ms = 10_000) {
-  const end = Date.now() + ms;
-  for (;;) {
-    const { rows } = await pool.query(
-      `select count(*)::int as n from pg_stat_activity
-        where datname = current_database() and wait_event_type = 'Lock'`,
-    );
-    if (rows[0].n >= n) return;
-    if (Date.now() > end)
-      throw new Error(`timed out waiting for ${n} lock waiters`);
-    await new Promise((r) => setTimeout(r, 20));
-  }
-}
-
-/** Holds a lock in its own transaction until `release` is called. */
-async function hold(pool: Pool, sql: string, params: unknown[]) {
-  const c = await pool.connect();
-  await c.query('begin');
-  await c.query(sql, params);
-  return async () => {
-    await c.query('commit');
-    c.release();
-  };
-}
-const holdAudit = (pool: Pool) =>
-  hold(pool, 'select pg_advisory_xact_lock($1)', [AUDIT_CHAIN_LOCK]);
 
 const routine = (): RoutinePolicyInput & { summary_seen: string[] } => {
   const input: RoutinePolicyInput = {

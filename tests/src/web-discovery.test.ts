@@ -47,7 +47,7 @@ import {
   extractDocument,
 } from '@creator/research';
 import { WebDiscoveryRunner, answerJson, stepId } from '@creator/api';
-import { freshDatabase } from './pg-harness.js';
+import { freshDatabase, holdAudit, lockWaiters } from './pg-harness.js';
 import { fakePlan } from './plan-fakes.js';
 
 const scope = (o: Record<string, unknown> = {}) =>
@@ -1344,4 +1344,58 @@ test('under a routine policy a claim whose quote no longer binds is skipped, and
     [h.ws.id],
   );
   assert.equal(claims.rowCount, 0, 'the skipped claim left nothing behind');
+});
+
+test('ADR-0098 review 1 L-1: a routine claim admission and an archive of its source never deadlock', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.qualify();
+  const runId = await h.run();
+  const d = await h.start(runId);
+  const observation = d.proposals.find(
+    (p) => p.check === 'verified' && p.basis === 'observation',
+  )!;
+  const sourceId = observation.evidence[0]!.source_id!;
+  const p: RoutinePolicyInput = {
+    stages: ['research', 'evidence'],
+    data_classes: ['public'],
+    max_actions: 5,
+    max_total_nano_usd: null,
+    stop_on: ['person_rejects'],
+    expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+    rationale: 'Test policy.',
+  };
+  await h.store.setRoutinePolicy(owner, h.ws.id, runId, {
+    ...p,
+    summary_seen: routinePolicySummary(p),
+  });
+  const { rows } = await h.db.pool.query(
+    'select version from entities where id = $1',
+    [sourceId],
+  );
+  const release = await holdAudit(h.db.pool);
+  // The admission appends before it adds the claim's support. The old order then share-locked
+  // the source, which the archive had locked before waiting for the audit lock itself.
+  const admit = h.store.admitWebClaimsByPolicy(owner, h.ws.id, d.id);
+  await lockWaiters(h.db.pool, 1);
+  const archive = h.store.archiveEntity(owner, h.ws.id, sourceId, {
+    expected_version: Number(rows[0].version),
+    reason: 'Out of date.',
+  });
+  await lockWaiters(h.db.pool, 2);
+  await release();
+  const [a, r] = await Promise.allSettled([admit, archive]);
+  assert.equal(
+    a.status,
+    'fulfilled',
+    String(a.status === 'rejected' && a.reason),
+  );
+  assert.equal(
+    r.status,
+    'fulfilled',
+    String(r.status === 'rejected' && r.reason),
+  );
+  // The admission went first, so the claim was added while its source was still active.
+  assert.equal(a.status === 'fulfilled' && a.value.admitted, 1);
+  assert.equal(a.status === 'fulfilled' && a.value.note, null);
 });

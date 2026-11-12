@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import type { TestContext } from 'node:test';
 import pg from 'pg';
-import { migrate } from '@creator/db';
+import { AUDIT_CHAIN_LOCK, migrate } from '@creator/db';
 
 export const TEST_DB_ENV = 'CREATOR_TEST_DATABASE_URL';
 /**
@@ -53,3 +53,34 @@ export async function login(base: string) {
     write: { Cookie: cookie, 'X-CSRF-Token': session.csrf_token },
   };
 }
+
+/**
+ * Waits until `n` sessions in this test database wait on a lock, so a concurrency test orders
+ * its steps by what PostgreSQL reports rather than by sleeping (from #180's tests).
+ */
+export async function lockWaiters(pool: pg.Pool, n: number, ms = 10_000) {
+  const end = Date.now() + ms;
+  for (;;) {
+    const { rows } = await pool.query(
+      `select count(*)::int as n from pg_stat_activity
+        where datname = current_database() and wait_event_type = 'Lock'`,
+    );
+    if (rows[0].n >= n) return;
+    if (Date.now() > end)
+      throw new Error(`timed out waiting for ${n} lock waiters`);
+    await new Promise((r) => setTimeout(r, 20));
+  }
+}
+
+/** Holds a lock in its own transaction until `release` is called. */
+export async function hold(pool: pg.Pool, sql: string, params: unknown[]) {
+  const c = await pool.connect();
+  await c.query('begin');
+  await c.query(sql, params);
+  return async () => {
+    await c.query('commit');
+    c.release();
+  };
+}
+export const holdAudit = (pool: pg.Pool) =>
+  hold(pool, 'select pg_advisory_xact_lock($1)', [AUDIT_CHAIN_LOCK]);

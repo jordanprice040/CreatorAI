@@ -656,6 +656,21 @@ export class WebDiscoveryStore extends PortfolioStore {
           [ws, runId],
         )
       ).rowCount;
+      // ADR-0098 (review 1 L-1): adding a claim's support share-locks the passage's source,
+      // which a revision or archive locks before it appends; lock them here, before the first
+      // claim appends, in id order.
+      const passages = (hasPolicy ? observations : []).flatMap((r) =>
+        (r.proposal as CheckedProposal).evidence.flatMap((e) =>
+          e.verified && e.passage_id ? [e.passage_id] : [],
+        ),
+      );
+      if (passages.length)
+        await c.query(
+          `select 1 from entities where workspace_id = $1 and id in
+             (select source_id from source_passages where workspace_id = $1 and id = any($2::uuid[]))
+           order by id for share`,
+          [ws, passages],
+        );
       for (const r of hasPolicy ? observations : []) {
         const action = {
           action_type: 'claim.admit' as const,
