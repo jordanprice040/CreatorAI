@@ -41,7 +41,19 @@ export interface CommandContext {
   correlationId?: string;
   causationId?: string | null;
   idempotencyKey?: string;
+  /**
+   * ADR-0092: set by the autopilot runner on every step it takes. Authority stays the owner's
+   * (`actorId`, under the run's routine policy), but the records name the autopilot as the actor
+   * and the owner as the person who started it, so "a person chose" and "the autopilot chose"
+   * stay apart in data. Never read from a request.
+   */
+  autopilot?: { id: string };
 }
+/** The agent actor every autopilot step is recorded under (ADR-0092). */
+export const AUTOPILOT_ACTOR_ID = '00000000-0000-4000-8000-0000000000a1';
+/** Who a record names as its actor: the autopilot when one took the step. */
+export const recordedActor = (ctx: CommandContext) =>
+  ctx.autopilot ? AUTOPILOT_ACTOR_ID : ctx.actorId;
 export type Role = 'owner' | 'editor' | 'viewer';
 export type Row = Record<string, unknown>;
 
@@ -413,13 +425,25 @@ export class Store {
     const causationId = ctx.causationId ?? null;
     const occurredAt = (clock.rows[0]?.now ?? new Date()).toISOString();
     const previousHash = prev.rows[0]?.event_hash ?? null;
-    const payload = { ...e.payload, related_ids: e.relatedIds ?? [] };
+    const payload = {
+      ...e.payload,
+      related_ids: e.relatedIds ?? [],
+      ...(ctx.autopilot
+        ? {
+            autopilot: {
+              id: ctx.autopilot.id.toLowerCase(),
+              started_by: ctx.actorId,
+            },
+          }
+        : {}),
+    };
+    const actorId = recordedActor(ctx);
     const eventHash = canonicalHash({
       previous_hash: previousHash,
       id: eventId,
       workspace_id: e.workspaceId,
       occurred_at: occurredAt,
-      actor_id: ctx.actorId,
+      actor_id: actorId,
       action: e.action,
       subject_kind: e.subjectKind,
       subject_id: e.subjectId,
@@ -438,7 +462,7 @@ export class Store {
         eventId,
         e.workspaceId,
         occurredAt,
-        ctx.actorId,
+        actorId,
         e.action,
         e.subjectKind,
         e.subjectId,

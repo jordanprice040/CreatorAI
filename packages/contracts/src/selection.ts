@@ -595,6 +595,8 @@ export const SelectionSchema = z.strictObject({
   rationale: note,
   admission_id: id,
   actor_id: id,
+  /** ADR-0092: the autopilot that recorded it (its actor is then the Autopilot agent); null for a person. */
+  autopilot_id: id.nullable().optional(),
   created_at: z.iso.datetime(),
   /** Computed on read: a later selection for the problem replaces this one. */
   current: z.boolean(),

@@ -3291,6 +3291,55 @@ create trigger gate_rule_versions_immutable before update or delete on gate_rule
 `,
   },
   {
+    // ADR-0092 (P13): an unattended autopilot over one run's main path. Its steps are kept as one
+    // JSON array that only the studio's guarded updates change (each update names the version it
+    // read). At most one autopilot runs per run. Migration 56 is held by #179, so this is 57.
+    version: 57,
+    name: 'autopilots',
+    sql: `
+create table autopilots (
+ id uuid primary key,
+ workspace_id uuid not null references workspaces(id),
+ run_id uuid not null,
+ fixture boolean not null,
+ config jsonb not null check (jsonb_typeof(config) = 'object'),
+ config_hash char(64) not null,
+ summary text[] not null check (cardinality(summary) >= 1),
+ policy_version text not null,
+ state text not null check (state in ('running','finished')),
+ stage text not null check (stage in ('research','explore','brief','discover','assess','select',
+   'proposal','spec')),
+ outcome text check (outcome in ('proposal','insufficient_evidence','no_eligible_option',
+   'needs_person','needs_authority','limit_reached','failed','cancelled')),
+ explanation text not null default '' check (length(explanation) <= 1200),
+ steps jsonb not null default '[]' check (jsonb_typeof(steps) = 'array'),
+ calls_reserved integer not null default 0 check (calls_reserved >= 0),
+ version integer not null check (version >= 1),
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ updated_at timestamptz not null default clock_timestamp(),
+ finished_at timestamptz,
+ foreign key (workspace_id, run_id) references run_controls (workspace_id, run_id),
+ unique (workspace_id, id),
+ check ((state = 'finished') = (finished_at is not null)),
+ check ((state = 'finished') = (outcome is not null))
+);
+create index autopilots_by_workspace on autopilots (workspace_id, created_at desc);
+create unique index autopilots_one_running on autopilots (workspace_id, run_id)
+ where state = 'running';
+alter table autopilots add constraint autopilots_steps_max check (jsonb_array_length(steps) <= 60);
+-- The agent every autopilot step is recorded under; the owner who started it is kept beside it.
+insert into actors (id, kind, display_name)
+ values ('00000000-0000-4000-8000-0000000000a1', 'agent', 'Autopilot') on conflict (id) do nothing;
+-- A selection the autopilot recorded names it, so a person's choice and the rule's stay apart.
+alter table selections add column autopilot_id uuid;
+alter table selections add constraint selections_autopilot_fk
+ foreign key (workspace_id, autopilot_id) references autopilots (workspace_id, id);
+alter table selections add constraint selections_autopilot_actor
+ check ((autopilot_id is null) = (actor_id <> '00000000-0000-4000-8000-0000000000a1'));
+`,
+  },
+  {
     // ADR-0093 (P28): a workspace's own OpenAI API key, added in Models and connections. The key
     // itself is never here: credential_ref names the studio's protected vault entry (DPAPI on
     // Windows). Only the last four characters are kept, to tell keys apart. One key per real

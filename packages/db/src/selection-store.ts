@@ -54,6 +54,7 @@ import {
   fail,
   normalize,
   toEntity,
+  recordedActor,
   uuid,
   validateBody,
   type CommandContext,
@@ -102,6 +103,7 @@ export function toSelection(r: Row, current: boolean): Selection {
     rationale: String(r.rationale),
     admission_id: String(r.admission_id),
     actor_id: String(r.actor_id),
+    autopilot_id: r.autopilot_id ? String(r.autopilot_id) : null,
     created_at: iso(r.created_at),
     current,
   };
@@ -1241,9 +1243,11 @@ export class SelectionStore extends TeamStore {
         humility_review: null,
         // ADR-0090 (Jordan, November 12): when an option advances while its ethics gate was
         // cleared on the model's word alone, a run's selection (a routine policy included)
-        // stops and asks a person. A person selecting by hand is that person.
+        // stops and asks a person. A person selecting by hand is that person; an autopilot
+        // step is not a person, though the owner started it (ADR-0092).
         flags:
-          (await this.actorKind(c, ctx.actorId)) !== 'human' &&
+          (ctx.autopilot ||
+            (await this.actorKind(c, ctx.actorId)) !== 'human') &&
           modelClearedEthics(report, req.dispositions)
             ? [
                 {
@@ -1265,8 +1269,8 @@ export class SelectionStore extends TeamStore {
       const { rows } = await c.query(
         `insert into selections (id, workspace_id, run_id, problem_id, problem_version,
            report_hash, report, dispositions, overrides, override_reason, rationale,
-           admission_id, actor_id)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) returning *`,
+           admission_id, actor_id, autopilot_id)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) returning *`,
         [
           id,
           ws,
@@ -1280,7 +1284,8 @@ export class SelectionStore extends TeamStore {
           check.overrides.length ? req.override_reason : null,
           req.rationale,
           admission.id,
-          ctx.actorId,
+          recordedActor(ctx),
+          ctx.autopilot?.id.toLowerCase() ?? null,
         ],
       );
       await this.append(c, ctx, {

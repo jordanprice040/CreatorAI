@@ -92,6 +92,8 @@ const COUNTED = [
   'team_profile_versions',
   'gate_confirmations',
   'gate_rule_versions',
+  // ADR-0092: autopilots and the steps they took.
+  'autopilots',
 ] as const;
 
 /** Splits the password out so it reaches pg tools by environment, never by argv or logs. */
