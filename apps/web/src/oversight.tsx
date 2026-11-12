@@ -36,6 +36,8 @@ export class ApiError extends Error {
     message: string,
     /** ADR-0087: plan refusals the server sent with their codes, for fixes in place. */
     public readonly reasons: readonly PlanRefusal[] = [],
+    /** The HTTP status, or 0 when unknown. */
+    public readonly status = 0,
   ) {
     super(message);
   }
@@ -130,6 +132,7 @@ export async function api<T>(
       e.code ?? 'ERROR',
       `${e.message ?? `API error ${response.status}`}${details}`,
       reasons,
+      response.status,
     );
   }
   return parse(schema, body);

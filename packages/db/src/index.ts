@@ -35,6 +35,7 @@ export * from './autopilot-store.js';
 export * from './connection-store.js';
 export * from './discovery-benchmarks.js';
 export { chatInput, chatSnapshot } from './chat-store.js';
+export { fillInput } from './chat-action-store.js';
 export * from './file-store.js';
 export * from './tester-store.js';
 export { buildApprovalBlockers } from './build-approvals.js';

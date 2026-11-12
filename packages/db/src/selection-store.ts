@@ -693,8 +693,14 @@ export class SelectionStore extends TeamStore {
         "select pg_advisory_xact_lock(hashtext('gate-confirm:' || $1::text))",
         [altId],
       );
-      const { problem, candidates, evidence, linked_hash, team_hash } =
-        await this.gather(c, ws, problemId);
+      const {
+        problem,
+        candidates,
+        evidence,
+        linked_hash,
+        problem_linked_hash,
+        team_hash,
+      } = await this.gather(c, ws, problemId);
       const report = selectionReport({
         problem: {
           id: problem.id,
@@ -705,6 +711,7 @@ export class SelectionStore extends TeamStore {
         shortlist_size: 3,
         evidence,
         linked_hash,
+        problem_linked_hash,
         team_hash,
       });
       const row = report.suitability.candidates.find(

@@ -29,6 +29,7 @@ import {
   DATA_CLASS_CHOICES,
   defaultTaskClasses,
   missingTaskClasses,
+  NEW_CONNECTION_MAX_INPUT_CHARS,
   orderedClasses,
   taskChoicesFor,
   draftToCaps,
@@ -37,6 +38,7 @@ import { ChatAnswersCard } from './chat-answers.js';
 import { OpenRequests } from './open-requests.js';
 import { ApiKeyCheck } from './api-key-check-panel.js';
 import { AllowTasks } from './allow-tasks.js';
+import { DailyCapNotice } from './extra-requests.js';
 
 // §2.2 Models and connections. Sign-in, model access and task qualification are shown as
 // separate states; nothing here can enable credits or a paid fallback. A Claude Code
@@ -75,7 +77,7 @@ const PROPOSED_SETTINGS = {
       max_requests_per_run: 10,
       request_timeout_ms: 120000,
       max_output_chars: 16000,
-      max_input_chars: 24000,
+      max_input_chars: NEW_CONNECTION_MAX_INPUT_CHARS,
     },
     codex: {
       max_builds_per_day: 2,
@@ -100,7 +102,7 @@ const PROPOSED_CLAUDE_SETTINGS = {
       max_requests_per_run: 10,
       request_timeout_ms: 180000,
       max_output_chars: 16000,
-      max_input_chars: 24000,
+      max_input_chars: NEW_CONNECTION_MAX_INPUT_CHARS,
     },
     codex: {
       max_builds_per_day: 0,
@@ -1067,7 +1069,8 @@ export function Models({
               qualifications={detail.qualifications}
               queue={detail.qualification_queue ?? null}
               requestsLeft={
-                c.settings.caps.shared.max_model_requests_per_day -
+                c.settings.caps.shared.max_model_requests_per_day +
+                detail.usage.extra_requests -
                 detail.usage.last_24h_requests
               }
               busy={busy || !session}
@@ -1106,6 +1109,13 @@ export function Models({
             {detail.usage.in_flight} running · {detail.usage.unresolved} with an
             unknown outcome
           </p>
+          <DailyCapNotice
+            path={`${base}/${p}`}
+            csrf={session?.csrf_token ?? ''}
+            connection={c}
+            usage={detail.usage}
+            onDone={() => void load()}
+          />
         </>
       )}
     </section>

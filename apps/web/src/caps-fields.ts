@@ -276,6 +276,12 @@ export const taskChoicesFor = (kind: string) =>
 export const defaultTaskClasses = (kind: string): string[] =>
   taskChoicesFor(kind).map((x) => x.key);
 
+/**
+ * ADR-0093 (Jordan, November 11): the input cap a new ChatGPT plan or Claude Code connection
+ * proposes, in characters per request. Existing connections keep their accepted cap.
+ */
+export const NEW_CONNECTION_MAX_INPUT_CHARS = 64000;
+
 /** Tasks this connection's kind can take that it does not allow yet, in the canonical order. */
 export const missingTaskClasses = (
   kind: string,

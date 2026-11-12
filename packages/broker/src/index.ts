@@ -13,6 +13,7 @@ export * from './payments.js';
 export * from './payments-service.js';
 export * from './plan-oauth.js';
 export * from './plan-vault.js';
+export * from './api-keys.js';
 export * from './plan-responses.js';
 export * from './plan-service.js';
 export * from './claude-code.js';

@@ -108,7 +108,7 @@ export function checkBlockers(s: {
     ];
   if (s.live === 'not_configured')
     return [
-      'The API process has no OpenAI key. Start the studio with CREATOR_LIVE_PROVIDER=openai and OPENAI_API_KEY set in that window (docs/LIVE_CONNECTION_CHECKS.md).',
+      'No OpenAI API key yet. Add one under “Your OpenAI API key” above (or start the studio with CREATOR_LIVE_PROVIDER=openai and OPENAI_API_KEY, docs/LIVE_CONNECTION_CHECKS.md).',
     ];
   const out: string[] = [];
   if (!s.pricing)
@@ -120,6 +120,21 @@ export function checkBlockers(s: {
       'No active budget has $0.05 available to lend the check. Fund one on Monitor › Budgets (it still counts inside your overall ceiling).',
     );
   return out;
+}
+
+/**
+ * ADR-0093 (P28): why a pasted key cannot be saved yet, or null. The same shape the studio
+ * checks; the words never repeat the key.
+ */
+export function keyProblem(raw: string): string | null {
+  const key = raw.trim();
+  if (!key) return 'Paste the key first.';
+  if (/\s/.test(key)) return 'The key has a space or line break inside it.';
+  if (!/^[A-Za-z0-9_-]+$/.test(key))
+    return 'An OpenAI key has only letters, digits, - and _.';
+  if (key.length < 20 || key.length > 300)
+    return 'That is too short or too long for an OpenAI key.';
+  return null;
 }
 
 /** The one broker request the check sends. */

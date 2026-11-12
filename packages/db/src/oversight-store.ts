@@ -202,14 +202,28 @@ export class OversightStore extends Store {
     actorId: string,
     refusal = 'Only a workspace owner, signed in as a person, can change oversight policy.',
   ) {
-    const role = await this.role(c, ws, actorId, true);
-    // ADR-0075: tester accounts are never workspace owners for policy purposes.
-    if (
-      role !== 'owner' ||
-      (await this.actorKind(c, actorId)) !== 'human' ||
-      (await this.isTester(c, actorId))
-    )
+    await this.role(c, ws, actorId, true);
+    if (!(await this.isPolicyOwner(c, ws, actorId)))
       throw fail('ACCESS_DENIED', refusal);
+  }
+
+  /**
+   * Whether `requireOwner` would let this actor through, without throwing: the owner role,
+   * signed in as a person, and not a tester account (ADR-0075). Pages use it to offer only the
+   * owner actions the server will accept (ADR-0094 review L-1).
+   */
+  protected async isPolicyOwner(
+    c: PoolClient,
+    ws: string,
+    actorId: string,
+  ): Promise<boolean> {
+    const role = await this.role(c, ws, actorId, false);
+    // ADR-0075: tester accounts are never workspace owners for policy purposes.
+    return (
+      role === 'owner' &&
+      (await this.actorKind(c, actorId)) === 'human' &&
+      !(await this.isTester(c, actorId))
+    );
   }
 
   // ---- Sessions -------------------------------------------------------------------------
