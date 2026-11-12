@@ -31,6 +31,7 @@ export * from './runtime-ceiling.js';
 export { readPage, pageQuery, type PageRequest } from './paging.js';
 export * from './web-discovery-store.js';
 export * from './web-discovery-gates.js';
+export * from './autopilot-store.js';
 export * from './connection-store.js';
 export * from './discovery-benchmarks.js';
 export { chatInput, chatSnapshot } from './chat-store.js';

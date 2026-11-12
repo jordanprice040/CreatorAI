@@ -4,6 +4,8 @@
 // Models and connections route with the same confirmation, and only the owner sees one.
 import {
   BenchmarkManifestSchema,
+  PLAN_EXTRA_HOURS,
+  PLAN_EXTRA_REQUESTS,
   type PlanQualification,
   type PlanRefusal,
 } from '@creator/contracts';
@@ -41,6 +43,8 @@ export function fixLabel(a: FixAction): string {
     }
     case 'qualify':
       return 'Qualify now';
+    case 'extra_requests':
+      return `Add ${PLAN_EXTRA_REQUESTS} requests for ${PLAN_EXTRA_HOURS} hours`;
   }
 }
 
@@ -56,7 +60,7 @@ export const fixKey = (a: FixAction) =>
 
 /**
  * The fixes for refusals the server sent with their codes (ADR-0087): caps not accepted, a
- * data class or task not allowed, a model not qualified. Refusals without an owner fix, or
+ * data class or task not allowed, a model not qualified, a used-up daily cap (ADR-0094). Refusals without an owner fix, or
  * without the connection they name, give none. A task that is both not allowed and not
  * qualified gets one "allow and qualify", not two buttons.
  */
@@ -83,6 +87,8 @@ export function refusalFixes(
     if (!c) continue;
     if (r.code === 'caps_not_accepted')
       add({ kind: 'accept_caps', connection_id: c });
+    else if (r.code === 'daily_cap_reached')
+      add({ kind: 'extra_requests', connection_id: c });
     else if (r.code === 'data_class_not_allowed' && r.data_class)
       add({ kind: 'allow_data', connection_id: c, data_class: r.data_class });
     else if (r.code === 'task_class_not_allowed' && r.task_class) {

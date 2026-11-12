@@ -3291,6 +3291,55 @@ create trigger gate_rule_versions_immutable before update or delete on gate_rule
 `,
   },
   {
+    // ADR-0092 (P13): an unattended autopilot over one run's main path. Its steps are kept as one
+    // JSON array that only the studio's guarded updates change (each update names the version it
+    // read). At most one autopilot runs per run. Migration 56 is held by #179, so this is 57.
+    version: 57,
+    name: 'autopilots',
+    sql: `
+create table autopilots (
+ id uuid primary key,
+ workspace_id uuid not null references workspaces(id),
+ run_id uuid not null,
+ fixture boolean not null,
+ config jsonb not null check (jsonb_typeof(config) = 'object'),
+ config_hash char(64) not null,
+ summary text[] not null check (cardinality(summary) >= 1),
+ policy_version text not null,
+ state text not null check (state in ('running','finished')),
+ stage text not null check (stage in ('research','explore','brief','discover','assess','select',
+   'proposal','spec')),
+ outcome text check (outcome in ('proposal','insufficient_evidence','no_eligible_option',
+   'needs_person','needs_authority','limit_reached','failed','cancelled')),
+ explanation text not null default '' check (length(explanation) <= 1200),
+ steps jsonb not null default '[]' check (jsonb_typeof(steps) = 'array'),
+ calls_reserved integer not null default 0 check (calls_reserved >= 0),
+ version integer not null check (version >= 1),
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ updated_at timestamptz not null default clock_timestamp(),
+ finished_at timestamptz,
+ foreign key (workspace_id, run_id) references run_controls (workspace_id, run_id),
+ unique (workspace_id, id),
+ check ((state = 'finished') = (finished_at is not null)),
+ check ((state = 'finished') = (outcome is not null))
+);
+create index autopilots_by_workspace on autopilots (workspace_id, created_at desc);
+create unique index autopilots_one_running on autopilots (workspace_id, run_id)
+ where state = 'running';
+alter table autopilots add constraint autopilots_steps_max check (jsonb_array_length(steps) <= 60);
+-- The agent every autopilot step is recorded under; the owner who started it is kept beside it.
+insert into actors (id, kind, display_name)
+ values ('00000000-0000-4000-8000-0000000000a1', 'agent', 'Autopilot') on conflict (id) do nothing;
+-- A selection the autopilot recorded names it, so a person's choice and the rule's stay apart.
+alter table selections add column autopilot_id uuid;
+alter table selections add constraint selections_autopilot_fk
+ foreign key (workspace_id, autopilot_id) references autopilots (workspace_id, id);
+alter table selections add constraint selections_autopilot_actor
+ check ((autopilot_id is null) = (actor_id <> '00000000-0000-4000-8000-0000000000a1'));
+`,
+  },
+  {
     // ADR-0093 (P28): a workspace's own OpenAI API key, added in Models and connections. The key
     // itself is never here: credential_ref names the studio's protected vault entry (DPAPI on
     // Windows). Only the last four characters are kept, to tell keys apart. One key per real
@@ -3312,6 +3361,36 @@ create table workspace_api_keys (
  primary key (workspace_id, provider),
  foreign key (workspace_id, fixture) references workspaces (id, fixture)
 );
+`,
+  },
+  {
+    // ADR-0094 (P29, walk item 6): temporary extra requests on a connection's daily cap, granted
+    // by the owner when the cap is used up (20 at a time, Jordan, November 11, 2026). Each grant
+    // lasts as long as the rolling window and then stops counting; the configured cap is never
+    // changed and recorded usage is never rewritten. Grants are kept as they were made.
+    // Version 59 (coordinator's table, November 12, 2026): #179 holds 56, P13 57, P28 58,
+    // P30 60 and P31 61. Keep this array in ascending version order when merging.
+    version: 59,
+    name: 'plan_extra_requests',
+    sql: `
+create table plan_extra_requests (
+ id uuid primary key,
+ connection_id uuid not null references plan_connections(id),
+ requests integer not null check (requests between 1 and 1000),
+ configured_cap integer not null check (configured_cap >= 0),
+ used_at_grant integer not null check (used_at_grant >= 0),
+ settings_hash char(64) not null,
+ connection_version integer not null check (connection_version >= 1),
+ granted_by uuid not null references actors(id),
+ granted_at timestamptz not null default clock_timestamp(),
+ expires_at timestamptz not null,
+ check (expires_at > granted_at)
+);
+create index plan_extra_requests_live on plan_extra_requests (connection_id, expires_at);
+create trigger plan_extra_requests_no_update before update on plan_extra_requests
+  for each row execute function creator_reject_change();
+create trigger plan_extra_requests_no_delete before delete on plan_extra_requests
+  for each row execute function creator_reject_change();
 `,
   },
   {

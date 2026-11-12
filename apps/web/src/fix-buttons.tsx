@@ -9,6 +9,8 @@ import {
   type PlanQualification,
   DiscoveryBenchmarksSchema,
   type DiscoveryBenchmark,
+  PLAN_EXTRA_HOURS,
+  PLAN_EXTRA_REQUESTS,
 } from '@creator/contracts';
 import { allowSequence } from './allow-tasks.js';
 import {
@@ -30,6 +32,7 @@ import {
   type QualifyRole,
 } from './fix-here.js';
 import { api, message, words } from './oversight.js';
+import { extraConfirmText } from './extra-requests-text.js';
 import { manifestRole } from './qualification-role.js';
 import { BENCHMARKS, runOutcome } from './qualify.js';
 
@@ -622,6 +625,16 @@ function FixButton({ act: a, fix }: { act: FixAction; fix: FixContext }) {
             (await qualify(a.model_id, a.task_class, a.role, save)).text,
           );
           break;
+        case 'extra_requests':
+          await post(`plan-connections/${c.id}/extra-requests`, {
+            expected_version: c.version,
+            requests: PLAN_EXTRA_REQUESTS,
+          });
+          save();
+          done.push(
+            `Added ${PLAN_EXTRA_REQUESTS} requests for the next ${PLAN_EXTRA_HOURS} hours.`,
+          );
+          break;
       }
     } catch (e) {
       fail(message(e));
@@ -717,14 +730,16 @@ const confirmButton = (a: FixAction) =>
     ? 'Accept these caps and allowed work'
     : a.kind === 'qualify'
       ? 'Qualify now'
-      : 'Allow';
+      : a.kind === 'extra_requests'
+        ? `Add ${PLAN_EXTRA_REQUESTS} requests`
+        : 'Allow';
 
 /** Said when a benchmark the fix was drawn for is no longer offered (fourth review L-1). */
 const noBenchmark = (task: string) =>
   `The app no longer offers a benchmark for ${words(task)}; reload the page.`;
 
 /** Whether the fix can still do something, read from the connection just now. */
-function ready(a: FixAction, d: PlanConnectionDetail): boolean {
+export function ready(a: FixAction, d: PlanConnectionDetail): boolean {
   const c = d.connection;
   switch (a.kind) {
     case 'accept_caps':
@@ -738,6 +753,10 @@ function ready(a: FixAction, d: PlanConnectionDetail): boolean {
         (t) =>
           !(c.settings.allowed_task_classes as readonly string[]).includes(t),
       );
+    case 'extra_requests':
+      // Re-review 2 L-1: the server's own test (a policy owner, cap used up), so a tester
+      // holding the owner role is not offered a press the server refuses.
+      return dailyFull(d) && d.usage.can_add_extra;
     case 'qualify':
       return (
         Boolean(benchmarkFor(a.task_class, a.role)) &&
@@ -788,6 +807,12 @@ const qualifies = (
     d.connection.caps_accepted_at &&
     verified(d, a.model_id),
   );
+
+/** ADR-0094: whether the daily cap, with any unexpired extra, is used up. */
+const dailyFull = (d: PlanConnectionDetail) =>
+  d.usage.last_24h_requests >=
+  d.connection.settings.caps.shared.max_model_requests_per_day +
+    d.usage.extra_requests;
 
 const verified = (d: PlanConnectionDetail, model: string) =>
   d.model_access.some(
@@ -874,6 +899,14 @@ export function confirmText(a: FixAction, d: PlanConnectionDetail): string {
       ]
         .filter(Boolean)
         .join(' ');
+    }
+    case 'extra_requests': {
+      const configured = c.settings.caps.shared.max_model_requests_per_day;
+      if (!dailyFull(d))
+        return 'This connection has room for more requests today again.';
+      if (!d.usage.can_add_extra)
+        return 'Only the workspace owner, signed in as a person, can add requests.';
+      return extraConfirmText(configured, configured + d.usage.extra_requests);
     }
     case 'qualify': {
       if (

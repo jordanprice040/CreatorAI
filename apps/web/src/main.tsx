@@ -1142,7 +1142,11 @@ function App() {
                   />
                 )}
               {inStudio && signedIn && workspace && (
-                <UsageIndicator key={workspace.id} workspace={workspace} />
+                <UsageIndicator
+                  key={workspace.id}
+                  workspace={workspace}
+                  csrf={auth.session?.csrf_token ?? ''}
+                />
               )}
               {inStudio && workspace && auth.session && (
                 <AsideButton aside={aside} />

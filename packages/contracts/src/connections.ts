@@ -178,6 +178,28 @@ export const AcceptPlanCapsRequestSchema = z.strictObject({
   settings_hash: hash,
 });
 /**
+ * ADR-0094 (P29, walk item 6): a temporary extra allowance on a connection's daily request cap.
+ * Jordan's decision of November 11, 2026: 20 more requests at a time, offered again each time the
+ * connection runs out. It lasts as long as the rolling window (24 hours), so it raises only the
+ * window in use now; the configured cap is unchanged and applies again once it expires.
+ */
+export const PLAN_EXTRA_REQUESTS = 20;
+export const PLAN_EXTRA_HOURS = 24;
+/** One unexpired extra allowance: how many requests, and when it stops counting. */
+export const PlanExtraSchema = z.strictObject({
+  requests: counter,
+  expires_at: timestamp,
+});
+export type PlanExtra = z.infer<typeof PlanExtraSchema>;
+export const GrantExtraRequestsRequestSchema = z.strictObject({
+  expected_version: version,
+  /** What the owner saw on the button; only the decided amount is accepted. */
+  requests: z.literal(PLAN_EXTRA_REQUESTS),
+});
+export type GrantExtraRequestsRequest = z.infer<
+  typeof GrantExtraRequestsRequestSchema
+>;
+/**
  * The studio cannot see per request whether ChatGPT credits were used after a plan limit, so
  * inference stays blocked until the owner records that credits are off for this app.
  */
@@ -646,6 +668,8 @@ export const PlanRefusalCodeSchema = z.enum([
   'task_class_not_allowed',
   'request_open',
   'cap_reached',
+  /** ADR-0094: the daily request cap (with any extra allowance) is used up. */
+  'daily_cap_reached',
   'not_verified',
   'not_qualified',
   'grant',
@@ -733,6 +757,18 @@ export const PlanConnectionDetailSchema = z.strictObject({
     last_24h_codex_builds: counter,
     in_flight: counter,
     unresolved: counter,
+    /** ADR-0094: unexpired extra requests on top of the daily cap, in total and one by one. */
+    extra_requests: counter,
+    // Not capped (re-review 2 N-1): the server lists every unexpired grant.
+    extras: z.array(PlanExtraSchema),
+    /**
+     * When one more request becomes possible, by the same rule as the usage summary's
+     * `daily.next_frees_at` (`nextRequestAt`, re-review 2 N-2): the oldest request leaving
+     * when there is room; at the cap, the leaving that makes room under the cap in force then.
+     */
+    next_frees_at: timestamp.nullable(),
+    /** Whether this person may add extra requests now: a policy owner, cap used up (L-1). */
+    can_add_extra: z.boolean(),
   }),
   /** ADR-0064: in-flight or unknown requests, oldest first. */
   open_requests: z.array(PlanOpenRequestSchema),

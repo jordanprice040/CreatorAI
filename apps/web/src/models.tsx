@@ -39,6 +39,7 @@ import { OpenRequests } from './open-requests.js';
 import { ApiKeyCheck } from './api-key-check-panel.js';
 import { AllowTasks } from './allow-tasks.js';
 import { CopyConnection } from './copy-connection.js';
+import { DailyCapNotice } from './extra-requests.js';
 
 // §2.2 Models and connections. Sign-in, model access and task qualification are shown as
 // separate states; nothing here can enable credits or a paid fallback. A Claude Code
@@ -1079,7 +1080,8 @@ export function Models({
               qualifications={detail.qualifications}
               queue={detail.qualification_queue ?? null}
               requestsLeft={
-                c.settings.caps.shared.max_model_requests_per_day -
+                c.settings.caps.shared.max_model_requests_per_day +
+                detail.usage.extra_requests -
                 detail.usage.last_24h_requests
               }
               busy={busy || !session}
@@ -1118,6 +1120,13 @@ export function Models({
             {detail.usage.in_flight} running · {detail.usage.unresolved} with an
             unknown outcome
           </p>
+          <DailyCapNotice
+            path={`${base}/${p}`}
+            csrf={session?.csrf_token ?? ''}
+            connection={c}
+            usage={detail.usage}
+            onDone={() => void load()}
+          />
         </>
       )}
     </section>

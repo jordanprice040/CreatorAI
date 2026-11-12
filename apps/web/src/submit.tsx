@@ -47,6 +47,7 @@ import { envelopesFor } from './build-defaults.js';
 import { money } from './budgets.js';
 import { ThemeIntent } from './theme-intent.js';
 import { Explore, type ExploredPick } from './explore.js';
+import { Autopilot } from './autopilot.js';
 import { WebDiscover } from './web-discovery.js';
 import { Empty, Status, runNames, useLoad, type View } from './ui.js';
 import { runLabel } from './labels.js';
@@ -622,7 +623,7 @@ export function Submit({
   const ceilingsText =
     resourceKind === 'subscription'
       ? plan
-        ? `${plan.usage.last_24h_requests} of ${plan.connection.settings.caps.shared.max_model_requests_per_day} plan requests used on this connection in the last 24 hours`
+        ? `${plan.usage.last_24h_requests} of ${plan.connection.settings.caps.shared.max_model_requests_per_day + plan.usage.extra_requests} plan requests used on this connection in the last 24 hours${plan.usage.extra_requests ? ` (including ${plan.usage.extra_requests} extra)` : ''}`
         : 'No connection yet'
       : [
           chosenEnvelope
@@ -963,6 +964,11 @@ export function Submit({
       />
       <WebDiscover
         key={`web-${workspace.id}`}
+        session={session}
+        workspace={workspace}
+      />
+      <Autopilot
+        key={`autopilot-${workspace.id}`}
         session={session}
         workspace={workspace}
       />

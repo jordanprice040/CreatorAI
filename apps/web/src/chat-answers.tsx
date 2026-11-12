@@ -26,6 +26,7 @@ import {
   verifiedModels,
 } from './chat-answers-form.js';
 import { withFreshCount } from './usage-refresh.js';
+import { capWords } from './extra-requests-text.js';
 import { MODEL_CHOICE_CHANGED } from './model-choice.js';
 import { useModelChoice } from './model-switch.js';
 
@@ -490,10 +491,7 @@ export function ChatAnswersCard({
             {settings.used_24h} of {settings.daily_limit} chat answers used in
             the last 24 hours. They also count toward the connection&apos;s own
             daily cap
-            {chosen
-              ? ` (${chosen.connection.settings.caps.shared.max_model_requests_per_day} requests)`
-              : ''}
-            .
+            {chosen ? ` (${capWords(chosen)})` : ''}.
           </p>
           {problems.length > 0 && (
             <div className="chat-problems">
