@@ -21,7 +21,7 @@ const manifest = BenchmarkManifestSchema.parse(
   JSON.parse(
     readFileSync(
       new URL(
-        '../../config/connections/benchmarks/assessment-synthetic-v2.json',
+        '../../config/connections/benchmarks/assessment-synthetic-v3.json',
         import.meta.url,
       ),
       'utf8',
@@ -82,11 +82,11 @@ function answer(
   });
 }
 
-test('the bundled assessment benchmark uses the current assessor prompt and freezes nine held-out cases (v2 adds three gate cases)', () => {
+test('the bundled assessment benchmark uses the current assessor prompt and freezes twelve held-out cases (v2 added three gate cases, v3 three checklist cases)', () => {
   assert.equal(manifest.task_class, 'scoring');
   assert.equal(manifest.data_class, 'synthetic');
   assert.equal(manifest.fixture, false);
-  // The start request carries the manifest; the API takes at most 256 KiB for it.
+  // The start request carries the manifest; the API takes at most 512 KiB for it.
   const body = JSON.stringify({
     expected_version: 10,
     model_id: 'claude-sonnet-5-5',
@@ -94,8 +94,8 @@ test('the bundled assessment benchmark uses the current assessor prompt and free
     min_held_out_cases: 6,
     floor: { numerator: 1, denominator: 1 },
   });
-  assert.ok(Buffer.byteLength(body) <= 256 * 1024);
-  assert.equal(manifest.cases.filter((c) => c.split === 'held_out').length, 9);
+  assert.ok(Buffer.byteLength(body) <= 512 * 1024);
+  assert.equal(manifest.cases.filter((c) => c.split === 'held_out').length, 12);
   for (const c of manifest.cases) {
     const check = c.check as Assess;
     assert.equal(check.kind, 'assessment_contract');

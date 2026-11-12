@@ -92,6 +92,8 @@ const COUNTED = [
   'team_profile_versions',
   'gate_confirmations',
   'gate_rule_versions',
+  // ADR-0097: the owner's gate checklist.
+  'gate_checklist_versions',
   // ADR-0092: autopilots and the steps they took.
   'autopilots',
   // ADR-0099: automation levels set on runs.

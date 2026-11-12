@@ -974,6 +974,22 @@ function Packet({ packet }: { packet: AssessmentPacket }) {
       ) : (
         <p>No team profile is saved, so none is sent.</p>
       )}
+      {packet.checklist ? (
+        <>
+          <p>
+            Gate checklist v{packet.checklist.version} (answered item by item):
+          </p>
+          <ul>
+            {packet.checklist.items.map((i) => (
+              <li key={i.ref}>
+                {i.ref} ({i.gate}): {i.text}
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <p>No gate checklist is saved, so none is sent.</p>
+      )}
       <p>
         Rubrics:{' '}
         {packet.rubrics

@@ -2,7 +2,11 @@ import { z, id, hash, version, counter } from './primitives.js';
 import { ScopePathSchema } from './execution.js';
 import { DataClassSchema } from './oversight.js';
 import { BrowserCaseSchema, type BuildRecipe } from './web-recipe.js';
-import { GateKindSchema } from './team.js';
+import {
+  ChecklistItemRefSchema,
+  GateKindSchema,
+  TeamCapabilityKeySchema,
+} from './team.js';
 
 // T08 scoring, selection and frozen specifications (context/SCORING_RUBRIC.md). Ratings are
 // ordinal judgments with evidence; arithmetic over them is done in code with exact rationals.
@@ -222,6 +226,26 @@ export const SystemAssessmentSchema = z.strictObject({
   team_hash: z.string().max(64).optional(),
   /** How many capabilities the team block answered (yes or no); the auto-clear rule needs one. */
   team_answers: z.number().int().min(0).max(100).optional(),
+  /** ADR-0097: the gate checklist version the packet carried (0: none). Absent before schema 60. */
+  checklist_version: z.number().int().min(0).optional(),
+  /** A hash of the checklist items the model read ('' for none); a change makes it stale. */
+  checklist_hash: z.string().max(64).optional(),
+  /** On suitability cards: the assessor's answer to every checklist item, as checked by code. */
+  checklist: z
+    .record(
+      ChecklistItemRefSchema,
+      z.strictObject({
+        gate: GateKindSchema,
+        text: z.string().max(300),
+        answer: z.enum(['pass', 'fail', 'unknown']),
+        evidence_refs: z.array(z.strictObject({ id, version })).max(10),
+        team_refs: z.array(TeamCapabilityKeySchema).max(11),
+        note: z.string().max(200),
+      }),
+    )
+    .optional(),
+  /** On suitability cards: the team capabilities the assessor says the option needs. */
+  access_needs: z.array(TeamCapabilityKeySchema).max(11).optional(),
   uncertainty: short,
 });
 export type SystemAssessment = z.infer<typeof SystemAssessmentSchema>;
@@ -437,7 +461,10 @@ export const GateReportSchema = z.strictObject({
             /** The rule's version; null for the owner's confirmation. */
             rule_version: z.number().int().min(1).nullable(),
             /** Which rule mode cleared it (team_profile or model); null for the owner. */
-            rule_mode: z.enum(['team_profile', 'model']).nullable().optional(),
+            rule_mode: z
+              .enum(['team_profile', 'model', 'checklist'])
+              .nullable()
+              .optional(),
             reason: z.string().max(300),
             created_at: z.string().max(40),
           })
@@ -447,7 +474,32 @@ export const GateReportSchema = z.strictObject({
         /** Whether any current card (an assessment or a person's) looked at this gate. */
         assessed: z.boolean().optional(),
         /** Who clears gates in this workspace now (the owner's gate rule, ADR-0090). */
-        rule: z.enum(['owner', 'team_profile', 'model']).optional(),
+        rule: z
+          .enum(['owner', 'team_profile', 'model', 'checklist'])
+          .optional(),
+        /**
+         * ADR-0097: what the automatic assessments answered on the owner's checklist for this
+         * gate, when the current ones answered it: items not passed, and (access) needed
+         * capabilities the app could not confirm in the team profile.
+         */
+        checklist: z
+          .strictObject({
+            version: z.number().int().min(1),
+            items: z.number().int().min(0).max(12),
+            failing: z
+              .array(
+                z.strictObject({
+                  item: ChecklistItemRefSchema,
+                  text: z.string().max(300),
+                  answer: z.enum(['fail', 'unknown', 'missing']),
+                  note: z.string().max(200),
+                }),
+              )
+              .max(12),
+            needs: z.array(TeamCapabilityKeySchema).max(11),
+            needs_missing: z.array(TeamCapabilityKeySchema).max(11),
+          })
+          .optional(),
       }),
     )
     .max(2)

@@ -185,8 +185,8 @@ test('eight long options and thirty claims: every request is under the cap and r
     assert.ok(p.ok);
     return p.packet.claims.length;
   };
-  // ADR-0090's longer assessor prompt (the team block sentence) leaves room for three here.
-  assert.equal(at(24_000), 3);
+  // ADR-0097's longer assessor prompt (the checklist sentences) leaves room for two here.
+  assert.equal(at(24_000), 2);
   assert.ok(at(40_000) > at(24_000));
   assert.equal(at(120_000), 30);
 });
@@ -212,12 +212,13 @@ test('the cap that reads every claim is reported, and reads them all', () => {
 });
 
 test('a finer split is used only when it reads clearly more claims (it costs more requests)', () => {
-  // Eight mid-sized options at 32,000: one option per request would read 10 claims in 8
-  // requests; two per request read 9 in 4, so the 4-request split is kept.
+  // Eight mid-sized options at 32,000: one option per request would read one or two claims
+  // more in 8 requests; two per request read 7 in 4, so the 4-request split is kept
+  // (ADR-0097's longer prompt reads two claims fewer than before).
   const plan = buildAssessmentPacket(large(32_000, 'mid'));
   assert.ok(plan.ok);
   assert.equal(plan.batches.length, 4);
-  assert.equal(plan.packet.claims.length, 9);
+  assert.equal(plan.packet.claims.length, 7);
   // When the finer split reads many more claims it is used: long options at 24,000.
   const long = buildAssessmentPacket(large(24_000));
   assert.ok(long.ok);
@@ -443,4 +444,43 @@ test('ADR-0091 review N-1: a split summary keeps short parts whole and cuts a lo
   const two = joinSummaries([long, long])!;
   assert.ok(two.length <= 1200);
   assert.equal(two.split('…').length - 1, 2);
+});
+
+test('ADR-0097 (PR #185 review M-1): checklist answers count toward the answer cap, so a long checklist makes smaller requests', () => {
+  const input = (items: number) => ({
+    problem,
+    alternatives: Array.from({ length: 6 }, (_, i) =>
+      option(i + 1, 'process', false),
+    ),
+    claims: [1, 2].map((n) => ({
+      relation: 'supports' as const,
+      evidence: claimEvidence(n),
+    })),
+    now: NOW,
+    input_cap: 120_000,
+    output_cap: 16_000,
+    route: 'plan' as const,
+    ...(items
+      ? {
+          checklist: {
+            version: 1,
+            items: Array.from({ length: items }, (_, i) => ({
+              ref: `K${i + 1}`,
+              gate: i % 2 ? ('access' as const) : ('ethics' as const),
+              text: `Checklist item ${i + 1} must hold.`,
+            })),
+          },
+        }
+      : {}),
+  });
+  const sizes = (items: number) => {
+    const plan = buildAssessmentPacket(input(items));
+    assert.ok(plan.ok);
+    return plan.batches.map((b) => b.length);
+  };
+  // No checklist: three suitability assessments fit a 16,000-character answer.
+  assert.deepEqual(sizes(0), [3, 3]);
+  // The six-item starter list (about 1,500 more each) and a full twelve: two per request.
+  assert.deepEqual(sizes(6), [2, 2, 2]);
+  assert.deepEqual(sizes(12), [2, 2, 2]);
 });

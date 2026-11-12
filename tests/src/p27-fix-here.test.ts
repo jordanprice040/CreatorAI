@@ -463,7 +463,7 @@ test('each route qualifies only on its own benchmark; the confirmation says what
       },
       detail(accepted),
     ),
-    /^Qualifying m1 for scoring runs assessment-synthetic-v2: up to \d+ plan requests, .* Pass bar: all \d+ held-out cases\.$/,
+    /^Qualifying m1 for scoring runs assessment-synthetic-v3: up to \d+ plan requests, .* Pass bar: all \d+ held-out cases\.$/,
   );
   assert.match(
     mod.confirmText(
@@ -526,7 +526,7 @@ test('review M-2: the app hashes a bundled benchmark as the server does, and a s
   };
   const dir = new URL('../../config/connections/benchmarks/', import.meta.url);
   for (const f of [
-    'assessment-synthetic-v2.json',
+    'assessment-synthetic-v3.json',
     'specification-synthetic-v1.json',
     't12-reviewer-v2.json',
   ]) {
@@ -686,7 +686,7 @@ test('P34 re-review L-A: an assessment Qualify now never runs a started scoring 
   const dir = new URL('../../config/connections/benchmarks/', import.meta.url);
   const assessment = await m.manifestHash(
     JSON.parse(
-      readFileSync(new URL('assessment-synthetic-v2.json', dir), 'utf8'),
+      readFileSync(new URL('assessment-synthetic-v3.json', dir), 'utf8'),
     ),
   );
   // A started discovery scoring run (the skeptic benchmark) has its own manifest hash; a
@@ -778,7 +778,7 @@ test('P34 handover: discovery fixes qualify on the benchmarks the server offers,
   );
   assert.equal(
     mod.benchmarkFor('scoring', 'assessment')!.name,
-    'assessment-synthetic-v2',
+    'assessment-synthetic-v3',
   );
   // The role of a bundled benchmark is read from every case, as P34's manifestRole does.
   const kinds = (...k: string[]) => ({

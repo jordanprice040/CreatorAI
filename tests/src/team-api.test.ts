@@ -4,7 +4,9 @@ import { once } from 'node:events';
 import { createApi } from '@creator/api';
 import {
   CapabilityCheckResultSchema,
+  GateChecklistSchema,
   GateRuleSchema,
+  STARTER_GATE_CHECKLIST,
   TeamProfileSchema,
   z,
 } from '@creator/contracts';
@@ -170,4 +172,45 @@ test('a built-in check runs its fixed program and saves only a pass', async (t) 
     await (await s.get(`${s.root}/gate-rule`)).json(),
   );
   assert.equal(rule.mode, 'owner');
+});
+
+test('ADR-0097: the gate checklist is read and saved over HTTP, and the checklist rule needs one', async (t) => {
+  const s = await start(t, {}, async () => ({ exit_code: 1, output: '' }));
+  if (!s) return;
+  const l0 = GateChecklistSchema.parse(
+    await (await s.get(`${s.root}/gate-checklist`)).json(),
+  );
+  assert.deepEqual([l0.version, l0.items.length, l0.can_edit], [0, 0, true]);
+  const refused = await s.post(`${s.root}/gate-rule`, {
+    expected_version: 0,
+    mode: 'checklist',
+  });
+  assert.equal(refused.status, 400);
+  const tooMany = await s.post(`${s.root}/gate-checklist`, {
+    expected_version: 0,
+    items: Array.from({ length: 13 }, (_, i) => ({
+      gate: 'ethics',
+      text: `Item number ${i + 1}`,
+    })),
+  });
+  assert.equal(tooMany.status, 400);
+  const saved = GateChecklistSchema.parse(
+    await (
+      await s.post(`${s.root}/gate-checklist`, {
+        expected_version: 0,
+        items: STARTER_GATE_CHECKLIST,
+      })
+    ).json(),
+  );
+  assert.equal(saved.version, 1);
+  assert.equal(saved.items[3]?.ref, 'K4');
+  const rule = GateRuleSchema.parse(
+    await (
+      await s.post(`${s.root}/gate-rule`, {
+        expected_version: 0,
+        mode: 'checklist',
+      })
+    ).json(),
+  );
+  assert.equal(rule.mode, 'checklist');
 });

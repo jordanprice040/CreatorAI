@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   GateConfirmationSchema,
+  capabilityLabel,
   type RankedCandidate,
   type SessionInfo,
 } from '@creator/contracts';
@@ -16,6 +17,12 @@ const STATE: Record<Detail['state'], string> = {
   unresolved: 'concern raised',
   not_assessed: 'needs your confirmation',
 };
+
+const ANSWER = {
+  fail: 'failed',
+  unknown: 'unknown',
+  missing: 'not answered',
+} as const;
 
 /** What a person can do about one gate, in plain words (ADR-0090). */
 export function gateGuidance(d: Detail): string | null {
@@ -33,6 +40,17 @@ export function gateGuidance(d: Detail): string | null {
     d.rule === 'team_profile'
   )
     return 'Your gate rule clears access once the automatic assessment reads a team profile that answers at least one question. Answer one in Settings › Team profile and assess again, or confirm it here.';
+  if (d.state === 'not_assessed' && d.rule === 'checklist') {
+    const r = d.checklist;
+    if (!r)
+      return 'Your gate rule clears this once the automatic assessment answers your gate checklist and every item for this gate passes. Add an item for this gate in Settings › Team profile and assess again, or confirm it here.';
+    if (r.failing.length)
+      return 'Your gate checklist did not pass (the items are listed above). Add what answers them to your evidence or team profile and assess again, or confirm it here.';
+    if (d.gate === 'access' && !r.needs.length)
+      return 'The assessment named nothing this option needs, so the app had nothing to confirm in your team profile. Confirm it here if access is fine.';
+    if (r.needs_missing.length)
+      return 'Every item passed, but the app couldn’t confirm every needed capability in your team profile (listed above). Run its built-in check on this computer, or tick it in Settings › Team profile when no check can test it, then look again.';
+  }
   if (d.state === 'not_assessed' && d.rule && d.rule !== 'owner')
     return 'Only the automatic assessment looked at this, and your gate rule doesn’t clear it. Confirm it here or score the option yourself.';
   if (d.state === 'not_assessed')
@@ -123,7 +141,9 @@ export function GateLines({
                     ? 'cleared on the model’s word (no person looked)'
                     : d.confirmation?.rule_mode === 'team_profile'
                       ? 'cleared by the model, from your team profile (no person looked)'
-                      : STATE[d.state]
+                      : d.confirmation?.rule_mode === 'checklist'
+                        ? 'cleared by your gate checklist (no person looked)'
+                        : STATE[d.state]
                   : STATE[d.state]}
               </span>
               {d.confirmation && (
@@ -145,6 +165,25 @@ export function GateLines({
                 ))}
               </ul>
             )}
+            {d.checklist &&
+              (d.checklist.failing.length > 0 ||
+                d.checklist.needs_missing.length > 0) && (
+                <ul className="small checklist-misses">
+                  {d.checklist.failing.map((f) => (
+                    <li key={f.item}>
+                      Checklist {f.item} {ANSWER[f.answer]}: {f.text} — {f.note}
+                    </li>
+                  ))}
+                  {d.checklist.needs_missing.length > 0 && (
+                    <li>
+                      Needed, not confirmed in your team profile:{' '}
+                      {d.checklist.needs_missing
+                        .map(capabilityLabel)
+                        .join(', ')}
+                    </li>
+                  )}
+                </ul>
+              )}
             {d.stale_confirmation && (
               <p className="small">
                 Your earlier confirmation no longer counts:{' '}
