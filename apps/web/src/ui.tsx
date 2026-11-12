@@ -202,7 +202,7 @@ export function useLoad<T>(load: () => Promise<T>, deps: unknown[]) {
       prev.length === deps.length &&
       prev.every((v, i) => Object.is(v, deps[i]));
     const background = quiet.current && shown.current && sameDeps;
-    if (!quiet.current) setLoading(true);
+    if (!background) setLoading(true);
     quiet.current = false;
     if (!background) setError('');
     load()

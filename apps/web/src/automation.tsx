@@ -199,8 +199,9 @@ export function Automation({
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  // Never past 90 days (the server's limit).
-  const [endsAt, renewEndsAt] = useEndTime(hours, 90);
+  // Never past 90 days (the server's limit). Worked out again from now when the page comes back
+  // into view, unless the summary is confirmed.
+  const [endsAt, renewEndsAt] = useEndTime(hours, 90, confirmed);
   // Any change needs the summaries read again.
   useEffect(
     () => setConfirmed(false),

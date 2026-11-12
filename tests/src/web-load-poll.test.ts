@@ -282,6 +282,8 @@ test('review R-N4: a refresh that lands with new dependencies is a full load', a
   ws = 'B';
   v.refresh();
   v = host.render(hook);
+  // Re-review N-3: the full load shows Loading.
+  assert.equal(host.render(hook).loading, true);
   await settle();
   v = host.render(hook);
   assert.equal(v.data, null, 'A’s data is not shown as B’s');
@@ -314,4 +316,44 @@ test('review R-L2: every view that reads with useLoad shows when a refresh faile
       if (!text.includes(`${m[1]}.stale`)) missing.push(`${f}: ${m[1]}`);
   }
   assert.deepEqual(missing, []);
+});
+
+test('re-review N-1: an unconfirmed end time counts from when the form is shown again', () => {
+  const host = hookHost();
+  let show: (() => void) | null = null;
+  const { useEndTime } = load<{
+    useEndTime: (
+      h: number,
+      maxDays?: number,
+      keep?: boolean,
+    ) => readonly [string, () => void];
+  }>('end-time.ts', {
+    react: host.react,
+    './page-active.js': {
+      useOnShow: (f: () => void) => {
+        show = f;
+      },
+    },
+  });
+  const realNow = Date.now;
+  let now = Date.parse('2026-11-12T10:00:00.000Z');
+  Date.now = () => now;
+  try {
+    let keep = false;
+    const hook = () => useEndTime(2, undefined, keep);
+    assert.equal(host.render(hook)[0], '2026-11-12T12:00:00.000Z');
+    // An hour later, not confirmed: back on the form the two hours count from now.
+    now += 3_600_000;
+    show!();
+    assert.equal(host.render(hook)[0], '2026-11-12T13:00:00.000Z');
+    // Confirmed: coming back keeps the end time read, while it is not close.
+    keep = true;
+    host.render(hook);
+    now += 3_600_000;
+    show!();
+    assert.equal(host.render(hook)[0], '2026-11-12T13:00:00.000Z');
+    host.unmount();
+  } finally {
+    Date.now = realNow;
+  }
 });

@@ -972,15 +972,18 @@ test('review 3 L-1: a level never widens approvals that stopped for a rejected d
       [ws, runId],
     );
   const widen = (v: Awaited<ReturnType<typeof view>>) => {
+    // One end time for both the approvals and the level, so a minute boundary between two
+    // reads cannot make them differ (PR #191 re-review N-4).
+    const ends = inHours(3);
     const wider = policyCovering(policyInputOf(v.policy), {
       stages: ['selection'],
       data_classes: ['synthetic'],
-      ends_at: inHours(3),
+      ends_at: ends,
       extraActions: 20,
       used: v.used_actions,
     })!;
     return {
-      ...h.level(),
+      ...h.level({ ends_at: ends }),
       routine_policy: {
         kind: 'revise' as const,
         policy_id: v.policy.id,

@@ -113,8 +113,9 @@ export function Autopilot({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   // The end time is fixed while the owner reads the summary, so the summary read is the one
-  // sent; it is worked out again when the hours change or the page comes back into view.
-  const [endsAt] = useEndTime(hours);
+  // sent. It is worked out again when the hours change, and when the page comes back into view
+  // unless the summary is confirmed (then only once the end time is close or past).
+  const [endsAt] = useEndTime(hours, undefined, confirmed);
   const [pickedClass, setPickedClass] = useState<
     'synthetic' | 'public' | 'private_approved'
   >(fixture ? 'synthetic' : 'public');

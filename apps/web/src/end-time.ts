@@ -29,17 +29,24 @@ export const END_TIME_MARGIN_MS = 5 * MINUTE;
 /**
  * Audit 2026-11-12 N-4: the end time a form confirms. It is fixed while the person reads the
  * summary (so what they confirm is what is sent), and worked out again when the hours change.
- * When the page is shown again or the window comes back into view, it is worked out again only
- * if it has passed or is within `END_TIME_MARGIN_MS` (PR #191 review R-N2), so switching windows
- * does not untick a confirmation for nothing. The second value sets it again now.
+ * When the page is shown again or the window comes back into view, it is worked out again from
+ * now unless `keep` is true (the summary is confirmed); a confirmed end time is worked out again
+ * only if it has passed or is within `END_TIME_MARGIN_MS` (PR #191 review R-N2), so switching
+ * windows does not untick a confirmation for nothing. The second value sets it again now.
  */
-export function useEndTime(hours: number | string, maxDays?: number) {
+export function useEndTime(
+  hours: number | string,
+  maxDays?: number,
+  keep = false,
+) {
   const [endsAt, setEndsAt] = useState(() => endAfter(hours, maxDays));
   const current = useRef(endsAt);
   current.current = endsAt;
+  const kept = useRef(keep);
+  kept.current = keep;
   const again = () => setEndsAt(endAfter(hours, maxDays));
   const ifClose = () => {
-    if (endTimeClose(current.current)) again();
+    if (!kept.current || endTimeClose(current.current)) again();
   };
   useEffect(again, [hours, maxDays]);
   useOnShow(ifClose);
