@@ -11,6 +11,7 @@ import { money } from './budgets.js';
 import { usdToNano } from './amounts.js';
 import { SpendingLimits } from './spending-limits.js';
 import { EvidenceSites } from './evidence-sites.js';
+import { TeamProfilePanel } from './team-profile.js';
 import { Status, useLoad, type View } from './ui.js';
 
 /**
@@ -285,6 +286,12 @@ export function Settings({
 
       <EvidenceSites
         key={workspace.id}
+        session={session}
+        workspace={workspace}
+      />
+
+      <TeamProfilePanel
+        key={`team-${workspace.id}`}
         session={session}
         workspace={workspace}
       />

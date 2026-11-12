@@ -3241,6 +3241,56 @@ create unique index plan_qualification_queue_items_one_running on plan_qualifica
 `,
   },
   {
+    // ADR-0090: the team profile (what the owner says the team can run, install and do with
+    // data, ticked by hand or found by a built-in check), one append-only version per save; the
+    // owner's gate confirmations (a person's one-click answer to an ethics or access gate on one
+    // option version, naming the concerns it answered); and the owner's gate rule (who clears
+    // gates: owner, team_profile or model), one version per change. All are kept unchanged.
+    version: 56,
+    name: 'team_profiles_and_gate_confirmations',
+    sql: `
+create table team_profile_versions (
+ workspace_id uuid not null references workspaces(id),
+ version integer not null check (version > 0),
+ profile jsonb not null check (jsonb_typeof(profile) = 'object'),
+ profile_hash char(64) not null,
+ change text not null check (change in ('saved','checked')),
+ actor_id uuid not null references actors(id),
+ event_id uuid not null references audit_events(id),
+ created_at timestamptz not null default clock_timestamp(),
+ primary key (workspace_id, version)
+);
+create trigger team_profile_versions_immutable before update or delete on team_profile_versions
+ for each row execute function creator_reject_change();
+create table gate_confirmations (
+ id uuid primary key,
+ workspace_id uuid not null references workspaces(id),
+ alternative_id uuid not null,
+ alternative_version integer not null check (alternative_version > 0),
+ gate text not null check (gate in ('ethics','access')),
+ reason text not null check (length(reason) between 3 and 300),
+ concerns jsonb not null check (jsonb_typeof(concerns) = 'array' and jsonb_array_length(concerns) <= 40),
+ actor_id uuid not null references actors(id),
+ event_id uuid not null references audit_events(id),
+ created_at timestamptz not null default clock_timestamp()
+);
+create index gate_confirmations_alternative on gate_confirmations (workspace_id, alternative_id, created_at);
+create trigger gate_confirmations_immutable before update or delete on gate_confirmations
+ for each row execute function creator_reject_change();
+create table gate_rule_versions (
+ workspace_id uuid not null references workspaces(id),
+ version integer not null check (version > 0),
+ mode text not null check (mode in ('owner','team_profile','model')),
+ actor_id uuid not null references actors(id),
+ event_id uuid not null references audit_events(id),
+ created_at timestamptz not null default clock_timestamp(),
+ primary key (workspace_id, version)
+);
+create trigger gate_rule_versions_immutable before update or delete on gate_rule_versions
+ for each row execute function creator_reject_change();
+`,
+  },
+  {
     // ADR-0094 (P29, walk item 6): temporary extra requests on a connection's daily cap, granted
     // by the owner when the cap is used up (20 at a time, Jordan, November 11, 2026). Each grant
     // lasts as long as the rolling window and then stops counting; the configured cap is never

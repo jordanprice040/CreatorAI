@@ -187,7 +187,7 @@ const GRANT_COLUMNS = `id, workspace_id, version, scope, status, run_id, action_
  * Every change commits with its audit event and outbox row, as in the record store.
  */
 export class OversightStore extends Store {
-  private async actorKind(c: PoolClient, actorId: string) {
+  protected async actorKind(c: PoolClient, actorId: string) {
     const { rows } = await c.query<{ kind: 'human' | 'agent' | 'system' }>(
       'select kind from actors where id = $1',
       [actorId],

@@ -106,7 +106,7 @@ export function settlePress(
 
 /**
  * The outcome of the last fix pressed in this place (for example "scoring on gpt-6-astra:
- * qualified (6 of 6 held-out cases passed)"). Drawn by the page where it stays when the
+ * qualified (9 of 9 held-out cases passed)"). Drawn by the page where it stays when the
  * refusal and its buttons go away after the fix worked.
  */
 export function FixOutcome({
