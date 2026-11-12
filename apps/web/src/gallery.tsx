@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { usePoll } from './page-active.js';
 import {
   ArtifactComparisonSchema,
   ArtifactDetailSchema,
@@ -764,12 +765,9 @@ function TerminalPanel({
   const reloadRef = useRef(sessions.reload);
   reloadRef.current = sessions.reload;
   const reload = () => reloadRef.current();
-  // While a window is open, follow it so the list shows when it ends.
-  useEffect(() => {
-    if (!open) return;
-    const t = setInterval(() => reloadRef.current(), 3000);
-    return () => clearInterval(t);
-  }, [open]);
+  // While a window is open, follow it (quietly, and only while shown) so the list shows when
+  // it ends.
+  usePoll(sessions.refresh, 3000, open);
   const args = argsToSend(text, example);
   async function run(work: () => Promise<string>) {
     setBusy(true);
@@ -963,6 +961,11 @@ function TerminalPanel({
       {sessions.error && (
         <p className="small error" role="alert">
           {sessions.error}
+        </p>
+      )}
+      {sessions.stale && (
+        <p className="small" role="status">
+          Could not refresh: {sessions.stale} Showing what was read last.
         </p>
       )}
     </section>

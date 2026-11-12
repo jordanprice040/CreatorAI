@@ -795,6 +795,52 @@ test('review M-1: an archived problem’s assessment never holds back the next o
   );
 });
 
+test('audit N-7: a newer assessment that was cancelled does not hide the last finished one', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  const p = await h.problem();
+  const runId = await h.run();
+  await h.store.setRunAutomation(owner, h.ws.id, runId, h.level());
+  const done = await h.assess(runId, p);
+  // A second assessment of the same problem is started and cancelled before it runs.
+  const preview = await h.store.previewAssessment(owner, h.ws.id, p.id, null);
+  const later = await h.store.startAssessment(owner, h.ws.id, runId, {
+    problem: p,
+    resource_setup: h.config().resource_setup,
+    data_class: 'synthetic',
+    limits: {
+      max_children: 8,
+      max_concurrency: 1,
+      max_depth: 1,
+      max_attempts: 1,
+      max_repairs: 1,
+      max_calls: 16,
+      max_output_tokens: 8000,
+      call_timeout_ms: 5000,
+      max_wall_seconds: 600,
+    },
+    preview_hash: preview.preview_hash,
+  });
+  const cancelled = await h.store.controlWorkflow(
+    owner,
+    h.ws.id,
+    later.workflow.id,
+    'cancel',
+    { expected_version: later.workflow.version, reason: 'Owner stop.' },
+  );
+  assert.equal(cancelled.workflow.state, 'cancelled');
+  await h.worker.settle();
+  await h.tick();
+  const [lvl] = await h.store.listRunAutomations(owner, h.ws.id);
+  assert.equal(lvl!.started, 1, 'the finished assessment is acted on');
+  const a = await h.store.getAutopilot(owner, h.ws.id, lvl!.autopilots[0]!.id);
+  const ev = await h.db.pool.query(
+    `select payload from audit_events where action = 'autopilot.started' and subject_id = $1`,
+    [a.id],
+  );
+  assert.equal(ev.rows[0].payload.assessment_workflow_id, done);
+});
+
 test('review L-1: the run’s approvals change only together with the level or autopilot that needs them', async (t) => {
   const h = await setup(t);
   if (!h) return;

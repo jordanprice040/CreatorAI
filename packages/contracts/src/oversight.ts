@@ -658,14 +658,6 @@ const comparison = z.strictObject({
   viable: z.boolean(),
   evidence_refs: z.array(TargetRefSchema).max(20),
 });
-export const HumilityOptionKeys = [
-  'software',
-  'existing_tool',
-  'process_change',
-  'human_led',
-  'hybrid',
-  'defer_decline',
-] as const;
 export const HumilityBodySchema = z.strictObject({
   subject: TargetRefSchema,
   outcome_that_matters: note,

@@ -1,11 +1,6 @@
 import { useState } from 'react';
 import type { PlanConnection } from '@creator/contracts';
-import {
-  TASK_CLASS_CHOICES,
-  classChanges,
-  orderedClasses,
-  taskChoicesFor,
-} from './caps-fields.js';
+import { classChanges, orderedClasses, taskChoicesFor } from './caps-fields.js';
 
 /**
  * ADR-0084 (P23, Decision A): one-click "allow" for a connection that does not allow every task
@@ -162,7 +157,3 @@ export function AllowTasks({
     </span>
   );
 }
-
-/** A task class in words, as the Change caps form names it. */
-export const taskLabel = (key: string) =>
-  TASK_CLASS_CHOICES.find((x) => x.key === key)?.label ?? key;

@@ -1,5 +1,11 @@
 # Build status — November 10, 2026
 
+## November 12 update — full codebase audit and its fixes (L-1, L-2, N-1..N-7)
+
+Audit of main `abf4d77` (schema 62): [report](../docs/FULL_AUDIT_2026-11-12.md). No High or Medium; 3 Lows, 7 nits. Fixed here (no migration or ADR): a failed background refresh keeps what a panel shows and says so (`useLoad` `stale`, shown by `Status`), so the Autopilot, Automation levels and Build panels keep polling after one dropped request; those panels and the Gallery terminal list poll only while their page is shown and the window is visible (`usePoll`); one shared end-time helper that is worked out again when the page comes back into view (`apps/web/src/end-time.ts`); Automate selection no longer skips a problem whose newest assessment was cancelled or failed; a failed browser launch can no longer end the API on Windows or macOS; the Codex pin is checked against the install script by a test; unused exports, the stray `t17-test.log` and the one clippy warning are gone. Left for the final UX pass: L-3, the refresh of `docs/CURRENT_STATUS.md`, the README boundary paragraph and the product guide.
+
+Checked in the cloud container: `pnpm typecheck`, `pnpm format:check`, `cargo clippy --target x86_64-pc-windows-gnu` for the desktop crate (clean), `pnpm test:db` on PostgreSQL 16 (1165 tests: 1131 pass, 29 skipped, the 5 known PowerShell-wrapper failures) and `pnpm test:dev-safety`. The N-7 and L-1 tests were mutation-checked (each fails with its fix removed). No browser walk and no model call.
+
 ## November 12 update — PR #150 review nits N-1..N-3
 
 What now works (no migration or ADR): the web qualification test finds its own record by recipe, benchmark, connection, model and both prompt hashes instead of pinning one record and today's prompt hashes, so a later prompt or benchmark bump, a requalification with new prompts, or another route's or model's record no longer turns it red (the app already ignores a stale record; the test now checks that too). The P15 results file records the SHA-256 and size of all 40 per-attempt files it was copied from (`source_files`, hashed read-only on Jordan's PC on November 12; each `package.tar` hash equals the recorded one, and the test checks that). `docs/STATIC_WEB_RECIPE.md` gives the real build-time range, 64.8 to 67.6 s.

@@ -12,6 +12,7 @@ import {
   type SessionInfo,
 } from '@creator/contracts';
 import { usdToNano } from './amounts.js';
+import { endAfter } from './end-time.js';
 import { api, message, when, words } from './oversight.js';
 import { Fold, FoldAll, useFolds, type Folds } from './fold.js';
 import { firstNeeding } from './fold-state.js';
@@ -51,13 +52,6 @@ function nanoToUsd(nano: string): string {
     .padStart(9, '0')
     .replace(/0+$/, '');
   return `${n / 1_000_000_000n}${frac ? `.${frac}` : ''}`;
-}
-
-/** The end time for a number of hours from now, on the minute. */
-function endAfter(hours: string): string {
-  const h = Number(hours);
-  const ms = Number.isFinite(h) && h > 0 ? h * 3_600_000 : 0;
-  return new Date(Math.ceil((Date.now() + ms) / 60_000) * 60_000).toISOString();
 }
 
 /** Off by default: routine approvals are never switched on for the owner. */

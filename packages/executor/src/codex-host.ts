@@ -19,6 +19,7 @@ import { digest } from './contracts.js';
 // The result is still only a proposed patch: T12 applies it as scoped CAS changes and keeps the
 // independent review, frozen and held-out acceptance cases unchanged.
 
+/** The pinned Codex CLI; scripts/install-codex-wsl.sh downloads and checks exactly this (test). */
 export const CODEX_PIN = {
   version: '0.163.0',
   package: '@openai/codex@0.163.0-linux-x64',

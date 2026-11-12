@@ -30,6 +30,8 @@ import {
   routesOf,
 } from './autopilot-routes.js';
 import { Empty, Status, useLoad } from './ui.js';
+import { usePoll } from './page-active.js';
+import { useEndTime } from './end-time.js';
 
 // P13 (ADR-0092): "Run it for me". One form sets up a new run with routine approvals covering
 // exactly the autopilot's steps and starts the autopilot; the owner confirms both summaries.
@@ -94,11 +96,7 @@ export function Autopilot({
   }, [workspace.id]);
   // Read again while one runs; the server drives it, the page only watches.
   const running = c?.autopilots.some((a) => a.state === 'running') ?? false;
-  useEffect(() => {
-    if (!running) return;
-    const t = setInterval(() => ctx.refresh(), 3000);
-    return () => clearInterval(t);
-  }, [running]);
+  usePoll(() => ctx.refresh(), 3000, running);
 
   const routes = routesOf(c ?? null, fixture);
   const [routeKey, setRouteKey] = useState('');
@@ -114,20 +112,9 @@ export function Autopilot({
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  // The end time is fixed when the form opens and when the hours change, so the summary the
-  // owner reads is the summary that is sent.
-  const [endsAt, setEndsAt] = useState(() =>
-    new Date(
-      Math.ceil((Date.now() + 4 * 3_600_000) / 60_000) * 60_000,
-    ).toISOString(),
-  );
-  useEffect(() => {
-    setEndsAt(
-      new Date(
-        Math.ceil((Date.now() + hours * 3_600_000) / 60_000) * 60_000,
-      ).toISOString(),
-    );
-  }, [hours]);
+  // The end time is fixed while the owner reads the summary, so the summary read is the one
+  // sent; it is worked out again when the hours change or the page comes back into view.
+  const [endsAt] = useEndTime(hours);
   const [pickedClass, setPickedClass] = useState<
     'synthetic' | 'public' | 'private_approved'
   >(fixture ? 'synthetic' : 'public');
@@ -304,7 +291,12 @@ export function Autopilot({
         needs you: a tie or close ranking, ethics and access to confirm, a
         software option (its spec stays with you), or a limit.
       </p>
-      <Status loading={ctx.loading} error={ctx.error} retry={ctx.reload}>
+      <Status
+        loading={ctx.loading}
+        error={ctx.error}
+        stale={ctx.stale}
+        retry={ctx.reload}
+      >
         {c && (
           <>
             {owner ? (

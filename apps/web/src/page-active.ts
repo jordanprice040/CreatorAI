@@ -32,3 +32,25 @@ export function useShown() {
   useOnShow(() => setShown((n) => n + 1));
   return shown;
 }
+
+/**
+ * Calls `tick` every `ms` while `enabled`, but only while this page is the one shown and the
+ * window is visible (audit 2026-11-12 L-2). Pages stay mounted while hidden; on return,
+ * `useOnShow` (and so `useLoad`) reads again at once, so nothing waits for the next tick.
+ */
+export function usePoll(tick: () => void, ms: number, enabled: boolean) {
+  const active = usePageActive();
+  const latest = useRef(tick);
+  latest.current = tick;
+  useEffect(() => {
+    if (!enabled || !active) return;
+    const t = setInterval(() => {
+      if (
+        typeof document === 'undefined' ||
+        document.visibilityState === 'visible'
+      )
+        latest.current();
+    }, ms);
+    return () => clearInterval(t);
+  }, [enabled, active, ms]);
+}

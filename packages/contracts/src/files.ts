@@ -18,15 +18,6 @@ export const FileKindSchema = z.enum([
 ]);
 export type FileKind = z.infer<typeof FileKindSchema>;
 
-/** Kinds shown as inert text (never run, never rendered as HTML). */
-export const TEXT_KINDS: readonly FileKind[] = [
-  'text',
-  'markdown',
-  'json',
-  'csv',
-  'code',
-];
-
 /** Longest text kept for viewing and search, in characters. Longer text is cut and says so. */
 export const FILE_TEXT_MAX = 2_000_000;
 /** Longest display name. */

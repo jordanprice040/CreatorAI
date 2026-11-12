@@ -18,7 +18,6 @@ import {
 // not allow apps to offer Claude sign-in or hold Claude subscription tokens, so there is no
 // sign-in flow for this kind. It has the direct path only (no Codex, no code_build).
 
-export const CONNECTIONS_POLICY_VERSION = 'connections/1.0' as const;
 const short = z.string().trim().min(1).max(200);
 const note = z.string().trim().min(1).max(1200);
 const label = z.string().trim().min(1).max(80);
