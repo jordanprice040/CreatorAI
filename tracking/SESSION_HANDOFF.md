@@ -12,7 +12,8 @@ Branch `claude/project-thread-iqbxmf`, no migration. `packages/db/src/oversight-
 Other stores:
 - `web-discovery-store.ts`: `admitWebClaimsByPolicy` locks the discovery, the grants and the claims' sources up front.
 - `workflow-store.ts`: `lockWorkflowRun` (run, then workflow) is used by `controlWorkflow`, task finish, `sweepLeases`, `wakeIn` and `reconcileTasks`. `coordinateIn` locks waiting tasks' decisions before a stop's changes.
-- `desktop-job-store.ts`: `expireJobs(c, queuedOf)` locks overdue jobs, plus that device's queued jobs, in id order, then updates exactly those.
+- `desktop-job-store.ts`: `expireJobs(c, queuedOf)` locks overdue jobs, plus that device's queued jobs, in id order, then updates exactly those. `desktopControlChanged` locks the device's jobs in id order before updating them.
+- `connection-store.ts`: `#admitPlanRequest` locks a workflow task's run before its workflow.
 
 Tests: the lock-waiter helpers (`lockWaiters`, `hold`, `holdAudit`) are in `tests/src/pg-harness.ts`. #180's `copy-connection.test.ts` now uses the shared `lockWaiters` too.
 

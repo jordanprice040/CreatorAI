@@ -94,3 +94,68 @@ test('two workers leasing while both have overdue queued jobs never deadlock', a
     ['expired', 'expired'],
   );
 });
+
+test('ADR-0098 re-review 2 M-2: pausing a device while another worker leases never deadlocks', async (t) => {
+  const db = await freshDatabase(t);
+  if (!db) return;
+  const store = new PortfolioStore(db.pool);
+  const raw = await db.pool.connect();
+  const owner: CommandContext = { actorId: randomUUID() };
+  await store.ensureActor({
+    id: owner.actorId,
+    kind: 'human',
+    display_name: 'Owner',
+  });
+  const ws = await store.createWorkspace(owner, {
+    name: 'W',
+    record_mode: 'fixture',
+  });
+  const devs: { id: string; token: string }[] = [];
+  for (let i = 0; i < 2; i++) {
+    const token = randomBytes(32).toString('base64url');
+    const id = randomUUID();
+    await raw.query(
+      `insert into desktop_devices (id, kind, owner_id, workspace_id, label, capabilities, token_hash, expires_at)
+       values ($1, 'worker', $2, $3, 'worker', '["artifact.run"]', $4, now() + interval '1 hour')`,
+      [id, owner.actorId, ws.id, sha(token)],
+    );
+    devs.push({ id, token });
+  }
+  // Two overdue queued jobs on device A; the larger id is inserted first (scanned first).
+  const ids = [randomUUID(), randomUUID()].sort();
+  const [small, large] = ids as [string, string];
+  await raw.query('set session_replication_role = replica');
+  for (const job of [large, small])
+    await raw.query(
+      `insert into desktop_jobs (id, device_id, workspace_id, owner_id, request_id, request_hash,
+         artifact_id, product_id, manifest_sha256, archive_sha256, input, fence, expires_at)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $6, $6, '{}', 0, now() - interval '1 minute')`,
+      [
+        job,
+        devs[0]!.id,
+        ws.id,
+        owner.actorId,
+        randomUUID(),
+        sha('x'),
+        randomUUID(),
+        randomUUID(),
+      ],
+    );
+  await raw.query('set session_replication_role = origin');
+  raw.release();
+  const release = await hold(
+    db.pool,
+    'select 1 from desktop_jobs where id = $1 for update',
+    [small],
+  );
+  const lease = store.leaseDesktopJob(devs[1]!.token);
+  await lockWaiters(db.pool, 1);
+  const pause = store.controlDesktop(owner, devs[0]!.id, { state: 'paused' });
+  await lockWaiters(db.pool, 2);
+  await release();
+  const out = await Promise.allSettled([lease, pause]);
+  const errs = out.flatMap((o) =>
+    o.status === 'rejected' ? [String(o.reason)] : [],
+  );
+  assert.deepEqual(errs, []);
+});

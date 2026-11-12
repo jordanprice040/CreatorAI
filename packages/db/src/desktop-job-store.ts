@@ -66,6 +66,12 @@ export class DesktopJobStore extends DesktopStore {
     state: string,
   ) {
     if (state === 'active') return;
+    // ADR-0098 (re-review 2 M-2): the device's jobs are locked in id order, the order expireJobs
+    // locks overdue jobs in, before one update would lock them in scan order.
+    await c.query(
+      `select 1 from desktop_jobs where device_id=$1 and state in ('queued','leased','running') order by id for update`,
+      [deviceId],
+    );
     await c.query(
       `update desktop_jobs set cancel_requested=true,
       state=case when state in ('queued','leased') then 'cancelled' else state end

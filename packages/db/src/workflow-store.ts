@@ -332,8 +332,9 @@ function discoveryTaskContext(
 
 /**
  * Durable workflows (migration 4): a coordinator per run, tasks with leases and fencing
- * tokens, and wake-ups from decisions through the outbox. Lock order is always workflow row,
- * then task rows, then (inside the broker) run control and envelope.
+ * tokens, and wake-ups from decisions through the outbox. Lock order (ADR-0098) is run control,
+ * then workflow row, then task rows; the broker, in its own transaction, locks run control and
+ * then the envelope.
  */
 export class WorkflowStore extends BudgetStore {
   // ---- Start and read ----------------------------------------------------------------

@@ -4,11 +4,13 @@
 
 What now works (no migration): cancelling a run, revoking or revising a grant, revising a routine policy, answering a decision and admitting an action no longer deadlock against each other. Oversight writes lock run, decision, routine policy and grant, in that order, before their first audit append. The scan of other audit appenders found the same pattern in three places, and each now takes its locks first. Routine admission of web discovery claims locks its discovery, grants and sources up front. Cancelling or otherwise changing a workflow locks the workflow's run first, so it cannot deadlock with an answer to the workflow's question. A desktop job lease locks overdue jobs in id order, so two workers leasing at once cannot deadlock.
 
-Checked: `pnpm typecheck`, `pnpm format:check`, `pnpm test:db` on a throwaway PostgreSQL 16 (after merging main with #180 and #183: 1129 tests, 1095 pass, 29 skipped, the 5 PowerShell-wrapper failures that always fail in the cloud). New tests: `tests/src/oversight-lock-order.test.ts` (5), `tests/src/desktop-lock-order.test.ts` (1), plus one each in `workflow.test.ts` and `web-discovery.test.ts`. Each parks two transactions where the old order deadlocked and fails with "deadlock detected" on the old code.
+Checked: `pnpm typecheck`, `pnpm format:check`, `pnpm test:db` on a throwaway PostgreSQL 16 (after merging main with #180 and #183: 1129 tests, 1095 pass, 29 skipped, the 5 PowerShell-wrapper failures that always fail in the cloud). New tests: `tests/src/oversight-lock-order.test.ts` (5), `tests/src/desktop-lock-order.test.ts` (2), plus one each in `workflow.test.ts`, `subscription-workflow.test.ts` and `web-discovery.test.ts`. Each parks two transactions where the old order deadlocked and fails with "deadlock detected" on the old code.
 
 Review 1 (2 Medium, 2 Low, 4 nits) fixed. M-1: the first lease fix deadlocked two workers; expiry now locks in one id-ordered statement. M-2: a workflow cancel against an answer still deadlocked; workflow entry points now lock the run first. L-1: claim sources are locked up front. L-2: the three reorders now have tests. Nits: `lockGrantForWrite` reports the policy row; the lock-waiter helpers moved to `pg-harness.ts`; the ADR names what is defence in depth.
 
-Limitations: no test pins the admission-grant lock in web claim admission, because the fixture discovery has one routine-eligible claim.
+Re-review 2 (2 Medium, 3 nits) fixed: a subscription plan request for a workflow task now locks the run before the workflow (M-1), and pausing or revoking a device locks its jobs in id order (M-2), each with a test that deadlocks without the fix; the ADR and the workflow store's lock-order comment are corrected.
+
+Limitations: four of the `lockWorkflowRun` call sites (task finish, lease sweep, decision wake, reconcile) are reasoned from the tested cancel path, not tested themselves.
 
 Next eligible: unchanged (P33 after P13 merges).
 
