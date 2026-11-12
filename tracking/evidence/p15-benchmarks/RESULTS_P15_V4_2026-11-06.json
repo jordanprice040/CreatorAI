@@ -1,11 +1,11 @@
 {
  "format": "p15-results-summary/1",
- "recorded_from": "per-attempt files on Jordan's PC, C:\\dev\\creator_agent_p15\\.creator\\p15-benchmarks\\v4\\runs\\ (gitignored); this file copies their key fields, and source_files records each one's SHA-256",
+ "recorded_from": "per-attempt files on Jordan's PC, C:\\dev\\creator_agent_p15\\.creator\\p15-benchmarks\\v4\\runs\\ (gitignored); this file copies their key fields (role_prompts come instead from each build's intent.json, which is not in this folder), and source_files records the SHA-256 of every file in this folder",
  "source_files": {
   "hashed_at": "2026-11-12",
   "algorithm": "sha256",
   "root": "C:\\dev\\creator_agent_p15\\.creator\\p15-benchmarks\\v4\\runs\\",
-  "note": "PR #150 review N-3: SHA-256 of every file in the per-attempt runs folder (40 files), hashed read-only on Jordan's PC on 2026-11-12. No file there has a modification time later than 2026-11-06 21:44 (the export/ files carry the tar's zero mtime). Each package.tar hash equals that attempt's package_tar_sha256 below. Not hashed here: each build's intent.json (source of role_prompts), which lives in that build's folder under the dev studio's products root, and the owner-preview screenshots, hashed in owner_observation.",
+  "note": "PR #150 review N-3: SHA-256 of every file in the per-attempt runs folder (40 files), hashed read-only on Jordan's PC on 2026-11-12. No file there has a modification time later than 2026-11-06 21:44 (the export/ files carry the tar's zero mtime). Each package.tar hash equals that attempt's package_tar_sha256 below. Not hashed here: each build's intent.json (source of role_prompts), which lives in that build's folder under the dev studio's products root, and the owner-preview screenshots (attempts 2 and 3 have hashes in owner_observation.later_observations; attempt 1's two screenshots were posted in the project thread and have no recorded hash).",
   "files": [
    {
     "path": "p15-small-signup-v4-attempt-1/artifact-detail.json",
