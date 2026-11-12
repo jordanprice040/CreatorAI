@@ -5027,6 +5027,196 @@ export class ConnectionStore extends WebDiscoveryStore {
     });
   }
 
+  // ---- ADR-0093 (P28): a workspace's own OpenAI API key -----------------------------------
+  // The key is in the studio's vault; these rows hold its reference, model and last four.
+
+  /** What any member may see: never the key or its vault reference. */
+  async workspaceApiKey(
+    ctxIn: CommandContext,
+    ws: string,
+  ): Promise<WorkspaceApiKey | null> {
+    const ctx = normalize(ctxIn);
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, false);
+      const { rows } = await c.query(
+        `select model_id, last_four, version, saved_at, saved_by from workspace_api_keys
+          where workspace_id = $1 and provider = 'openai'`,
+        [uuid(ws)],
+      );
+      return rows[0] ? toApiKey(rows[0] as Row) : null;
+    });
+  }
+
+  /**
+   * The vault reference a model call from this workspace reads. Members only (a call's own
+   * grant, budget and admission decide whether it may spend); the reference never leaves the
+   * studio process.
+   */
+  async workspaceApiKeyRef(
+    ctxIn: CommandContext,
+    ws: string,
+  ): Promise<{ credential_ref: string; model_id: string } | null> {
+    const ctx = normalize(ctxIn);
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, false);
+      const { rows } = await c.query(
+        `select credential_ref, model_id from workspace_api_keys
+          where workspace_id = $1 and provider = 'openai'`,
+        [uuid(ws)],
+      );
+      return rows[0]
+        ? {
+            credential_ref: String(rows[0].credential_ref),
+            model_id: String(rows[0].model_id),
+          }
+        : null;
+    });
+  }
+
+  /**
+   * Saves or replaces the key's record (owner only, real workspaces only). The caller has
+   * already sealed the key under `credential_ref`; the replaced reference is returned so the
+   * caller removes that vault entry.
+   */
+  async saveWorkspaceApiKey(
+    ctxIn: CommandContext,
+    ws: string,
+    k: {
+      model_id: string;
+      last_four: string;
+      credential_ref: string;
+      expected_version: number | null;
+    },
+  ): Promise<{
+    saved: WorkspaceApiKey;
+    replaced_credential_ref: string | null;
+  }> {
+    const ctx = normalize(ctxIn);
+    const w = uuid(ws);
+    return this.tx(async (c) => {
+      await this.requireOwner(
+        c,
+        w,
+        ctx.actorId,
+        'Only the workspace owner, signed in as a person, can add or change its API key.',
+      );
+      const fx = await c.query('select fixture from workspaces where id = $1', [
+        w,
+      ]);
+      if (fx.rows[0]?.fixture)
+        throw fail(
+          'INVALID_TRANSITION',
+          'Fixture workspaces never use a real API key.',
+        );
+      const old = (
+        await c.query(
+          `select credential_ref, version from workspace_api_keys
+            where workspace_id = $1 and provider = 'openai' for update`,
+          [w],
+        )
+      ).rows[0];
+      const current = old ? Number(old.version) : null;
+      if (current !== k.expected_version)
+        throw fail(
+          'VERSION_CONFLICT',
+          current === null
+            ? 'This workspace has no saved key now. Reload and try again.'
+            : 'The saved key changed since this page was read. Reload and try again.',
+        );
+      // A first save never overwrites one saved meanwhile, and a replace changes only the
+      // version it read, so a vault entry is never left without its record.
+      const { rows } = old
+        ? await c.query(
+            `update workspace_api_keys set model_id = $2, credential_ref = $3, last_four = $4,
+               version = version + 1, saved_by = $5, saved_at = clock_timestamp()
+             where workspace_id = $1 and provider = 'openai' and version = $6
+             returning model_id, last_four, version, saved_at, saved_by`,
+            [
+              w,
+              k.model_id,
+              k.credential_ref,
+              k.last_four,
+              ctx.actorId,
+              current,
+            ],
+          )
+        : await c.query(
+            `insert into workspace_api_keys
+               (workspace_id, fixture, provider, model_id, credential_ref, last_four, version, saved_by)
+             values ($1, false, 'openai', $2, $3, $4, 1, $5)
+             on conflict (workspace_id, provider) do nothing
+             returning model_id, last_four, version, saved_at, saved_by`,
+            [w, k.model_id, k.credential_ref, k.last_four, ctx.actorId],
+          );
+      if (!rows[0])
+        throw fail(
+          'VERSION_CONFLICT',
+          'The saved key changed since this page was read. Reload and try again.',
+        );
+      const saved = toApiKey(rows[0] as Row);
+      await this.append(c, ctx, {
+        workspaceId: w,
+        action: old ? 'api_key.replaced' : 'api_key.saved',
+        subjectKind: 'api_key',
+        subjectId: w,
+        subjectVersion: saved.version,
+        contentHash: null,
+        payload: {
+          provider: 'openai',
+          model_id: saved.model_id,
+          last_four: saved.last_four,
+        },
+      });
+      return {
+        saved,
+        replaced_credential_ref: old ? String(old.credential_ref) : null,
+      };
+    });
+  }
+
+  /** Removes the key's record (owner only); returns the vault reference to delete. */
+  async removeWorkspaceApiKey(
+    ctxIn: CommandContext,
+    ws: string,
+    expectedVersion: number,
+  ): Promise<{ credential_ref: string }> {
+    const ctx = normalize(ctxIn);
+    const w = uuid(ws);
+    return this.tx(async (c) => {
+      await this.requireOwner(
+        c,
+        w,
+        ctx.actorId,
+        'Only the workspace owner, signed in as a person, can remove its API key.',
+      );
+      const { rows } = await c.query(
+        `delete from workspace_api_keys
+          where workspace_id = $1 and provider = 'openai' and version = $2
+          returning credential_ref, model_id, last_four, version`,
+        [w, expectedVersion],
+      );
+      if (!rows[0])
+        throw fail(
+          'VERSION_CONFLICT',
+          'The saved key changed or was removed since this page was read. Reload and try again.',
+        );
+      await this.append(c, ctx, {
+        workspaceId: w,
+        action: 'api_key.removed',
+        subjectKind: 'api_key',
+        subjectId: w,
+        subjectVersion: Number(rows[0].version),
+        contentHash: null,
+        payload: {
+          provider: 'openai',
+          model_id: String(rows[0].model_id),
+          last_four: String(rows[0].last_four),
+        },
+      });
+      return { credential_ref: String(rows[0].credential_ref) };
+    });
+  }
+
   async #event(
     c: PoolClient,
     connectionId: string,
@@ -5039,4 +5229,22 @@ export class ConnectionStore extends WebDiscoveryStore {
       [randomUUID(), connectionId, kind, body, ctx.actorId],
     );
   }
+}
+
+/** ADR-0093: what is shown of a workspace's saved OpenAI API key. */
+export interface WorkspaceApiKey {
+  model_id: string;
+  last_four: string;
+  version: number;
+  saved_at: string;
+  saved_by: string;
+}
+function toApiKey(r: Row): WorkspaceApiKey {
+  return {
+    model_id: String(r.model_id),
+    last_four: String(r.last_four),
+    version: Number(r.version),
+    saved_at: new Date(r.saved_at as string).toISOString(),
+    saved_by: String(r.saved_by),
+  };
 }

@@ -67,6 +67,7 @@ import {
   publicSearchFromEnv,
   BRAVE_SEARCH_ID,
   PlanConnectionService,
+  ApiKeyService,
   QualificationQueueRunner,
   planVaultFromEnv,
   claudeCodeHostFromEnv,
@@ -380,6 +381,18 @@ export function createApi(
             ),
         })
       : null;
+  // ADR-0093 (P28): a workspace's own OpenAI API key, sealed in the same protected vault as
+  // the plan sign-ins. The studio's own key (environment) wins when both exist.
+  const apiKeys = store
+    ? new ApiKeyService({
+        store,
+        vault: planVaultFromEnv(env),
+        environment: live,
+        ...(env.CREATOR_OPENAI_BASE_URL
+          ? { baseUrl: env.CREATOR_OPENAI_BASE_URL }
+          : {}),
+      })
+    : null;
   const broker = store
     ? new ModelBroker(
         store,
@@ -393,7 +406,12 @@ export function createApi(
             ...(publicSearch ? [publicSearch] : []),
           ],
         },
-        { decisions: store },
+        {
+          decisions: store,
+          ...(apiKeys
+            ? { liveFor: (ctx, ws) => apiKeys.liveFor(ctx, ws) }
+            : {}),
+        },
       )
     : null;
   // X02: batch adapters are looked up by model; a live one exists only with the live opt-in.
@@ -660,6 +678,9 @@ export function createApi(
   const VIEW_PREFERENCE_ROUTE = /^\/api\/me\/view-mode$/;
   const USAGE_ROUTE = /^\/api\/workspaces\/([^/]+)\/(usage)$/;
   const EVIDENCE_SITES_ROUTE = /^\/api\/workspaces\/([^/]+)\/(evidence-sites)$/;
+  // ADR-0093 (P28): the workspace's own OpenAI API key (status, save or replace, remove).
+  const API_KEY_ROUTE =
+    /^\/api\/workspaces\/([^/]+)\/(api-keys)\/(openai)(?:\/(remove))?$/;
   const CHAT_ROUTE =
     /^\/api\/workspaces\/([^/]+)\/(chats)(?:\/([^/]+)(?:\/(messages|title|delete))?)?$/;
   // ADR-0057: a model answer to one saved message, and the owner's chat-answer setting.
@@ -689,6 +710,7 @@ export function createApi(
       VIEW_PREFERENCE_ROUTE.exec(url.pathname) ??
       USAGE_ROUTE.exec(url.pathname) ??
       EVIDENCE_SITES_ROUTE.exec(url.pathname) ??
+      API_KEY_ROUTE.exec(url.pathname) ??
       CHAT_ROUTE.exec(url.pathname) ??
       CHAT_ANSWER_ROUTE.exec(url.pathname) ??
       CHAT_ACTION_ROUTE.exec(url.pathname) ??
@@ -834,6 +856,31 @@ export function createApi(
           true,
         );
       throw new ContractError('NOT_FOUND', 'Unknown evidence websites route.');
+    }
+    // ADR-0093 (P28): any member sees whether a key is saved (last four only); only the owner,
+    // signed in as a person, saves, replaces or removes it (the store checks). The body's key
+    // goes straight to the vault and is never returned or logged.
+    if (ws && API_KEY_ROUTE.test(url.pathname)) {
+      if (!apiKeys)
+        throw new ContractError(
+          'STORAGE_UNAVAILABLE',
+          'Persistence is not configured; set CREATOR_DATABASE_URL.',
+        );
+      if (method === 'GET' && !action)
+        return send(200, await apiKeys.status(ctx, ws), false);
+      if (method === 'POST' && !action)
+        return send(
+          200,
+          await apiKeys.save(ctx, ws, await readJson(req)),
+          true,
+        );
+      if (method === 'POST' && action === 'remove')
+        return send(
+          200,
+          await apiKeys.remove(ctx, ws, await readJson(req)),
+          true,
+        );
+      throw new ContractError('NOT_FOUND', 'Unknown API key route.');
     }
     // ADR-0060/ADR-0073 sidebar: each person's own named notes, and what is running now.
     if (ws && NOTES_ROUTE.test(url.pathname)) {

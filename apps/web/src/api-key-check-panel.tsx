@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import {
   z,
+  ApiKeyStatusSchema,
   BrokerCallResultSchema,
-  BrokerStatusSchema,
+  DEFAULT_OPENAI_KEY_MODEL,
+  type ApiKeyStatus,
   EnvelopeSchema,
   PricingSnapshotSchema,
   ReservationSchema,
@@ -21,6 +23,7 @@ import {
   CHECK_MAX_OUTPUT_TOKENS,
   CHECK_PROMPT,
   checkBlockers,
+  keyProblem,
   pickFunding,
   pickPricing,
   recentChecks,
@@ -30,7 +33,9 @@ import {
 } from './api-key-check.js';
 
 /**
- * P22: "Test connection" for the metered OpenAI API key route. Plan routes keep their own
+ * P22: "Test connection" for the metered OpenAI API key route. ADR-0093 (P28): the owner adds,
+ * replaces and removes the workspace's own key here; the studio seals it in its protected store
+ * and only its last four characters come back. Plan routes keep their own
  * one-approved-call check below. Everything here goes through the server's normal routes:
  * a run, one grant, a run budget lent by a funded budget, and one broker call, so the
  * ceiling, spend limits and admission decide exactly as they would for any paid call.
@@ -45,10 +50,16 @@ export function ApiKeyCheck({
   const base = `workspaces/${workspace.id}`;
   const owner = workspace.role === 'owner';
   const fixture = workspace.record_mode === 'fixture';
-  const [live, setLive] = useState<'not_configured' | 'configured_unverified'>(
-    'not_configured',
-  );
-  const [modelId, setModelId] = useState<string | null>(null);
+  const [keys, setKeys] = useState<ApiKeyStatus | null>(null);
+  const [draftKey, setDraftKey] = useState('');
+  const [draftModel, setDraftModel] = useState(DEFAULT_OPENAI_KEY_MODEL);
+  const [editing, setEditing] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [keyError, setKeyError] = useState('');
+  const [keyDone, setKeyDone] = useState('');
+  const live =
+    keys && keys.in_use !== 'none' ? 'configured_unverified' : 'not_configured';
+  const modelId = keys?.model_id ?? null;
   const [pricing, setPricing] = useState<PricingSnapshot[]>([]);
   const [envelopes, setEnvelopes] = useState<Envelope[]>([]);
   const [recent, setRecent] = useState<Reservation[]>([]);
@@ -62,9 +73,8 @@ export function ApiKeyCheck({
   >(null);
 
   async function load() {
-    const status = await api(BrokerStatusSchema, 'broker/status');
-    setLive(status.live.openai);
-    setModelId(status.live_model_id);
+    const status = await api(ApiKeyStatusSchema, `${base}/api-keys/openai`);
+    setKeys(status);
     if (fixture || !owner) {
       setLoaded(true);
       return;
@@ -95,6 +105,57 @@ export function ApiKeyCheck({
     funding,
   });
   const bundled = DOCUMENTED_PRICING.find((d) => d.body.model_id === modelId);
+
+  const problem = keyProblem(draftKey);
+  async function saveKey() {
+    if (!session || problem) return;
+    setBusy(true);
+    setKeyError('');
+    setKeyDone('');
+    try {
+      const next = await api(ApiKeyStatusSchema, `${base}/api-keys/openai`, {
+        csrf: session.csrf_token,
+        body: {
+          api_key: draftKey.trim(),
+          model_id: draftModel.trim(),
+          expected_version: keys?.saved?.version ?? null,
+        },
+        timeoutMs: 30000,
+      });
+      setKeys(next);
+      setKeyDone(
+        `Saved. The studio keeps the key protected on this computer; only …${next.saved?.last_four ?? ''} is shown from now on.`,
+      );
+      setEditing(false);
+    } catch (e) {
+      setKeyError(message(e));
+    } finally {
+      // The key leaves the page whether or not it was saved.
+      setDraftKey('');
+      setBusy(false);
+    }
+  }
+  async function removeKey() {
+    if (!session || !keys?.saved) return;
+    setBusy(true);
+    setKeyError('');
+    setKeyDone('');
+    setRemoving(false);
+    try {
+      setKeys(
+        await api(ApiKeyStatusSchema, `${base}/api-keys/openai/remove`, {
+          csrf: session.csrf_token,
+          body: { expected_version: keys.saved.version },
+          timeoutMs: 30000,
+        }),
+      );
+      setKeyDone('Removed. Calls from this workspace no longer use that key.');
+    } catch (e) {
+      setKeyError(message(e));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function addPrice() {
     if (!bundled || !session) return;
@@ -175,13 +236,133 @@ export function ApiKeyCheck({
     <div className="api-key-check">
       <p>
         OpenAI API key (pay per use):{' '}
-        {live === 'configured_unverified'
-          ? `the API process has a key for ${modelId ?? 'a model'}.`
-          : 'no key on the API process, so real workspaces never use this route.'}{' '}
+        {keys?.in_use === 'environment'
+          ? `the studio was started with its own key for ${modelId ?? 'a model'}.`
+          : keys?.in_use === 'saved'
+            ? `this workspace's key …${keys.saved?.last_four ?? ''} for ${modelId ?? 'a model'}.`
+            : fixture
+              ? 'fixture workspaces never use a real key.'
+              : 'no key yet, so this workspace never uses this route.'}{' '}
         A key is not permission to spend: every call still needs a grant, a
-        funded budget and room under your overall ceiling. This screen never
-        changes the key.
+        funded budget and room under your overall ceiling.
       </p>
+      {keys?.note && <p className="small">{keys.note}</p>}
+      {owner && !fixture && keys && (
+        <fieldset>
+          <legend>Your OpenAI API key</legend>
+          {keys.saved && (
+            <p className="small">
+              Saved key …{keys.saved.last_four} for {keys.saved.model_id}, saved{' '}
+              {when(keys.saved.saved_at)}. The key itself is never shown again.
+            </p>
+          )}
+          {!keys.can_save ? null : !keys.saved || editing ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void saveKey();
+              }}
+            >
+              <label>
+                {keys.saved ? 'New key' : 'Key'}
+                <input
+                  type="password"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={draftKey}
+                  onChange={(e) => setDraftKey(e.target.value)}
+                  placeholder="sk-…"
+                />
+              </label>
+              <label>
+                Model
+                <input
+                  value={draftModel}
+                  onChange={(e) => setDraftModel(e.target.value)}
+                />
+              </label>
+              <p className="small">
+                The key is sent once to the studio on this computer, which keeps
+                it in Windows' protected storage for your account. It is never
+                stored in the database or logs, and never shown again (only its
+                last four characters).
+              </p>
+              {draftKey && problem && <p className="small">{problem}</p>}
+              <div className="actions">
+                <button
+                  type="submit"
+                  disabled={busy || !session || !!problem || !draftModel.trim()}
+                >
+                  {keys.saved ? 'Replace key' : 'Save key'}
+                </button>
+                {keys.saved && (
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => {
+                      setEditing(false);
+                      setDraftKey('');
+                    }}
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </form>
+          ) : (
+            <div className="actions">
+              <button
+                className="secondary"
+                disabled={busy || !session}
+                onClick={() => {
+                  setDraftModel(
+                    keys.saved?.model_id ?? DEFAULT_OPENAI_KEY_MODEL,
+                  );
+                  setKeyDone('');
+                  setEditing(true);
+                }}
+              >
+                Replace key…
+              </button>
+              {!removing ? (
+                <button
+                  className="secondary"
+                  disabled={busy || !session}
+                  onClick={() => {
+                    setKeyDone('');
+                    setRemoving(true);
+                  }}
+                >
+                  Remove key…
+                </button>
+              ) : (
+                <>
+                  <span className="small">
+                    Remove …{keys.saved?.last_four}? Calls from this workspace
+                    stop using it. Your OpenAI account is not changed; revoke
+                    the key on the OpenAI dashboard if you no longer need it.
+                  </span>
+                  <button disabled={busy} onClick={() => void removeKey()}>
+                    Remove key
+                  </button>
+                  <button
+                    className="secondary"
+                    onClick={() => setRemoving(false)}
+                  >
+                    Not now
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+          {keyError && (
+            <p className="error" role="alert">
+              {keyError}
+            </p>
+          )}
+          {keyDone && <p role="status">{keyDone}</p>}
+        </fieldset>
+      )}
       {owner && !fixture && live === 'configured_unverified' && (
         <fieldset>
           <legend>Test connection</legend>

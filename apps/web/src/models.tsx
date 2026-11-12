@@ -75,7 +75,7 @@ const PROPOSED_SETTINGS = {
       max_requests_per_run: 10,
       request_timeout_ms: 120000,
       max_output_chars: 16000,
-      max_input_chars: 24000,
+      max_input_chars: 64000,
     },
     codex: {
       max_builds_per_day: 2,
@@ -100,7 +100,7 @@ const PROPOSED_CLAUDE_SETTINGS = {
       max_requests_per_run: 10,
       request_timeout_ms: 180000,
       max_output_chars: 16000,
-      max_input_chars: 24000,
+      max_input_chars: 64000,
     },
     codex: {
       max_builds_per_day: 0,

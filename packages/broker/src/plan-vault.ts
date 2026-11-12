@@ -10,7 +10,7 @@ import {
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-// Credential storage for ChatGPT-plan tokens. Windows uses DPAPI (CurrentUser) through the
+// Credential storage for ChatGPT-plan tokens and (ADR-0093) workspaces' OpenAI API keys. Windows uses DPAPI (CurrentUser) through the
 // built-in PowerShell, matching the installed studio's other secrets (ADR-0041); the plaintext
 // passes over stdin only. Elsewhere a 0600 file vault is available only when explicitly
 // chosen for development. Tokens never go to the database, logs, URLs or the browser.
@@ -32,14 +32,38 @@ export interface PlanVault {
   readonly kind: 'dpapi' | 'file-dev' | 'memory';
   get(ref: string): Promise<PlanCredential | null>;
   put(ref: string, value: PlanCredential): Promise<void>;
+  /** ADR-0093 (P28): a workspace's OpenAI API key, under its own reference kind and entropy. */
+  getApiKey(ref: string): Promise<string | null>;
+  putApiKey(ref: string, key: string): Promise<void>;
   delete(ref: string): Promise<void>;
 }
-const REF = /^chatgpt-plan\/[0-9a-f-]{36}$/;
-const fileOf = (dir: string, ref: string) => {
-  if (!REF.test(ref)) throw new Error('Invalid credential reference.');
-  return join(dir, `${ref.slice('chatgpt-plan/'.length)}.secret`);
+/** The two kinds of entry; each kind has its own file name and (on Windows) DPAPI entropy. */
+type Purpose = 'chatgpt-plan' | 'openai-api-key';
+const REF = /^(chatgpt-plan|openai-api-key)\/[0-9a-f-]{36}$/;
+const purposeOf = (ref: string): Purpose => {
+  const m = REF.exec(ref);
+  if (!m) throw new Error('Invalid credential reference.');
+  return m[1] as Purpose;
+};
+const fileOf = (dir: string, ref: string, want?: Purpose) => {
+  const purpose = purposeOf(ref);
+  if (want && purpose !== want)
+    throw new Error('Invalid credential reference.');
+  const id = ref.slice(purpose.length + 1);
+  // Plan sign-ins keep their original file name, so existing vaults still open.
+  return join(
+    dir,
+    purpose === 'chatgpt-plan' ? `${id}.secret` : `${id}.api-key.secret`,
+  );
 };
 export const newCredentialRef = () => `chatgpt-plan/${randomUUID()}`;
+export const newApiKeyRef = () => `openai-api-key/${randomUUID()}`;
+const keyEntry = (key: string) => JSON.stringify({ api_key: key });
+const keyOf = (raw: string): string => {
+  const v = JSON.parse(raw) as { api_key?: unknown };
+  if (typeof v.api_key !== 'string') throw new Error('A saved key is damaged.');
+  return v.api_key;
+};
 
 async function atomicWrite(path: string, data: string | Buffer) {
   const tmp = `${path}.${randomUUID()}.tmp`;
@@ -52,15 +76,30 @@ export class MemoryVault implements PlanVault {
   readonly kind = 'memory' as const;
   readonly #m = new Map<string, string>();
   async get(ref: string) {
+    fileOf('/', ref, 'chatgpt-plan');
     const v = this.#m.get(ref);
     return v ? (JSON.parse(v) as PlanCredential) : null;
   }
   async put(ref: string, value: PlanCredential) {
-    fileOf('/', ref);
+    fileOf('/', ref, 'chatgpt-plan');
     this.#m.set(ref, JSON.stringify(value));
   }
+  async getApiKey(ref: string) {
+    fileOf('/', ref, 'openai-api-key');
+    const v = this.#m.get(ref);
+    return v ? keyOf(v) : null;
+  }
+  async putApiKey(ref: string, key: string) {
+    fileOf('/', ref, 'openai-api-key');
+    this.#m.set(ref, keyEntry(key));
+  }
   async delete(ref: string) {
+    fileOf('/', ref);
     this.#m.delete(ref);
+  }
+  /** Tests: every stored entry as written, to check a key never lands anywhere else. */
+  entries(): string[] {
+    return [...this.#m.values()];
   }
 }
 
@@ -68,30 +107,43 @@ export class MemoryVault implements PlanVault {
 export class FileDevVault implements PlanVault {
   readonly kind = 'file-dev' as const;
   constructor(readonly dir: string) {}
-  async get(ref: string) {
+  async #read(path: string) {
     try {
-      return JSON.parse(
-        await readFile(fileOf(this.dir, ref), 'utf8'),
-      ) as PlanCredential;
+      return await readFile(path, 'utf8');
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code === 'ENOENT') return null;
       throw e;
     }
   }
+  async get(ref: string) {
+    const raw = await this.#read(fileOf(this.dir, ref, 'chatgpt-plan'));
+    return raw === null ? null : (JSON.parse(raw) as PlanCredential);
+  }
   async put(ref: string, value: PlanCredential) {
     await mkdir(this.dir, { recursive: true, mode: 0o700 });
-    await atomicWrite(fileOf(this.dir, ref), JSON.stringify(value));
+    await atomicWrite(
+      fileOf(this.dir, ref, 'chatgpt-plan'),
+      JSON.stringify(value),
+    );
+  }
+  async getApiKey(ref: string) {
+    const raw = await this.#read(fileOf(this.dir, ref, 'openai-api-key'));
+    return raw === null ? null : keyOf(raw);
+  }
+  async putApiKey(ref: string, key: string) {
+    await mkdir(this.dir, { recursive: true, mode: 0o700 });
+    await atomicWrite(fileOf(this.dir, ref, 'openai-api-key'), keyEntry(key));
   }
   async delete(ref: string) {
     await rm(fileOf(this.dir, ref), { force: true });
   }
 }
 
-const DPAPI_SCRIPT = (protect: boolean) =>
+const DPAPI_SCRIPT = (protect: boolean, purpose: Purpose) =>
   [
     'Add-Type -AssemblyName System.Security',
     '$in = [Console]::In.ReadToEnd()',
-    '$e = [Text.Encoding]::UTF8.GetBytes("creator-agent-studio/1:chatgpt-plan")',
+    `$e = [Text.Encoding]::UTF8.GetBytes("creator-agent-studio/1:${purpose}")`,
     `$o = [Security.Cryptography.ProtectedData]::${protect ? 'Protect' : 'Unprotect'}([Convert]::FromBase64String($in), $e, [Security.Cryptography.DataProtectionScope]::CurrentUser)`,
     '[Console]::Out.Write([Convert]::ToBase64String($o))',
   ].join('; ');
@@ -123,7 +175,7 @@ function powershell(script: string, input: string): Promise<string> {
         ? ok(out.trim())
         : bad(
             new Error(
-              'Windows could not protect or unlock the saved ChatGPT sign-in.',
+              'Windows could not protect or unlock a saved sign-in or key.',
             ),
           ),
     );
@@ -133,27 +185,40 @@ function powershell(script: string, input: string): Promise<string> {
 export class DpapiVault implements PlanVault {
   readonly kind = 'dpapi' as const;
   constructor(readonly dir: string) {}
-  async get(ref: string) {
+  async #open(ref: string, purpose: Purpose): Promise<string | null> {
     let blob: string;
     try {
-      blob = await readFile(fileOf(this.dir, ref), 'utf8');
+      blob = await readFile(fileOf(this.dir, ref, purpose), 'utf8');
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code === 'ENOENT') return null;
       throw e;
     }
-    const plain = Buffer.from(
-      await powershell(DPAPI_SCRIPT(false), blob.trim()),
+    return Buffer.from(
+      await powershell(DPAPI_SCRIPT(false, purpose), blob.trim()),
       'base64',
-    );
-    return JSON.parse(plain.toString('utf8')) as PlanCredential;
+    ).toString('utf8');
   }
-  async put(ref: string, value: PlanCredential) {
+  async #seal(ref: string, purpose: Purpose, plain: string) {
     await mkdir(this.dir, { recursive: true });
     const cipher = await powershell(
-      DPAPI_SCRIPT(true),
-      Buffer.from(JSON.stringify(value), 'utf8').toString('base64'),
+      DPAPI_SCRIPT(true, purpose),
+      Buffer.from(plain, 'utf8').toString('base64'),
     );
-    await atomicWrite(fileOf(this.dir, ref), cipher);
+    await atomicWrite(fileOf(this.dir, ref, purpose), cipher);
+  }
+  async get(ref: string) {
+    const plain = await this.#open(ref, 'chatgpt-plan');
+    return plain === null ? null : (JSON.parse(plain) as PlanCredential);
+  }
+  async put(ref: string, value: PlanCredential) {
+    await this.#seal(ref, 'chatgpt-plan', JSON.stringify(value));
+  }
+  async getApiKey(ref: string) {
+    const plain = await this.#open(ref, 'openai-api-key');
+    return plain === null ? null : keyOf(plain);
+  }
+  async putApiKey(ref: string, key: string) {
+    await this.#seal(ref, 'openai-api-key', keyEntry(key));
   }
   async delete(ref: string) {
     await rm(fileOf(this.dir, ref), { force: true });
