@@ -19,6 +19,22 @@ export type CapsShape = {
   shared: { max_model_requests_per_day: number; max_in_flight: 1 };
 };
 
+/**
+ * The caps in one line, as Models and connections lists them and as "Review and accept caps"
+ * shows them before accepting (ADR-0087).
+ */
+export function capsLine(kind: string, caps: CapsShape): string {
+  return [
+    `${caps.shared.max_model_requests_per_day} requests a day`,
+    `${caps.responses.max_requests_per_run} per run`,
+    `${Math.round(caps.responses.request_timeout_ms / 1000)}s timeout`,
+    `${caps.responses.max_output_chars} output characters`,
+    ...(kind === 'claude_code'
+      ? []
+      : [`${caps.codex.max_builds_per_day} Codex builds a day`]),
+  ].join(' · ');
+}
+
 export type CapField = {
   key: string;
   group: 'responses' | 'codex' | 'shared';

@@ -12,6 +12,12 @@ import { WhatWillHappen } from './routine.js';
 import type { View } from './pages.js';
 import { loadCard } from './chat-card-load.js';
 import {
+  FixOutcome,
+  FixRow,
+  routeFixes,
+  useQualifyOffers,
+} from './fix-buttons.js';
+import {
   FORM_VIEW,
   LABEL,
   cardView,
@@ -84,6 +90,7 @@ export function ActionCard({
   workspaceId,
   fixture,
   canWrite,
+  owner = false,
   reload,
   open,
   again,
@@ -93,6 +100,8 @@ export function ActionCard({
   workspaceId: string;
   fixture: boolean;
   canWrite: boolean;
+  /** ADR-0087: the workspace owner sees fixes for the card's blockers in place. */
+  owner?: boolean;
   /** Reads the conversation again (the card's new state). */
   reload: () => Promise<void>;
   open: (view: View) => void;
@@ -100,6 +109,8 @@ export function ActionCard({
   again: (card: ChatAction) => Promise<void>;
 }) {
   const { standard } = useViewMode();
+  // ADR-0087: the server's discovery benchmarks, so a fix can qualify a discovery task.
+  useQualifyOffers(`workspaces/${workspaceId}`);
   const base = `workspaces/${workspaceId}/chats/${card.conversation_id}/actions/${card.id}`;
   const [data, setData] = useState<CardData | null>(null);
   const [loadError, setLoadError] = useState('');
@@ -158,6 +169,10 @@ export function ActionCard({
   }, [draft, canWrite]);
 
   const view: CardView = cardView(card.kind, input, data, ctx);
+  const fixFacts =
+    card.kind === 'start_discovery' && data && 'routeFix' in data
+      ? data.routeFix
+      : undefined;
   const asking: Question | null =
     (changing ? view.questions.find((q) => q.key === changing) : null) ??
     view.current;
@@ -440,6 +455,31 @@ export function ActionCard({
                 <li key={b}>{b}</li>
               ))}
             </ul>
+          )}
+          {view.blockers.length > 0 && draft && fixFacts && (
+            <FixRow
+              acts={routeFixes({
+                ...fixFacts,
+                dataClass: 'public',
+                role: 'discovery',
+              })}
+              fix={{
+                base: `workspaces/${workspaceId}`,
+                place: `card:${card.id}`,
+                csrf: session.csrf_token,
+                owner,
+                onDone: () => void read(),
+              }}
+            />
+          )}
+          {draft && fixFacts && (
+            <FixOutcome
+              fix={{
+                base: `workspaces/${workspaceId}`,
+                place: `card:${card.id}`,
+                owner,
+              }}
+            />
           )}
           {!asking && view.happen.length > 0 && (
             <WhatWillHappen

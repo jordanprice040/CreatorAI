@@ -143,11 +143,19 @@ export const ErrorCodeSchema = z.enum([
   'INTERNAL_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
+/**
+ * ADR-0087 (P27): a machine-readable reason beside a refusal's words, such as a plan refusal's
+ * code and the connection, model and class it names. The API sends these as `error.reasons`.
+ */
+export type ErrorReason = { readonly code: string } & Readonly<
+  Record<string, string | undefined>
+>;
 export class ContractError extends Error {
   constructor(
     public readonly code: ErrorCode,
     message: string,
     public readonly details: readonly string[] = [],
+    public readonly reasons: readonly ErrorReason[] = [],
   ) {
     super(message);
     this.name = 'ContractError';

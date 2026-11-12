@@ -32,6 +32,13 @@ async function load() {
       act: Act,
       report: (e: string) => void,
     ) => Promise<boolean>;
+    allowSequence: (
+      c: unknown,
+      after: { data?: readonly string[]; tasks?: readonly string[] },
+      act: Act,
+      report: (e: string) => void,
+      onSaved?: () => void,
+    ) => Promise<boolean>;
   };
 }
 type Act = (
@@ -143,4 +150,44 @@ test('PR #172 review L-1: a refused re-acceptance is reported through the outliv
   );
   assert.equal(first.calls.length, 1);
   assert.deepEqual(seen, ['Only the workspace owner can change this.']);
+});
+
+test('ADR-0087: allowing a data class changes only the data classes, and re-accepts accepted caps', async () => {
+  const { allowSequence } = await load();
+  const errors: string[] = [];
+  const { act, calls } = fakeAct([
+    () => ({ version: 5, settings_hash: 'h5' }),
+    (local) => {
+      local?.('Stale.');
+      return null;
+    },
+  ]);
+  let saved = 0;
+  const ok = await allowSequence(
+    connection(true),
+    { data: ['synthetic', 'public', 'private_approved'] },
+    act,
+    (e) => errors.push(e),
+    () => saved++,
+  );
+  assert.equal(ok, false);
+  // The settings were saved though re-accepting failed: the fix panel reads again (P27
+  // re-review L-1).
+  assert.equal(saved, 1);
+  const sent = (
+    calls[0]!.body as {
+      settings: {
+        allowed_data_classes: string[];
+        allowed_task_classes: string[];
+      };
+    }
+  ).settings;
+  assert.deepEqual(sent.allowed_data_classes, [
+    'synthetic',
+    'public',
+    'private_approved',
+  ]);
+  assert.deepEqual(sent.allowed_task_classes, ['summarization']);
+  assert.equal(calls[1]!.path, 'plan-connections/c1/accept-caps');
+  assert.match(errors[0]!, /^The change was saved, but the caps/);
 });

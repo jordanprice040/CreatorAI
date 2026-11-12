@@ -3,6 +3,8 @@ import type {
   PlanConnection,
   PlanModelAccess,
   PlanQualification,
+  PlanRefusal,
+  PlanRefusalCode,
   PlanVerificationGrant,
 } from '@creator/contracts';
 import {
@@ -29,38 +31,73 @@ export interface PlanUsageCounts {
   unresolved: number;
 }
 
+/** One refusal with its stable code (ADR-0087) and the facts a fix needs. */
+const refusal = (
+  code: PlanRefusalCode,
+  text: string,
+  extra: Omit<PlanRefusal, 'code' | 'text'> = {},
+): PlanRefusal => ({ code, text, ...extra });
+
 /** Reasons the connection as a whole cannot serve inference now, independent of a request. */
 export function connectionBlockers(c: PlanConnection): string[] {
-  if (c.kind === 'claude_code') return claudeCodeBlockers(c);
-  const out: string[] = [];
+  return connectionRefusals(c).map((r) => r.text);
+}
+
+/** The same reasons, each with its code and the connection it names (ADR-0087). */
+export function connectionRefusals(c: PlanConnection): PlanRefusal[] {
+  const out =
+    c.kind === 'claude_code' ? claudeCodeRefusals(c) : chatgptRefusals(c);
+  return out.map((r) => ({ ...r, connection_id: c.id }));
+}
+
+function chatgptRefusals(c: PlanConnection): PlanRefusal[] {
+  const out: PlanRefusal[] = [];
   if (c.sign_in.state !== 'signed_in')
     out.push(
-      c.sign_in.state === 'reauthorization_required'
-        ? 'Sign in with ChatGPT again: the saved authorization stopped working.'
-        : 'Not signed in with ChatGPT.',
+      refusal(
+        'sign_in',
+        c.sign_in.state === 'reauthorization_required'
+          ? 'Sign in with ChatGPT again: the saved authorization stopped working.'
+          : 'Not signed in with ChatGPT.',
+      ),
     );
   else if (!c.sign_in.plan_usage_granted)
     out.push(
-      'ChatGPT plan usage was not granted at sign-in (chatgpt.tokens.use.direct is missing).',
+      refusal(
+        'sign_in',
+        'ChatGPT plan usage was not granted at sign-in (chatgpt.tokens.use.direct is missing).',
+      ),
     );
   if (c.credits.state !== 'confirmed_off')
     out.push(
-      'Credits after the plan limit are not confirmed off for Creator Agent in ChatGPT Settings > Usage.',
+      refusal(
+        'credits_not_off',
+        'Credits after the plan limit are not confirmed off for Creator Agent in ChatGPT Settings > Usage.',
+      ),
     );
-  if (!c.caps_accepted_at)
-    out.push(
-      'The owner has not accepted the current caps and allowed work (request, daily, time and output caps; data and task classes).',
-    );
+  if (!c.caps_accepted_at) out.push(capsNotAccepted());
   if (c.eligibility.state === 'not_eligible')
     out.push(
-      `OpenAI reported this account or app as not eligible for plan usage (${c.eligibility.reason_code ?? 'no code'}).`,
+      refusal(
+        'not_eligible',
+        `OpenAI reported this account or app as not eligible for plan usage (${c.eligibility.reason_code ?? 'no code'}).`,
+      ),
     );
   if (c.quota.state === 'exhausted')
     out.push(
-      'The ChatGPT plan usage limit was reached. Plan requests pause; check ChatGPT Settings > Usage.',
+      refusal(
+        'quota_exhausted',
+        'The ChatGPT plan usage limit was reached. Plan requests pause; check ChatGPT Settings > Usage.',
+      ),
     );
   return out;
 }
+
+const capsNotAccepted = () =>
+  refusal(
+    'caps_not_accepted',
+    'The owner has not accepted the current caps and allowed work (request, daily, time and output caps; data and task classes).',
+  );
 
 /**
  * ADR-0050: the owner's own Claude Code CLI. "Signed in" is the last `claude auth status`
@@ -71,37 +108,52 @@ export function connectionBlockers(c: PlanConnection): string[] {
 const claudeCodeVersion = (c: PlanConnection) =>
   c.sign_in.issued_client_id?.replace(/^claude-code\//, '') ?? '';
 
-function claudeCodeBlockers(c: PlanConnection): string[] {
-  const out: string[] = [];
+function claudeCodeRefusals(c: PlanConnection): PlanRefusal[] {
+  const out: PlanRefusal[] = [];
   if (c.sign_in.state !== 'signed_in')
     out.push(
-      c.sign_in.state === 'reauthorization_required'
-        ? "Claude Code on this computer stopped accepting its sign-in. Run claude auth login in the studio's Claude Code folder, then check again."
-        : 'Claude Code on this computer has not been checked, or is not signed in. Sign in with claude auth login, then check again.',
+      refusal(
+        'sign_in',
+        c.sign_in.state === 'reauthorization_required'
+          ? "Claude Code on this computer stopped accepting its sign-in. Run claude auth login in the studio's Claude Code folder, then check again."
+          : 'Claude Code on this computer has not been checked, or is not signed in. Sign in with claude auth login, then check again.',
+      ),
     );
   else if (!claudeCodeVersionSupported(claudeCodeVersion(c)))
     out.push(
-      `Claude Code ${claudeCodeVersion(c) || '(unknown version)'} is older than ${CLAUDE_CODE_MIN_VERSION}, which the studio needs for its locked-down runs. Run claude update, then check again.`,
+      refusal(
+        'sign_in',
+        `Claude Code ${claudeCodeVersion(c) || '(unknown version)'} is older than ${CLAUDE_CODE_MIN_VERSION}, which the studio needs for its locked-down runs. Run claude update, then check again.`,
+      ),
     );
   else if (!c.sign_in.plan_usage_granted)
     out.push(
-      'Claude Code is using an API key or another credential, not your Claude subscription. Remove it and sign in with your Claude account.',
+      refusal(
+        'sign_in',
+        'Claude Code is using an API key or another credential, not your Claude subscription. Remove it and sign in with your Claude account.',
+      ),
     );
   if (c.credits.state !== 'confirmed_off')
     out.push(
-      'Extra usage after the Claude plan limit is not confirmed off in Claude Settings > Usage.',
+      refusal(
+        'credits_not_off',
+        'Extra usage after the Claude plan limit is not confirmed off in Claude Settings > Usage.',
+      ),
     );
-  if (!c.caps_accepted_at)
-    out.push(
-      'The owner has not accepted the current caps and allowed work (request, daily, time and output caps; data and task classes).',
-    );
+  if (!c.caps_accepted_at) out.push(capsNotAccepted());
   if (c.eligibility.state === 'not_eligible')
     out.push(
-      `Claude reported this account as unable to use Claude Code (${c.eligibility.reason_code ?? 'no code'}).`,
+      refusal(
+        'not_eligible',
+        `Claude reported this account as unable to use Claude Code (${c.eligibility.reason_code ?? 'no code'}).`,
+      ),
     );
   if (c.quota.state === 'exhausted')
     out.push(
-      'The Claude plan usage limit was reached. Requests pause until it resets; check Claude Settings > Usage.',
+      refusal(
+        'quota_exhausted',
+        'The Claude plan usage limit was reached. Requests pause until it resets; check Claude Settings > Usage.',
+      ),
     );
   return out;
 }
@@ -121,7 +173,7 @@ export interface PlanChatAllowance {
   study_open?: boolean;
 }
 
-export function admissionBlockers(input: {
+type AdmissionInput = {
   connection: PlanConnection;
   request: PlanAdmissionRequest;
   access: PlanModelAccess[];
@@ -131,37 +183,71 @@ export function admissionBlockers(input: {
   now: Date;
   /** ADR-0057: the workspace's chat setting and today's chat answers on this connection. */
   chat?: PlanChatAllowance | null | undefined;
-}): string[] {
+};
+
+export function admissionBlockers(input: AdmissionInput): string[] {
+  return admissionRefusals(input).map((r) => r.text);
+}
+
+/**
+ * Every reason a request is refused, each with its stable code (ADR-0087) and the connection,
+ * model and class it names, so the app can offer that refusal's fix. Same order and wording as
+ * `admissionBlockers`; a repeated sentence is listed once.
+ */
+export function admissionRefusals(input: AdmissionInput): PlanRefusal[] {
   const { connection: c, request: r, usage: u } = input;
   const caps = c.settings.caps;
-  const out = connectionBlockers(c);
+  const out: PlanRefusal[] = [];
+  const push = (
+    code: PlanRefusalCode,
+    text: string,
+    extra: Omit<PlanRefusal, 'code' | 'text'> = {},
+  ) => out.push({ ...refusal(code, text, extra), connection_id: c.id });
+  out.push(...connectionRefusals(c));
   if (c.kind === 'claude_code' && r.path !== 'responses')
-    out.push(
+    push(
+      'wrong_path',
       'Claude Code connections have the direct path only (no Codex builds).',
     );
   if (!c.settings.allowed_data_classes.includes(r.data_class))
-    out.push(`Data class ${r.data_class} is not allowed on this connection.`);
+    push(
+      'data_class_not_allowed',
+      `Data class ${r.data_class} is not allowed on this connection.`,
+      { data_class: r.data_class },
+    );
   if (r.task_class && !c.settings.allowed_task_classes.includes(r.task_class))
-    out.push(`Task class ${r.task_class} is not allowed on this connection.`);
+    push(
+      'task_class_not_allowed',
+      `Task class ${r.task_class} is not allowed on this connection.`,
+      { task_class: r.task_class, model_id: r.model_id },
+    );
   if (r.task_class && pathForTaskClass(r.task_class) !== r.path)
-    out.push('This task class belongs to the other path.');
+    push('wrong_path', 'This task class belongs to the other path.');
   if (u.unresolved > 0)
-    out.push(
+    push(
+      'request_open',
       `An earlier plan request has an unknown outcome; ${PLAN_RECONCILE_HINT}.`,
     );
   if (u.in_flight >= caps.shared.max_in_flight)
-    out.push(
+    push(
+      'request_open',
       `Another plan request is already running (one at a time). If the studio stopped during it, ${PLAN_RECONCILE_HINT}.`,
     );
   if (u.last_24h_requests >= caps.shared.max_model_requests_per_day)
-    out.push('The studio daily request cap for this connection is reached.');
+    push(
+      'cap_reached',
+      'The studio daily request cap for this connection is reached.',
+    );
   if (r.path === 'responses') {
     if (r.input_chars > caps.responses.max_input_chars)
-      out.push('The request input is larger than the per-request input cap.');
+      push(
+        'cap_reached',
+        'The request input is larger than the per-request input cap.',
+      );
     if (r.run_id && u.run_requests >= caps.responses.max_requests_per_run)
-      out.push('The per-run request cap is reached.');
+      push('cap_reached', 'The per-run request cap is reached.');
   } else if (u.build_requests >= caps.codex.max_model_requests_per_build)
-    out.push('The per-build Codex model request cap is reached.');
+    push('cap_reached', 'The per-build Codex model request cap is reached.');
   const verified = input.access.some(
     (a) =>
       a.model_id === r.model_id && a.path === r.path && a.access === 'verified',
@@ -171,52 +257,67 @@ export function admissionBlockers(input: {
     case 'availability_recheck': {
       const g = input.grant;
       if (!g || g.id !== r.grant_id || g.connection_id !== c.id)
-        out.push('The one-shot verification approval was not found.');
+        push('grant', 'The one-shot verification approval was not found.');
       else {
         const intent =
           r.purpose === 'verification'
             ? 'model_access'
             : 'availability_recheck';
         if ((g.intent ?? 'model_access') !== intent)
-          out.push('The one-shot approval is for another check intent.');
+          push('grant', 'The one-shot approval is for another check intent.');
         if (g.model_id !== r.model_id || g.path !== r.path)
-          out.push('The verification approval is for another model or path.');
+          push(
+            'grant',
+            'The verification approval is for another model or path.',
+          );
         if (g.used >= g.max_requests)
-          out.push('The verification approval was already used.');
+          push('grant', 'The verification approval was already used.');
         if (Date.parse(g.expires_at) <= input.now.getTime())
-          out.push('The verification approval has expired.');
+          push('grant', 'The verification approval has expired.');
       }
       if (r.purpose === 'verification' && verified)
-        out.push('This model is already verified on this path.');
+        push('other', 'This model is already verified on this path.');
       if (r.purpose === 'availability_recheck' && !verified)
-        out.push('Verify model access before rechecking availability.');
+        push(
+          'not_verified',
+          'Verify model access before rechecking availability.',
+          { model_id: r.model_id },
+        );
       break;
     }
     case 'qualification': {
-      if (!verified) out.push('Verify model access before qualifying it.');
+      if (!verified)
+        push('not_verified', 'Verify model access before qualifying it.', {
+          model_id: r.model_id,
+        });
       const q = input.qualifications.find((x) => x.id === r.qualification_id);
       if (!q || q.state !== 'running' || q.model_id !== r.model_id)
-        out.push('The qualification run is not open for this model.');
+        push('other', 'The qualification run is not open for this model.');
       break;
     }
     case 'chat': {
       if (!verified)
-        out.push(
+        push(
+          'not_verified',
           `Model ${r.model_id} has no verified access on this connection.`,
+          { model_id: r.model_id },
         );
       const chat = input.chat;
       if (!chat?.enabled)
-        out.push('Chat answers are turned off for this workspace.');
+        push('chat_setting', 'Chat answers are turned off for this workspace.');
       else if (chat.connection_id !== c.id || chat.model_id !== r.model_id)
-        out.push(
+        push(
+          'chat_setting',
           'Chat answers are set to use another connection or model; this one is not allowed.',
         );
       else if (chat.used_24h >= chat.daily_limit)
-        out.push(
+        push(
+          'cap_reached',
           `The daily chat limit (${chat.daily_limit} answers in 24 hours) is reached.`,
         );
       if (chat?.study_open)
-        out.push(
+        push(
+          'other',
           'A study attempt is open in this workspace, so chat answers are paused until it finishes.',
         );
       break;
@@ -224,27 +325,35 @@ export function admissionBlockers(input: {
     case 'task':
     case 'codex_build': {
       if (!verified)
-        out.push(
+        push(
+          'not_verified',
           `Model ${r.model_id} has no verified access on the ${r.path} path.`,
+          { model_id: r.model_id },
         );
       // The newest decided qualification counts: a later failure withdraws a pass.
       const qualified =
         r.task_class !== null &&
         isQualified(input.qualifications, r.model_id, r.task_class);
       if (!qualified)
-        out.push(
+        push(
+          'not_qualified',
           `Model ${r.model_id} is not qualified for ${r.task_class ?? 'this task'} on this connection.`,
+          {
+            model_id: r.model_id,
+            ...(r.task_class ? { task_class: r.task_class } : {}),
+          },
         );
       if (
         r.purpose === 'codex_build' &&
         u.build_requests === 0 &&
         u.last_24h_codex_builds >= caps.codex.max_builds_per_day
       )
-        out.push('The daily Codex build cap is reached.');
+        push('cap_reached', 'The daily Codex build cap is reached.');
       break;
     }
   }
-  return [...new Set(out)];
+  const seen = new Set<string>();
+  return out.filter((x) => !seen.has(x.text) && Boolean(seen.add(x.text)));
 }
 
 /**

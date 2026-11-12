@@ -3364,3 +3364,14 @@ details.fold > summary h3.fold-title {
 .qualify-queue ol {
   margin: 0.25rem 0 0.5rem;
 }
+
+/* ADR-0087: a fix's confirmation panel, and its own lines, each on a line of its own. */
+.fix-here .fix-panel {
+  display: block;
+  text-align: left;
+}
+.fix-here .error,
+.fix-here .fix-line,
+.fix-outcome .error {
+  display: block;
+}
