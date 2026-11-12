@@ -929,8 +929,14 @@ async function ownerChooses(
   runId: string,
   problemId: string,
   kind = 'use_existing',
+  shortlistSize = 3,
 ) {
-  let rep = await h.store.selectionReport(owner, h.ws.id, problemId);
+  let rep = await h.store.selectionReport(
+    owner,
+    h.ws.id,
+    problemId,
+    shortlistSize,
+  );
   const target = rep.suitability.candidates.find(
     (c) => c.alternative.kind === kind,
   )!;
@@ -947,7 +953,12 @@ async function ownerChooses(
           ?.find((d) => d.gate === gate)
           ?.concerns.map((x) => x.scorecard) ?? [],
     });
-  rep = await h.store.selectionReport(owner, h.ws.id, problemId);
+  rep = await h.store.selectionReport(
+    owner,
+    h.ws.id,
+    problemId,
+    shortlistSize,
+  );
   const out = await h.store.select(owner, h.ws.id, runId, {
     problem: { id: rep.problem.id, version: rep.problem.version },
     report_hash: rep.report_hash,
@@ -962,7 +973,7 @@ async function ownerChooses(
     })),
     override_reason: null,
     rationale: 'I chose between the tied options (test).',
-    shortlist_size: 3,
+    shortlist_size: shortlistSize,
     data_class: 'synthetic',
   });
   assert.equal(out.status, 'recorded', out.admission.explanation);
@@ -1854,4 +1865,77 @@ test('review 3 L-1: a start at assessment does not carry a choice made on the sc
     sels.map((x) => [x.id, x.current]),
     [[selection.id, true]],
   );
+});
+
+test('review 4 L-1: a start at assessment does not end on an older choice that advanced nothing', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  const runId = await h.run();
+  const first = await h.start(runId);
+  const problem = first.steps[2]!.problem!;
+  // The person defers every option under Decide.
+  const rep = await h.store.selectionReport(owner, h.ws.id, problem.id);
+  const out = await h.store.select(owner, h.ws.id, runId, {
+    problem: { id: rep.problem.id, version: rep.problem.version },
+    report_hash: rep.report_hash,
+    dispositions: rep.suitability.candidates.map((c) => ({
+      alternative: { id: c.alternative.id, version: c.alternative.version },
+      disposition: 'defer',
+      reasons: ['Not yet (test).'],
+      reverse_if: 'New evidence.',
+    })),
+    override_reason: null,
+    rationale: 'Deferring all (test).',
+    shortlist_size: 3,
+    data_class: 'synthetic',
+  });
+  assert.equal(out.status, 'recorded', out.admission.explanation);
+  const later = await h.start(
+    await h.run(),
+    h.config({ start: { stage: 'assess', problem } }),
+  );
+  assert.deepEqual(
+    later.steps.map((s) => [s.stage, s.state]),
+    [
+      ['assess', 'done'],
+      ['select', 'stopped'],
+    ],
+  );
+  // It asks the person to look again at the new scores, and Continue stays open.
+  assert.equal(later.outcome, 'needs_person', later.explanation);
+  assert.match(
+    later.explanation,
+    /Your choice under Decide was made on other scores than the current ones, before this autopilot’s assessment/,
+  );
+  assert.ok(autopilotContinuable(later).ok);
+  const sels = await h.store.listSelections(owner, h.ws.id, problem.id);
+  assert.deepEqual(
+    sels.map((x) => [x.id, x.current]),
+    [[out.selection!.id, true]],
+  );
+});
+
+test('review 4 N-1: a choice made at another shortlist size is checked at that size and carried on', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  const runId = await h.run();
+  const first = await h.start(runId);
+  const problem = first.steps[2]!.problem!;
+  const { target, selection } = await ownerChooses(
+    h,
+    runId,
+    problem.id,
+    'use_existing',
+    4,
+  );
+  assert.equal(selection.report.suitability.sensitivity.shortlist_size, 4);
+  const later = await h.start(
+    await h.run(h.policy(['selection'])),
+    h.config({ start: { stage: 'select', problem } }),
+  );
+  assert.equal(later.outcome, 'proposal', later.explanation);
+  assert.equal(later.steps[0]!.child!.id, selection.id);
+  assert.equal(later.steps[0]!.option!.id, target.alternative.id);
 });

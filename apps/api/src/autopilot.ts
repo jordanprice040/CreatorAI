@@ -930,11 +930,10 @@ export class AutopilotRunner {
       current,
       a.config.start ? new Date(0).toISOString() : a.created_at,
     );
-    if (mine.kind === 'stop')
-      return { stop: { outcome: mine.outcome, note: mine.reason } };
-    if (mine.kind === 'carry') {
+    if (mine.kind !== 'none') {
       // A choice made on other scores than today's (for example before this autopilot's own
-      // assessment) is not carried past them: the person looks again (review 3 L-1).
+      // assessment) is not acted on past them, whether it would carry on or end the run: the
+      // person looks again (review 3 L-1, review 4 L-1).
       const now = await this.store.selectionReport(
         ctx,
         ws,
@@ -945,13 +944,19 @@ export class AutopilotRunner {
         return {
           stop: {
             outcome: 'needs_person',
-            note: `Your choice under Decide (“${mine.option.title}”) was made on other scores than the current ones${
+            note: `Your choice under Decide${
+              mine.kind === 'carry' ? ` (“${mine.option.title}”)` : ''
+            } was made on other scores than the current ones${
               a.steps.some((s) => s.stage === 'assess' && s.state === 'done')
                 ? ', before this autopilot’s assessment'
                 : ''
             }. Review it under Decide and record it again (or choose another), then continue.`,
           },
         };
+    }
+    if (mine.kind === 'stop')
+      return { stop: { outcome: mine.outcome, note: mine.reason } };
+    if (mine.kind === 'carry') {
       return {
         done: {
           child: { kind: 'selection', id: current!.id },
