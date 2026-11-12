@@ -30,3 +30,6 @@ PASS no page errors
 PASS no error on first load
 PASS a failed poll shows its error
 PASS the next poll that works clears it
+PASS a Revoke or Stop run button to try
+PASS a refused Revoke shows its error
+PASS the next good poll keeps the action error

@@ -606,6 +606,91 @@ test('closing the relay records an in-flight request as relay_closed, not timeou
   );
   await upstreamAsked;
   await relay.close();
-  await done;
+  await Promise.race([
+    done,
+    new Promise((_, fail) =>
+      setTimeout(
+        () => fail(new Error('relay never settled after close')),
+        5_000,
+      ),
+    ),
+  ]);
   assert.equal(settled[0]!.reason_code, 'relay_closed');
+});
+
+test('a Codex disconnect while the request is being admitted never reaches the upstream (PR #189 review nit 1)', async (t) => {
+  let upstreamCalls = 0;
+  const up = http.createServer((req, res) => {
+    upstreamCalls++;
+    req.resume();
+    res.writeHead(200, { 'content-type': 'text/event-stream' });
+    res.flushHeaders();
+  });
+  await new Promise<void>((ok) => up.listen(0, '127.0.0.1', ok));
+  t.after(() => {
+    up.closeAllConnections();
+    up.close();
+  });
+  const upAddr = up.address() as { port: number };
+  const settled: RelayOutcome[] = [];
+  let markSettled = () => {};
+  const done = new Promise<void>((ok) => (markSettled = ok));
+  let markAdmitting = () => {};
+  const admitting = new Promise<void>((ok) => (markAdmitting = ok));
+  let releaseAdmit = () => {};
+  const admitted = new Promise<void>((ok) => (releaseAdmit = ok));
+  const relay = new PlanRelay({
+    request_timeout_ms: 60_000,
+    onViolation() {},
+    admit: async () => {
+      markAdmitting();
+      await admitted;
+      return {
+        api_base: `http://127.0.0.1:${upAddr.port}/v1`,
+        access_token: 'studio-held-token',
+        settle: async (o) => {
+          settled.push(o);
+          markSettled();
+        },
+      };
+    },
+  });
+  t.after(() => relay.close());
+  const port = await relay.start();
+  const req = http.request({
+    host: '127.0.0.1',
+    port,
+    method: 'POST',
+    path: '/v1/responses',
+    headers: {
+      authorization: `Bearer ${relay.capability}`,
+      'content-type': 'application/json',
+    },
+  });
+  req.on('error', () => {});
+  req.end(
+    JSON.stringify({
+      model: 'm',
+      input: 'hi',
+      tools: [],
+      store: false,
+      stream: true,
+    }),
+  );
+  // Codex goes away while admission is still deciding; admission then lets the request through.
+  await admitting;
+  req.destroy();
+  await new Promise((ok) => setTimeout(ok, 200));
+  releaseAdmit();
+  await Promise.race([
+    done,
+    new Promise((_, fail) =>
+      setTimeout(
+        () => fail(new Error('relay kept the request after disconnect')),
+        5_000,
+      ),
+    ),
+  ]);
+  assert.equal(settled[0]!.reason_code, 'codex_disconnected');
+  assert.equal(upstreamCalls, 0, 'nothing was sent upstream');
 });

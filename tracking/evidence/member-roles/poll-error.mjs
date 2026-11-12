@@ -1,6 +1,7 @@
 // PR #90 re-review N-4 (second point): one failed background poll on Monitor > Approvals used to
 // leave its error on screen for good. Now the next poll that works clears it; an action's own
-// error still stays. Start ../owner-actions/stack.mjs first, then:
+// error (a refused Revoke or Stop run, simulated) still stays through the next good poll.
+// Start ../owner-actions/stack.mjs first, then:
 //   node tracking/evidence/member-roles/poll-error.mjs <workspace-id>
 // The failed poll is simulated in the browser (Playwright route), so nothing on the server changes.
 import { createRequire } from 'node:module';
@@ -43,4 +44,40 @@ check(
 await page.unroute(grants);
 await page.waitForTimeout(16500);
 check((await alerts()).length === 0, 'the next poll that works clears it');
+
+// An action's own error stays through the next good poll. The refusal is simulated in the
+// browser, so nothing is revoked or stopped.
+const revoke = page.getByRole('button', { name: 'Revoke', exact: true });
+const stop = page.getByRole('button', { name: 'Stop run', exact: true });
+const useRevoke = (await revoke.count()) > 0;
+check(
+  useRevoke || (await stop.count()) > 0,
+  'a Revoke or Stop run button to try',
+);
+const action = useRevoke
+  ? '**/api/workspaces/*/grants/*/revoke'
+  : '**/api/workspaces/*/runs/*/cancel';
+await page.route(action, (r) =>
+  r.fulfill({
+    status: 409,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      error: {
+        code: 'VERSION_CONFLICT',
+        message: 'Walk: the action was refused.',
+      },
+    }),
+  }),
+);
+await (useRevoke ? revoke : stop).first().click();
+await page.waitForTimeout(1500);
+check(
+  (await alerts()).includes('Walk: the action was refused.'),
+  `a refused ${useRevoke ? 'Revoke' : 'Stop run'} shows its error`,
+);
+await page.waitForTimeout(16500); // one good poll
+check(
+  (await alerts()).includes('Walk: the action was refused.'),
+  'the next good poll keeps the action error',
+);
 await browser.close();

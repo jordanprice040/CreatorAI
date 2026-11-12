@@ -339,6 +339,8 @@ export class PlanRelay {
         );
     };
     res.once('close', gone);
+    // Codex may already have gone while the request was being admitted.
+    if (res.destroyed) gone();
     try {
       let up: Response;
       try {
