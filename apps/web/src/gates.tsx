@@ -12,7 +12,7 @@ const GATE = { ethics: 'Ethics', access: 'Access' } as const;
 const STATE: Record<Detail['state'], string> = {
   clear: 'clear',
   confirmed: 'confirmed by you',
-  auto_cleared: 'cleared by your auto-clear rule',
+  auto_cleared: 'cleared by your gate rule',
   unresolved: 'concern raised',
   not_assessed: 'needs your confirmation',
 };
@@ -25,8 +25,12 @@ export function gateGuidance(d: Detail): string | null {
     return d.gate === 'access'
       ? 'To resolve: say what the team can do in Settings › Team profile (tick it or run a built-in check), then assess again. If it is fine as it is, confirm it here.'
       : 'To resolve: check the concern against your evidence and add what answers it, then assess again. If it is fine as it is, confirm it here.';
+  if (d.state === 'not_assessed' && d.assessed === false)
+    return 'Nothing has assessed this yet. Assess the option or score it yourself first.';
   if (d.state === 'not_assessed')
-    return 'Only the automatic assessment looked at this, and it can’t clear a gate. Confirm it here, score the option yourself, or turn on auto-clear in Settings › Team profile.';
+    return d.gate === 'access'
+      ? 'Only the automatic assessment looked at this, and on its own it can’t clear a gate. Confirm it here, score the option yourself, or choose who clears gates in Settings › Team profile.'
+      : 'Only the automatic assessment looked at this, and it can’t clear an ethics gate. Confirm it here, score the option yourself, or let the model’s word clear it in Settings › Team profile.';
   return null;
 }
 
@@ -94,6 +98,7 @@ export function GateLines({
         const guidance = gateGuidance(d);
         const confirmable =
           canConfirm &&
+          d.assessed !== false &&
           (d.state === 'not_assessed' ||
             d.state === 'auto_cleared' ||
             (d.state === 'unresolved' &&
@@ -105,7 +110,10 @@ export function GateLines({
               <span
                 className={`gate-${d.state === 'confirmed' || d.state === 'auto_cleared' ? 'clear' : d.state}`}
               >
-                {STATE[d.state]}
+                {d.state === 'auto_cleared' &&
+                d.confirmation?.rule_mode === 'model'
+                  ? 'cleared on the model’s word (no person looked)'
+                  : STATE[d.state]}
               </span>
               {d.confirmation && (
                 <>

@@ -109,8 +109,12 @@ export interface CandidateInput {
     concerns: readonly string[];
     created_at: string;
   }[];
-  /** ADR-0090: the owner's auto-clear rule, when it is on. */
-  auto_clear?: { version: number; at: string } | null;
+  /** ADR-0090: the owner's gate rule, when it lets something other than a person clear. */
+  auto_clear?: {
+    version: number;
+    mode: 'team_profile' | 'model';
+    at: string;
+  } | null;
 }
 const SOFTWARE_KINDS = ['build', 'hybrid'];
 const HARD_DISCOVERY_BLOCKS = [
@@ -144,8 +148,11 @@ interface ParseEnv {
   evidence?: EvidenceVersions | undefined;
   /** The current hash of the claims linked to the problem (review M-1). */
   linked_hash?: string | undefined;
-  /** ADR-0090: the current team profile version (0: none saved); without it, not checked. */
-  team_version?: number | undefined;
+  /**
+   * ADR-0090: the hash of the team block a packet built now would carry ('' for none); without
+   * it, not checked. Only a change in what the model reads makes an assessment stale.
+   */
+  team_hash?: string | undefined;
 }
 const shortId = (id: string) => id.slice(0, 8);
 /** Why a card no longer rates what is current: option, cited evidence, problem, rubric, packet. */
@@ -193,10 +200,7 @@ function staleReasons(
       out.push(
         'Evidence linked to the problem changed since this assessment (a claim was linked or unlinked).',
       );
-    if (
-      env.team_version !== undefined &&
-      env.team_version !== (a.team_version ?? 0)
-    )
+    if (env.team_hash !== undefined && env.team_hash !== (a.team_hash ?? ''))
       out.push(
         'The team profile changed since this assessment; assess again so it reads the current one.',
       );
@@ -280,8 +284,9 @@ const clipNote = (s: string, n: number) =>
  * One gate (ethics or access) for one candidate (ADR-0074, ADR-0090). A person's concern always
  * stands. A concern the automatic assessment raised stands until the owner confirms the gate on
  * this option version, having seen exactly the concerns raised now; a concern raised after the
- * confirmation makes it stale. A system card alone never clears a gate: without a person's card
- * or the owner's confirmation the gate is not assessed.
+ * confirmation makes it stale. A system card alone never clears a gate: without a person's card,
+ * the owner's confirmation, or (access only) the owner's auto-clear rule, the gate is not
+ * assessed.
  */
 export function gateState(
   c: CandidateInput,
@@ -319,17 +324,21 @@ export function gateState(
   }
   const people = cards.filter((p) => !p.system);
   const system = cards.filter((p) => p.system);
-  // The owner's rule clears only what every current automatic assessment looked at with the
-  // team profile in hand and found no concern in; a gate nobody raised is not auto-cleared
-  // unless such an assessment exists.
+  // The owner's gate rule (ADR-0090). team_profile: only ACCESS clears, and only when every
+  // current automatic assessment read a team profile that answers at least one capability and
+  // raised no concern. model: either gate clears on the model's word, every current automatic
+  // assessment having found no concern on it (Jordan's explicit choice; no person looks).
   const teamVersions = [
     ...new Set(system.map((p) => p.body.assessment?.team_version ?? 0)),
   ];
+  const rule = c.auto_clear ?? null;
   const ruleClears =
-    !!c.auto_clear &&
+    !!rule &&
     !concerns.length &&
     system.length > 0 &&
-    teamVersions.every((v) => v >= 1);
+    (rule.mode === 'model' ||
+      (gate === 'access' &&
+        system.every((p) => (p.body.assessment?.team_answers ?? 0) > 0)));
   const state:
     'clear' | 'confirmed' | 'auto_cleared' | 'unresolved' | 'not_assessed' =
     concerns.some((x) => x.by === 'person')
@@ -352,19 +361,25 @@ export function gateState(
           by: 'owner' as const,
           id: confirmation.id,
           rule_version: null,
+          rule_mode: null,
           reason: confirmation.reason,
           created_at: confirmation.created_at,
         }
-      : state === 'auto_cleared' && c.auto_clear
+      : state === 'auto_cleared' && rule
         ? {
             by: 'rule' as const,
             id: null,
-            rule_version: c.auto_clear.version,
-            reason: `Cleared by your auto-clear rule: the automatic assessment read your team profile (version ${teamVersions.join(', ')}) and raised no ${gate} concern.`,
-            created_at: c.auto_clear.at,
+            rule_version: rule.version,
+            rule_mode: rule.mode,
+            reason:
+              rule.mode === 'model'
+                ? `Cleared on the model’s word by your gate rule: the automatic assessment found no ${gate} concern. No person looked at this gate.`
+                : `Cleared by your gate rule: the automatic assessment read your team profile (version ${teamVersions.join(', ')}) and found no access concern.`,
+            created_at: rule.at,
           }
         : null,
     stale_confirmation: stale,
+    assessed: cards.length > 0,
   };
 }
 
@@ -401,7 +416,7 @@ function gatesFor(c: CandidateInput, cards: Parsed[], opportunity: string) {
         )
       : ethics === 'not_assessed'
         ? current.length
-          ? 'Only the automatic assessment looked at ethics and access; a person must confirm them (Confirm on the option, edit the assessment or score it).'
+          ? 'Only the automatic assessment looked at ethics or access, and it can’t clear them; a person must confirm them (Confirm on the option, edit the assessment or score it).'
           : 'Ethics and access have not been assessed on the current version.'
         : null;
   const blocked: Partial<Record<SelectionDisposition, string[]>> = {};
@@ -724,8 +739,8 @@ export function selectionReport(input: {
   evidence?: EvidenceVersions;
   /** The current hash of the problem's linked claims; without it linking is not checked. */
   linked_hash?: string;
-  /** ADR-0090: the current team profile version; without it the profile is not checked. */
-  team_version?: number;
+  /** ADR-0090: the hash of the team block a packet would carry now; without it, not checked. */
+  team_hash?: string;
 }): SelectionReport {
   const candidates = [...input.candidates].sort((a, b) =>
     a.alternative.id < b.alternative.id ? -1 : 1,
@@ -737,7 +752,7 @@ export function selectionReport(input: {
         problem: input.problem,
         evidence: input.evidence,
         linked_hash: input.linked_hash,
-        team_version: input.team_version,
+        team_hash: input.team_hash,
       }),
     ]),
   );

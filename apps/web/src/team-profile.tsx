@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
   CapabilityCheckResultSchema,
+  GATE_CLEAR_MODES,
   GateRuleSchema,
   TEAM_CAPABILITIES,
   TeamProfileSchema,
+  type GateClearMode,
   type SessionInfo,
   type TeamCapabilityKey,
   type TeamProfile,
@@ -38,7 +40,7 @@ export function basisText(t: TeamProfile, key: TeamCapabilityKey): string {
   const x = t.profile.capabilities.find((y) => y.key === key);
   if (!x) return 'not answered';
   if (x.basis === 'check' && x.check)
-    return `checked: ${x.check.detail} on ${x.check.machine}, ${when(x.check.checked_at)}`;
+    return `checked: ${x.check.detail}${x.check.machine ? ` on ${x.check.machine}` : ''}, ${when(x.check.checked_at)}`;
   return 'declared by you';
 }
 
@@ -90,7 +92,7 @@ export function TeamProfilePanel({
       setDraft(draftOf(next));
       data.reload();
       setNotice(
-        `Saved as version ${next.version}. Assess again so the ratings read it; earlier automatic assessments now show as out of date.`,
+        `Saved as version ${next.version}. Assess again so the ratings read it; earlier automatic assessments show as out of date if what they read changed.`,
       );
     } catch (err) {
       if (err instanceof ApiError && err.code === 'VERSION_CONFLICT') {
@@ -113,8 +115,12 @@ export function TeamProfilePanel({
         csrf: session.csrf_token,
         body: { expected_version: t.version, capability: key },
       });
-      setNotice(r.passed ? `${r.detail} Saved to the profile.` : r.detail);
-      if (r.passed) setDraft(draftOf(r.profile));
+      setNotice(
+        r.saved
+          ? `${r.detail} Earlier automatic assessments now show as out of date.`
+          : r.detail,
+      );
+      if (r.saved) setDraft(draftOf(r.profile));
       data.reload();
     } catch (err) {
       if (err instanceof ApiError && err.code === 'VERSION_CONFLICT') {
@@ -134,9 +140,17 @@ export function TeamProfilePanel({
         What your team can run, install and do with data. Every automatic
         assessment in <strong>{workspace.name}</strong> reads it, so a question
         like “can the team install Python tools?” is answered instead of
-        blocking an option. Tick answers yourself, or run a built-in check that
-        looks for the program on this computer. Only you can change it; agents
-        can read it but never write it.
+        blocking an option. Tick answers yourself
+        {t?.checks_available !== false
+          ? ', or run a built-in check that looks for the program on this computer'
+          : ''}
+        . Only you can change it; agents can read it but never write it.
+      </p>
+      <p className="small">
+        The answers, their notes and the notes below are sent to the model
+        provider with every automatic assessment (the assessment preview shows
+        them). Leave out anything you would not send there. Host names are never
+        sent.
       </p>
       <Status
         loading={data.loading && !t}
@@ -148,9 +162,14 @@ export function TeamProfilePanel({
             <p className="small">
               {t.version
                 ? `Version ${t.version}, saved ${when(t.updated_at ?? '')}.`
-                : 'Not saved yet: assessments do not get a team profile.'}{' '}
-              Built-in checks run on <strong>{t.machine}</strong>, the computer
-              this studio runs on.
+                : 'Not saved yet: assessments do not get a team profile.'}
+              {t.machine && (
+                <>
+                  {' '}
+                  Built-in checks run on <strong>{t.machine}</strong>, the
+                  computer this studio runs on.
+                </>
+              )}
             </p>
             <table className="team-profile">
               <thead>
@@ -192,7 +211,7 @@ export function TeamProfilePanel({
                     </td>
                     <td className="small">
                       {basisText(t, c.key)}
-                      {c.check && t.can_edit && (
+                      {c.check && t.can_edit && t.checks_available && (
                         <>
                           {' '}
                           <button
@@ -280,7 +299,22 @@ export function TeamProfilePanel({
   );
 }
 
-/** The owner's auto-clear rule: off until turned on; each change is recorded. */
+const MODE_TEXT: Record<GateClearMode, { label: string; text: string }> = {
+  owner: {
+    label: 'You confirm every gate',
+    text: 'A gate clears only from a person: your own scorecard, or Clear: I confirm on the option.',
+  },
+  team_profile: {
+    label: 'Access clears from your team profile',
+    text: 'An access gate also clears once every current automatic assessment has read a team profile that answers at least one question above and found no access concern. The clear rests on the assessment’s reading of your profile, so keep it accurate. Ethics still needs you.',
+  },
+  model: {
+    label: 'Both gates clear on the model’s word',
+    text: 'An ethics or access gate also clears once every current automatic assessment found no concern on it. No person looks at a gate cleared this way: the model can be wrong or misled by a source, and a routine approval policy for selecting options can then select the option without you. Each such gate is marked “cleared on the model’s word”.',
+  },
+};
+
+/** Who clears ethics and access gates: the owner picks; each change is recorded. */
 function AutoClearRule({
   session,
   workspace,
@@ -293,15 +327,17 @@ function AutoClearRule({
   const r = data.data;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  async function toggle() {
+  const [pick, setPick] = useState<GateClearMode | null>(null);
+  async function save(mode: GateClearMode) {
     if (!r) return;
     setBusy(true);
     setError('');
     try {
       await api(GateRuleSchema, path, {
         csrf: session.csrf_token,
-        body: { expected_version: r.version, auto_clear: !r.auto_clear },
+        body: { expected_version: r.version, mode },
       });
+      setPick(null);
       data.reload();
     } catch (err) {
       setError(message(err));
@@ -310,15 +346,14 @@ function AutoClearRule({
       setBusy(false);
     }
   }
+  const chosen = pick ?? r?.mode ?? 'owner';
   return (
     <>
-      <h4>Clear ethics and access gates automatically</h4>
+      <h4>Who clears ethics and access gates</h4>
       <p className="small">
-        When this is on, an option’s ethics or access gate counts as cleared
-        without you once every current automatic assessment of it has read your
-        team profile and raised no concern. Any concern, from an assessment or a
-        person, still blocks and comes to you. Turning it off ends every clear
-        it made. Only you can change this; agents can’t.
+        In every choice, a concern raised by an assessment or a person still
+        blocks and comes to you, and changing the choice ends every clear the
+        earlier one made. Only you can change this; agents can’t.
       </p>
       <Status
         loading={data.loading && !r}
@@ -326,21 +361,46 @@ function AutoClearRule({
         retry={data.reload}
       >
         {r && (
-          <div className="actions">
-            <span>
-              <strong>{r.auto_clear ? 'On' : 'Off'}</strong>
+          <fieldset className="gate-rule" disabled={!r.can_edit || busy}>
+            <legend className="small">
+              Now: <strong>{MODE_TEXT[r.mode].label}</strong>
               {r.updated_at ? ` · since ${when(r.updated_at)}` : ''}
-            </span>
-            {r.can_edit && (
-              <button
-                className="secondary"
-                disabled={busy}
-                onClick={() => void toggle()}
-              >
-                {r.auto_clear ? 'Turn off' : 'Turn on'}
-              </button>
+            </legend>
+            {GATE_CLEAR_MODES.map((m) => (
+              <label key={m} className="choice">
+                <input
+                  type="radio"
+                  name={`gate-mode-${workspace.id}`}
+                  value={m}
+                  checked={chosen === m}
+                  onChange={() => setPick(m === r.mode ? null : m)}
+                />{' '}
+                <strong>{MODE_TEXT[m].label}.</strong>{' '}
+                <span className="small">{MODE_TEXT[m].text}</span>
+              </label>
+            ))}
+            {pick && (
+              <div className="actions" role="group" aria-label="Confirm">
+                <p className="small">
+                  {pick === 'owner'
+                    ? 'Gates will clear only when you or another person clear them.'
+                    : pick === 'team_profile'
+                      ? 'Access gates will clear without you whenever the automatic assessment reads your team profile and finds no access concern.'
+                      : 'Ethics and access gates will clear without you whenever the automatic assessment finds no concern. No person will look at them.'}{' '}
+                  Change it?
+                </p>
+                <button onClick={() => void save(pick)}>
+                  {busy ? 'Saving…' : 'Yes, change it'}
+                </button>
+                <button className="secondary" onClick={() => setPick(null)}>
+                  Cancel
+                </button>
+              </div>
             )}
-          </div>
+            {!r.can_edit && (
+              <p className="small">Only the workspace owner can change this.</p>
+            )}
+          </fieldset>
         )}
       </Status>
       {error && (

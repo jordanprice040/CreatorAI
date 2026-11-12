@@ -3,8 +3,11 @@ import assert from 'node:assert/strict';
 import { checkEnv, runCapabilityCheck } from '@creator/api';
 import {
   assessmentRoleInput,
+  checkOutcome,
   checkedTeamProfile,
   packetTeam,
+  teamAnswers,
+  teamHash,
   readCapabilityCheck,
   savedTeamProfile,
   EMPTY_TEAM_PROFILE,
@@ -45,6 +48,36 @@ test('a check passes only on exit 0 with a version printed; a Windows Python ali
     }),
     { passed: true, detail: 'Java 21.0.2' },
   );
+  // Docker passes only when the engine answers; the client alone prints no server version.
+  assert.deepEqual(
+    readCapabilityCheck('docker', { exit_code: 0, output: '27.3.1\n' }),
+    { passed: true, detail: 'Docker engine 27.3.1' },
+  );
+  assert.deepEqual(
+    readCapabilityCheck('docker', {
+      exit_code: 1,
+      output:
+        '\nCannot connect to the Docker daemon at unix:///var/run/docker.sock.',
+    }),
+    { passed: false },
+  );
+  // Jupyter needs Notebook or JupyterLab, not jupyter_core alone.
+  const kernelOnly =
+    'Selected Jupyter core packages...\nIPython          : 8.20.0\nipykernel        : 6.29.0\njupyter_core     : 5.7.1\njupyterlab       : not installed\nnotebook         : not installed\n';
+  assert.deepEqual(
+    readCapabilityCheck('jupyter', { exit_code: 0, output: kernelOnly }),
+    { passed: false },
+  );
+  assert.deepEqual(
+    readCapabilityCheck('jupyter', {
+      exit_code: 0,
+      output: kernelOnly.replace(
+        'jupyterlab       : not installed',
+        'jupyterlab       : 4.1.2',
+      ),
+    }),
+    { passed: true, detail: 'Jupyter 4.1.2' },
+  );
   // A capability with no built-in check never passes one.
   assert.deepEqual(
     readCapabilityCheck('installs_allowed', { exit_code: 0, output: 'x' }),
@@ -80,7 +113,8 @@ test('a check tries its fixed programs in order, with a bare environment and not
     output: '',
   }));
   assert.equal(missing.passed, false);
-  if (!missing.passed) assert.match(missing.detail, /Docker was not found/);
+  if (!missing.passed)
+    assert.match(missing.detail, /Docker engine was not found/);
   // The studio's credentials and settings never reach a checked program.
   const env = checkEnv({
     PATH: '/usr/bin',
@@ -89,7 +123,12 @@ test('a check tries its fixed programs in order, with a bare environment and not
     CREATOR_SESSION_SECRET: 'secret',
     OPENAI_API_KEY: 'sk-secret',
   });
-  assert.deepEqual(env, { PATH: '/usr/bin', HOME: '/home/x' });
+  // Windows must not look in the current directory before PATH.
+  assert.deepEqual(env, {
+    PATH: '/usr/bin',
+    HOME: '/home/x',
+    NoDefaultCurrentDirectoryInExePath: '1',
+  });
 });
 
 test('saving keeps a passing check while the answer stays yes; changing the answer makes it declared', () => {
@@ -126,6 +165,27 @@ test('saving keeps a passing check while the answer stays yes; changing the answ
   });
 });
 
+test('a re-check that finds the same is a no-op and a check never overrules a declared No', () => {
+  const checked = checkedTeamProfile(EMPTY_TEAM_PROFILE, 'java', check);
+  const later = { ...check, checked_at: '2026-11-12T09:00:00.000Z' };
+  assert.equal(checkOutcome(checked, 'java', later), 'same');
+  assert.equal(checkedTeamProfile(checked, 'java', later), checked);
+  assert.equal(
+    checkOutcome(checked, 'java', { ...later, detail: 'Java 22.0.1' }),
+    'record',
+  );
+  assert.equal(
+    checkOutcome(checked, 'java', { ...later, machine: 'OTHER-PC' }),
+    'record',
+  );
+  const no = savedTeamProfile(EMPTY_TEAM_PROFILE, {
+    capabilities: [{ key: 'java', status: 'no', note: 'Policy' }],
+    notes: '',
+  });
+  assert.equal(checkOutcome(no, 'java', check), 'kept_no');
+  assert.equal(checkedTeamProfile(no, 'java', check), no);
+});
+
 test('the packet says how each answer is known without naming the computer, and the assessor is told to use it', () => {
   const profile = savedTeamProfile(
     checkedTeamProfile(EMPTY_TEAM_PROFILE, 'java', check),
@@ -137,17 +197,32 @@ test('the packet says how each answer is known without naming the computer, and 
       notes: 'Small team.',
     },
   );
-  assert.equal(packetTeam(profile, 0), undefined);
-  const team = packetTeam(profile, 3)!;
+  assert.equal(packetTeam(profile, 0, 'JORDAN-PC'), undefined);
+  const team = packetTeam(profile, 3, 'JORDAN-PC')!;
   assert.equal(team.version, 3);
   assert.deepEqual(
     team.capabilities.map((c) => c.basis),
     [
-      "checked on the studio's computer on 2026-11-11 (Java 21.0.2)",
+      "found by a built-in check on the studio's computer (Java 21.0.2)",
       'declared by the owner',
     ],
   );
   assert.ok(!JSON.stringify(team).includes('JORDAN-PC'));
+  // After a move or restore, a check from another computer is said to be one.
+  const moved = packetTeam(profile, 3, 'NEW-PC')!;
+  assert.match(moved.capabilities[0]!.basis, /on another computer/);
+  assert.ok(!JSON.stringify(moved).includes('NEW-PC'));
+  // Staleness follows what the model reads: a new version number alone changes nothing.
+  assert.equal(teamHash(team), teamHash(packetTeam(profile, 4, 'JORDAN-PC')));
+  assert.notEqual(teamHash(team), teamHash(moved));
+  assert.equal(teamHash(undefined), '');
+  assert.equal(teamAnswers(team), 2);
+  assert.equal(
+    teamAnswers(
+      packetTeam({ capabilities: [], notes: 'Small team.' }, 1, 'JORDAN-PC'),
+    ),
+    0,
+  );
   const system = assessmentRoleInput({
     packet_version: 'assessment-packet/1',
     kind: 'untrusted_evidence/1',

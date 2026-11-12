@@ -110,8 +110,13 @@ export const TeamProfileSchema = z.strictObject({
   updated_at: timestamp.nullable(),
   /** Whether the person reading it may change it (the workspace owner). */
   can_edit: z.boolean(),
-  /** The computer the studio runs on now, so the page can say where a check would run. */
-  machine: z.string().max(120),
+  /**
+   * The computer the studio runs on now, so the page can say where a check would run. Only the
+   * owner gets it (null for everyone else, and when built-in checks are not available).
+   */
+  machine: z.string().max(120).nullable(),
+  /** False in a hosted deployment: a check there would test the server, not the team's computer. */
+  checks_available: z.boolean(),
 });
 export type TeamProfile = z.infer<typeof TeamProfileSchema>;
 
@@ -146,6 +151,8 @@ export const CapabilityCheckResultSchema = z.strictObject({
   passed: z.boolean(),
   /** What was found, or why it was not found. */
   detail: z.string().max(300),
+  /** Whether the profile got a new version (a re-check that found the same thing does not). */
+  saved: z.boolean(),
   /** The profile after the check: a passing check saves a new version; a failed one does not. */
   profile: TeamProfileSchema,
 });
@@ -159,7 +166,7 @@ export const PacketTeamSchema = z.strictObject({
       z.strictObject({
         capability: z.string().max(100),
         status: TeamCapabilityStatusSchema,
-        /** "declared by the owner" or "checked on the studio's computer on <date>". */
+        /** "declared by the owner" or "found by a built-in check on the studio's computer (…)". */
         basis: z.string().max(120),
         note: z.string().max(300).nullable(),
       }),
@@ -201,24 +208,35 @@ export const GateConfirmationSchema = z.strictObject({
 });
 export type GateConfirmation = z.infer<typeof GateConfirmationSchema>;
 
-// ---- The owner's auto-clear rule ------------------------------------------------------------
+// ---- The owner's gate rule: who clears a gate ------------------------------------------------
 
 /**
- * The owner's standing rule (ADR-0090, Jordan's decision of November 11, 2026). Off until the
- * owner turns it on. While on, a gate counts as cleared without a person's card when every
- * current automatic assessment of the option read the team profile and raised no concern on it.
- * A concern raised by anyone still blocks, and turning the rule off ends every clear it made.
+ * Who clears the ethics and access gates in a workspace (ADR-0090; Jordan's decisions of
+ * November 11 and 12, 2026). The owner picks it; agents never can.
+ *  - owner: a person clears every gate (their own scorecard, or Clear: I confirm). The default.
+ *  - team_profile: the access gate also clears when every current automatic assessment read a
+ *    team profile that answers at least one capability and found no access concern. Ethics still
+ *    needs a person.
+ *  - model: both gates also clear on the model's word: every current automatic assessment found
+ *    no concern on that gate. No person looks at a gate cleared this way, and a routine approval
+ *    policy can then select the option; the gate says so wherever it is shown.
+ * In every mode a concern raised by anyone still blocks and comes to the owner, and changing the
+ * mode ends every clear the earlier one made.
  */
+export const GATE_CLEAR_MODES = ['owner', 'team_profile', 'model'] as const;
+export const GateClearModeSchema = z.enum(GATE_CLEAR_MODES);
+export type GateClearMode = z.infer<typeof GateClearModeSchema>;
+
 export const GateRuleSchema = z.strictObject({
-  /** 0 while it was never set (off). */
+  /** 0 while it was never set (owner). */
   version: z.number().int().min(0),
-  auto_clear: z.boolean(),
+  mode: GateClearModeSchema,
   updated_at: timestamp.nullable(),
   can_edit: z.boolean(),
 });
 export type GateRule = z.infer<typeof GateRuleSchema>;
 export const SetGateRuleRequestSchema = z.strictObject({
   expected_version: z.number().int().min(0),
-  auto_clear: z.boolean(),
+  mode: GateClearModeSchema,
 });
 export type SetGateRuleRequest = z.infer<typeof SetGateRuleRequestSchema>;

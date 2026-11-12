@@ -38,6 +38,7 @@ import {
   serviceConfig,
   sourcePolicyHash,
   prepareThemeResearchPlan,
+  checkOutcome,
 } from '@creator/domain';
 import { dirname, resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
@@ -916,14 +917,17 @@ export function createApi(
       throw new ContractError('NOT_FOUND', 'Unknown files route.');
     }
     if (ws && TEAM_PROFILE_ROUTE.test(url.pathname)) {
-      const machine = studioMachine();
+      const host = {
+        machine: studioMachine(),
+        checks: deployment.mode !== 'hosted',
+      };
       if (!item) {
         if (method === 'GET')
-          return send(200, await store.teamProfile(ctx, ws, machine), false);
+          return send(200, await store.teamProfile(ctx, ws, host), false);
         if (method === 'POST')
           return send(
             200,
-            await store.saveTeamProfile(ctx, ws, await readJson(req), machine),
+            await store.saveTeamProfile(ctx, ws, await readJson(req), host),
             true,
           );
       } else if (method === 'POST') {
@@ -933,7 +937,7 @@ export function createApi(
           await readJson(req),
         );
         await store.requireTeamProfileOwner(ctx, ws);
-        if (deployment.mode === 'hosted')
+        if (!host.checks)
           throw new ContractError(
             'INVALID_TRANSITION',
             'Built-in checks test the computer the studio runs on, which here is the hosting server, not the team’s; tick the answers yourself.',
@@ -942,14 +946,40 @@ export function createApi(
           body.capability,
           deps.capabilityRunner,
         );
+        const current = await store.teamProfile(ctx, ws, host);
         if (!ran.passed)
           return send(
             200,
             {
               capability: body.capability,
               passed: false,
+              saved: false,
               detail: ran.detail,
-              profile: await store.teamProfile(ctx, ws, machine),
+              profile: current,
+            },
+            false,
+          );
+        // A re-check that finds what is recorded changes nothing (assessments stay current), and
+        // a check never overrules the owner's declared No.
+        const outcome =
+          current.version === body.expected_version
+            ? checkOutcome(current.profile, body.capability, ran.check)
+            : 'record';
+        if (outcome !== 'record')
+          return send(
+            200,
+            {
+              capability: body.capability,
+              passed: true,
+              saved: false,
+              detail:
+                outcome === 'same'
+                  ? `Still found ${ran.check.detail}; nothing changed, so your assessments stay current.`
+                  : `Found ${ran.check.detail}, but you set this to No, so it stays No. Change it to Yes yourself if the team may use it.`.slice(
+                      0,
+                      300,
+                    ),
+              profile: current,
             },
             false,
           );
@@ -958,13 +988,18 @@ export function createApi(
           {
             capability: body.capability,
             passed: true,
-            detail: `Found ${ran.check.detail} on ${ran.check.machine}.`,
+            saved: true,
+            detail:
+              `Found ${ran.check.detail} on ${ran.check.machine}. Saved; assess options again so they read it.`.slice(
+                0,
+                300,
+              ),
             profile: await store.recordCapabilityCheck(
               ctx,
               ws,
               body,
               ran.check,
-              machine,
+              host,
             ),
           },
           true,

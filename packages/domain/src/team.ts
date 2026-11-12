@@ -9,6 +9,7 @@ import {
   type TeamCapabilityKey,
   type TeamProfileBody,
 } from '@creator/contracts';
+import { canonicalHash } from './rules.js';
 
 // ADR-0090: the team profile (pure rules). What a save makes of the owner's ticks, what a
 // passing built-in check records, what an assessment packet carries, and the fixed list of
@@ -58,12 +59,39 @@ export function savedTeamProfile(
   });
 }
 
-/** The profile after a passing check: that capability is now yes, found by the check. */
+/**
+ * What a passing check means for the profile now. `same`: it found what is already recorded on
+ * this computer, so nothing changes (assessments stay current). `kept_no`: the owner declared No
+ * (for example as a policy), and a check does not overrule the owner. `record`: save it.
+ */
+export function checkOutcome(
+  current: TeamProfileBody,
+  key: TeamCapabilityKey,
+  check: CapabilityCheck,
+): 'same' | 'kept_no' | 'record' {
+  const was = current.capabilities.find((x) => x.key === key);
+  if (was?.status === 'no' && was.basis === 'declared') return 'kept_no';
+  if (
+    was?.basis === 'check' &&
+    was.status === 'yes' &&
+    was.check?.detail === check.detail &&
+    was.check.machine === check.machine
+  )
+    return 'same';
+  return 'record';
+}
+
+/**
+ * The profile after a passing check: that capability is now yes, found by the check. A check that
+ * changes nothing (see checkOutcome) leaves the profile as it is, so the save is refused as
+ * unchanged.
+ */
 export function checkedTeamProfile(
   current: TeamProfileBody,
   key: TeamCapabilityKey,
   check: CapabilityCheck,
 ): TeamProfileBody {
+  if (checkOutcome(current, key, check) !== 'record') return current;
   const was = current.capabilities.find((x) => x.key === key);
   return TeamProfileBodySchema.parse({
     capabilities: ordered([
@@ -86,12 +114,15 @@ export const sameTeamProfile = (a: TeamProfileBody, b: TeamProfileBody) =>
 
 /**
  * What an assessment packet carries: labels, statuses, how each is known, and the owner's
- * notes. The host name a check ran on stays out (data minimization); the packet says only that
- * it was the studio's computer, and when.
+ * notes. The host name a check ran on stays out (data minimization); the packet says only
+ * whether the check ran on the computer the studio runs on now or on another one (after a
+ * restore or a move, a check from elsewhere may not hold here). No dates: re-checking and
+ * finding the same thing must not change what the model reads.
  */
 export function packetTeam(
   profile: TeamProfileBody,
   version: number,
+  machine: string,
 ): PacketTeam | undefined {
   if (version < 1) return undefined;
   return {
@@ -99,18 +130,31 @@ export function packetTeam(
     capabilities: profile.capabilities.map((c) => ({
       capability: capabilityLabel(c.key),
       status: c.status,
-      basis:
-        c.basis === 'check' && c.check
-          ? `checked on the studio's computer on ${c.check.checked_at.slice(0, 10)} (${c.check.detail})`.slice(
-              0,
-              120,
-            )
-          : 'declared by the owner',
+      basis: (c.basis === 'check' && c.check
+        ? c.check.machine === machine
+          ? `found by a built-in check on the studio's computer (${c.check.detail})`
+          : `found by a built-in check on another computer, so it may not hold here (${c.check.detail})`
+        : 'declared by the owner'
+      ).slice(0, 120),
       note: c.note,
     })),
     notes: profile.notes,
   };
 }
+
+/**
+ * A hash of what the model reads from the team block (everything but its version). An
+ * assessment is stale only when this changes, so a save that changes nothing material (or a
+ * new version number alone) keeps every assessment current. '' when the packet has no block.
+ */
+export const teamHash = (team: PacketTeam | undefined): string =>
+  team
+    ? canonicalHash({ capabilities: team.capabilities, notes: team.notes })
+    : '';
+
+/** How many capabilities the block answers (yes or no); the auto-clear rule needs at least one. */
+export const teamAnswers = (team: PacketTeam | undefined): number =>
+  team?.capabilities.filter((c) => c.status !== 'unknown').length ?? 0;
 
 /**
  * The built-in checks: fixed programs and arguments, tried in order until one succeeds. They
@@ -158,14 +202,18 @@ export const CAPABILITY_CHECKS: Readonly<
     pattern: /git version\s+(\d+(?:\.\d+)*)/i,
     name: 'Git',
   },
+  // The engine's version, not the client's: it fails when Docker is installed but its engine is
+  // stopped, since the capability is running containers. Read-only.
   docker: {
-    tries: [['docker', '--version']],
-    pattern: /Docker version\s+(\d+(?:\.\d+)*)/i,
-    name: 'Docker',
+    tries: [['docker', 'version', '--format', '{{.Server.Version}}']],
+    pattern: /^\s*v?(\d+\.\d+(?:\.\d+)*)/m,
+    name: 'Docker engine',
   },
+  // A notebook server (Notebook or JupyterLab), not jupyter_core alone, which any Jupyter
+  // package such as an editor's kernel installs.
   jupyter: {
     tries: [['jupyter', '--version']],
-    pattern: /(?:jupyter_core|jupyter core)\s*:\s*(\d+(?:\.\d+)*)/i,
+    pattern: /^\s*(?:notebook|jupyterlab)\s*:\s*(\d+(?:\.\d+)*)/im,
     name: 'Jupyter',
   },
 };

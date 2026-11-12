@@ -3388,3 +3388,14 @@ details.fold > summary h3.fold-title {
 .qualify-queue ol {
   margin: 0.25rem 0 0.5rem;
 }
+
+/* ADR-0090: who clears ethics and access gates. */
+fieldset.gate-rule {
+  border: 0;
+  padding: 0;
+  margin: 0.5rem 0;
+}
+fieldset.gate-rule label.choice {
+  display: block;
+  margin: 0.4rem 0;
+}

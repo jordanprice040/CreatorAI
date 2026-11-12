@@ -22,12 +22,13 @@ import {
   type AdapterRequest,
   type ModelAdapter,
 } from '@creator/broker';
+import { studioMachine } from '@creator/db';
 import { discoverySetup, owner } from './discovery-harness.js';
 
 // ADR-0090: the team profile goes with every assessment and is the owner's alone; the owner
 // confirms a gate seen exactly as it is now; a later concern or option version makes the
-// confirmation stale; the owner's auto-clear rule clears only what assessments that read the
-// profile found no concern in.
+// confirmation stale; the owner's auto-clear rule clears only the access gate, and only what
+// assessments that read a profile answering something found no concern in.
 
 const rejects = (code: ErrorCode, p: Promise<unknown>, message?: RegExp) =>
   assert.rejects(
@@ -130,14 +131,20 @@ const gate = (c: RankedCandidate, g: 'ethics' | 'access') =>
 test('the team profile is the owner’s, versioned, read by every assessment, and a change marks assessments stale', async (t) => {
   const s = await setup(t);
   if (!s) return;
-  const machine = 'TEST-PC';
-  const empty = await s.store.teamProfile(owner, s.ws.id, machine);
+  const machine = studioMachine();
+  const host = { machine, checks: true };
+  const empty = await s.store.teamProfile(owner, s.ws.id, host);
   assert.equal(empty.version, 0);
   assert.equal(empty.can_edit, true);
-  assert.equal(
-    (await s.store.teamProfile(s.editor, s.ws.id, machine)).can_edit,
-    false,
-  );
+  assert.equal(empty.machine, machine);
+  // Only the owner gets the host name; in a hosted deployment nobody does.
+  const seen = await s.store.teamProfile(s.editor, s.ws.id, host);
+  assert.deepEqual([seen.can_edit, seen.machine], [false, null]);
+  const hosted = await s.store.teamProfile(owner, s.ws.id, {
+    machine,
+    checks: false,
+  });
+  assert.deepEqual([hosted.machine, hosted.checks_available], [null, false]);
   const body = {
     expected_version: 0,
     capabilities: [
@@ -154,14 +161,14 @@ test('the team profile is the owner’s, versioned, read by every assessment, an
   // An editor (an agent can be one) cannot write it, nor record a check.
   await rejects(
     'ACCESS_DENIED',
-    s.store.saveTeamProfile(s.editor, s.ws.id, body, machine),
+    s.store.saveTeamProfile(s.editor, s.ws.id, body, host),
     /Only the workspace owner/,
   );
   await rejects(
     'ACCESS_DENIED',
     s.store.requireTeamProfileOwner(s.editor, s.ws.id),
   );
-  const v1 = await s.store.saveTeamProfile(owner, s.ws.id, body, machine);
+  const v1 = await s.store.saveTeamProfile(owner, s.ws.id, body, host);
   assert.equal(v1.version, 1);
   assert.deepEqual(
     v1.profile.capabilities.map((c) => c.key),
@@ -169,7 +176,7 @@ test('the team profile is the owner’s, versioned, read by every assessment, an
   );
   await rejects(
     'VERSION_CONFLICT',
-    s.store.saveTeamProfile(owner, s.ws.id, body, machine),
+    s.store.saveTeamProfile(owner, s.ws.id, body, host),
   );
   await rejects(
     'INVALID_CONTRACT',
@@ -177,27 +184,34 @@ test('the team profile is the owner’s, versioned, read by every assessment, an
       owner,
       s.ws.id,
       { ...body, expected_version: 1 },
-      machine,
+      host,
     ),
     /Nothing changed/,
   );
+  const javaCheck = () => ({
+    command: 'java -version',
+    detail: 'Java 21.0.2',
+    output_hash: 'b'.repeat(64),
+    machine,
+    checked_at: new Date().toISOString(),
+  });
   const v2 = await s.store.recordCapabilityCheck(
     owner,
     s.ws.id,
     { expected_version: 1, capability: 'java' },
-    {
-      command: 'java -version',
-      detail: 'Java 21.0.2',
-      output_hash: 'b'.repeat(64),
-      machine,
-      checked_at: new Date().toISOString(),
-    },
-    machine,
+    javaCheck(),
+    host,
   );
   assert.equal(v2.version, 2);
   assert.equal(
     v2.profile.capabilities.find((c) => c.key === 'java')?.basis,
     'check',
+  );
+  // Another member sees the check but not the computer it ran on.
+  const read = await s.store.teamProfile(s.editor, s.ws.id, host);
+  assert.equal(
+    read.profile.capabilities.find((c) => c.key === 'java')?.check?.machine,
+    '',
   );
 
   // The packet carries the profile (without the computer's name); the cards record its version.
@@ -219,12 +233,30 @@ test('the team profile is the owner’s, versioned, read by every assessment, an
     ),
   );
 
-  // A new profile version makes those assessments out of date until assessed again.
+  // Re-checking and finding the same is refused as unchanged: no new version, nothing stale.
+  await rejects(
+    'INVALID_CONTRACT',
+    s.store.recordCapabilityCheck(
+      owner,
+      s.ws.id,
+      { expected_version: 2, capability: 'java' },
+      javaCheck(),
+      host,
+    ),
+    /already says/,
+  );
+  assert.ok(
+    (await s.report()).suitability.candidates
+      .flatMap((c) => c.scorecards)
+      .every((x) => !x.stale),
+  );
+
+  // A change to what the model reads makes those assessments out of date until assessed again.
   await s.store.saveTeamProfile(
     owner,
     s.ws.id,
     { ...body, expected_version: 2, notes: 'Data may go to our own server.' },
-    machine,
+    host,
   );
   const r2 = await s.report();
   const stale = r2.suitability.candidates.flatMap((c) => c.scorecards);
@@ -236,9 +268,26 @@ test('the team profile is the owner’s, versioned, read by every assessment, an
   );
 });
 
-test('the owner confirms a gate as it is now; a newer concern makes it stale; the auto-clear rule clears only after the profile was read', async (t) => {
+test('the owner confirms a gate as it is now; a newer concern makes it stale; the owner chooses who clears: team profile (access only) or the model’s word', async (t) => {
   const s = await setup(t);
   if (!s) return;
+  const host = { machine: studioMachine(), checks: true };
+  // Nothing assessed yet: there is nothing to confirm.
+  const before = (await s.report()).suitability.candidates[0]!;
+  assert.equal(gate(before, 'ethics').assessed, false);
+  await rejects(
+    'INVALID_TRANSITION',
+    s.store.confirmGate(owner, s.ws.id, s.problem.id, {
+      alternative: {
+        id: before.alternative.id,
+        version: before.alternative.version,
+      },
+      gate: 'ethics',
+      reason: 'Looks fine to me.',
+      concerns_seen: [],
+    }),
+    /Nothing has assessed ethics/,
+  );
   s.adapter.access =
     'Nothing in the packet shows the team can install Python tools (csvkit needs Python and pip).';
   await s.assess();
@@ -319,68 +368,94 @@ test('the owner confirms a gate as it is now; a newer concern makes it stale; th
     /newer automatic assessment raised a concern/,
   );
 
-  // The auto-clear rule: off by default, the owner's alone, and it needs the profile read.
+  // Who clears gates: the owner by default, the owner's choice alone.
   const rule = await s.store.gateRule(owner, s.ws.id);
-  assert.deepEqual([rule.version, rule.auto_clear], [0, false]);
+  assert.deepEqual([rule.version, rule.mode], [0, 'owner']);
   await rejects(
     'ACCESS_DENIED',
     s.store.setGateRule(s.editor, s.ws.id, {
       expected_version: 0,
-      auto_clear: true,
+      mode: 'model',
     }),
   );
   await s.store.setGateRule(owner, s.ws.id, {
     expected_version: 0,
-    auto_clear: true,
+    mode: 'team_profile',
   });
   s.adapter.access = null;
   await s.assess();
-  let other = (await s.report()).suitability.candidates.find(
-    (c) => c.alternative.id === second.alternative.id,
-  )!;
-  // No team profile was read, so nothing is cleared automatically.
-  assert.equal(gate(other, 'access').state, 'not_assessed');
+  const other = async () =>
+    (await s.report()).suitability.candidates.find(
+      (c) => c.alternative.id === second.alternative.id,
+    )!;
+  // No team profile was read, so nothing is cleared from it.
+  assert.equal(gate(await other(), 'access').state, 'not_assessed');
+  // A profile that answers no capability (notes only) is not enough either.
+  await s.store.saveTeamProfile(
+    owner,
+    s.ws.id,
+    { expected_version: 0, capabilities: [], notes: 'Small team.' },
+    host,
+  );
+  await s.assess();
+  assert.equal(gate(await other(), 'access').state, 'not_assessed');
   await s.store.saveTeamProfile(
     owner,
     s.ws.id,
     {
-      expected_version: 0,
+      expected_version: 1,
       capabilities: [{ key: 'python', status: 'yes' }],
-      notes: '',
+      notes: 'Small team.',
     },
-    'TEST-PC',
+    host,
   );
   await s.assess();
-  other = (await s.report()).suitability.candidates.find(
-    (c) => c.alternative.id === second.alternative.id,
-  )!;
-  assert.equal(gate(other, 'access').state, 'auto_cleared');
-  assert.equal(gate(other, 'ethics').state, 'auto_cleared');
-  assert.equal(gate(other, 'access').confirmation?.by, 'rule');
-  assert.equal(other.gates.ethics_access, 'clear');
-  // A concern raised by the assessment still blocks with the rule on.
+  let row2 = await other();
+  assert.equal(gate(row2, 'access').state, 'auto_cleared');
+  assert.equal(gate(row2, 'access').confirmation?.by, 'rule');
+  assert.equal(gate(row2, 'access').confirmation?.rule_mode, 'team_profile');
+  // The team profile never clears ethics: the model's "clear" there still needs a person.
+  assert.equal(gate(row2, 'ethics').state, 'not_assessed');
+  assert.equal(row2.gates.ethics_access, 'not_assessed');
+  // A concern raised by the assessment still blocks.
   s.adapter.access = 'The team cannot run Java on its computers.';
   await s.assess();
-  other = (await s.report()).suitability.candidates.find(
-    (c) => c.alternative.id === second.alternative.id,
-  )!;
-  assert.equal(gate(other, 'access').state, 'unresolved');
-  assert.equal(gate(other, 'ethics').state, 'auto_cleared');
-  // Turning the rule off ends every clear it made.
+  assert.equal(gate(await other(), 'access').state, 'unresolved');
+
+  // On the model's word (Jordan's explicit choice): ethics clears too, marked as such.
   await s.store.setGateRule(owner, s.ws.id, {
     expected_version: 1,
-    auto_clear: false,
+    mode: 'model',
   });
-  other = (await s.report()).suitability.candidates.find(
-    (c) => c.alternative.id === second.alternative.id,
-  )!;
-  assert.equal(gate(other, 'ethics').state, 'not_assessed');
+  row2 = await other();
+  assert.equal(gate(row2, 'ethics').state, 'auto_cleared');
+  assert.equal(gate(row2, 'ethics').confirmation?.rule_mode, 'model');
+  assert.match(
+    gate(row2, 'ethics').confirmation?.reason ?? '',
+    /No person looked/,
+  );
+  // A concern still blocks on the model's word too.
+  assert.equal(gate(row2, 'access').state, 'unresolved');
+  s.adapter.access = null;
+  await s.assess();
+  row2 = await other();
+  assert.equal(gate(row2, 'access').state, 'auto_cleared');
+  assert.equal(row2.gates.ethics_access, 'clear');
+
+  // Back to the owner: every clear the rule made ends.
+  await s.store.setGateRule(owner, s.ws.id, {
+    expected_version: 2,
+    mode: 'owner',
+  });
+  row2 = await other();
+  assert.equal(gate(row2, 'access').state, 'not_assessed');
+  assert.equal(gate(row2, 'ethics').state, 'not_assessed');
   await rejects(
     'INVALID_CONTRACT',
     s.store.setGateRule(owner, s.ws.id, {
-      expected_version: 2,
-      auto_clear: false,
+      expected_version: 3,
+      mode: 'owner',
     }),
-    /already off/,
+    /already how gates clear/,
   );
 });

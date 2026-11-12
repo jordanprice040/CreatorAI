@@ -3280,7 +3280,7 @@ create trigger gate_confirmations_immutable before update or delete on gate_conf
 create table gate_rule_versions (
  workspace_id uuid not null references workspaces(id),
  version integer not null check (version > 0),
- auto_clear boolean not null,
+ mode text not null check (mode in ('owner','team_profile','model')),
  actor_id uuid not null references actors(id),
  event_id uuid not null references audit_events(id),
  created_at timestamptz not null default clock_timestamp(),

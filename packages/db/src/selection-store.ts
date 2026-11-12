@@ -39,6 +39,7 @@ import {
   selectionReport,
   taskHashes,
   taskImpact,
+  teamHash,
   validateSpec,
   type CandidateInput,
   type EvidenceVersions,
@@ -463,11 +464,11 @@ export class SelectionStore extends TeamStore {
     }
     // ADR-0090: the owner's gate confirmations and the team profile version cards read.
     const confirmations = await this.gateConfirmations(c, ws, ids);
-    const team_version = (await this.latestTeamProfile(c, ws)).version;
+    const team_hash = (await this.teamForPacket(c, ws)).hash;
     const rule = await this.latestGateRule(c, ws);
     const auto_clear =
-      rule.auto_clear && rule.at
-        ? { version: rule.version, at: rule.at }
+      rule.mode !== 'owner' && rule.at
+        ? { version: rule.version, mode: rule.mode, at: rule.at }
         : null;
     const candidates: CandidateInput[] = alts.map((a) => {
       const kind = String(a.body?.kind);
@@ -552,7 +553,7 @@ export class SelectionStore extends TeamStore {
       candidates,
       evidence: evidence as EvidenceVersions,
       linked_hash: await this.linkedClaimsHash(c, ws, problemId),
-      team_version,
+      team_hash,
     };
   }
 
@@ -605,7 +606,7 @@ export class SelectionStore extends TeamStore {
       throw fail('INVALID_CONTRACT', 'Shortlist size must be 1–10.');
     return this.tx(async (c) => {
       await this.role(c, ws, ctx.actorId, false);
-      const { problem, candidates, evidence, linked_hash, team_version } =
+      const { problem, candidates, evidence, linked_hash, team_hash } =
         await this.gather(c, ws, problemId);
       return selectionReport({
         problem: {
@@ -617,7 +618,7 @@ export class SelectionStore extends TeamStore {
         shortlist_size: shortlistSize,
         evidence,
         linked_hash,
-        team_version,
+        team_hash,
       });
     });
   }
@@ -638,13 +639,13 @@ export class SelectionStore extends TeamStore {
     problemId = uuid(problemId);
     const req = parse(ConfirmGateRequestSchema, raw);
     return this.tx(async (c) => {
-      await this.requireGateOwner(c, ws, ctx.actorId);
+      await this.requireTeamOwner(c, ws, ctx.actorId);
       const altId = req.alternative.id.toLowerCase();
       await c.query(
         "select pg_advisory_xact_lock(hashtext('gate-confirm:' || $1::text))",
         [altId],
       );
-      const { problem, candidates, evidence, linked_hash, team_version } =
+      const { problem, candidates, evidence, linked_hash, team_hash } =
         await this.gather(c, ws, problemId);
       const report = selectionReport({
         problem: {
@@ -656,7 +657,7 @@ export class SelectionStore extends TeamStore {
         shortlist_size: 3,
         evidence,
         linked_hash,
-        team_version,
+        team_hash,
       });
       const row = report.suitability.candidates.find(
         (x) => x.alternative.id === altId,
@@ -681,6 +682,11 @@ export class SelectionStore extends TeamStore {
         throw fail(
           'INVALID_TRANSITION',
           'A person raised this concern on their own scorecard; revise that scorecard to resolve it.',
+        );
+      if (!detail.assessed)
+        throw fail(
+          'INVALID_TRANSITION',
+          `Nothing has assessed ${req.gate} on this option yet; assess the option or score it yourself before confirming.`,
         );
       if (detail.state === 'confirmed' || detail.state === 'clear')
         throw fail(
@@ -807,8 +813,7 @@ export class SelectionStore extends TeamStore {
             'The problem, an option or a claim changed while the packet was built; start again.',
           );
         if (
-          (await this.latestTeamProfile(c, ws)).version !==
-          (built.packet.team?.version ?? 0)
+          (await this.teamForPacket(c, ws)).hash !== teamHash(built.packet.team)
         )
           throw fail(
             'VERSION_CONFLICT',
@@ -1064,7 +1069,7 @@ export class SelectionStore extends TeamStore {
         'select 1 from entities where workspace_id = $1 and id = $2 for update',
         [ws, problemId],
       );
-      const { problem, candidates, evidence, linked_hash, team_version } =
+      const { problem, candidates, evidence, linked_hash, team_hash } =
         await this.gather(c, ws, problemId);
       if (problem.version !== req.problem.version)
         throw fail(
@@ -1081,7 +1086,7 @@ export class SelectionStore extends TeamStore {
         shortlist_size: req.shortlist_size,
         evidence,
         linked_hash,
-        team_version,
+        team_hash,
       });
       if (report.report_hash !== req.report_hash)
         throw fail(
@@ -1410,7 +1415,7 @@ export class SelectionStore extends TeamStore {
     if (!alt || alt.version !== body.alternative.version)
       blockers.push('The selected alternative changed after it was selected.');
     else {
-      const { problem, candidates, evidence, linked_hash, team_version } =
+      const { problem, candidates, evidence, linked_hash, team_hash } =
         await this.gather(c, ws, selection.problem.id);
       const report = selectionReport({
         problem: {
@@ -1422,7 +1427,7 @@ export class SelectionStore extends TeamStore {
         shortlist_size: 3,
         evidence,
         linked_hash,
-        team_version,
+        team_hash,
       });
       const row = report.suitability.candidates.find(
         (x) => x.alternative.id === altId,

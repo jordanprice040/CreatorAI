@@ -1,7 +1,8 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { hostname } from 'node:os';
+import { tmpdir } from 'node:os';
 import type { CapabilityCheck, TeamCapabilityKey } from '@creator/contracts';
+import { studioMachine } from '@creator/db';
 import { CAPABILITY_CHECKS, readCapabilityCheck } from '@creator/domain';
 
 // ADR-0090: built-in capability checks. Each runs a fixed program from CAPABILITY_CHECKS with
@@ -42,6 +43,8 @@ export function checkEnv(
     const v = env[k];
     if (typeof v === 'string') out[k] = v;
   }
+  // Windows otherwise looks for the program in the current directory before PATH.
+  out.NoDefaultCurrentDirectoryInExePath = '1';
   return out;
 }
 
@@ -55,6 +58,8 @@ export const runCapabilityProgram: CapabilityRunner = (file, args) =>
         timeout: 10_000,
         maxBuffer: 64 * 1024,
         windowsHide: true,
+        // Not the API's own working directory, so no program left there runs instead.
+        cwd: tmpdir(),
         env: checkEnv(),
       },
       (err, stdout, stderr) => {
@@ -72,7 +77,7 @@ export const runCapabilityProgram: CapabilityRunner = (file, args) =>
     );
   });
 
-export const studioMachine = () => hostname().slice(0, 120) || 'this computer';
+export { studioMachine };
 
 /** Runs one capability's tries in order; the first that passes is recorded. */
 export async function runCapabilityCheck(

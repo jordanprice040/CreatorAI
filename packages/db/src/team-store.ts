@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { hostname } from 'node:os';
 import type { PoolClient } from 'pg';
 import {
   ConfirmGateRequestSchema,
@@ -8,6 +9,7 @@ import {
   TeamProfileBodySchema,
   parse,
   type CapabilityCheck,
+  type GateClearMode,
   type GateConfirmation,
   type GateRule,
   type TeamProfile,
@@ -20,6 +22,7 @@ import {
   packetTeam,
   sameTeamProfile,
   savedTeamProfile,
+  teamHash,
 } from '@creator/domain';
 import { DiscoveryStore } from './discovery-store.js';
 import {
@@ -29,6 +32,16 @@ import {
   type CommandContext,
   type Row,
 } from './store.js';
+
+/** The computer the studio runs on (its host name). It never goes into a model packet. */
+export const studioMachine = () => hostname().slice(0, 120) || 'this computer';
+
+/** Where the studio runs: its host name, and whether built-in checks may run there. */
+export interface StudioHost {
+  machine: string;
+  /** False in a hosted deployment, where a check would test the server, not the team. */
+  checks: boolean;
+}
 
 const iso = (v: unknown) => new Date(v as string | Date).toISOString();
 const toConfirmation = (r: Row): GateConfirmation => ({
@@ -71,10 +84,34 @@ export class TeamStore extends DiscoveryStore {
     };
   }
 
-  /** What an assessment packet carries from the profile now, and its version. */
+  /** What an assessment packet carries from the profile now, its version and its hash. */
   protected async teamForPacket(c: PoolClient, ws: string) {
     const t = await this.latestTeamProfile(c, ws);
-    return { version: t.version, team: packetTeam(t.profile, t.version) };
+    const team = packetTeam(t.profile, t.version, studioMachine());
+    return { version: t.version, team, hash: teamHash(team) };
+  }
+
+  /** What the page gets: the host name (where checks ran and would run) only for the owner. */
+  private profileView(
+    t: { version: number; profile: TeamProfileBody; at: string | null },
+    owner: boolean,
+    host: StudioHost,
+  ): TeamProfile {
+    return {
+      version: t.version,
+      profile: owner
+        ? t.profile
+        : {
+            ...t.profile,
+            capabilities: t.profile.capabilities.map((x) =>
+              x.check ? { ...x, check: { ...x.check, machine: '' } } : x,
+            ),
+          },
+      updated_at: t.at,
+      can_edit: owner,
+      machine: owner && host.checks ? host.machine.slice(0, 120) : null,
+      checks_available: host.checks,
+    };
   }
 
   private async ownsWorkspace(c: PoolClient, ws: string, actorId: string) {
@@ -86,7 +123,7 @@ export class TeamStore extends DiscoveryStore {
       throw e;
     }
   }
-  private async requireTeamOwner(c: PoolClient, ws: string, actorId: string) {
+  protected async requireTeamOwner(c: PoolClient, ws: string, actorId: string) {
     await this.role(c, ws, actorId, false);
     if (!(await this.ownsWorkspace(c, ws, actorId)))
       throw fail(
@@ -98,20 +135,17 @@ export class TeamStore extends DiscoveryStore {
   async teamProfile(
     ctx: CommandContext,
     ws: string,
-    machine: string,
+    host: StudioHost,
   ): Promise<TeamProfile> {
     ctx = normalize(ctx);
     ws = uuid(ws);
     return this.tx(async (c) => {
       await this.role(c, ws, ctx.actorId, false);
-      const t = await this.latestTeamProfile(c, ws);
-      return {
-        version: t.version,
-        profile: t.profile,
-        updated_at: t.at,
-        can_edit: await this.ownsWorkspace(c, ws, ctx.actorId),
-        machine: machine.slice(0, 120),
-      };
+      return this.profileView(
+        await this.latestTeamProfile(c, ws),
+        await this.ownsWorkspace(c, ws, ctx.actorId),
+        host,
+      );
     });
   }
 
@@ -129,7 +163,7 @@ export class TeamStore extends DiscoveryStore {
     expected: number,
     next: (current: TeamProfileBody) => TeamProfileBody,
     change: 'saved' | 'checked',
-    machine: string,
+    host: StudioHost,
   ): Promise<TeamProfile> {
     await this.requireTeamOwner(c, ws, ctx.actorId);
     await c.query(
@@ -144,7 +178,12 @@ export class TeamStore extends DiscoveryStore {
       );
     const profile = next(cur.profile);
     if (cur.version > 0 && sameTeamProfile(profile, cur.profile))
-      throw fail('INVALID_CONTRACT', 'Nothing changed in the team profile.');
+      throw fail(
+        'INVALID_CONTRACT',
+        change === 'checked'
+          ? 'The check found what the team profile already says; nothing changed.'
+          : 'Nothing changed in the team profile.',
+      );
     const version = cur.version + 1;
     const profileHash = canonicalHash(profile);
     const eventId = await this.append(c, ctx, {
@@ -171,20 +210,18 @@ export class TeamStore extends DiscoveryStore {
         eventId,
       ],
     );
-    return {
-      version,
-      profile,
-      updated_at: iso(rows[0]!.created_at),
-      can_edit: true,
-      machine: machine.slice(0, 120),
-    };
+    return this.profileView(
+      { version, profile, at: iso(rows[0]!.created_at) },
+      true,
+      host,
+    );
   }
 
   async saveTeamProfile(
     ctx: CommandContext,
     ws: string,
     raw: unknown,
-    machine: string,
+    host: StudioHost,
   ): Promise<TeamProfile> {
     ctx = normalize(ctx);
     ws = uuid(ws);
@@ -197,7 +234,7 @@ export class TeamStore extends DiscoveryStore {
         req.expected_version,
         (cur) => savedTeamProfile(cur, req),
         'saved',
-        machine,
+        host,
       ),
     );
   }
@@ -211,7 +248,7 @@ export class TeamStore extends DiscoveryStore {
     ws: string,
     raw: unknown,
     check: CapabilityCheck,
-    machine: string,
+    host: StudioHost,
   ): Promise<TeamProfile> {
     ctx = normalize(ctx);
     ws = uuid(ws);
@@ -224,7 +261,7 @@ export class TeamStore extends DiscoveryStore {
         req.expected_version,
         (cur) => checkedTeamProfile(cur, req.capability, check),
         'checked',
-        machine,
+        host,
       ),
     );
   }
@@ -292,31 +329,28 @@ export class TeamStore extends DiscoveryStore {
     );
     return toConfirmation(rows[0] as Row);
   }
-  protected async requireGateOwner(c: PoolClient, ws: string, actorId: string) {
-    await this.requireTeamOwner(c, ws, actorId);
-  }
 
-  // ---- The owner's auto-clear rule ------------------------------------------------------
+  // ---- The owner's gate rule: who clears a gate ---------------------------------------
 
-  /** The rule in force (version 0, off, when never set). */
+  /** The rule in force (version 0, owner, when never set). */
   protected async latestGateRule(c: PoolClient, ws: string) {
     const { rows } = await c.query<{
       version: number;
-      auto_clear: boolean;
+      mode: GateClearMode;
       created_at: Date;
     }>(
-      `select version, auto_clear, created_at from gate_rule_versions
+      `select version, mode, created_at from gate_rule_versions
         where workspace_id = $1 order by version desc limit 1`,
       [ws],
     );
     const r = rows[0];
     return r
-      ? {
-          version: Number(r.version),
-          auto_clear: r.auto_clear,
-          at: iso(r.created_at),
-        }
-      : { version: 0, auto_clear: false, at: null as string | null };
+      ? { version: Number(r.version), mode: r.mode, at: iso(r.created_at) }
+      : {
+          version: 0,
+          mode: 'owner' as GateClearMode,
+          at: null as string | null,
+        };
   }
 
   async gateRule(ctx: CommandContext, ws: string): Promise<GateRule> {
@@ -327,14 +361,14 @@ export class TeamStore extends DiscoveryStore {
       const r = await this.latestGateRule(c, ws);
       return {
         version: r.version,
-        auto_clear: r.auto_clear,
+        mode: r.mode,
         updated_at: r.at,
         can_edit: await this.ownsWorkspace(c, ws, ctx.actorId),
       };
     });
   }
 
-  /** Turns the owner's auto-clear rule on or off: an owner's action, audited and versioned. */
+  /** Sets who clears gates: an owner's action, audited and versioned. */
   async setGateRule(
     ctx: CommandContext,
     ws: string,
@@ -353,18 +387,15 @@ export class TeamStore extends DiscoveryStore {
       if (cur.version !== req.expected_version)
         throw fail(
           'VERSION_CONFLICT',
-          'The auto-clear rule changed since this page loaded it; reload and decide again.',
+          'Who clears gates changed since this page loaded it; reload and decide again.',
         );
-      if (cur.auto_clear === req.auto_clear)
-        throw fail(
-          'INVALID_CONTRACT',
-          `The auto-clear rule is already ${req.auto_clear ? 'on' : 'off'}.`,
-        );
+      if (cur.mode === req.mode)
+        throw fail('INVALID_CONTRACT', 'That is already how gates clear.');
       const version = cur.version + 1;
-      const payload = { version, auto_clear: req.auto_clear };
+      const payload = { version, mode: req.mode, previous: cur.mode };
       const eventId = await this.append(c, ctx, {
         workspaceId: ws,
-        action: req.auto_clear ? 'gate_rule.enabled' : 'gate_rule.disabled',
+        action: 'gate_rule.set',
         subjectKind: 'gate_rule',
         subjectId: ws,
         subjectVersion: version,
@@ -372,13 +403,13 @@ export class TeamStore extends DiscoveryStore {
         payload,
       });
       const { rows } = await c.query<{ created_at: Date }>(
-        `insert into gate_rule_versions (workspace_id, version, auto_clear, actor_id, event_id)
+        `insert into gate_rule_versions (workspace_id, version, mode, actor_id, event_id)
          values ($1, $2, $3, $4, $5) returning created_at`,
-        [ws, version, req.auto_clear, ctx.actorId, eventId],
+        [ws, version, req.mode, ctx.actorId, eventId],
       );
       return {
         version,
-        auto_clear: req.auto_clear,
+        mode: req.mode,
         updated_at: iso(rows[0]!.created_at),
         can_edit: true,
       };

@@ -210,10 +210,18 @@ export const SystemAssessmentSchema = z.strictObject({
    */
   linked_hash: hash,
   /**
-   * ADR-0090: the team profile version the packet carried (0: none saved). A profile saved
-   * since marks the assessment stale. Absent on assessments before schema 56 (read as 0).
+   * ADR-0090: the team profile version the packet carried (0: none saved), for the record.
+   * Absent on assessments before schema 56 (read as 0).
    */
   team_version: z.number().int().min(0).optional(),
+  /**
+   * A hash of what the model read from the team block ('' for none). The assessment is stale only
+   * when the current block hashes differently, so a profile save that changes nothing the model
+   * reads (or a re-check that found the same) keeps it current.
+   */
+  team_hash: z.string().max(64).optional(),
+  /** How many capabilities the team block answered (yes or no); the auto-clear rule needs one. */
+  team_answers: z.number().int().min(0).max(100).optional(),
   uncertainty: short,
 });
 export type SystemAssessment = z.infer<typeof SystemAssessmentSchema>;
@@ -428,12 +436,16 @@ export const GateReportSchema = z.strictObject({
             id: id.nullable(),
             /** The rule's version; null for the owner's confirmation. */
             rule_version: z.number().int().min(1).nullable(),
+            /** Which rule mode cleared it (team_profile or model); null for the owner. */
+            rule_mode: z.enum(['team_profile', 'model']).nullable().optional(),
             reason: z.string().max(300),
             created_at: z.string().max(40),
           })
           .nullable(),
         /** Why an earlier confirmation of this gate no longer counts, if one exists. */
         stale_confirmation: z.string().max(300).nullable(),
+        /** Whether any current card (an assessment or a person's) looked at this gate. */
+        assessed: z.boolean().optional(),
       }),
     )
     .max(2)
