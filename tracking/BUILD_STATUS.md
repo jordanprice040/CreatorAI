@@ -1,5 +1,13 @@
 # Build status — November 10, 2026
 
+## November 12 update — PR #150 review nits N-1..N-3
+
+What now works (no migration or ADR): the web qualification test finds its own record by recipe, benchmark, connection, model and both prompt hashes instead of pinning one record and today's prompt hashes, so a later prompt or benchmark bump, a requalification with new prompts, or another route's or model's record no longer turns it red (the app already ignores a stale record; the test now checks that too). The P15 results file records the SHA-256 and size of all 40 per-attempt files it was copied from (`source_files`, hashed read-only on Jordan's PC on November 12; each `package.tar` hash equals the recorded one, and the test checks that). `docs/STATIC_WEB_RECIPE.md` gives the real build-time range, 64.8 to 67.6 s.
+
+Checked: `pnpm typecheck`, `pnpm format:check`, `node scripts/p15-web-benchmark.mjs verify` (ok), the changed test, and two mutation checks (a wrong `package.tar` hash fails it; an extra record for another benchmark and connection does not). `pnpm test:db` on a throwaway PostgreSQL 16: 1146 tests, 1112 pass, 29 skipped, 5 fail (the known PowerShell-wrapper tests; no pwsh in the cloud container).
+
+Review 1 fixes (2 Lows, 2 nits): the test matches the record on all six fields, so a requalification with new prompts or another model's record on the same connection stays green; the count is 40 files, not 41; the freeze check reads the results file's own benchmark folder; the note says intent.json and the screenshots are not among the hashed files (hashing intent.json needs read access to the p15 worktree's `.creator` folder, which was not granted).
+
 ## November 12 update — P33 automation levels for a project (ADR-0099, migration 62)
 
 Walk item 22, Decision B1. What now works (schema 62): Discover has **How much is automated** under Run it for me. For an active supervised or human-in-the-loop run the owner chooses a level and confirms its summary and the run's routine approvals (new, widened, or already covering) in one tick. **Automate selection** is a standing level on the run: each time an assessment on that run finishes, the studio starts a selection-only P13 autopilot for that problem, which chooses by the fixed rule and writes a proposal for a non-code option or stops for a person (a tie, unknown or unstable scores, a gate, ethics cleared only on the model's word, a software option). **Automate the rest** starts an autopilot at assessment or selection of a recorded problem on the running project. **Whole process** is Run it for me on a new run. **Set back to Manual** stops the level and its running autopilot. The level stops itself when its owner, run or routine approvals no longer allow it, or its end time passes. Autopilot cards say which level started them.
@@ -224,7 +232,7 @@ Open items:
 - **Windows verification:** no full Windows run of main since CI stopped.
 - **Owner pilot:** finished. Jordan marked it finished on November 10 (PR #155); its window ended
   November 6.
-- **Older review items still open:** PR #150 N-1..N-3 (#128 N-6 and #129 N-4 fixed November 12). Health reports configuration,
+- **Older review items:** none open. PR #150 N-1..N-3, #128 N-6 and #129 N-4 fixed November 12. Health reports configuration,
   not live state; the preview cookie-host limit remains. (#75 L-1 was repaired earlier; #77 L-1, the first point of #90 N-4
   and PR #148 N-I are fixed by the November 10 cleanup; the second point of #90 N-4, a stale poll error, on November 12.)
 - **The web qualification record** lives in source against the dev studio's connection id, so it does not
