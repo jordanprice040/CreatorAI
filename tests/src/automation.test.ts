@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
@@ -881,6 +882,72 @@ test('review L-1: the run’s approvals change only together with the level or a
   });
   await h.runner.settled(a.id);
   assert.equal((await policies(r4)).length, 1);
+});
+
+test('review 3 L-1: a level never widens approvals that stopped for a rejected decision, even when they also ran out of time', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  const ws = h.ws.id;
+  const view = async (runId: string) =>
+    (await h.store.listRoutinePolicies(owner, ws)).find(
+      (v) => v.policy.run_id === runId && v.policy.status === 'active',
+    )!;
+  const expire = (runId: string) =>
+    h.db.pool.query(
+      `update routine_policies set expires_at = now() - interval '1 minute'
+        where workspace_id = $1 and run_id = $2`,
+      [ws, runId],
+    );
+  const widen = (v: Awaited<ReturnType<typeof view>>) => {
+    const wider = policyCovering(policyInputOf(v.policy), {
+      stages: ['selection'],
+      data_classes: ['synthetic'],
+      ends_at: inHours(3),
+      extraActions: 20,
+      used: v.used_actions,
+    })!;
+    return {
+      ...h.level(),
+      routine_policy: {
+        kind: 'revise' as const,
+        policy_id: v.policy.id,
+        policy: {
+          ...wider,
+          summary_seen: routinePolicySummary(wider),
+          expected_version: v.policy.version,
+        },
+      },
+    };
+  };
+  // A person rejects a decision on the run, and the approvals' end time also passes.
+  const stopped = await h.run(h.policy(['model_work']));
+  await h.db.pool.query(
+    `insert into decision_requests (id, workspace_id, run_id, version, kind, reason, status,
+       dedupe_key, request, expires_at, requested_by, response, answered_by, answered_at)
+     values ($1, $2, $3, 1, 'clarification', 'material_assumption', 'answered', $4, '{}',
+       now() + interval '1 hour', $5,
+       jsonb_build_object('choice', 'reject', 'responded_at', clock_timestamp()), $5, now())`,
+    [randomUUID(), ws, stopped, 'f'.repeat(64), owner.actorId],
+  );
+  await expire(stopped);
+  const v = await view(stopped);
+  // The view says it expired, and reports the rejection beside it.
+  assert.equal(v.state, 'expired');
+  assert.match(v.stop_reason ?? '', /rejected a decision/);
+  await rejects(
+    'INVALID_TRANSITION',
+    h.store.setRunAutomation(owner, ws, stopped, widen(v)),
+    /Monitor › Approvals/,
+  );
+  assert.equal((await view(stopped)).policy.version, v.policy.version);
+  assert.equal((await h.store.listRunAutomations(owner, ws)).length, 0);
+  // Without a rejection, approvals that only ran out of time are widened with the level.
+  const late = await h.run(h.policy(['model_work']));
+  await expire(late);
+  const w = await view(late);
+  assert.equal(w.stop_reason, null);
+  await h.store.setRunAutomation(owner, ws, late, widen(w));
+  assert.equal((await view(late)).policy.version, w.policy.version + 1);
 });
 
 test('review L-4: a stop the studio makes itself is recorded as the studio’s, not the owner’s', async (t) => {

@@ -98,6 +98,20 @@ export function currentLevel(
  * The routine approvals step a level needs on the run: a new policy (none active), a revision
  * of the active one (it does not cover the level yet), or nothing (it already covers it).
  */
+/** Every reason a run's approvals admit nothing now, not only the first (review 3 N-1). */
+export function idleReasons(v: RoutinePolicyView): string[] {
+  const out: string[] = [];
+  if (Date.parse(v.policy.expires_at) <= Date.now())
+    out.push('Its end time has passed.');
+  if (v.used_actions >= v.policy.max_actions)
+    out.push(
+      `Its limit of ${v.policy.max_actions} step${v.policy.max_actions === 1 ? '' : 's'} is used up.`,
+    );
+  if (v.stop_reason) out.push(v.stop_reason);
+  if (!out.length && v.state_reason) out.push(v.state_reason);
+  return out;
+}
+
 export function policyStep(
   view: RoutinePolicyView | undefined,
   fresh: RoutinePolicyInput,
@@ -294,15 +308,18 @@ export function Automation({
       ? restDraft.error.issues.map((i) => i.message)
       : []),
     // Used-up steps or a passed end time are what the widened approvals fix, so Apply goes
-    // ahead with them; any other pause (a rejected decision, an unknown outcome) is the
-    // owner's to look at first (review 2 L-1).
-    ...(level !== 'whole' &&
-    view &&
-    view.state === 'paused' &&
-    view.used_actions < view.policy.max_actions
-      ? [
-          `This run's routine approvals admit nothing now: ${view.state_reason ?? view.state}. Fix that under Monitor › Approvals first.`,
-        ]
+    // ahead with them; a stop condition (a rejected decision, an unknown outcome) is the
+    // owner's to look at first, even alongside those (review 2 L-1, review 3 L-1).
+    ...(level !== 'whole' && view && view.state !== 'revoked'
+      ? view.stop_reason
+        ? [
+            `This run's routine approvals stopped: ${view.stop_reason} Look at it under Monitor › Approvals first.`,
+          ]
+        : view.state === 'paused' && view.used_actions < view.policy.max_actions
+          ? [
+              `This run's routine approvals admit nothing now: ${view.state_reason ?? view.state}. Fix that under Monitor › Approvals first.`,
+            ]
+          : []
       : []),
     ...(level !== 'whole' && hours > 24 * 90
       ? ['Choose at most 2160 hours (90 days).']
@@ -643,7 +660,7 @@ export function Automation({
                               : step.kind === 'revise'
                                 ? `This run’s routine approvals, widened to cover it${
                                     step.view.state !== 'active'
-                                      ? ` (now they admit nothing: ${step.view.state_reason ?? step.view.state})`
+                                      ? ` (now they admit nothing: ${idleReasons(step.view).join(' ')})`
                                       : ''
                                   }`
                                 : `This run’s routine approvals already cover it (${step.view.policy.max_actions - step.view.used_actions} of ${step.view.policy.max_actions} steps left)`}

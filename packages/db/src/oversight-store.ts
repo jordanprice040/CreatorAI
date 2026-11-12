@@ -1238,6 +1238,10 @@ export class OversightStore extends Store {
             ? await this.routineBlocked(c, policy, null)
             : null;
         const expired = Date.parse(policy.expires_at) <= Date.now();
+        const stopReason =
+          policy.status === 'active'
+            ? await routineStopReason(c, policy)
+            : null;
         out.push({
           policy,
           used_actions: used.actions,
@@ -1256,6 +1260,7 @@ export class OversightStore extends Store {
               : expired
                 ? 'Its end time has passed. Change the policy to set a new one.'
                 : blocked,
+          stop_reason: stopReason,
           recent: recent.rows.map((a: Row) => ({
             admission_id: String(a.id),
             action_type: a.action_type as ActionType,

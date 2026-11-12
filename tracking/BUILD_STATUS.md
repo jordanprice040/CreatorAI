@@ -10,6 +10,8 @@ Review 1 fixes (November 12): applying a level changes the run's approvals in th
 
 Review 2 fixes (November 12): money the run's approvals have already admitted counts when the panel checks whether they cover a level, and used-up or expired approvals are offered widened instead of blocking; the panel shows Manual (with a note) while a choice Automate selection started is still working after the level was stopped; a start's approvals change now comes after the run's own checks; ADR-0099 notes the stop's lock order.
 
+Review 3 fixes (November 12): when the run's approvals stopped because a person rejected a decision (or a paid call's outcome is unknown), the panel says so and will not widen them, even when they also ran out of steps or time; the owner looks at them under Monitor › Approvals first. The widened label lists every reason.
+
 Limits: up to a minute between an assessment finishing and its choice; one autopilot per run at a time; Whole process still stops a software option at the spec (spec, build, review and QA are a later P13 slice); no live run was made (none needed; a live run on the dev studio needs Jordan's typed OK and the dev studio upgraded to this schema).
 
 ## November 12 update — the last older review items (#128 N-6, #129 N-4, #90 N-4 leftover)

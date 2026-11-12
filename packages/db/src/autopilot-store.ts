@@ -21,6 +21,7 @@ import {
 } from '@creator/contracts';
 import { canonicalHash, nextAutopilotStage } from '@creator/domain';
 import { WebDiscoveryStore } from './web-discovery-store.js';
+import { routineStopReason } from './routine-stops.js';
 import {
   fail,
   iso,
@@ -241,13 +242,32 @@ export class AutopilotStore extends WebDiscoveryStore {
     const input = this.checkRoutineInput(rest);
     const policyId = uuid(change.policy_id);
     const owned = await c.query(
-      'select run_id from routine_policies where workspace_id = $1 and id = $2',
+      `select workspace_id, run_id, stop_on, confirmed_at, status
+         from routine_policies where workspace_id = $1 and id = $2`,
       [ws, policyId],
     );
-    if (String(owned.rows[0]?.run_id ?? '') !== runId)
+    const row = owned.rows[0] as Row | undefined;
+    if (String(row?.run_id ?? '') !== runId)
       throw fail(
         'INVALID_CONTRACT',
         'The routine approvals to change are not this run’s.',
+      );
+    // Review 3 L-1: a revision is a fresh confirmation, which would clear a person-rejects stop
+    // without the owner seeing it. A level only widens approvals that stopped for steps or time;
+    // a stop condition stays for the owner to look at under Monitor › Approvals.
+    const stopped =
+      row!.status === 'active'
+        ? await routineStopReason(c, {
+            workspace_id: String(row!.workspace_id),
+            run_id: String(row!.run_id),
+            stop_on: row!.stop_on as string[],
+            confirmed_at: row!.confirmed_at as Date,
+          })
+        : null;
+    if (stopped)
+      throw fail(
+        'INVALID_TRANSITION',
+        `This run’s routine approvals stopped: ${stopped} Look at it under Monitor › Approvals first.`,
       );
     await this.reviseRoutinePolicyIn(
       c,

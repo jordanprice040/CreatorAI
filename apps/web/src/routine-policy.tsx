@@ -415,6 +415,9 @@ function PolicyCard({
               {STATE_TEXT[v.state]}
             </strong>
             {v.state_reason ? `: ${v.state_reason}` : ''}
+            {v.stop_reason && v.stop_reason !== v.state_reason
+              ? ` ${v.stop_reason}`
+              : ''}
             <span className="fold-line small">
               {v.used_actions} of {p.max_actions} steps used
               {p.max_total_nano_usd === null
