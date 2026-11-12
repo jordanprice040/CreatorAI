@@ -2064,27 +2064,14 @@ export class ConnectionStore extends WebDiscoveryStore {
           'VERSION_CONFLICT',
           'Your model choice changed since you opened it; reload and try again.',
         );
-      await this.append(c, ctx, {
-        workspaceId: w,
-        action: 'model_choice.changed',
-        subjectKind: 'model_choice',
-        subjectId: ctx.actorId,
-        subjectVersion: current.version + 1,
-        contentHash: canonicalHash(next),
-        payload: {
-          ...next,
-          previous: current.connection_id
-            ? {
-                connection_id: current.connection_id,
-                model_id: current.model_id,
-              }
-            : null,
-        },
-      });
+      // PR #180 re-review 6 L6-1: the Chat answers row is locked and written before the first
+      // audit append (which holds the global audit lock to commit); a Chat answers save locks
+      // that row first and appends second, so appending earlier could deadlock with it.
       // Chat follows only a setting the owner has saved; an unsaved one already starts from
       // the choice on its form. Enabled, snapshot and daily limit stay as they are.
       const chat = await chatSettings(c, w, true);
       let chatUpdated = false;
+      let chatEvent: Parameters<ConnectionStore['append']>[2] | null = null;
       if (
         chat.version > 0 &&
         (chat.connection_id !== next.connection_id ||
@@ -2103,7 +2090,7 @@ export class ConnectionStore extends WebDiscoveryStore {
           include_snapshot: chat.include_snapshot,
           daily_limit: chat.daily_limit,
         };
-        await this.append(c, ctx, {
+        chatEvent = {
           workspaceId: w,
           action: 'chat.settings_changed',
           subjectKind: 'chat_settings',
@@ -2111,9 +2098,27 @@ export class ConnectionStore extends WebDiscoveryStore {
           subjectVersion: chat.version + 1,
           contentHash: canonicalHash(payload),
           payload: { ...payload, via: 'model_switch' },
-        });
+        };
         chatUpdated = true;
       }
+      await this.append(c, ctx, {
+        workspaceId: w,
+        action: 'model_choice.changed',
+        subjectKind: 'model_choice',
+        subjectId: ctx.actorId,
+        subjectVersion: current.version + 1,
+        contentHash: canonicalHash(next),
+        payload: {
+          ...next,
+          previous: current.connection_id
+            ? {
+                connection_id: current.connection_id,
+                model_id: current.model_id,
+              }
+            : null,
+        },
+      });
+      if (chatEvent) await this.append(c, ctx, chatEvent);
       return {
         choice: await modelChoice(c, w, ctx.actorId),
         chat_updated: chatUpdated,

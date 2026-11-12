@@ -744,20 +744,73 @@ test('re-review 5 L5-1: two first Chat answers saves at once give one save and o
       include_snapshot: true,
       daily_limit,
     });
-  const results = await Promise.allSettled([save(3), save(4)]);
-  const ok = results.filter((r) => r.status === 'fulfilled');
-  assert.equal(ok.length, 1);
-  const failed = results.find((r) => r.status === 'rejected');
+  // Re-review 6 N6-1: the saves really overlap. A helper holds the audit lock; save A writes
+  // its row and waits there; save B reads no row (A's is not committed) and waits on A's key.
+  const helper = await s.db.pool.connect();
+  await helper.query('begin');
+  await helper.query('select pg_advisory_xact_lock($1)', [AUDIT_CHAIN_LOCK]);
+  const first = save(3);
+  await lockWaiters(s.db.pool, 1);
+  const second = save(4);
+  await lockWaiters(s.db.pool, 2);
+  await helper.query('commit');
+  helper.release();
+  const [a, b] = await Promise.allSettled([first, second]);
+  assert.equal(
+    a.status,
+    'fulfilled',
+    String(a.status === 'rejected' && a.reason),
+  );
+  // Without the check inside the write, B would overwrite A at version 2.
   assert.ok(
-    failed?.status === 'rejected' &&
-      failed.reason instanceof ContractError &&
-      failed.reason.code === 'VERSION_CONFLICT',
-    String(failed?.status === 'rejected' && failed.reason),
+    b.status === 'rejected' &&
+      b.reason instanceof ContractError &&
+      b.reason.code === 'VERSION_CONFLICT',
+    String(b.status === 'rejected' ? b.reason : 'second save succeeded'),
   );
   const after = await store.chatSettings(owner, target.id);
   assert.equal(after.version, 1);
+  assert.equal(after.daily_limit, 3);
+});
+
+test('re-review 6 L6-1: a model switch and a Chat answers save in one workspace at once both finish, no deadlock', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const { store, ws, conn } = s;
+  const chat = await store.chatSettings(owner, ws.id);
+  const choice = await store.modelChoice(owner, ws.id);
+  const helper = await s.db.pool.connect();
+  await helper.query('begin');
+  await helper.query('select pg_advisory_xact_lock($1)', [AUDIT_CHAIN_LOCK]);
+  const switched = store.setModelChoice(owner, ws.id, {
+    expected_version: choice.version,
+    connection_id: conn.id,
+    model_id: 'm',
+  });
+  // The switch waits for the audit lock (after its rows, with the fix).
+  await lockWaiters(s.db.pool, 1);
+  const saved = store.setChatSettings(owner, ws.id, {
+    expected_version: chat.version,
+    enabled: chat.enabled,
+    connection_id: chat.connection_id,
+    model_id: chat.model_id,
+    include_snapshot: chat.include_snapshot,
+    daily_limit: 9,
+  });
+  // The save waits too: on the Chat answers row the switch locked.
+  await lockWaiters(s.db.pool, 2);
+  await helper.query('commit');
+  helper.release();
+  const [m, v] = await Promise.allSettled([switched, saved]);
   assert.equal(
-    after.daily_limit,
-    ok[0]!.status === 'fulfilled' ? ok[0]!.value.daily_limit : -1,
+    m.status,
+    'fulfilled',
+    String(m.status === 'rejected' && m.reason),
   );
+  assert.equal(
+    v.status,
+    'fulfilled',
+    String(v.status === 'rejected' && v.reason),
+  );
+  assert.equal((await store.chatSettings(owner, ws.id)).daily_limit, 9);
 });
