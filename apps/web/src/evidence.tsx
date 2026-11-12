@@ -30,6 +30,7 @@ import { runNames } from './ui.js';
 import { REASON_MAX } from './owner-actions.js';
 import { ReasonForm } from './reason-form.js';
 import { Routine, WhatWillHappen } from './routine.js';
+import { ClaimLinks } from './link-claims.js';
 
 type Passage = SourceDetail['passages'][number];
 const squash = (s: string) => s.replace(/\s+/g, ' ').trim();
@@ -426,6 +427,13 @@ export function Evidence({
                   ))}
                 </ul>
               )}
+              <ClaimLinks
+                key={evidence.claim.id}
+                session={session}
+                workspace={current}
+                claimId={evidence.claim.id}
+                editor={editor}
+              />
               <ul className="links">
                 {evidence.rows.map((r) => (
                   <li

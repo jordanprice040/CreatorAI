@@ -149,6 +149,8 @@ interface ParseEnv {
   evidence?: EvidenceVersions | undefined;
   /** The current hash of the claims linked to the problem (review M-1). */
   linked_hash?: string | undefined;
+  /** The same set without option claims, as hashed before ADR-0091 (review 2 L-2). */
+  problem_linked_hash?: string | undefined;
   /**
    * ADR-0090: the hash of the team block a packet built now would carry ('' for none); without
    * it, not checked. Only a change in what the model reads makes an assessment stale.
@@ -199,7 +201,11 @@ function staleReasons(
       out.push('The rubric changed since this assessment.');
     if (env.linked_hash !== undefined && env.linked_hash !== a.linked_hash)
       out.push(
-        'Evidence linked to the problem changed since this assessment (a claim was linked or unlinked).',
+        // Review 2 L-2: only option claims differ. That is either a claim linked to an option
+        // since, or an assessment made before assessments read option claims (an upgrade).
+        env.problem_linked_hash === a.linked_hash
+          ? 'This assessment did not read claims now linked to the options: either a claim was linked to an option since, or it was made before assessments read option-linked claims (the studio was upgraded). Assess again to read them.'
+          : 'Evidence linked to the problem or its options changed since this assessment (a claim was linked or unlinked).',
       );
     if (env.team_hash !== undefined && env.team_hash !== (a.team_hash ?? ''))
       out.push(
@@ -738,6 +744,8 @@ export function selectionReport(input: {
   evidence?: EvidenceVersions;
   /** The current hash of the problem's linked claims; without it linking is not checked. */
   linked_hash?: string;
+  /** The problem's linked claims without option claims (review 2 L-2). */
+  problem_linked_hash?: string;
   /** ADR-0090: the hash of the team block a packet would carry now; without it, not checked. */
   team_hash?: string;
 }): SelectionReport {
@@ -751,6 +759,7 @@ export function selectionReport(input: {
         problem: input.problem,
         evidence: input.evidence,
         linked_hash: input.linked_hash,
+        problem_linked_hash: input.problem_linked_hash,
         team_hash: input.team_hash,
       }),
     ]),
