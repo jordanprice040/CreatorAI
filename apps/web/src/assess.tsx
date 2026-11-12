@@ -1000,15 +1000,18 @@ export function RangeWhy({
   cand,
   cards,
   canEdit,
-  ownCard,
+  ownCardId,
+  formOpensSystem,
   onFill,
 }: {
   rubric: 'suitability' | 'opportunity';
   cand: RankedCandidate;
   cards: StoredEntity[];
   canEdit: boolean;
-  /** Whether the person has a card of their own for this option and rubric. */
-  ownCard: boolean;
+  /** The person's own card for this option and rubric, if they have one. */
+  ownCardId: string | undefined;
+  /** With no card of their own, whether the scoring form would open an automatic card. */
+  formOpensSystem: boolean;
   /** Opens the scoring form: on that automatic card, or on the person's own card. */
   onFill: (systemId: string | null) => void;
 }) {
@@ -1062,6 +1065,10 @@ export function RangeWhy({
         .map((e) => [e.id, byId.get(e.id)!]),
     ).values(),
   ];
+  const ownFillable =
+    !!ownCardId &&
+    fillable.some((r) => r.id.toLowerCase() === ownCardId.toLowerCase());
+  const startsOwn = !ownCardId && !formOpensSystem;
   const spread =
     ends.low.length &&
     ends.high.length &&
@@ -1080,7 +1087,7 @@ export function RangeWhy({
       </p>
       {canEdit && fillable.length > 0 && (
         <p>
-          To narrow it, fill in the unknowns you can judge:{' '}
+          To narrow it,{' '}
           {fillable
             .filter((r) => r.system)
             .map((r) => (
@@ -1090,27 +1097,41 @@ export function RangeWhy({
                   className="text"
                   onClick={() => onFill(r.id)}
                 >
-                  Fill in the automatic assessment’s unknowns
+                  fill in the automatic assessment’s unknowns
                 </button>{' '}
-                (your edit replaces it; the original stays) ·{' '}
+                (your edit replaces it; the original stays),{' '}
               </span>
             ))}
-          {/* Re-review 2 N-2: with no card of their own, the scoring form opens the current
-              automatic card, which the button before already offers. */}
-          {fillable.some((r) => !r.system) &&
-            (ownCard || !rows.some((r) => r.system && r.counted)) && (
-              <>
-                <button
-                  type="button"
-                  className="text"
-                  onClick={() => onFill(null)}
-                >
-                  Score this option yourself
-                </button>{' '}
-                ·{' '}
-              </>
-            )}
-          or link evidence to this option and assess again.
+          {/* Re-review 3 N-1/N-2: the person can fill their own card, or start one when the
+              form would not open an automatic card instead; another member's card is not
+              theirs to fill. */}
+          {ownFillable ? (
+            <>
+              <button
+                type="button"
+                className="text"
+                onClick={() => onFill(null)}
+              >
+                fill in your card’s unknowns
+              </button>
+              ,{' '}
+            </>
+          ) : startsOwn ? (
+            <>
+              <button
+                type="button"
+                className="text"
+                onClick={() => onFill(null)}
+              >
+                score this option yourself
+              </button>
+              ,{' '}
+            </>
+          ) : null}
+          {fillable.some((r) => r.system) || ownFillable || startsOwn
+            ? 'or '
+            : ''}
+          link evidence to this option and assess again.
         </p>
       )}
     </div>

@@ -38,7 +38,12 @@ import { firstNeeding, groupByReason, nameList } from './fold-state.js';
 import { runLabel } from './labels.js';
 import { HumilityForm } from './humility.js';
 import { ResponseExplanationPanel } from './proposals.js';
-import { ScoreOption, reviewerLabel, yours } from './scorecard.js';
+import {
+  ScoreOption,
+  currentSystemCards,
+  reviewerLabel,
+  yours,
+} from './scorecard.js';
 import { AssessmentLines, AutoAssess, RangeWhy } from './assess.js';
 import { LinkClaims } from './link-claims.js';
 import { Routine, WhatWillHappen } from './routine.js';
@@ -861,13 +866,20 @@ export function Compare({
                               cand={cand}
                               cards={d.scorecards}
                               canEdit={!viewer}
-                              ownCard={
-                                !!yours(
+                              ownCardId={
+                                yours(
                                   d.scorecards,
                                   a.entity.id.toLowerCase(),
                                   rubric,
                                   reviewerLabel(session),
-                                )
+                                )?.id
+                              }
+                              formOpensSystem={
+                                currentSystemCards(
+                                  d.scorecards,
+                                  a.entity,
+                                  rubric,
+                                ).length > 0
                               }
                               onFill={(systemId) =>
                                 setScorePick({

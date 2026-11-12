@@ -400,6 +400,8 @@ test('ADR-0091: option texts citing the drafting packet ("C3") are renamed draft
           'Runs on AWS C5 instances; Category C3 users; claims C4 and C5.',
           'Claims C3 and C5 agree. See C7.',
           'Exports (C3–C5) and from C2 to C4.',
+          'Claims C3 or C5, C3/C5 & C6; Data: C3 through C5 to C7.',
+          'Compare C3 and C5. Ref C3, C4. C3 shows exports; CLAIMS C8.',
         ],
       },
       s.alternatives[1]!,
@@ -414,6 +416,8 @@ test('ADR-0091: option texts citing the drafting packet ("C3") are renamed draft
     'Runs on AWS C5 instances; Category C3 users; claims draft-C4 and draft-C5.',
     'Claims draft-C3 and draft-C5 agree. See draft-C7.',
     'Exports (draft-C3–draft-C5) and from draft-C2 to draft-C4.',
+    'Claims draft-C3 or draft-C5, draft-C3/draft-C5 & draft-C6; Data: draft-C3 through draft-C5 to draft-C7.',
+    'Compare draft-C3 and draft-C5. Ref draft-C3, draft-C4. C3 shows exports; CLAIMS draft-C8.',
   ]);
   assert.ok(plan.packet.notes.some((n) => /draft-C/.test(n)));
   const plain = buildAssessmentPacket(small());

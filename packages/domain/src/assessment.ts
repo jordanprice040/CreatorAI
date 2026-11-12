@@ -58,15 +58,20 @@ export const rubricsForKind = (kind: string): RubricId[] =>
  * are renamed "draft-C3" and a note says what they are.
  */
 // Review L-2: only in citation positions ("Data: C3", "(C3, C12)", "claims C3 and C5"), so
-// "AWS C5 instances" or "Category C3" are left alone. Re-review 2 L-1: the words may start
-// with a capital ("Claims C3", "See C3"), and the end of a range after a renamed ref
-// ("draft-C3–C5", "draft-C3 to C5") is renamed too, so one citation never mixes both forms.
-const DRAFT_REF =
-  /(?<=(?:[:(,;[]|\b(?:[Cc]laims?|[Cc]ites?|[Cc]ited|[Ss]ee|[Aa]nd|[Pp]er|[Ff]rom))\s*)C([1-9][0-9]?)\b/g;
-const DRAFT_RANGE_END =
-  /(?<=draft-C[0-9]+\s*(?:[–—-]|\bto\b)\s*)C([1-9][0-9]?)\b/g;
+// "AWS C5 instances" or "Category C3" are left alone. Re-review 3 L-1: a run of refs joined
+// by ",", "/", "&", "and", "or", "to", "through" or a dash is one citation and is renamed
+// whole: when it follows a citation mark or word (any case), or when it lists two or more
+// refs ("Compare C3 and C5"). A lone ref elsewhere ("C3 shows exports.") is left as it is.
+const DRAFT_RUN =
+  /\bC[1-9][0-9]?\b(?:\s*(?:[,/&–—-]|\b(?:and|or|to|through)\b)\s*C[1-9][0-9]?\b)*/g;
+const CITES_BEFORE =
+  /(?:[:(,;[]|\b(?:claims?|cites?|cited|see|and|per|from))\s*$/i;
 const draftRefs = (s: string) =>
-  s.replace(DRAFT_REF, 'draft-C$1').replace(DRAFT_RANGE_END, 'draft-C$1');
+  s.replace(DRAFT_RUN, (run: string, at: number) =>
+    run.includes('C', 1) || CITES_BEFORE.test(s.slice(0, at))
+      ? run.replace(/\bC(?=[1-9])/g, 'draft-C')
+      : run,
+  );
 const clip = (s: string, n: number) =>
   s.length > n ? `${s.slice(0, n - 1)}…` : s;
 

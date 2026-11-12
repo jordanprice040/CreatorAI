@@ -49,6 +49,26 @@ type Option = { entity: StoredEntity; kind: string };
 export const reviewerLabel = (session: { display_name: string }) =>
   session.display_name.trim().slice(0, 300) || 'Owner';
 
+/**
+ * ADR-0074: the current automatic assessments of this option version on this rubric. With no
+ * card of the person's own, the scoring form opens the first of these (stale or not).
+ */
+export const currentSystemCards = (
+  cards: StoredEntity[],
+  option: { id: string; version: number },
+  rubric: RubricKey,
+) =>
+  cards.filter((c) => {
+    const b = c.body as ScorecardBodyShape | undefined;
+    return (
+      c.status === 'active' &&
+      b?.rubric === rubric &&
+      !!b.assessment &&
+      b.subject.id.toLowerCase() === option.id.toLowerCase() &&
+      b.subject.version === option.version
+    );
+  });
+
 export const yours = (
   cards: StoredEntity[],
   optionId: string,
@@ -149,18 +169,8 @@ export function ScoreOption({
     : undefined;
   const others = humanCards.filter((c) => c.id !== existing?.id);
   const existingBody = existing?.body as ScorecardBodyShape | undefined;
-  /** ADR-0074: the current automatic assessments of this option on this rubric. */
   const systemCards = option
-    ? scorecards.filter((c) => {
-        const b = c.body as ScorecardBodyShape | undefined;
-        return (
-          c.status === 'active' &&
-          b?.rubric === rubric &&
-          !!b.assessment &&
-          b.subject.id.toLowerCase() === option.entity.id &&
-          b.subject.version === option.entity.version
-        );
-      })
+    ? currentSystemCards(scorecards, option.entity, rubric)
     : [];
   /**
    * The system card this form edits: the one whose Edit was pressed, or with no card of the
