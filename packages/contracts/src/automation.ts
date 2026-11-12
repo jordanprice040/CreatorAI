@@ -8,6 +8,7 @@ import {
 import { WorkflowResourceSetupSchema } from './orchestration.js';
 import {
   AUTOPILOT_MIN_CALLS,
+  RoutinePolicyChangeSchema,
   AutopilotConfigSchema,
   autopilotRoutinePolicy,
   autopilotStagesNeeded,
@@ -95,6 +96,8 @@ export const SetRunAutomationRequestSchema = z.strictObject({
   config: RunAutomationConfigSchema,
   /** The summary lines the owner confirmed; refused when they differ from `runAutomationSummary`. */
   summary_seen: z.array(z.string().max(600)).min(1).max(20),
+  /** The run's routine approvals to set or widen first, in the same transaction (review L-1). */
+  routine_policy: RoutinePolicyChangeSchema,
 });
 export type SetRunAutomationRequest = z.infer<
   typeof SetRunAutomationRequestSchema
@@ -224,6 +227,11 @@ export function policyCovering(
     ends_at: string;
     extraActions: number;
     max_total_nano_usd?: string | null;
+    /**
+     * Steps the policy has admitted so far. A policy with fewer than `extraActions` left does
+     * not cover the level (review L-2): it would stop for approval after a few steps.
+     */
+    used?: number;
   },
 ): RoutinePolicyInput | null {
   const stages = [...new Set([...current.stages, ...need.stages])].sort();
@@ -245,14 +253,17 @@ export function policyCovering(
     stages.length === current.stages.length &&
     classes.length === current.data_classes.length &&
     ends === Date.parse(current.expires_at) &&
-    money === current.max_total_nano_usd;
+    money === current.max_total_nano_usd &&
+    current.max_actions - (need.used ?? 0) >= need.extraActions;
   if (covered) return null;
   return {
     ...current,
     stages,
     data_classes: classes,
     expires_at: new Date(ends).toISOString(),
-    max_actions: current.max_actions + need.extraActions,
+    // Room for the level's own steps on top of what is already used.
+    max_actions:
+      Math.max(current.max_actions, need.used ?? 0) + need.extraActions,
     max_total_nano_usd: money,
   };
 }

@@ -6,7 +6,6 @@ import {
   AUTOPILOT_MIN_CALLS,
   AutopilotConfigSchema,
   AutopilotSchema,
-  RoutinePolicySchema,
   RoutinePolicyViewSchema,
   RunAutomationSchema,
   RunControlSchema,
@@ -58,7 +57,7 @@ export function currentLevel(
   /** Newest first, as the server lists them. */
   autopilots: readonly Pick<
     Autopilot,
-    'run_id' | 'state' | 'config' | 'outcome'
+    'run_id' | 'state' | 'config' | 'outcome' | 'automation_id'
   >[],
 ): { level: AutomationLevel; note: string } {
   const standing = automations.find(
@@ -78,8 +77,15 @@ export function currentLevel(
   ) {
     const note =
       latest.state === 'running'
-        ? 'its autopilot is working now'
+        ? 'its autopilot is working now; stop it under Run it for me'
         : 'its autopilot stopped and waits for you; see Run it for me';
+    // An autopilot a selection level started is that level's, even after the level ended
+    // (review L-3).
+    if (latest.automation_id)
+      return {
+        level: 'selection',
+        note: `the level is off, but ${note.replace('its autopilot', 'the choice it started')}`,
+      };
     return { level: latest.config.start ? 'rest' : 'whole', note };
   }
   return { level: 'manual', note: 'you take every step' };
@@ -107,6 +113,7 @@ export function policyStep(
     ends_at: fresh.expires_at,
     extraActions: need.extraActions,
     max_total_nano_usd: fresh.max_total_nano_usd,
+    used: view.used_actions,
   });
   return next
     ? { kind: 'revise', input: next, view }
@@ -302,34 +309,40 @@ export function Automation({
 
   async function apply() {
     if (!ready || !run || !step) return;
+    // The form may have stayed open: an end time that is (nearly) here is set again, and the
+    // owner reads the summaries again before applying (review N-3).
+    if (Date.parse(endsAt) < Date.now() + 5 * 60_000) {
+      setEndsAt(endAfter(hours));
+      setError(
+        'The end time came too close while the form was open; it was set again. Read the summaries again and confirm.',
+      );
+      return;
+    }
     setBusy(true);
     setError('');
     try {
-      if (step.kind === 'new')
-        await api(
-          RoutinePolicySchema,
-          `${base}/runs/${run.run_id}/routine-policy`,
-          {
-            csrf: session.csrf_token,
-            body: {
-              ...step.input,
-              summary_seen: routinePolicySummary(step.input),
-            },
-          },
-        );
-      if (step.kind === 'revise')
-        await api(
-          RoutinePolicySchema,
-          `${base}/routine-policies/${step.view.policy.id}/revisions`,
-          {
-            csrf: session.csrf_token,
-            body: {
-              ...step.input,
-              summary_seen: routinePolicySummary(step.input),
-              expected_version: step.view.policy.version,
-            },
-          },
-        );
+      // The approvals change goes in the same request, so it is made only if the level or
+      // autopilot starts (review L-1).
+      const routine_policy =
+        step.kind === 'new'
+          ? {
+              kind: 'new' as const,
+              policy: {
+                ...step.input,
+                summary_seen: routinePolicySummary(step.input),
+              },
+            }
+          : step.kind === 'revise'
+            ? {
+                kind: 'revise' as const,
+                policy_id: step.view.policy.id,
+                policy: {
+                  ...step.input,
+                  summary_seen: routinePolicySummary(step.input),
+                  expected_version: step.view.policy.version,
+                },
+              }
+            : null;
       if (level === 'selection')
         await api(
           RunAutomationSchema,
@@ -340,6 +353,7 @@ export function Automation({
               level: 'selection',
               config: selectionConfig,
               summary_seen: runAutomationSummary(selectionConfig),
+              routine_policy,
             },
           },
         );
@@ -349,6 +363,7 @@ export function Automation({
           body: {
             config: restConfig,
             summary_seen: autopilotSummary(restConfig),
+            routine_policy,
           },
           timeoutMs: 30_000,
         });
@@ -617,7 +632,7 @@ export function Automation({
                               ? 'Routine approvals this run gets'
                               : step.kind === 'revise'
                                 ? 'This run’s routine approvals, widened to cover it'
-                                : 'This run’s routine approvals already cover it'}
+                                : `This run’s routine approvals already cover it (${step.view.policy.max_actions - step.view.used_actions} of ${step.view.policy.max_actions} steps left)`}
                           </strong>
                         </p>
                         <ul>
@@ -717,7 +732,10 @@ export function Automation({
 
 function endAfter(hours: number): string {
   const h = Number.isFinite(hours) && hours > 0 ? hours : 0;
+  // On the minute, and never past 90 days (the server's limit), rounding down there.
+  const latest =
+    Math.floor((Date.now() + 90 * 86_400_000 - 60_000) / 60_000) * 60_000;
   return new Date(
-    Math.ceil((Date.now() + h * 3_600_000) / 60_000) * 60_000,
+    Math.min(Math.ceil((Date.now() + h * 3_600_000) / 60_000) * 60_000, latest),
   ).toISOString();
 }

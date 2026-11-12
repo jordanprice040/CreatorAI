@@ -22,6 +22,7 @@ import {
   uuid,
   type CommandContext,
   type Row,
+  AUTOPILOT_ACTOR_ID,
 } from './store.js';
 
 // ADR-0099 (P33): "Automate selection" on a run. The owner sets it once, confirming its summary,
@@ -109,6 +110,14 @@ export class AutomationStore extends AutopilotStore {
           );
           await this.lockRun(c, ws, runId);
           await this.#checkRun(c, ws, runId);
+          // Review L-1: the approvals change and the level succeed or fail together.
+          await this.applyRoutinePolicyChange(
+            c,
+            ctx,
+            ws,
+            runId,
+            req.routine_policy,
+          );
           await this.checkAutopilotPolicy(
             c,
             ws,
@@ -232,18 +241,17 @@ export class AutomationStore extends AutopilotStore {
       await this.tx(async (c) => {
         const cur = await this.#lock(c, String(e.workspace_id), String(e.id));
         if (cur.state === 'active')
-          await this.#stop(
-            c,
-            { actorId: String(cur.created_by) },
-            cur,
-            'Its end time passed.',
-          );
+          await this.#stop(c, 'studio', cur, 'Its end time passed.');
       });
     const { rows } = await this.pool.query(
       `select distinct on (a.id) a.workspace_id, a.id as automation_id, a.run_id,
               w.id as workflow_id, w.subject_id as problem_id
          from run_automations a
          join workflows w on w.workspace_id = a.workspace_id and w.run_id = a.run_id
+         -- Review M-1: only a problem still active; an archived one is skipped, so it never
+         -- holds back the assessments after it.
+         join entities pe on pe.workspace_id = w.workspace_id and pe.id = w.subject_id
+           and pe.kind = 'problem' and pe.status = 'active'
         where a.state = 'active'
           and w.role = 'r08_assessment' and w.state = 'succeeded'
           and w.finished_at >= a.created_at
@@ -299,7 +307,7 @@ export class AutomationStore extends AutopilotStore {
         };
         const config = RunAutomationConfigSchema.parse(cur.config);
         const stopWith = async (reason: string) => {
-          await this.#stop(c, { actorId: owner }, cur, reason);
+          await this.#stop(c, 'studio', cur, reason);
           return null;
         };
         if (!(await this.isPolicyOwner(c, ws, owner)))
@@ -436,21 +444,39 @@ export class AutomationStore extends AutopilotStore {
     return row;
   }
 
-  async #stop(c: PoolClient, ctx: CommandContext, cur: Row, reason: string) {
+  /**
+   * Stops a level. The owner's own stop is recorded as theirs; a stop the studio makes itself
+   * (its end time, its approvals or owner gone) is recorded under the Autopilot agent with
+   * `by: 'studio'`, so the log never reads as the owner stopping it (review L-4).
+   */
+  async #stop(
+    c: PoolClient,
+    ctx: CommandContext | 'studio',
+    cur: Row,
+    reason: string,
+  ) {
+    const by = ctx === 'studio' ? 'studio' : 'owner';
+    const actor: CommandContext =
+      ctx === 'studio' ? { actorId: AUTOPILOT_ACTOR_ID } : ctx;
     const { rows } = await c.query(
       `update run_automations set state = 'stopped', stopped_at = clock_timestamp(),
          updated_at = clock_timestamp(), version = version + 1, stop_reason = $2
         where id = $1 returning version`,
       [cur.id, reason.slice(0, 600)],
     );
-    await this.append(c, ctx, {
+    await this.append(c, actor, {
       workspaceId: String(cur.workspace_id),
       action: 'automation.stopped',
       subjectKind: 'run_automation',
       subjectId: String(cur.id),
       subjectVersion: Number((rows[0] as Row).version),
       contentHash: String(cur.config_hash),
-      payload: { level: 'selection', reason: reason.slice(0, 600) },
+      payload: {
+        level: 'selection',
+        reason: reason.slice(0, 600),
+        by,
+        set_by: String(cur.created_by),
+      },
       relatedIds: [String(cur.run_id)],
     });
   }

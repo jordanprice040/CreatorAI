@@ -9,18 +9,21 @@ import {
   automationStagesNeeded,
   autopilotSummary,
   policyCovering,
+  policyInputOf,
   restRoutinePolicy,
   routinePolicySummary,
   runAutomationSummary,
   selectionRoutinePolicy,
   type AutopilotConfig,
   type ErrorCode,
+  type RankedCandidate,
   type RoutinePolicyInput,
   type RunAutomationConfig,
+  type ScorecardBody,
 } from '@creator/contracts';
 import { DISCOVERY_SCENARIOS } from '@creator/domain';
 import { FixtureAdapter } from '@creator/broker';
-import { ConnectionStore } from '@creator/db';
+import { AUTOPILOT_ACTOR_ID, ConnectionStore } from '@creator/db';
 import {
   AutopilotRunner,
   DEFAULT_OWNER_ACTOR_ID,
@@ -146,6 +149,26 @@ test('an active policy that covers a level is kept; one that does not is widened
   assert.deepEqual(wider.stop_on, ['person_rejects']);
   assert.equal(wider.rationale, 'Mine.');
   assert.ok(Date.parse(wider.expires_at) > Date.parse(current.expires_at));
+  // Review L-2: a policy that covers everything but has too few steps left is widened.
+  assert.equal(
+    policyCovering(current, {
+      stages: ['model_work'],
+      data_classes: ['synthetic'],
+      ends_at: inHours(4),
+      extraActions: 20,
+      used: 20,
+    }),
+    null,
+  );
+  const short = policyCovering(current, {
+    stages: ['model_work'],
+    data_classes: ['synthetic'],
+    ends_at: inHours(4),
+    extraActions: 20,
+    used: 30,
+  })!;
+  assert.equal(short.max_actions, 60);
+  assert.deepEqual(short.stages, current.stages);
   // A longer end time alone is a widening too.
   assert.ok(
     policyCovering(current, {
@@ -555,4 +578,316 @@ test('HTTP: set, list and set back to Manual go through the workspace routes', a
   assert.equal(stop.body.state, 'stopped');
   const again = await call('POST', `automations/${set.body.id}/stop`, {});
   assert.equal(again.status, 409);
+});
+
+type Harness = NonNullable<Awaited<ReturnType<typeof setup>>>;
+
+/** A person scores the picked options (their gates cleared by that person) at one rating. */
+async function personScores(
+  h: Harness,
+  problemId: string,
+  pick: (c: RankedCandidate) => boolean,
+  rating: number,
+) {
+  const rep = await h.store.selectionReport(owner, h.ws.id, problemId);
+  const cards = (await h.store.listEntities(owner, h.ws.id, {
+    kind: 'scorecard',
+  })) as { id: string; version: number; body: unknown }[];
+  for (const c of rep.suitability.candidates.filter(pick))
+    for (const sc of c.scorecards) {
+      const sys = cards.find((x) => x.id === sc.id)!;
+      const b = sys.body as ScorecardBody;
+      const { assessment: _a, ...plain } = b;
+      await h.store.recordScorecard(owner, h.ws.id, {
+        title: 'Owner scores',
+        body: {
+          ...plain,
+          reviewer: { kind: 'human', label: 'Owner' },
+          ratings: Object.fromEntries(
+            Object.entries(b.ratings).map(([k, v]) => [
+              k,
+              { ...v, rating, rationale: 'Owner knowledge (test).' },
+            ]),
+          ),
+          gates: {
+            ethics: { status: 'clear', note: 'Checked (test).' },
+            access: { status: 'clear', note: 'Checked (test).' },
+          },
+          edit_of: {
+            scorecard: { id: sys.id, version: sys.version },
+            reason: 'Owner knowledge (test).',
+          },
+        } as unknown as Record<string, unknown>,
+      });
+    }
+}
+
+/**
+ * After an assessment on the run: the other options are scored low by a person, so the
+ * use-existing option ranks first alone on its automatic cards. Returns that option.
+ */
+async function clearWinner(h: Harness, problemId: string) {
+  const rep = await h.store.selectionReport(owner, h.ws.id, problemId);
+  const target = rep.suitability.candidates.find(
+    (c) => c.alternative.kind === 'use_existing',
+  )!;
+  await personScores(
+    h,
+    problemId,
+    (c) => c.alternative.id !== target.alternative.id,
+    1,
+  );
+  return target;
+}
+
+test('review L-5: a level whose rule finds a clear, cleared winner chooses it and saves a proposal', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  const p = await h.problem();
+  const runId = await h.run();
+  const set = await h.store.setRunAutomation(owner, h.ws.id, runId, h.level());
+  await h.assess(runId, p);
+  const target = await clearWinner(h, p.id);
+  // The owner's gate rule: a person confirms the winner's ethics and access.
+  const rep = await h.store.selectionReport(owner, h.ws.id, p.id);
+  const row = rep.suitability.candidates.find(
+    (c) => c.alternative.id === target.alternative.id,
+  )!;
+  assert.equal(row.rank, 1);
+  for (const gate of ['ethics', 'access'] as const)
+    await h.store.confirmGate(owner, h.ws.id, p.id, {
+      alternative: {
+        id: target.alternative.id,
+        version: target.alternative.version,
+      },
+      gate,
+      reason: 'I checked this one (test).',
+      concerns_seen:
+        row.gates.gate_details
+          ?.find((d) => d.gate === gate)
+          ?.concerns.map((x) => x.scorecard) ?? [],
+    });
+  await h.tick();
+  const [lvl] = await h.store.listRunAutomations(owner, h.ws.id);
+  assert.equal(lvl!.id, set.id);
+  assert.equal(lvl!.started, 1);
+  const a = await h.store.getAutopilot(owner, h.ws.id, lvl!.autopilots[0]!.id);
+  assert.equal(a.outcome, 'proposal', a.explanation);
+  assert.deepEqual(
+    a.steps.map((s) => [s.stage, s.state]),
+    [
+      ['select', 'done'],
+      ['proposal', 'done'],
+    ],
+  );
+  // Recorded as the autopilot's choice, admitted by the run's routine approvals.
+  const sel = (await h.store.listSelections(owner, h.ws.id, p.id)).find(
+    (x) => x.current,
+  )!;
+  assert.equal(sel.autopilot_id, a.id);
+  assert.equal(sel.actor_id, AUTOPILOT_ACTOR_ID);
+});
+
+test('review L-5: with ethics cleared only on the model’s word, the level’s choice stops and asks a person', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  const p = await h.problem();
+  await h.store.setGateRule(owner, h.ws.id, {
+    expected_version: 0,
+    mode: 'model',
+  });
+  const runId = await h.run();
+  await h.store.setRunAutomation(owner, h.ws.id, runId, h.level());
+  await h.assess(runId, p);
+  const target = await clearWinner(h, p.id);
+  const row = (
+    await h.store.selectionReport(owner, h.ws.id, p.id)
+  ).suitability.candidates.find(
+    (c) => c.alternative.id === target.alternative.id,
+  )!;
+  assert.equal(row.rank, 1);
+  assert.equal(
+    row.gates.gate_details?.find((d) => d.gate === 'ethics')?.state,
+    'auto_cleared',
+  );
+  await h.tick();
+  const [lvl] = await h.store.listRunAutomations(owner, h.ws.id);
+  const a = await h.store.getAutopilot(owner, h.ws.id, lvl!.autopilots[0]!.id);
+  assert.equal(a.outcome, 'needs_authority', a.explanation);
+  assert.equal(
+    (await h.store.listSelections(owner, h.ws.id, p.id)).filter(
+      (x) => x.created_at >= a.created_at,
+    ).length,
+    0,
+  );
+  const decisions = await h.store.listDecisions(owner, h.ws.id, { runId });
+  assert.equal(decisions.length, 1);
+  assert.equal(decisions[0]!.reason, 'ethical_judgment');
+});
+
+test('review M-1: an archived problem’s assessment never holds back the next one', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  const p1 = await h.problem();
+  const p2 = await h.problem();
+  assert.notEqual(p1.id, p2.id);
+  const runId = await h.run();
+  await h.store.setRunAutomation(owner, h.ws.id, runId, h.level());
+  await h.assess(runId, p1);
+  const e = await h.store.getEntity(owner, h.ws.id, p1.id);
+  await h.store.archiveEntity(owner, h.ws.id, p1.id, {
+    expected_version: e.entity.version,
+    reason: 'No longer relevant (test).',
+  });
+  await h.assess(runId, p2);
+  await h.tick();
+  await h.tick();
+  const [lvl] = await h.store.listRunAutomations(owner, h.ws.id);
+  assert.equal(lvl!.state, 'active');
+  assert.deepEqual(
+    lvl!.autopilots.map((x) => x.problem_id),
+    [p2.id],
+  );
+});
+
+test('review L-1: the run’s approvals change only together with the level or autopilot that needs them', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  const ws = h.ws.id;
+  const policies = async (runId: string) =>
+    (await h.store.listRoutinePolicies(owner, ws)).filter(
+      (v) => v.policy.run_id === runId && v.policy.status === 'active',
+    );
+  const lv = h.level();
+  // The approvals end with the level (the preset the panel sends).
+  const sel = selectionRoutinePolicy(lv.config);
+  const fresh = {
+    kind: 'new' as const,
+    policy: { ...sel, summary_seen: routinePolicySummary(sel) },
+  };
+  // A level that is refused (public data, approvals for synthetic) leaves no approvals behind.
+  const r1 = await h.run(null);
+  await rejects(
+    'ACCESS_DENIED',
+    h.store.setRunAutomation(owner, ws, r1, {
+      ...h.level({ data_class: 'public' }),
+      routine_policy: fresh,
+    }),
+  );
+  assert.equal((await policies(r1)).length, 0);
+  // Accepted: both are made.
+  await h.store.setRunAutomation(owner, ws, r1, {
+    ...lv,
+    routine_policy: fresh,
+  });
+  assert.deepEqual((await policies(r1))[0]!.policy.stages, ['selection']);
+  // A widening revision rides with the level and is recorded as widened.
+  const r2 = await h.run(h.policy(['model_work']));
+  const [v] = await policies(r2);
+  const wider = policyCovering(policyInputOf(v!.policy), {
+    stages: ['selection'],
+    data_classes: ['synthetic'],
+    ends_at: inHours(3),
+    extraActions: 20,
+    used: v!.used_actions,
+  })!;
+  const revise = {
+    kind: 'revise' as const,
+    policy_id: v!.policy.id,
+    policy: {
+      ...wider,
+      summary_seen: routinePolicySummary(wider),
+      expected_version: v!.policy.version,
+    },
+  };
+  // Refused level (a changed summary): the revision is not made either.
+  await rejects(
+    'VERSION_CONFLICT',
+    h.store.setRunAutomation(owner, ws, r2, {
+      ...h.level(),
+      summary_seen: ['Something else.'],
+      routine_policy: revise,
+    }),
+  );
+  await rejects(
+    'ACCESS_DENIED',
+    h.store.setRunAutomation(owner, ws, r2, {
+      ...h.level({ data_class: 'public' }),
+      routine_policy: revise,
+    }),
+  );
+  assert.equal((await policies(r2))[0]!.policy.version, v!.policy.version);
+  await h.store.setRunAutomation(owner, ws, r2, {
+    ...h.level(),
+    routine_policy: revise,
+  });
+  const after = (await policies(r2))[0]!;
+  assert.equal(after.policy.version, v!.policy.version + 1);
+  assert.deepEqual(after.policy.stages, ['model_work', 'selection']);
+  // Another run's approvals cannot be changed through this run.
+  const r3 = await h.run(h.policy(['model_work']));
+  await rejects(
+    'INVALID_CONTRACT',
+    h.store.setRunAutomation(owner, ws, r3, {
+      ...h.level(),
+      routine_policy: {
+        ...revise,
+        policy: { ...revise.policy, expected_version: after.policy.version },
+      },
+    }),
+    /not this run/,
+  );
+  // The autopilot start (Automate the rest) takes the same change in one transaction.
+  const p = await h.problem();
+  const r4 = await h.run(null);
+  const c = h.config({ start: { stage: 'select', problem: p } });
+  const rest = restRoutinePolicy(c, '100000000000');
+  await rejects(
+    'VERSION_CONFLICT',
+    h.store.startAutopilot(owner, ws, r4, {
+      config: c,
+      summary_seen: autopilotSummary(c),
+      routine_policy: {
+        kind: 'new',
+        policy: { ...rest, summary_seen: ['Not the summary.'] },
+      },
+    }),
+  );
+  assert.equal((await policies(r4)).length, 0);
+  const a = await h.runner.start(owner, ws, r4, {
+    config: c,
+    summary_seen: autopilotSummary(c),
+    routine_policy: {
+      kind: 'new',
+      policy: { ...rest, summary_seen: routinePolicySummary(rest) },
+    },
+  });
+  await h.runner.settled(a.id);
+  assert.equal((await policies(r4)).length, 1);
+});
+
+test('review L-4: a stop the studio makes itself is recorded as the studio’s, not the owner’s', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  const runId = await h.run();
+  const set = await h.store.setRunAutomation(owner, h.ws.id, runId, h.level());
+  await h.db.pool.query(
+    `update run_automations set config = jsonb_set(config, '{ends_at}', to_jsonb($2::text))
+      where id = $1`,
+    [set.id, new Date(Date.now() - 1000).toISOString()],
+  );
+  await h.tick();
+  const run2 = await h.run();
+  const own = await h.store.setRunAutomation(owner, h.ws.id, run2, h.level());
+  await h.store.stopRunAutomation(owner, h.ws.id, own.id, {});
+  const ev = await h.db.pool.query(
+    `select subject_id, actor_id, payload from audit_events
+      where action = 'automation.stopped' order by sequence`,
+  );
+  const byId = new Map(ev.rows.map((r) => [r.subject_id, r]));
+  assert.equal(byId.get(set.id).actor_id, AUTOPILOT_ACTOR_ID);
+  assert.equal(byId.get(set.id).payload.by, 'studio');
+  assert.equal(byId.get(set.id).payload.set_by, owner.actorId);
+  assert.equal(byId.get(own.id).actor_id, owner.actorId);
+  assert.equal(byId.get(own.id).payload.by, 'owner');
 });

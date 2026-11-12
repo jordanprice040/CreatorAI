@@ -1,6 +1,8 @@
 import { z, id, hash, version, counter, timestamp } from './primitives.js';
 import {
   DataClassSchema,
+  RoutinePolicyRequestSchema,
+  ReviseRoutinePolicyRequestSchema,
   type RoutinePolicyInput,
   type RoutineStage,
 } from './oversight.js';
@@ -235,10 +237,32 @@ export const AutopilotConfigSchema = z
   });
 export type AutopilotConfig = z.infer<typeof AutopilotConfigSchema>;
 
+/**
+ * ADR-0099 (P33, review L-1): the run's routine approvals set or widened in the same transaction
+ * as the level or autopilot that needs them, so a refused start never leaves them changed.
+ */
+export const RoutinePolicyChangeSchema = z
+  .discriminatedUnion('kind', [
+    z.strictObject({
+      kind: z.literal('new'),
+      policy: RoutinePolicyRequestSchema,
+    }),
+    z.strictObject({
+      kind: z.literal('revise'),
+      policy_id: id,
+      policy: ReviseRoutinePolicyRequestSchema,
+    }),
+  ])
+  .nullable()
+  .default(null);
+export type RoutinePolicyChange = z.infer<typeof RoutinePolicyChangeSchema>;
+
 export const StartAutopilotRequestSchema = z.strictObject({
   config: AutopilotConfigSchema,
   /** The summary lines the owner confirmed; refused when they differ from `autopilotSummary`. */
   summary_seen: z.array(z.string().max(600)).min(1).max(20),
+  /** The run's routine approvals to set or widen first, in the same transaction (P33). */
+  routine_policy: RoutinePolicyChangeSchema,
 });
 export type StartAutopilotRequest = z.infer<typeof StartAutopilotRequestSchema>;
 

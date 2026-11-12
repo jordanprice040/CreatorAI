@@ -239,21 +239,29 @@ export class AutopilotRunner {
    * and drives it. Runs with `watch`, and once after the owner sets a level.
    */
   async automate() {
-    if (this.#automating) return;
+    // A call during a pass asks for one more pass after it, so nothing waits a minute (N-4).
+    if (this.#automating) {
+      this.#again = true;
+      return;
+    }
     this.#automating = true;
     try {
-      for (const due of await this.store.dueAutomations()) {
-        const started = await this.store
-          .startAutomationAutopilot(due)
-          .catch(() => null);
-        if (started)
-          this.#launch(started.created_by, due.workspace_id, started.id);
-      }
+      do {
+        this.#again = false;
+        for (const due of await this.store.dueAutomations()) {
+          const started = await this.store
+            .startAutomationAutopilot(due)
+            .catch(() => null);
+          if (started)
+            this.#launch(started.created_by, due.workspace_id, started.id);
+        }
+      } while (this.#again);
     } finally {
       this.#automating = false;
     }
   }
   #automating = false;
+  #again = false;
 
   #launch(actorId: string, ws: string, id: string) {
     const key = id.toLowerCase();

@@ -828,46 +828,57 @@ export class OversightStore extends Store {
       ws,
       ctx,
       { op: 'routine_policy.set', runId, input },
-      async (c) => {
-        await this.requireOwner(c, ws, ctx.actorId);
-        const run = await this.lockRun(c, ws, runId);
-        if (run.state !== 'active')
-          throw fail('INVALID_TRANSITION', 'The run was cancelled.');
-        // Review M-1: the run record can be revised by any editor, so "is this a study run"
-        // is read from records nobody can change: a study attempt for the run, or the
-        // config hash of the run version that was registered. The current record counts too.
-        const study = await c.query(
-          `select (select v.body->>'config_hash' from run_controls r
-                     join entity_versions v
-                       on v.entity_id = r.run_id and v.version = r.run_version
-                    where r.workspace_id = $1 and r.run_id = $2) as registered,
-                  (select body->>'config_hash' from entities
-                    where workspace_id = $1 and id = $2 and kind = 'run') as current,
-                  exists (select 1 from study_attempts
-                           where workspace_id = $1 and run_id = $2) as attempt`,
-          [ws, runId],
-        );
-        const sr = study.rows[0] as Row;
-        this.checkRoutineRun(
-          run.autonomy_mode,
-          sr.attempt ? 'study_attempt' : (sr.registered ?? sr.current ?? null),
-        );
-        const active = await c.query(
-          `select 1 from routine_policies where workspace_id = $1 and run_id = $2
-             and status = 'active'`,
-          [ws, runId],
-        );
-        if (active.rowCount)
-          throw fail(
-            'INVALID_TRANSITION',
-            'This run already has routine approvals. Change that policy instead.',
-          );
-        return this.insertRoutinePolicy(c, ctx, ws, runId, input);
-      },
+      (c) => this.setRoutinePolicyIn(c, ctx, ws, runId, input),
     );
   }
+  /**
+   * The body of `setRoutinePolicy` in the caller's transaction (ADR-0099: an automation level
+   * sets the run's policy and itself in one transaction). Locks the run first (ADR-0098).
+   */
+  protected async setRoutinePolicyIn(
+    c: PoolClient,
+    ctx: CommandContext,
+    ws: string,
+    runId: string,
+    input: RoutinePolicyInput,
+  ): Promise<RoutinePolicy> {
+    await this.requireOwner(c, ws, ctx.actorId);
+    const run = await this.lockRun(c, ws, runId);
+    if (run.state !== 'active')
+      throw fail('INVALID_TRANSITION', 'The run was cancelled.');
+    // Review M-1: the run record can be revised by any editor, so "is this a study run"
+    // is read from records nobody can change: a study attempt for the run, or the
+    // config hash of the run version that was registered. The current record counts too.
+    const study = await c.query(
+      `select (select v.body->>'config_hash' from run_controls r
+                 join entity_versions v
+                   on v.entity_id = r.run_id and v.version = r.run_version
+                where r.workspace_id = $1 and r.run_id = $2) as registered,
+              (select body->>'config_hash' from entities
+                where workspace_id = $1 and id = $2 and kind = 'run') as current,
+              exists (select 1 from study_attempts
+                       where workspace_id = $1 and run_id = $2) as attempt`,
+      [ws, runId],
+    );
+    const sr = study.rows[0] as Row;
+    this.checkRoutineRun(
+      run.autonomy_mode,
+      sr.attempt ? 'study_attempt' : (sr.registered ?? sr.current ?? null),
+    );
+    const active = await c.query(
+      `select 1 from routine_policies where workspace_id = $1 and run_id = $2
+         and status = 'active'`,
+      [ws, runId],
+    );
+    if (active.rowCount)
+      throw fail(
+        'INVALID_TRANSITION',
+        'This run already has routine approvals. Change that policy instead.',
+      );
+    return this.insertRoutinePolicy(c, ctx, ws, runId, input);
+  }
   /** Normalises the chosen values and refuses a summary that is not the one they produce. */
-  private checkRoutineInput(
+  protected checkRoutineInput(
     req: RoutinePolicyInput & { summary_seen: string[] },
   ): RoutinePolicyInput {
     const { summary_seen, ...rest } = req;
@@ -1095,62 +1106,73 @@ export class OversightStore extends Store {
       raw,
     );
     const input = this.checkRoutineInput(rest);
-    return this.tx(async (c) => {
-      await this.requireOwner(c, ws, ctx.actorId);
-      const { run, policy } = await this.lockRoutinePolicy(
-        c,
-        ws,
-        policyId,
-        expected_version,
-      );
-      if (run.state !== 'active')
-        throw fail('INVALID_TRANSITION', 'The run was cancelled.');
-      const grant = await this.lockGrant(
-        c,
-        ws,
-        policy.grant_id,
-        policy.grant_version,
-      );
-      const next = await this.writeGrant(
-        c,
-        ctx,
-        grant,
-        'grant.revised',
-        this.routineGrantFields(input),
-      );
-      const { rows } = await c.query(
-        `update routine_policies set version = version + 1, grant_version = $2, stages = $3,
-           data_classes = $4, max_actions = $5, max_total_nano_usd = $6, stop_on = $7,
-           expires_at = $8, rationale = $9, summary = $10, confirmed_at = clock_timestamp()
-         where id = $1 returning *`,
-        [
-          policy.id,
-          next.version,
-          input.stages,
-          input.data_classes,
-          input.max_actions,
-          input.max_total_nano_usd,
-          input.stop_on,
-          input.expires_at,
-          input.rationale,
-          routinePolicySummary(input),
-        ],
-      );
-      const revised = toRoutinePolicy(rows[0] as Row);
-      const prev = policyInput(policy);
-      await this.recordRoutineVersion(
-        c,
-        ctx,
-        revised,
-        routinePolicyWidens(prev, input)
-          ? 'widened'
-          : canonicalHash({ ...prev, rationale: '' }) ===
-              canonicalHash({ ...input, rationale: '' })
-            ? 'reconfirmed'
-            : 'narrowed',
-      );
-      return revised;
-    });
+    return this.tx((c) =>
+      this.reviseRoutinePolicyIn(c, ctx, ws, policyId, expected_version, input),
+    );
+  }
+  /** The body of `reviseRoutinePolicy` in the caller's transaction (ADR-0099). */
+  protected async reviseRoutinePolicyIn(
+    c: PoolClient,
+    ctx: CommandContext,
+    ws: string,
+    policyId: string,
+    expected_version: number,
+    input: RoutinePolicyInput,
+  ): Promise<RoutinePolicy> {
+    await this.requireOwner(c, ws, ctx.actorId);
+    const { run, policy } = await this.lockRoutinePolicy(
+      c,
+      ws,
+      policyId,
+      expected_version,
+    );
+    if (run.state !== 'active')
+      throw fail('INVALID_TRANSITION', 'The run was cancelled.');
+    const grant = await this.lockGrant(
+      c,
+      ws,
+      policy.grant_id,
+      policy.grant_version,
+    );
+    const next = await this.writeGrant(
+      c,
+      ctx,
+      grant,
+      'grant.revised',
+      this.routineGrantFields(input),
+    );
+    const { rows } = await c.query(
+      `update routine_policies set version = version + 1, grant_version = $2, stages = $3,
+         data_classes = $4, max_actions = $5, max_total_nano_usd = $6, stop_on = $7,
+         expires_at = $8, rationale = $9, summary = $10, confirmed_at = clock_timestamp()
+       where id = $1 returning *`,
+      [
+        policy.id,
+        next.version,
+        input.stages,
+        input.data_classes,
+        input.max_actions,
+        input.max_total_nano_usd,
+        input.stop_on,
+        input.expires_at,
+        input.rationale,
+        routinePolicySummary(input),
+      ],
+    );
+    const revised = toRoutinePolicy(rows[0] as Row);
+    const prev = policyInput(policy);
+    await this.recordRoutineVersion(
+      c,
+      ctx,
+      revised,
+      routinePolicyWidens(prev, input)
+        ? 'widened'
+        : canonicalHash({ ...prev, rationale: '' }) ===
+            canonicalHash({ ...input, rationale: '' })
+          ? 'reconfirmed'
+          : 'narrowed',
+    );
+    return revised;
   }
   async revokeRoutinePolicy(
     ctx: CommandContext,
