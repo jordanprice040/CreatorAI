@@ -804,6 +804,30 @@ table.limits {
   margin: 8px 0;
   max-width: 520px;
 }
+/* ADR-0090: Settings › Team profile, and each gate on Compare. */
+table.team-profile {
+  margin: 8px 0 12px;
+  border-collapse: collapse;
+}
+table.team-profile th,
+table.team-profile td {
+  text-align: left;
+  vertical-align: top;
+  padding: 4px 8px 4px 0;
+}
+table.team-profile tbody th {
+  font-weight: normal;
+}
+table.team-profile select {
+  min-width: 8.5em;
+}
+.gate-lines {
+  margin: 8px 0;
+}
+.gate-line ul {
+  margin: 2px 0 4px 1.2em;
+  padding: 0;
+}
 fieldset.limits {
   border: 0;
   margin: 12px 0 4px;
@@ -3363,6 +3387,17 @@ details.fold > summary h3.fold-title {
 }
 .qualify-queue ol {
   margin: 0.25rem 0 0.5rem;
+}
+
+/* ADR-0090: who clears ethics and access gates. */
+fieldset.gate-rule {
+  border: 0;
+  padding: 0;
+  margin: 0.5rem 0;
+}
+fieldset.gate-rule label.choice {
+  display: block;
+  margin: 0.4rem 0;
 }
 
 /* ADR-0087: a fix's confirmation panel, and its own lines, each on a line of its own. */

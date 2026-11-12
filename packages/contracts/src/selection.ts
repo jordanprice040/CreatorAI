@@ -2,6 +2,7 @@ import { z, id, hash, version, counter } from './primitives.js';
 import { ScopePathSchema } from './execution.js';
 import { DataClassSchema } from './oversight.js';
 import { BrowserCaseSchema, type BuildRecipe } from './web-recipe.js';
+import { GateKindSchema } from './team.js';
 
 // T08 scoring, selection and frozen specifications (context/SCORING_RUBRIC.md). Ratings are
 // ordinal judgments with evidence; arithmetic over them is done in code with exact rationals.
@@ -208,6 +209,19 @@ export const SystemAssessmentSchema = z.strictObject({
    * the packet's limit: a claim linked or unlinked since then marks the assessment stale.
    */
   linked_hash: hash,
+  /**
+   * ADR-0090: the team profile version the packet carried (0: none saved), for the record.
+   * Absent on assessments before schema 56 (read as 0).
+   */
+  team_version: z.number().int().min(0).optional(),
+  /**
+   * A hash of what the model read from the team block ('' for none). The assessment is stale only
+   * when the current block hashes differently, so a profile save that changes nothing the model
+   * reads (or a re-check that found the same) keeps it current.
+   */
+  team_hash: z.string().max(64).optional(),
+  /** How many capabilities the team block answered (yes or no); the auto-clear rule needs one. */
+  team_answers: z.number().int().min(0).max(100).optional(),
   uncertainty: short,
 });
 export type SystemAssessment = z.infer<typeof SystemAssessmentSchema>;
@@ -388,6 +402,56 @@ export const GateReportSchema = z.strictObject({
     SelectionDispositionSchema,
     z.array(z.string().max(300)),
   ),
+  /**
+   * ADR-0090: each gate on its own: who raised which concern, and the owner's confirmation if
+   * one counts. Absent on reports computed before schema 56.
+   */
+  gate_details: z
+    .array(
+      z.strictObject({
+        gate: GateKindSchema,
+        state: z.enum([
+          'clear',
+          'confirmed',
+          'auto_cleared',
+          'unresolved',
+          'not_assessed',
+        ]),
+        concerns: z
+          .array(
+            z.strictObject({
+              /** scorecard id@version, as a confirmation names it. */
+              scorecard: z.string().max(80),
+              by: z.enum(['system', 'person']),
+              reviewer: z.string().max(300),
+              note: z.string().max(1200),
+            }),
+          )
+          .max(40),
+        /** The owner's confirmation, or the owner's auto-clear rule, that clears it. */
+        confirmation: z
+          .strictObject({
+            by: z.enum(['owner', 'rule']),
+            /** The confirmation's id; null for the rule. */
+            id: id.nullable(),
+            /** The rule's version; null for the owner's confirmation. */
+            rule_version: z.number().int().min(1).nullable(),
+            /** Which rule mode cleared it (team_profile or model); null for the owner. */
+            rule_mode: z.enum(['team_profile', 'model']).nullable().optional(),
+            reason: z.string().max(300),
+            created_at: z.string().max(40),
+          })
+          .nullable(),
+        /** Why an earlier confirmation of this gate no longer counts, if one exists. */
+        stale_confirmation: z.string().max(300).nullable(),
+        /** Whether any current card (an assessment or a person's) looked at this gate. */
+        assessed: z.boolean().optional(),
+        /** Who clears gates in this workspace now (the owner's gate rule, ADR-0090). */
+        rule: z.enum(['owner', 'team_profile', 'model']).optional(),
+      }),
+    )
+    .max(2)
+    .optional(),
 });
 export const RankedCandidateSchema = z.strictObject({
   alternative: z.strictObject({

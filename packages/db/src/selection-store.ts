@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import {
+  ConfirmGateRequestSchema,
   CreateScorecardRequestSchema,
   CreateSpecRequestSchema,
   FreezeSpecRequestSchema,
@@ -16,6 +17,7 @@ import {
   type WorkflowDetail,
   type Admission,
   type FreezeOutcome,
+  type GateConfirmation,
   type ScorecardBody,
   type SelectOutcome,
   type Selection,
@@ -37,13 +39,15 @@ import {
   selectionReport,
   taskHashes,
   taskImpact,
+  modelClearedEthics,
+  teamHash,
   validateSpec,
   type CandidateInput,
   type EvidenceVersions,
   type HumilityState,
 } from '@creator/domain';
 import type { AssessmentWorkflowContext } from './workflow-store.js';
-import { DiscoveryStore } from './discovery-store.js';
+import { TeamStore } from './team-store.js';
 import {
   contentHashOf,
   fail,
@@ -142,7 +146,7 @@ export const PROBLEM_CLAIMS_SQL = `
    where l.workspace_id = $1 and l.from_id = $2 and l.to_kind = 'claim'
      and l.relation = 'derived_from' and l.retracted_at is null`;
 
-export class SelectionStore extends DiscoveryStore {
+export class SelectionStore extends TeamStore {
   // ---- Scorecards ----------------------------------------------------------------------
 
   async recordScorecard(ctx: CommandContext, ws: string, raw: unknown) {
@@ -459,6 +463,14 @@ export class SelectionStore extends DiscoveryStore {
         if (p) discovery.set(a.id, p.disposition);
       }
     }
+    // ADR-0090: the owner's gate confirmations and the team profile version cards read.
+    const confirmations = await this.gateConfirmations(c, ws, ids);
+    const team_hash = (await this.teamForPacket(c, ws)).hash;
+    const rule = await this.latestGateRule(c, ws);
+    const auto_clear =
+      rule.mode !== 'owner' && rule.at
+        ? { version: rule.version, mode: rule.mode, at: rule.at }
+        : null;
     const candidates: CandidateInput[] = alts.map((a) => {
       const kind = String(a.body?.kind);
       let humility: HumilityState = 'not_applicable';
@@ -500,6 +512,8 @@ export class SelectionStore extends DiscoveryStore {
         discovery: discovery.get(a.id) ?? null,
         humility,
         humility_reasons: reasons,
+        confirmations: confirmations.filter((x) => x.alternative_id === a.id),
+        auto_clear,
       };
     });
     // ADR-0074: the current version of everything a card cites or an assessment read.
@@ -540,6 +554,7 @@ export class SelectionStore extends DiscoveryStore {
       candidates,
       evidence: evidence as EvidenceVersions,
       linked_hash: await this.linkedClaimsHash(c, ws, problemId),
+      team_hash,
     };
   }
 
@@ -592,11 +607,8 @@ export class SelectionStore extends DiscoveryStore {
       throw fail('INVALID_CONTRACT', 'Shortlist size must be 1–10.');
     return this.tx(async (c) => {
       await this.role(c, ws, ctx.actorId, false);
-      const { problem, candidates, evidence, linked_hash } = await this.gather(
-        c,
-        ws,
-        problemId,
-      );
+      const { problem, candidates, evidence, linked_hash, team_hash } =
+        await this.gather(c, ws, problemId);
       return selectionReport({
         problem: {
           id: problem.id,
@@ -607,7 +619,88 @@ export class SelectionStore extends DiscoveryStore {
         shortlist_size: shortlistSize,
         evidence,
         linked_hash,
+        team_hash,
       });
+    });
+  }
+
+  /**
+   * ADR-0090: the owner confirms one gate of one option at its current version. The concerns the
+   * page showed must be exactly the ones raised now (a later one is never confirmed unseen); a
+   * person's own concern cannot be confirmed away (revise that card instead).
+   */
+  async confirmGate(
+    ctx: CommandContext,
+    ws: string,
+    problemId: string,
+    raw: unknown,
+  ): Promise<GateConfirmation> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    problemId = uuid(problemId);
+    const req = parse(ConfirmGateRequestSchema, raw);
+    return this.tx(async (c) => {
+      await this.requireTeamOwner(c, ws, ctx.actorId);
+      const altId = req.alternative.id.toLowerCase();
+      await c.query(
+        "select pg_advisory_xact_lock(hashtext('gate-confirm:' || $1::text))",
+        [altId],
+      );
+      const { problem, candidates, evidence, linked_hash, team_hash } =
+        await this.gather(c, ws, problemId);
+      const report = selectionReport({
+        problem: {
+          id: problem.id,
+          version: problem.version,
+          title: problem.title,
+        },
+        candidates,
+        shortlist_size: 3,
+        evidence,
+        linked_hash,
+        team_hash,
+      });
+      const row = report.suitability.candidates.find(
+        (x) => x.alternative.id === altId,
+      );
+      if (!row)
+        throw fail('NOT_FOUND', 'That option is not one of this problem’s.');
+      if (row.alternative.version !== req.alternative.version)
+        throw fail(
+          'VERSION_CONFLICT',
+          `The option is now version ${row.alternative.version}; reload before confirming.`,
+        );
+      const detail = row.gates.gate_details?.find((d) => d.gate === req.gate);
+      if (!detail) throw fail('INVALID_CONTRACT', 'Unknown gate.');
+      const now = detail.concerns.map((x) => x.scorecard).sort();
+      const seen = [...req.concerns_seen].map((x) => x.toLowerCase()).sort();
+      if (JSON.stringify(now) !== JSON.stringify(seen))
+        throw fail(
+          'VERSION_CONFLICT',
+          'The concerns on this gate changed since the page loaded them; reload and read them before confirming.',
+        );
+      if (detail.concerns.some((x) => x.by === 'person'))
+        throw fail(
+          'INVALID_TRANSITION',
+          'A person raised this concern on their own scorecard; revise that scorecard to resolve it.',
+        );
+      if (!detail.assessed)
+        throw fail(
+          'INVALID_TRANSITION',
+          `Nothing has assessed ${req.gate} on this option yet; assess the option or score it yourself before confirming.`,
+        );
+      if (detail.state === 'confirmed' || detail.state === 'clear')
+        throw fail(
+          'INVALID_TRANSITION',
+          `The ${req.gate} gate is already ${detail.state === 'clear' ? 'clear from a person’s scorecard' : 'confirmed'} on this version.`,
+        );
+      return this.insertGateConfirmation(
+        c,
+        ctx,
+        ws,
+        req,
+        detail.concerns.map((x) => x.scorecard),
+      );
     });
   }
 
@@ -719,6 +812,13 @@ export class SelectionStore extends DiscoveryStore {
           throw fail(
             'VERSION_CONFLICT',
             'The problem, an option or a claim changed while the packet was built; start again.',
+          );
+        if (
+          (await this.teamForPacket(c, ws)).hash !== teamHash(built.packet.team)
+        )
+          throw fail(
+            'VERSION_CONFLICT',
+            'The team profile changed while the packet was built; start again.',
           );
         const workflowId = await this.insertWorkflow(c, ctx, ws, runId, {
           role: 'r08_assessment',
@@ -878,7 +978,9 @@ export class SelectionStore extends DiscoveryStore {
           [ws, problemId],
         )
       ).rows[0]?.body as Row | undefined;
-      return { problem, alts, claims, brief, cap };
+      // ADR-0090: what the owner says the team can do goes with every assessment.
+      const team = await this.teamForPacket(c, ws);
+      return { problem, alts, claims, brief, cap, team };
     });
     const claims: {
       relation: 'supports' | 'contradicts';
@@ -918,6 +1020,7 @@ export class SelectionStore extends DiscoveryStore {
       now: new Date(),
       ...(read.cap ? { input_cap: read.cap } : {}),
       route: route ? 'plan' : 'other',
+      team: read.team.team,
     });
     // BODY_TOO_LARGE (HTTP 413) marks the size refusal: the request the studio would send is
     // too large. Decide offers raising the cap only for it.
@@ -967,11 +1070,8 @@ export class SelectionStore extends DiscoveryStore {
         'select 1 from entities where workspace_id = $1 and id = $2 for update',
         [ws, problemId],
       );
-      const { problem, candidates, evidence, linked_hash } = await this.gather(
-        c,
-        ws,
-        problemId,
-      );
+      const { problem, candidates, evidence, linked_hash, team_hash } =
+        await this.gather(c, ws, problemId);
       if (problem.version !== req.problem.version)
         throw fail(
           'VERSION_CONFLICT',
@@ -987,6 +1087,7 @@ export class SelectionStore extends DiscoveryStore {
         shortlist_size: req.shortlist_size,
         evidence,
         linked_hash,
+        team_hash,
       });
       if (report.report_hash !== req.report_hash)
         throw fail(
@@ -1021,7 +1122,20 @@ export class SelectionStore extends DiscoveryStore {
         data_class: req.data_class,
         assumption_ids: [],
         humility_review: null,
-        flags: [],
+        // ADR-0090 (Jordan, November 12): when an option advances while its ethics gate was
+        // cleared on the model's word alone, a run's selection (a routine policy included)
+        // stops and asks a person. A person selecting by hand is that person.
+        flags:
+          (await this.actorKind(c, ctx.actorId)) !== 'human' &&
+          modelClearedEthics(report, req.dispositions)
+            ? [
+                {
+                  reason: 'ethical_judgment' as const,
+                  note: 'An option this selection advances had its ethics gate cleared on the model’s word only (the owner’s gate rule); no person looked at it, so a person decides.',
+                  evidence_refs: [],
+                },
+              ]
+            : [],
         justification: req.rationale,
       });
       if (admission.verdict !== 'allow')
@@ -1315,11 +1429,8 @@ export class SelectionStore extends DiscoveryStore {
     if (!alt || alt.version !== body.alternative.version)
       blockers.push('The selected alternative changed after it was selected.');
     else {
-      const { problem, candidates, evidence, linked_hash } = await this.gather(
-        c,
-        ws,
-        selection.problem.id,
-      );
+      const { problem, candidates, evidence, linked_hash, team_hash } =
+        await this.gather(c, ws, selection.problem.id);
       const report = selectionReport({
         problem: {
           id: problem.id,
@@ -1330,6 +1441,7 @@ export class SelectionStore extends DiscoveryStore {
         shortlist_size: 3,
         evidence,
         linked_hash,
+        team_hash,
       });
       const row = report.suitability.candidates.find(
         (x) => x.alternative.id === altId,

@@ -39,6 +39,7 @@ import { HumilityForm } from './humility.js';
 import { ResponseExplanationPanel } from './proposals.js';
 import { ScoreOption } from './scorecard.js';
 import { AssessmentLines, AutoAssess } from './assess.js';
+import { GateLines } from './gates.js';
 import { Routine, WhatWillHappen } from './routine.js';
 import {
   decideRoutineSummary,
@@ -749,6 +750,21 @@ export function Compare({
                             </div>
                           )}
                         </dl>
+                        <GateLines
+                          cand={s}
+                          alternative={{
+                            id: a.entity.id,
+                            version: a.entity.version,
+                          }}
+                          base={base}
+                          problemId={d.report.problem.id}
+                          session={session}
+                          canConfirm={workspace.role === 'owner'}
+                          onOpenSettings={() =>
+                            open('settings', 'team-profile')
+                          }
+                          onDone={() => detail.reload()}
+                        />
                         <AssessmentLines
                           rubrics={[
                             { rubric: 'suitability', cand: s },
