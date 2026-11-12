@@ -4,7 +4,7 @@
 
 What now works (no migration or ADR): the web qualification test finds its own record by benchmark and connection instead of pinning one record and today's prompt hashes, so a later prompt or benchmark bump, or a second route's record, no longer turns it red (the app already ignores a stale record; the test now checks that too). The P15 results file records the SHA-256 and size of all 41 per-attempt files it was copied from (`source_files`, hashed read-only on Jordan's PC on November 12; each `package.tar` hash equals the recorded one, and the test checks that). `docs/STATIC_WEB_RECIPE.md` gives the real build-time range, 64.8 to 67.6 s.
 
-Checked: `pnpm typecheck`, `pnpm format:check`, `node scripts/p15-web-benchmark.mjs verify` (ok), the changed test, and two mutation checks (a wrong `package.tar` hash fails it; an extra record for another benchmark and connection does not). Full `pnpm test:db` result is in the PR.
+Checked: `pnpm typecheck`, `pnpm format:check`, `node scripts/p15-web-benchmark.mjs verify` (ok), the changed test, and two mutation checks (a wrong `package.tar` hash fails it; an extra record for another benchmark and connection does not). `pnpm test:db` on a throwaway PostgreSQL 16: 1146 tests, 1112 pass, 29 skipped, 5 fail (the known PowerShell-wrapper tests; no pwsh in the cloud container).
 
 ## November 12 update — Oversight lock order fixes (ADR-0098)
 
