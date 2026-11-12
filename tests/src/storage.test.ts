@@ -6,6 +6,8 @@ import { canonicalHash } from '@creator/domain';
 import {
   Store,
   migrate,
+  migrations,
+  migrationChecksum,
   assertSchemaCurrent,
   databaseUrl,
   type CommandContext,
@@ -23,6 +25,8 @@ const pgRejects = (code: string, p: Promise<unknown>) =>
     (e: unknown) =>
       e !== null && typeof e === 'object' && 'code' in e && e.code === code,
   );
+const migrationChecksumOf = (v: number) =>
+  migrationChecksum(migrations.find((m) => m.version === v)!);
 const owner: CommandContext = { actorId: randomUUID() };
 const viewer: CommandContext = { actorId: randomUUID() };
 const outsider: CommandContext = { actorId: randomUUID() };
@@ -85,12 +89,32 @@ test('migrations apply once, refuse edited history, and gate an unmigrated schem
   const db = await freshDatabase(t);
   if (!db) return;
   assert.deepEqual(await migrate(db.pool), []);
-  assert.equal(await assertSchemaCurrent(db.pool), 58);
+  // Re-review R3-N2: the newest listed migration, so no edit is needed per migration.
+  assert.equal(await assertSchemaCurrent(db.pool), migrations.at(-1)!.version);
   await db.pool.query(
     `update schema_migrations set checksum = repeat('0', 64) where version = 1`,
   );
   await rejects('INVALID_CONFIG', migrate(db.pool));
   await rejects('INVALID_CONFIG', assertSchemaCurrent(db.pool));
+  await db.pool.query(
+    `update schema_migrations set checksum = $1 where version = 1`,
+    [migrationChecksumOf(1)],
+  );
+  // Review of PR #181, L-1: a gap below the highest applied number is named, not hidden
+  // behind "at N; expects N".
+  await db.pool.query('delete from schema_migrations where version = 55');
+  await assert.rejects(assertSchemaCurrent(db.pool), (e: unknown) => {
+    assert.ok(e instanceof ContractError);
+    assert.equal(e.code, 'STORAGE_UNAVAILABLE');
+    // Re-review R2-N4: the newest version is read, so this message needs no edit per migration.
+    assert.ok(
+      e.message.includes(
+        `missing migration 55 (code expects ${migrations.at(-1)!.version})`,
+      ),
+      e.message,
+    );
+    return true;
+  });
   await db.pool.query('drop table schema_migrations');
   await rejects('STORAGE_UNAVAILABLE', assertSchemaCurrent(db.pool));
   assert.throws(
@@ -98,6 +122,17 @@ test('migrations apply once, refuse edited history, and gate an unmigrated schem
     ContractError,
   );
   assert.equal(databaseUrl(undefined), null);
+});
+
+// Review of PR #181, L-2: the code's schema is the last entry, and the runner applies entries
+// in array order, so a merge that appends a lower number instead of inserting it must fail here.
+test('migrations are listed in strictly increasing version order', () => {
+  const versions = migrations.map((m) => m.version);
+  for (let i = 1; i < versions.length; i++)
+    assert.ok(
+      versions[i]! > versions[i - 1]!,
+      `migration ${versions[i]} is listed after ${versions[i - 1]}`,
+    );
 });
 
 test('many-to-many lineage: one product from two ideas, one idea with two descendants, task to artifact', async (t) => {

@@ -1,5 +1,5 @@
 import { z, id, hash, timestamp } from './primitives.js';
-import { ChatActionSchema } from './chat-actions.js';
+import { ChatActionFillSchema, ChatActionSchema } from './chat-actions.js';
 
 // Studio chat, first version (runbook step 9, ADR-0055). A front door, not a second engine:
 // conversations are saved per workspace, and each message the person writes is sorted into
@@ -490,6 +490,8 @@ export const ChatDetailSchema = z.strictObject({
   answers: z.array(ChatAnswerSchema),
   /** ADR-0083: action cards in this conversation, oldest first. */
   actions: z.array(ChatActionSchema),
+  /** ADR-0096 (P31): a model's proposals for cards' text answers, oldest first. */
+  fills: z.array(ChatActionFillSchema),
 });
 export type ChatDetail = z.infer<typeof ChatDetailSchema>;
 
