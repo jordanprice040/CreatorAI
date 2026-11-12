@@ -739,7 +739,7 @@ const noBenchmark = (task: string) =>
   `The app no longer offers a benchmark for ${words(task)}; reload the page.`;
 
 /** Whether the fix can still do something, read from the connection just now. */
-function ready(a: FixAction, d: PlanConnectionDetail): boolean {
+export function ready(a: FixAction, d: PlanConnectionDetail): boolean {
   const c = d.connection;
   switch (a.kind) {
     case 'accept_caps':
@@ -754,7 +754,9 @@ function ready(a: FixAction, d: PlanConnectionDetail): boolean {
           !(c.settings.allowed_task_classes as readonly string[]).includes(t),
       );
     case 'extra_requests':
-      return dailyFull(d);
+      // Re-review 2 L-1: the server's own test (a policy owner, cap used up), so a tester
+      // holding the owner role is not offered a press the server refuses.
+      return dailyFull(d) && d.usage.can_add_extra;
     case 'qualify':
       return (
         Boolean(benchmarkFor(a.task_class, a.role)) &&
@@ -900,9 +902,11 @@ export function confirmText(a: FixAction, d: PlanConnectionDetail): string {
     }
     case 'extra_requests': {
       const configured = c.settings.caps.shared.max_model_requests_per_day;
-      return dailyFull(d)
-        ? extraConfirmText(configured, configured + d.usage.extra_requests)
-        : 'This connection has room for more requests today again.';
+      if (!dailyFull(d))
+        return 'This connection has room for more requests today again.';
+      if (!d.usage.can_add_extra)
+        return 'Only the workspace owner, signed in as a person, can add requests.';
+      return extraConfirmText(configured, configured + d.usage.extra_requests);
     }
     case 'qualify': {
       if (

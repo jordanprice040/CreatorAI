@@ -390,6 +390,7 @@ async function loadButtons() {
     mod: mod as {
       canQualifyFor(role: string): (t: string) => boolean;
       confirmText(a: FixAction, d: unknown): string;
+      ready(a: FixAction, d: unknown): boolean;
       FixButtons(p: unknown): unknown;
     },
     react: web('react') as {
@@ -997,4 +998,32 @@ test('after P24: "Allow and qualify" queues its tasks on the server in one reque
       ['patch_build', 1, 1],
     ],
   );
+});
+
+test("P29 re-review 2 L-1: the extra-requests fix follows the server's can_add_extra, not the role", async () => {
+  const { mod } = await loadButtons();
+  const c = {
+    ...connection(),
+    version: 3,
+    settings: SETTINGS,
+  } as unknown as PlanConnection;
+  const cap = SETTINGS.caps.shared.max_model_requests_per_day;
+  const detail = (can: boolean, used = cap) => ({
+    connection: c,
+    usage: {
+      last_24h_requests: used,
+      extra_requests: 0,
+      extras: [],
+      can_add_extra: can,
+    },
+  });
+  const a = { kind: 'extra_requests', connection_id: c.id } as FixAction;
+  // A tester holding the owner role: the server says no, so the press is not offered.
+  assert.equal(mod.ready(a, detail(false)), false);
+  assert.match(mod.confirmText(a, detail(false)), /Only the workspace owner/);
+  // The owner, used up: offered, and the confirmation says what changes.
+  assert.equal(mod.ready(a, detail(true)), true);
+  assert.match(mod.confirmText(a, detail(true)), /Adds 20 requests/);
+  // Room again: nothing to do.
+  assert.equal(mod.ready(a, detail(true, 0)), false);
 });

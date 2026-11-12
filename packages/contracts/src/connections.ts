@@ -718,10 +718,12 @@ export const PlanConnectionDetailSchema = z.strictObject({
     unresolved: counter,
     /** ADR-0094: unexpired extra requests on top of the daily cap, in total and one by one. */
     extra_requests: counter,
-    extras: z.array(PlanExtraSchema).max(50),
+    // Not capped (re-review 2 N-1): the server lists every unexpired grant.
+    extras: z.array(PlanExtraSchema),
     /**
-     * When one more request becomes possible while the cap (with extras) is used up, counting
-     * requests leaving the window and extras expiring; null when there is room (review L-3).
+     * When one more request becomes possible, by the same rule as the usage summary's
+     * `daily.next_frees_at` (`nextRequestAt`, re-review 2 N-2): the oldest request leaving
+     * when there is room; at the cap, the leaving that makes room under the cap in force then.
      */
     next_frees_at: timestamp.nullable(),
     /** Whether this person may add extra requests now: a policy owner, cap used up (L-1). */

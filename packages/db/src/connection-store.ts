@@ -641,6 +641,13 @@ async function modelChoice(
   };
 }
 
+/** ADR-0094: admission's counts plus the window's start times and extras, read together. */
+type WindowUsage = PlanUsageCounts & {
+  extras: PlanExtra[];
+  starts_ms: number[];
+  now_ms: number;
+};
+
 export class ConnectionStore extends WebDiscoveryStore {
   /**
    * PR #126 review L-1: chat answers this studio process has begun and not yet finished. A reply
@@ -4946,7 +4953,7 @@ export class ConnectionStore extends WebDiscoveryStore {
         unresolved: usage.unresolved,
         extra_requests: usage.extra_requests,
         extras: usage.extras,
-        next_frees_at: await this.#nextFreesAt(c, connection, usage),
+        next_frees_at: this.#nextFreesAt(connection, usage),
         can_add_extra:
           usage.last_24h_requests >=
             dailyCap(connection.settings.caps, usage) &&
@@ -4973,10 +4980,12 @@ export class ConnectionStore extends WebDiscoveryStore {
     id: string,
     runId: string | null,
     buildId: string | null,
-  ): Promise<PlanUsageCounts & { extras: PlanExtra[] }> {
+  ): Promise<WindowUsage> {
     const { rows } = await c.query(
       `select
-         count(*) filter (where started_at > clock_timestamp() - interval '24 hours') as day,
+         coalesce(array_agg(started_at order by started_at)
+           filter (where started_at > clock_timestamp() - interval '24 hours'), '{}') as starts,
+         clock_timestamp() as now,
          count(distinct build_id) filter (where path = 'codex' and started_at > clock_timestamp() - interval '24 hours') as builds,
          count(*) filter (where $2::uuid is not null and run_id = $2 and path = 'responses') as run,
          count(*) filter (where $3::uuid is not null and build_id = $3) as build,
@@ -4987,8 +4996,13 @@ export class ConnectionStore extends WebDiscoveryStore {
     );
     const r = rows[0] as Row;
     const extras = await this.#extras(c, id);
+    // The window's count and its start times come from one statement (re-review 2 N-3), so
+    // "full", the offer and the next-request time agree.
+    const starts = (r.starts as Date[]).map((d) => new Date(d).getTime());
     return {
-      last_24h_requests: Number(r.day),
+      last_24h_requests: starts.length,
+      starts_ms: starts,
+      now_ms: new Date(r.now as Date).getTime(),
       last_24h_codex_builds: Number(r.builds),
       run_requests: Number(r.run),
       build_requests: Number(r.build),
@@ -5000,34 +5014,18 @@ export class ConnectionStore extends WebDiscoveryStore {
   }
 
   /**
-   * ADR-0094 (review L-3): when one more request is admitted while the cap is used up, as the
-   * usage indicator computes it; null while there is room.
+   * ADR-0094 (review L-3, re-review 2 N-2): when one more request is admitted, by the same rule
+   * as the usage indicator (`nextRequestAt`), from the counts `#usage` read.
    */
-  async #nextFreesAt(
-    c: PoolClient,
-    conn: PlanConnection,
-    usage: PlanUsageCounts & { extras: PlanExtra[] },
-  ): Promise<string | null> {
-    if (usage.last_24h_requests < dailyCap(conn.settings.caps, usage))
-      return null;
-    const { rows } = await c.query(
-      `select started_at, clock_timestamp() as now from plan_requests
-        where connection_id = $1 and started_at > clock_timestamp() - interval '24 hours'
-        order by started_at`,
-      [conn.id],
-    );
-    const list = rows as Row[];
-    const nowMs = list[0]
-      ? new Date(list[0].now as Date).getTime()
-      : Date.now();
+  #nextFreesAt(conn: PlanConnection, usage: WindowUsage): string | null {
     const t = nextRequestAt(
-      list.map((x) => new Date(x.started_at as Date).getTime()),
+      usage.starts_ms,
       conn.settings.caps.shared.max_model_requests_per_day,
       usage.extras.map((x) => ({
         requests: x.requests,
         expires_ms: Date.parse(x.expires_at),
       })),
-      nowMs,
+      usage.now_ms,
     );
     return t === null ? null : new Date(t).toISOString();
   }

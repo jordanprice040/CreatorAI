@@ -37,7 +37,8 @@ export const PlanConnectionUsageSchema = z.strictObject({
     configured_cap: counter,
     /** Unexpired extra requests granted by the owner (ADR-0094), in total and soonest first. */
     extra: counter,
-    extras: z.array(PlanExtraSchema).max(50),
+    // Not capped (re-review 2 N-1): the server lists every unexpired grant.
+    extras: z.array(PlanExtraSchema),
     /** Whether this person may add extra requests now: the owner, with the cap used up. */
     can_add_extra: z.boolean(),
     remaining: counter,

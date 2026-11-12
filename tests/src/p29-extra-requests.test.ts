@@ -263,8 +263,9 @@ test('only the owner adds extra requests, only when used up, and only the curren
   );
   assert.equal(detail.usage.extra_requests, PLAN_EXTRA_REQUESTS);
   assert.deepEqual(detail.usage.extras, raised.daily.extras);
-  // With room again there is no "next request at" and no offer.
-  assert.equal(detail.usage.next_frees_at, null);
+  // With room again there is no offer; the next-request time follows the panel's rule
+  // (re-review 2 N-2).
+  assert.equal(detail.usage.next_frees_at, raised.daily.next_frees_at);
   assert.equal(detail.usage.can_add_extra, false);
   // Admission, given the store's counts, admits again.
   assert.ok(
@@ -430,4 +431,16 @@ test('review L-2: the next request time counts an extra that expires before a re
   );
   // Cap 0 and nothing extra: no leaving ever makes room.
   assert.equal(nextRequestAt([now - HOUR], 0, [], now), null);
+});
+
+test('re-review 2 N-1: every unexpired extra is listed; the contracts set no cap on how many', () => {
+  const extras = Array.from({ length: 60 }, (_, i) => ({
+    requests: PLAN_EXTRA_REQUESTS,
+    expires_at: new Date(Date.UTC(2026, 10, 12, 0, i)).toISOString(),
+  }));
+  const detail = PlanConnectionDetailSchema.shape.usage.shape.extras;
+  const summary =
+    UsageSummarySchema.shape.plans.element.shape.daily.shape.extras;
+  assert.ok(detail.safeParse(extras).success);
+  assert.ok(summary.safeParse(extras).success);
 });
