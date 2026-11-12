@@ -28,6 +28,7 @@ import {
   autopilotChoice,
   autopilotProblem,
   checkSelection,
+  notAdmitted,
   nextAutopilotStage,
   personChoice,
   pickExplored,
@@ -599,6 +600,50 @@ test('a person’s choice under Decide carries the autopilot on; part-way starts
     width: 2,
   });
   assert.ok(!capped.ok && capped.final === undefined);
+  // Review 3 N-1: web search first takes 2 more calls, so fewer than 10 are refused.
+  const research = {
+    connection_id: '00000000-0000-4000-8000-0000000000c1',
+    model_id: 'gpt-test',
+    scope: WebDiscoveryScopeSchema.parse({ interests: ['volunteers'] }),
+    input_hash: 'c'.repeat(64),
+  };
+  const base = {
+    resource_setup: {
+      kind: 'api',
+      envelope_id: '00000000-0000-4000-8000-0000000000e9',
+      pricing_snapshot_id: '00000000-0000-4000-8000-0000000000ea',
+    },
+    data_class: 'public',
+    research,
+  };
+  assert.equal(
+    AutopilotConfigSchema.safeParse({
+      ...base,
+      limits: { max_calls: 9, ends_at: inHours(2) },
+    }).success,
+    false,
+  );
+  assert.ok(
+    AutopilotConfigSchema.safeParse({
+      ...base,
+      limits: { max_calls: 10, ends_at: inHours(2) },
+    }).success,
+  );
+  // Review 2 N-1: the Approvals sentence and the open question only while it is open.
+  const pending = notAdmitted('Option a', {
+    reason_code: 'request_human',
+    explanation: 'A person decides.',
+    decision_id: '00000000-0000-4000-8000-0000000000f1',
+  });
+  assert.match(pending.note, /question also waits under Monitor › Approvals/);
+  assert.equal(pending.asked, '00000000-0000-4000-8000-0000000000f1');
+  const answered = notAdmitted('Option a', {
+    reason_code: 'already_answered_reject',
+    explanation: 'You answered no.',
+    decision_id: '00000000-0000-4000-8000-0000000000f1',
+  });
+  assert.doesNotMatch(answered.note, /Approvals/);
+  assert.equal(answered.asked, null);
 });
 
 // ---- Store and runner (PostgreSQL, fixture model) ------------------------------------------
@@ -1229,10 +1274,18 @@ test('review H-1: with gates cleared on the model’s word, the autopilot’s ch
   await h.runner.settled(a.id);
   const c = await h.store.getAutopilot(owner, h.ws.id, a.id);
   assert.equal(c.outcome, 'proposal', c.explanation);
+  const carriedOn = c.steps.find(
+    (s) => s.stage === 'select' && s.state === 'done',
+  )!;
+  assert.equal(carriedOn.child!.id, mine.selection!.id);
+  // Review 3 N-3: the stopped step names the question it left open, and the carried choice
+  // says that question is answered by it.
   assert.equal(
-    c.steps.find((s) => s.stage === 'select' && s.state === 'done')!.child!.id,
-    mine.selection!.id,
+    c.steps.filter((s) => s.stage === 'select' && s.state === 'stopped').at(-1)!
+      .asked,
+    decisions[0]!.id,
   );
+  assert.match(carriedOn.note, /leave it to expire/);
 });
 
 test('review L-8: an autopilot can start at the choice of a recorded problem, under selection approvals only', async (t) => {
@@ -1703,4 +1756,102 @@ test('HTTP: start, list, read, stop and a refused continue go through the worksp
   });
   assert.equal(again.status, 409);
   await close();
+});
+
+test('review 3: the end time passing while a step waits cancels the web search and the workflow', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  const realNow = Date.now;
+  t.after(() => {
+    Date.now = realNow;
+  });
+  // Web search: the search never finishes; the end time passes during a wait.
+  const cancelled: string[] = [];
+  const web: AutopilotWeb = {
+    start: async () => ({ id: '00000000-0000-4000-8000-0000000000e1' }),
+    read: async (_c, _w, id) =>
+      ({ id, version: 1, state: 'searching' }) as unknown as WebDiscovery,
+    isActive: () => true,
+    resume: async () => null,
+    cancel: async (_c, _w, id) => {
+      cancelled.push(id);
+      return null;
+    },
+  };
+  let waits = 0;
+  const later = async () => {
+    if (++waits === 2) {
+      const base = realNow();
+      Date.now = () => base + 3 * 3600_000;
+    }
+  };
+  const runner = new AutopilotRunner(h.store, web, {
+    pollMs: 5,
+    onWait: later,
+  });
+  const full = h.policy(['research', 'evidence', 'model_work', 'selection'], {
+    data_classes: ['public', 'synthetic'],
+  });
+  const c = h.config({
+    research: {
+      connection_id: '00000000-0000-4000-8000-0000000000c1',
+      model_id: 'gpt-test',
+      scope: WebDiscoveryScopeSchema.parse({ interests: ['volunteers'] }),
+      input_hash: 'c'.repeat(64),
+    },
+    limits: { max_calls: 80, ends_at: inHours(2) },
+  });
+  const a = await runner.start(owner, h.ws.id, await h.run(full), h.body(c));
+  await runner.settled(a.id);
+  Date.now = realNow;
+  const done = await h.store.getAutopilot(owner, h.ws.id, a.id);
+  assert.equal(done.outcome, 'limit_reached', done.explanation);
+  assert.deepEqual(cancelled, ['00000000-0000-4000-8000-0000000000e1']);
+
+  // Workflow: exploration never settles; the end time passes during a wait.
+  waits = 0;
+  const r2 = new AutopilotRunner(h.store, null, { pollMs: 5, onWait: later });
+  const b = await r2.start(owner, h.ws.id, await h.run(), h.body(h.config()));
+  await r2.settled(b.id);
+  Date.now = realNow;
+  const late = await h.store.getAutopilot(owner, h.ws.id, b.id);
+  assert.equal(late.outcome, 'limit_reached', late.explanation);
+  assert.equal(
+    (await h.store.getWorkflow(owner, h.ws.id, late.steps[0]!.child!.id))
+      .workflow.state,
+    'cancelled',
+  );
+});
+
+test('review 3 L-1: a start at assessment does not carry a choice made on the scores before it', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  const runId = await h.run();
+  const first = await h.start(runId);
+  const problem = first.steps[2]!.problem!;
+  const { selection } = await ownerChooses(h, runId, problem.id);
+  const later = await h.start(
+    await h.run(),
+    h.config({ start: { stage: 'assess', problem } }),
+  );
+  assert.deepEqual(
+    later.steps.map((s) => [s.stage, s.state]),
+    [
+      ['assess', 'done'],
+      ['select', 'stopped'],
+    ],
+  );
+  assert.equal(later.outcome, 'needs_person', later.explanation);
+  assert.match(
+    later.explanation,
+    /made on other scores than the current ones, before this autopilot’s assessment/,
+  );
+  // The person's choice stays current and untouched.
+  const sels = await h.store.listSelections(owner, h.ws.id, problem.id);
+  assert.deepEqual(
+    sels.map((x) => [x.id, x.current]),
+    [[selection.id, true]],
+  );
 });

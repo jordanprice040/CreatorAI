@@ -478,7 +478,11 @@ export function Autopilot({
                       <input
                         id="ap-calls"
                         type="number"
-                        min={AUTOPILOT_MIN_CALLS}
+                        min={
+                          researchOn
+                            ? AUTOPILOT_MIN_CALLS + 2
+                            : AUTOPILOT_MIN_CALLS
+                        }
                         value={maxCalls}
                         onChange={(e) => setMaxCalls(Number(e.target.value))}
                       />

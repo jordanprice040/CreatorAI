@@ -120,6 +120,8 @@ export const AutopilotStepSchema = z.strictObject({
    * and cannot be raised; the spec is the owner's): why, and what to do instead.
    */
   no_retry: z.string().max(300).nullable().optional(),
+  /** The question a stopped step left open for a person (a decision id), if any. */
+  asked: id.nullable().optional(),
   started_at: timestamp,
   finished_at: timestamp.nullable(),
 });

@@ -16,6 +16,7 @@ import {
   autopilotChoice,
   autopilotProblem,
   carried,
+  notAdmitted,
   nextAutopilotStage,
   personChoice,
   pickExplored,
@@ -88,7 +89,13 @@ export function autopilotKey(
 }
 
 /** `final`: Continue cannot get past this stop; why, and what to do instead (review L-3). */
-type Stop = { outcome: AutopilotOutcome; note: string; final?: string };
+type Stop = {
+  outcome: AutopilotOutcome;
+  note: string;
+  final?: string;
+  /** The question the stop left open for a person, if any. */
+  asked?: string;
+};
 type Done = {
   note: string;
   problem?: AutopilotStep['problem'];
@@ -925,24 +932,39 @@ export class AutopilotRunner {
     );
     if (mine.kind === 'stop')
       return { stop: { outcome: mine.outcome, note: mine.reason } };
-    if (mine.kind === 'carry')
+    if (mine.kind === 'carry') {
+      // A choice made on other scores than today's (for example before this autopilot's own
+      // assessment) is not carried past them: the person looks again (review 3 L-1).
+      const now = await this.store.selectionReport(
+        ctx,
+        ws,
+        problem.id,
+        current!.report.suitability.sensitivity.shortlist_size,
+      );
+      if (now.report_hash !== current!.report_hash)
+        return {
+          stop: {
+            outcome: 'needs_person',
+            note: `Your choice under Decide (“${mine.option.title}”) was made on other scores than the current ones${
+              a.steps.some((s) => s.stage === 'assess' && s.state === 'done')
+                ? ', before this autopilot’s assessment'
+                : ''
+            }. Review it under Decide and record it again (or choose another), then continue.`,
+          },
+        };
       return {
         done: {
           child: { kind: 'selection', id: current!.id },
           problem: current!.problem,
           option: mine.option,
           note: `Going on with your choice under Decide: “${mine.option.title}” (${mine.disposition.replaceAll('_', ' ')}).${
-            a.steps.some(
-              (s) =>
-                s.stage === 'select' &&
-                s.state === 'stopped' &&
-                /question also waits/.test(s.note),
-            )
+            a.steps.some((s) => s.stage === 'select' && s.asked)
               ? ' The question the autopilot left under Monitor › Approvals is answered by this choice; you can leave it to expire.'
               : ''
           }`.slice(0, 1200),
         },
       };
+    }
     const report = await this.store.selectionReport(ctx, ws, problem.id);
     const choice = autopilotChoice(report);
     if (!choice.ok)
@@ -951,18 +973,16 @@ export class AutopilotRunner {
       ...choice.request,
       data_class: a.config.data_class,
     });
-    if (out.status !== 'recorded' || !out.selection)
+    if (out.status !== 'recorded' || !out.selection) {
+      const n = notAdmitted(choice.option.title, out.admission);
       return {
         stop: {
           outcome: 'needs_authority',
-          note: `The choice of “${choice.option.title}” was not admitted (${out.admission.reason_code}): ${out.admission.explanation}${
-            out.admission.decision_id &&
-            !out.admission.reason_code.startsWith('already_answered')
-              ? ' A person decides: choose under Decide yourself (the question also waits under Monitor › Approvals), then continue, and the autopilot goes on with your choice.'
-              : ''
-          }`.slice(0, 1200),
+          note: n.note,
+          ...(n.asked ? { asked: n.asked } : {}),
         },
       };
+    }
     return {
       done: {
         child: { kind: 'selection', id: out.selection.id },
@@ -1060,6 +1080,7 @@ export class AutopilotRunner {
             state: 'stopped' as const,
             note: stop.note.slice(0, 1200),
             no_retry: stop.final ?? null,
+            ...(stop.asked ? { asked: stop.asked } : {}),
             finished_at: now,
           }
         : s,

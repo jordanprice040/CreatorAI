@@ -460,6 +460,31 @@ export function personChoice(
   };
 }
 
+/**
+ * The note for a choice the run's admission did not record, and the question it left open, if
+ * any. The Approvals sentence shows only for a question still open (review 2 N-1).
+ */
+export function notAdmitted(
+  title: string,
+  admission: {
+    reason_code: string;
+    explanation: string;
+    decision_id: string | null;
+  },
+): { note: string; asked: string | null } {
+  const open =
+    !!admission.decision_id &&
+    !admission.reason_code.startsWith('already_answered');
+  return {
+    note: `The choice of “${title}” was not admitted (${admission.reason_code}): ${admission.explanation}${
+      open
+        ? ' A person decides: choose under Decide yourself (the question also waits under Monitor › Approvals), then continue, and the autopilot goes on with your choice.'
+        : ''
+    }`.slice(0, 1200),
+    asked: open ? admission.decision_id : null,
+  };
+}
+
 /** How a refused step ends the autopilot, from the refusal's code. */
 export function refusalOutcome(code: ErrorCode | null): AutopilotOutcome {
   switch (code) {
