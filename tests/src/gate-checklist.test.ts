@@ -6,10 +6,13 @@ import {
   AssessmentPacketSchema,
   ContractError,
   STARTER_GATE_CHECKLIST,
+  routinePolicySummary,
   type AssessmentPacket,
   type AssessorOutput,
   type ErrorCode,
   type RankedCandidate,
+  type RoutineStage,
+  type SelectRequest,
   type ScorecardBody,
   type SelectionDisposition,
   type StartAssessmentRequest,
@@ -107,7 +110,7 @@ test('the assessor must answer every checklist item once on suitability, a pass 
   }, /team capability docker, not in the packet/);
   bad((o) => {
     suit(o).checklist!.K1!.claim_refs = ['C9'];
-  }, /cites C9, not in the packet/);
+  }, /O1 K1 cites C9, not in the packet/);
   bad((o) => delete suit(o).access_needs, /does not answer the checklist/);
   bad((o) => {
     suit(o).access_needs = ['python', 'python'];
@@ -118,6 +121,19 @@ test('the assessor must answer every checklist item once on suitability, a pass 
   Object.assign(k1, { answer: 'fail', claim_refs: [], team_refs: [] });
   assert.equal(checkAssessmentOutput(failing, p).ok, true);
 
+  // An access item cannot pass on a capability the team block does not mark yes (review L-2).
+  const lacking = packetOf('held-checklist-access-missing');
+  const docker = fixtureFor(lacking);
+  delete (docker as { fixture?: boolean }).fixture;
+  Object.assign(suit(docker).checklist!.K3!, {
+    answer: 'pass',
+    claim_refs: [],
+    team_refs: ['docker'],
+  });
+  assert.match(
+    (checkAssessmentOutput(docker, lacking) as { problem: string }).problem,
+    /O1 K3 passes citing docker, which the team block does not mark yes/,
+  );
   // Without a checklist in the packet, an answer to one is not admissible.
   const plain = packetOf('held-access-covered');
   assert.equal(plain.checklist, undefined);
@@ -441,6 +457,32 @@ test('the gate checklist is the owner’s and versioned; the checklist rule clea
     assert.deepEqual(a.checklist?.needs_missing, ['python']);
   }
 
+  // An unknown keeps the gate open too, and the blocked reason names it (review L-4).
+  s.adapter.edit = (o) => {
+    for (const a of o.assessments)
+      if (a.checklist)
+        a.checklist.K1 = {
+          answer: 'unknown',
+          claim_refs: [],
+          team_refs: [],
+          note: 'The packet does not say whether people consented.',
+        };
+  };
+  await s.assess();
+  r = await s.report();
+  for (const c of r.suitability.candidates) {
+    const e = gate(c, 'ethics');
+    assert.equal(e.state, 'not_assessed');
+    assert.deepEqual(
+      e.checklist?.failing.map((f) => [f.item, f.answer]),
+      [['K1', 'unknown']],
+    );
+    assert.match(
+      (c.gates.blocked.proceed_to_validation ?? []).join(' '),
+      /Ethics: K1 unknown/,
+    );
+  }
+
   // Any fail keeps the gate open and is listed with its note.
   s.adapter.edit = (o) => {
     for (const a of o.assessments)
@@ -488,4 +530,121 @@ test('the gate checklist is the owner’s and versioned; the checklist rule clea
     );
   // The rule's mode is recorded as checklist.
   assert.equal((await s.store.gateRule(owner, s.ws.id)).mode, 'checklist');
+  // While gates clear by it, the checklist cannot be emptied (review L-3).
+  await rejects(
+    'INVALID_CONTRACT',
+    s.store.saveGateChecklist(owner, s.ws.id, {
+      expected_version: 2,
+      items: [],
+    }),
+    /can’t be emptied/,
+  );
+
+  // A checklist saved while the packet is being built refuses the start (review L-4).
+  const store = s.store as unknown as {
+    claimEvidence: (...a: unknown[]) => Promise<unknown>;
+  };
+  const real = store.claimEvidence.bind(s.store);
+  let saved = false;
+  store.claimEvidence = async (...a: unknown[]) => {
+    if (!saved) {
+      saved = true;
+      await s.store.saveGateChecklist(owner, s.ws.id, {
+        expected_version: 2,
+        items: items.slice(0, 4),
+      });
+    }
+    return real(...a);
+  };
+  await rejects(
+    'VERSION_CONFLICT',
+    s.assess(),
+    /gate checklist changed while the packet was built/,
+  );
+  store.claimEvidence = real;
+  assert.ok(saved);
+});
+
+test('a run’s selection that advances an option whose ethics cleared by the checklist stops for a person (review L-4)', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  await s.store.saveGateChecklist(owner, s.ws.id, {
+    expected_version: 0,
+    items: STARTER_GATE_CHECKLIST.map((x) => ({ ...x })),
+  });
+  await s.store.setGateRule(owner, s.ws.id, {
+    expected_version: 0,
+    mode: 'checklist',
+  });
+  // Access clears too (Python found here), so the option may proceed.
+  await s.store.recordCapabilityCheck(
+    owner,
+    s.ws.id,
+    { expected_version: 0, capability: 'python' },
+    {
+      command: 'python --version',
+      detail: 'Python 3.12.1',
+      output_hash: 'e'.repeat(64),
+      machine: studioMachine(),
+      checked_at: new Date().toISOString(),
+    },
+    { machine: studioMachine(), checks: true },
+  );
+  await s.assess();
+  const agent = { actorId: randomUUID() };
+  await s.store.ensureActor({
+    id: agent.actorId,
+    kind: 'agent',
+    display_name: 'Selection agent',
+  });
+  await s.store.addMember(owner, s.ws.id, agent.actorId, 'editor');
+  const routineRun = async () => {
+    const runId = await s.run();
+    const input = {
+      stages: ['model_work', 'selection'] as RoutineStage[],
+      data_classes: ['synthetic' as const],
+      max_actions: 20,
+      max_total_nano_usd: null,
+      stop_on: [],
+      expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+      rationale: 'Routine synthetic selection (test).',
+    };
+    await s.store.setRoutinePolicy(owner, s.ws.id, runId, {
+      ...input,
+      summary_seen: routinePolicySummary(input),
+    });
+    return runId;
+  };
+  const r = await s.report();
+  const lead = r.suitability.candidates.find(
+    (c) =>
+      !(c.gates.blocked.proceed_to_validation ?? []).length &&
+      gate(c, 'ethics').confirmation?.rule_mode === 'checklist',
+  );
+  assert.ok(lead, 'an option may proceed on a checklist-cleared ethics gate');
+  const req: SelectRequest = {
+    problem: { id: r.problem.id, version: r.problem.version },
+    report_hash: r.report_hash,
+    dispositions: r.suitability.candidates.map((c) => ({
+      alternative: { id: c.alternative.id, version: c.alternative.version },
+      disposition:
+        c.alternative.id === lead.alternative.id
+          ? ('proceed_to_validation' as const)
+          : ('defer' as const),
+      reasons: ['Synthetic disposition (test).'],
+      reverse_if: 'New evidence (test).',
+    })),
+    override_reason: 'Validate this option first (test).',
+    rationale: 'Routine selection (test).',
+    shortlist_size: 3,
+    data_class: 'synthetic',
+  };
+  const stopped = await s.store.select(agent, s.ws.id, await routineRun(), req);
+  assert.equal(stopped.status, 'needs_human');
+  const asked = await s.store.getDecision(
+    owner,
+    s.ws.id,
+    stopped.admission.decision_id!,
+  );
+  assert.match(JSON.stringify(asked), /gate checklist/);
 });

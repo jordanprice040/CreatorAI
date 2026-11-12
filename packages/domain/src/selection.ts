@@ -161,6 +161,8 @@ interface ParseEnv {
   evidence?: EvidenceVersions | undefined;
   /** The current hash of the claims linked to the problem (review M-1). */
   linked_hash?: string | undefined;
+  /** The same set without option claims, as hashed before ADR-0091 (review 2 L-2). */
+  problem_linked_hash?: string | undefined;
   /**
    * ADR-0090: the hash of the team block a packet built now would carry ('' for none); without
    * it, not checked. Only a change in what the model reads makes an assessment stale.
@@ -213,7 +215,11 @@ function staleReasons(
       out.push('The rubric changed since this assessment.');
     if (env.linked_hash !== undefined && env.linked_hash !== a.linked_hash)
       out.push(
-        'Evidence linked to the problem changed since this assessment (a claim was linked or unlinked).',
+        // Review 2 L-2: only option claims differ. That is either a claim linked to an option
+        // since, or an assessment made before assessments read option claims (an upgrade).
+        env.problem_linked_hash === a.linked_hash
+          ? 'This assessment did not read claims now linked to the options: either a claim was linked to an option since, or it was made before assessments read option-linked claims (the studio was upgraded). Assess again to read them.'
+          : 'Evidence linked to the problem or its options changed since this assessment (a claim was linked or unlinked).',
       );
     if (env.team_hash !== undefined && env.team_hash !== (a.team_hash ?? ''))
       out.push(
@@ -398,7 +404,7 @@ export function gateState(
                 ? `Cleared on the model’s word by your gate rule: the automatic assessment found no ${gate} concern. No person looked at this gate.`
                 : rule.mode === 'checklist'
                   ? gate === 'access'
-                    ? `Cleared by your gate checklist (version ${list!.result.version}): every automatic assessment passed all ${list!.result.items} access items, citing the packet, and the app found every capability needed (${list!.result.needs.map(capabilityLabel).join('; ')}) in your team profile. No person looked at this gate.`
+                    ? `Cleared by your gate checklist (version ${list!.result.version}): every automatic assessment passed all ${list!.result.items} access items, citing the packet, and the app found every capability the assessment named or cited (${list!.result.needs.map(capabilityLabel).join('; ')}) in your team profile. No person looked at this gate.`
                     : `Cleared by your gate checklist (version ${list!.result.version}): every automatic assessment passed all ${list!.result.items} ethics items, citing the packet. Each item is the model’s judgment against your criteria; no person looked at this gate.`
                   : `Cleared by the model’s reading of your team profile (your gate rule): the automatic assessment read profile version ${Math.max(...system.map((p) => p.body.assessment?.team_version ?? 0))} and found no access concern. No person looked at this gate.`,
               300,
@@ -460,9 +466,17 @@ function checklistResult(
         ];
   });
   const verified = new Set(c.verified ?? []);
-  const needs = [...new Set(cards.flatMap((a) => a.access_needs ?? []))].sort(
-    (a, b) => capabilityOrder(a) - capabilityOrder(b),
-  );
+  // PR #185 review L-2: what an access pass cites is needed too, so the app checks it as well.
+  const needs = [
+    ...new Set(
+      cards.flatMap((a) => [
+        ...(a.access_needs ?? []),
+        ...Object.values(a.checklist!).flatMap((r) =>
+          r.gate === 'access' && r.answer === 'pass' ? r.team_refs : [],
+        ),
+      ]),
+    ),
+  ].sort((a, b) => capabilityOrder(a) - capabilityOrder(b));
   const needs_missing = needs.filter((k) => !verified.has(k));
   const passes =
     !failing.length &&
@@ -873,6 +887,8 @@ export function selectionReport(input: {
   evidence?: EvidenceVersions;
   /** The current hash of the problem's linked claims; without it linking is not checked. */
   linked_hash?: string;
+  /** The problem's linked claims without option claims (review 2 L-2). */
+  problem_linked_hash?: string;
   /** ADR-0090: the hash of the team block a packet would carry now; without it, not checked. */
   team_hash?: string;
   /** ADR-0097: the hash of the checklist a packet would carry now; without it, not checked. */
@@ -888,6 +904,7 @@ export function selectionReport(input: {
         problem: input.problem,
         evidence: input.evidence,
         linked_hash: input.linked_hash,
+        problem_linked_hash: input.problem_linked_hash,
         team_hash: input.team_hash,
         checklist_hash: input.checklist_hash,
       }),

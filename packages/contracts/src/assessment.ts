@@ -22,9 +22,14 @@ export const ASSESSMENT_POLICY_VERSION = 'assessment/1.0' as const;
 const optionRef = z.string().regex(/^O[1-8]$/);
 const claimRef = z.string().regex(/^C[1-9][0-9]?$/);
 
-/** A problem claim as the packet holds it: the exploration form plus its link to the problem. */
+/**
+ * A claim as the packet holds it: the exploration form plus its link to the problem. ADR-0091:
+ * a claim linked to one or more options (claim supports alternative) names them in `options`;
+ * absent, it is linked to the problem only.
+ */
 export const AssessmentClaimSchema = ExplorationClaimSchema.extend({
   relation: z.enum(['supports', 'contradicts']),
+  options: z.array(optionRef).min(1).max(8).optional(),
 });
 export type AssessmentClaim = z.infer<typeof AssessmentClaimSchema>;
 
@@ -213,5 +218,22 @@ export const AssessmentPreviewSchema = z.strictObject({
   claims_over_max: z.number().int().min(0),
   /** The smallest input cap (to a thousand) that reads every claim left out for size, if any. */
   cap_for_all: z.number().int().min(0).nullable(),
+  /**
+   * ADR-0091: per option, the claims linked to that option itself and how many of them the
+   * packet reads. An option with none read is rated on the problem's claims alone, so its
+   * ratings are likely to come back unknown and its range wide.
+   */
+  option_coverage: z
+    .array(
+      z.strictObject({
+        ref: optionRef,
+        alternative_id: id,
+        linked: z.number().int().min(0),
+        read: z.number().int().min(0),
+      }),
+    )
+    .max(8),
+  /** Claims the packet reads that are linked to the problem itself (not only to options). */
+  problem_claims_read: z.number().int().min(0),
 });
 export type AssessmentPreview = z.infer<typeof AssessmentPreviewSchema>;

@@ -204,6 +204,15 @@ export class TeamStore extends DiscoveryStore {
           'INVALID_CONTRACT',
           'Nothing changed in the gate checklist.',
         );
+      // PR #185 review L-3: the checklist rule needs a list to clear by.
+      if (
+        !items.length &&
+        (await this.latestGateRule(c, ws)).mode === 'checklist'
+      )
+        throw fail(
+          'INVALID_CONTRACT',
+          'Gates clear by this checklist now, so it can’t be emptied. Change who clears gates first.',
+        );
       const version = cur.version + 1;
       const itemsHash = canonicalHash(items);
       const eventId = await this.append(c, ctx, {

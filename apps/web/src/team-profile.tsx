@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   CapabilityCheckResultSchema,
   GATE_CLEAR_MODES,
@@ -65,6 +65,8 @@ export function TeamProfilePanel({
   const path = `workspaces/${workspace.id}/team-profile`;
   const data = useLoad(() => api(TeamProfileSchema, path), [workspace.id]);
   const t = data.data;
+  // Saving the checklist or the gate rule reloads both (PR #185 review N-3).
+  const [tick, setTick] = useState(0);
   const [draft, setDraft] = useState<ReturnType<typeof draftOf> | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -299,8 +301,18 @@ export function TeamProfilePanel({
           </>
         )}
       </Status>
-      <GateChecklistEditor session={session} workspace={workspace} />
-      <AutoClearRule session={session} workspace={workspace} />
+      <GateChecklistEditor
+        session={session}
+        workspace={workspace}
+        tick={tick}
+        onChanged={() => setTick((t) => t + 1)}
+      />
+      <AutoClearRule
+        session={session}
+        workspace={workspace}
+        tick={tick}
+        onChanged={() => setTick((t) => t + 1)}
+      />
     </>
   );
 }
@@ -316,7 +328,7 @@ const MODE_TEXT: Record<GateClearMode, { label: string; text: string }> = {
   },
   checklist: {
     label: 'Gates clear when they pass your gate checklist',
-    text: 'A gate also clears once every current automatic assessment answered pass to every checklist item for it, each pass citing the evidence or your team profile. Access also needs every capability the option needs to be Yes in your team profile, found by a check on this computer (or ticked by you when no check can test it): the app compares them itself. Any fail or unknown keeps the gate open and is listed on the option. Each item’s answer is still the model’s judgment, so a run that selects an option whose ethics gate cleared this way stops and asks you first.',
+    text: 'A gate also clears once every current automatic assessment answered pass to every checklist item for it, each pass citing the evidence or your team profile. Access also needs every capability the assessment names as needed (or cites) to be Yes in your team profile, found by a check on this computer (or ticked by you when no check can test it): the app compares them itself. Any fail or unknown keeps the gate open and is listed on the option. Each item’s answer is still the model’s judgment, so a run that selects an option whose ethics gate cleared this way stops and asks you first.',
   },
   model: {
     label: 'Both gates clear on the model’s word',
@@ -328,12 +340,22 @@ const MODE_TEXT: Record<GateClearMode, { label: string; text: string }> = {
 function AutoClearRule({
   session,
   workspace,
+  tick,
+  onChanged,
 }: {
   session: SessionInfo;
   workspace: Workspace;
+  tick: number;
+  onChanged: () => void;
 }) {
   const path = `workspaces/${workspace.id}/gate-rule`;
-  const data = useLoad(() => api(GateRuleSchema, path), [workspace.id]);
+  const data = useLoad(() => api(GateRuleSchema, path), [workspace.id, tick]);
+  // The checklist rule needs a saved checklist (PR #185 review N-3).
+  const list = useLoad(
+    () => api(GateChecklistSchema, `workspaces/${workspace.id}/gate-checklist`),
+    [workspace.id, tick],
+  );
+  const noChecklist = (list.data?.items.length ?? 0) === 0;
   const r = data.data;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -348,7 +370,7 @@ function AutoClearRule({
         body: { expected_version: r.version, mode },
       });
       setPick(null);
-      data.reload();
+      onChanged();
     } catch (err) {
       setError(message(err));
       data.reload();
@@ -383,9 +405,13 @@ function AutoClearRule({
                   name={`gate-mode-${workspace.id}`}
                   value={m}
                   checked={chosen === m}
+                  disabled={m === 'checklist' && m !== r.mode && noChecklist}
                   onChange={() => setPick(m === r.mode ? null : m)}
                 />{' '}
                 <strong>{MODE_TEXT[m].label}.</strong>{' '}
+                {m === 'checklist' && noChecklist && (
+                  <em className="small">(save a gate checklist first) </em>
+                )}
                 <span className="small">{MODE_TEXT[m].text}</span>
               </label>
             ))}
@@ -434,23 +460,42 @@ const GATE_LABEL: Record<GateKind, string> = {
  * gate; the automatic assessment answers every item. Saved as a new version; only the owner
  * edits it. Changing it makes earlier assessments stale (they answered the old list).
  */
+type DraftItem = GateChecklistItem & { id: number };
+let nextItemId = 0;
+const withId = (x: GateChecklistItem): DraftItem => ({
+  gate: x.gate,
+  text: x.text,
+  id: ++nextItemId,
+});
+
 function GateChecklistEditor({
   session,
   workspace,
+  tick,
+  onChanged,
 }: {
   session: SessionInfo;
   workspace: Workspace;
+  tick: number;
+  onChanged: () => void;
 }) {
   const path = `workspaces/${workspace.id}/gate-checklist`;
-  const data = useLoad(() => api(GateChecklistSchema, path), [workspace.id]);
+  const data = useLoad(
+    () => api(GateChecklistSchema, path),
+    [workspace.id, tick],
+  );
+  const rule = useLoad(
+    () => api(GateRuleSchema, `workspaces/${workspace.id}/gate-rule`),
+    [workspace.id, tick],
+  );
   const l = data.data;
-  const [draft, setDraft] = useState<GateChecklistItem[] | null>(null);
+  const saved = useMemo(() => l?.items.map(withId) ?? [], [l]);
+  const [draft, setDraft] = useState<DraftItem[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const items: GateChecklistItem[] =
-    draft ?? l?.items.map((x) => ({ gate: x.gate, text: x.text })) ?? [];
-  const edit = (next: GateChecklistItem[]) => {
+  const items: DraftItem[] = draft ?? saved;
+  const edit = (next: DraftItem[]) => {
     setDraft(next);
     setNotice('');
   };
@@ -471,7 +516,7 @@ function GateChecklistEditor({
       setNotice(
         'Saved. Assess the options again so the assessment answers this checklist.',
       );
-      data.reload();
+      onChanged();
     } catch (err) {
       setError(message(err));
       if (err instanceof ApiError && err.code === 'VERSION_CONFLICT')
@@ -486,8 +531,8 @@ function GateChecklistEditor({
       <p className="small">
         What must hold before an ethics or access gate may clear without you.
         Every automatic assessment answers each item pass, fail or unknown and
-        says why; the items and answers go to the model provider with the
-        assessment. Saving a change makes earlier assessments out of date.
+        says why; the items go to the model provider with the assessment. Saving
+        a change makes earlier assessments out of date.
       </p>
       <Status
         loading={data.loading && !l}
@@ -504,7 +549,7 @@ function GateChecklistEditor({
             {items.length ? (
               <ol>
                 {items.map((x, i) => (
-                  <li key={i}>
+                  <li key={x.id}>
                     <select
                       aria-label={`Gate for item ${i + 1}`}
                       value={x.gate}
@@ -553,16 +598,16 @@ function GateChecklistEditor({
                 <button
                   className="secondary"
                   disabled={items.length >= MAX_CHECKLIST_ITEMS}
-                  onClick={() => edit([...items, { gate: 'ethics', text: '' }])}
+                  onClick={() =>
+                    edit([...items, withId({ gate: 'ethics', text: '' })])
+                  }
                 >
                   Add an item
                 </button>
                 {!items.length && (
                   <button
                     className="secondary"
-                    onClick={() =>
-                      edit(STARTER_GATE_CHECKLIST.map((x) => ({ ...x })))
-                    }
+                    onClick={() => edit(STARTER_GATE_CHECKLIST.map(withId))}
                   >
                     Use the suggested list
                   </button>
@@ -585,6 +630,15 @@ function GateChecklistEditor({
                 )}
               </div>
             )}
+            {rule.data?.mode === 'checklist' &&
+              (['ethics', 'access'] as const)
+                .filter((g) => !items.some((x) => x.gate === g))
+                .map((g) => (
+                  <p key={g} className="small notice">
+                    No item for the {g} gate: under your checklist rule, {g}{' '}
+                    never clears without you.
+                  </p>
+                ))}
             {blank && draft && (
               <p className="small">Each item needs at least 3 characters.</p>
             )}

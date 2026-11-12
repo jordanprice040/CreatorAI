@@ -3,6 +3,15 @@
 ## November 12 handoff — the owner's gate checklist (ADR-0097, migration 60)
 
 Built on branch `claude/project-thread-uf8kgy`: migration 60 (`gate_checklist_versions`; `gate_rule_versions.mode` adds `checklist`); contracts `GateChecklistSchema`, `SaveGateChecklistRequestSchema`, `PacketChecklistSchema`, `STARTER_GATE_CHECKLIST` (`packages/contracts/src/team.ts`), the packet's `checklist`, the assessor's `checklist`/`access_needs`, the card's `assessment.checklist*`, and each gate's `checklist` detail; domain `verifiedCapabilities`, `packetChecklist`, `checklistHash` (`team.ts`), the checklist checks in `checkAssessmentOutput` and the fixture answer, `checklistResult`/`checklistMiss` in `selection.ts`; store `gateChecklist`, `saveGateChecklist`, `checklistForPacket` (`team-store.ts`) and their use in `selection-store.ts`; API `workspaces/{ws}/gate-checklist`; web `GateChecklistEditor` (`team-profile.tsx`), checklist misses in `gates.tsx`, the packet preview in `assess.tsx`. Tests: `gate-checklist` (new), `team-api`, `team-domain`, and the v3 counts in the qualify tests. Next: review in a separate thread; after merge, requalify the dev studio's assessor on `assessment-synthetic-v3` (Jordan's OK).
+## November 11 handoff — option claims, claim linking, range explanation (ADR-0091)
+
+Branch `claude/project-thread-j9fsjp`, no migration. Packet: `ASSESSMENT_CLAIMS_SQL` and `linkedClaimsHash` (`claim:option` keys) in `packages/db/src/selection-store.ts`; `AssessmentInputClaim`, coverage-first claim order and `option_coverage` in `packages/domain/src/assessment.ts`; optional `options` on `AssessmentClaimSchema` and `option_coverage` on `AssessmentPreviewSchema`. Web: `link-claims.tsx` (`LinkClaims`, `ClaimLinks`), `claim-suggest.ts` (pure: `suggestClaims`, `rangeEnds`), `web-search-handoff.ts`; `Coverage` and `RangeWhy` in `assess.tsx`; Compare, Evidence, Catalog and WebDiscover wired. R08 untouched on purpose (qualification check compares the system text). The ethics/access gate thread plans ADR-0090 / migration 56 and an R08 change; expect a small merge in the packet notes area of `assessment.ts`.
+
+Review 1 (`/mnt/project-files/reviews/PR178_REVIEW1.md`: 1 Medium, 4 Low, 7 nits) fixed; see the ADR-0091 review amendment. Merge notes for #179: keep `RangeWhy`, `LinkClaims` and `GateLines` imports in compare.tsx; keep `ASSESSMENT_CLAIMS_SQL` and `extends TeamStore`, and both `outputCap` and `team` in `buildAssessment`; rerun assessment-packing tests after. Re-review 2 (`PR178_REVIEW2.md`: 2 Low, 5 nits) and re-review 3 (`PR178_REVIEW3.md`: 1 Low, 2 nits) fixed; see their amendments. Main (with #177) merged in.
+
+After upgrading, problems with claims already linked to options show their automatic assessments as stale; assess again to read them (the stale reason says this).
+
+Next: Jordan tries Link claims on the CSV problem and assesses again (about 2 plan requests, needs his OK).
 
 ## November 11 handoff — team profile and gate confirmations (ADR-0090)
 

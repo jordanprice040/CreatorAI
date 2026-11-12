@@ -55,6 +55,37 @@ export const rubricsForKind = (kind: string): RubricId[] =>
     ? ['suitability', 'opportunity']
     : ['suitability'];
 
+/**
+ * ADR-0091: option texts drafted by discovery cite that run's packet claims as "C3"; those
+ * numbers are not this packet's claim refs, so the assessor read them as wrong citations. They
+ * are renamed "draft-C3" and a note says what they are.
+ */
+// Review L-2: only in citation positions ("Data: C3", "(C3, C12)", "claims C3 and C5"), so
+// "AWS C5 instances" or "Category C3" are left alone. Re-review 3 L-1: a run of refs joined
+// by ",", "/", "&", "and", "or", "to", "through" or a dash is one citation and is renamed
+// whole: when it follows a citation mark or word (any case), or when it lists two or more
+// refs ("Compare C3 and C5"). A lone ref elsewhere ("C3 shows exports.") is left as it is.
+// Re-review 4: joining words match in any case ("C3 OR C5"), and a ref already written
+// "draft-C3" is never renamed again.
+const anyCase = (w: string) =>
+  w.replace(/[a-z]/g, (c) => `[${c}${c.toUpperCase()}]`);
+// Re-review 5: an already-prefixed ref (any case, any dash: "Draft–C3") stays a member of
+// its run, so the bare refs beside it are renamed with it, and only it is skipped.
+const DRAFT_PRE = `(?:${anyCase('draft')}[-–—])`;
+const DRAFT_REF_ONE = `(?:${DRAFT_PRE}?\\bC[1-9][0-9]?\\b)`;
+const DRAFT_RUN = new RegExp(
+  `(?<!${DRAFT_PRE})${DRAFT_REF_ONE}(?:\\s*(?:[,/&–—-]|\\b(?:${['and', 'or', 'to', 'through'].map(anyCase).join('|')})\\b)\\s*${DRAFT_REF_ONE})*`,
+  'g',
+);
+const BARE_REF = new RegExp(`(?<!${DRAFT_PRE})\\bC(?=[1-9])`, 'g');
+const CITES_BEFORE =
+  /(?:[:(,;[]|\b(?:claims?|cites?|cited|see|and|per|from))\s*$/i;
+const draftRefs = (s: string) =>
+  s.replace(DRAFT_RUN, (run: string, at: number) =>
+    run.includes('C', 1) || CITES_BEFORE.test(s.slice(0, at))
+      ? run.replace(BARE_REF, 'draft-C')
+      : run,
+  );
 const clip = (s: string, n: number) =>
   s.length > n ? `${s.slice(0, n - 1)}…` : s;
 
@@ -114,8 +145,32 @@ export type AssessmentPlan =
        * size; null when none is left out (or none could be found).
        */
       cap_for_all: number | null;
+      /**
+       * ADR-0091: per assessed option, the claims linked to the option itself and how many of
+       * them the packet reads.
+       */
+      option_coverage: OptionCoverage[];
+      /** Claims the packet reads that are linked to the problem itself (review N-4). */
+      problem_claims_read: number;
     }
   | { ok: false; problem: string; needed: number; input_cap: number };
+
+export type OptionCoverage = {
+  ref: string;
+  alternative_id: string;
+  linked: number;
+  read: number;
+};
+
+/** A claim the assessment may read, as the store gathers it. */
+export type AssessmentInputClaim = {
+  relation: 'supports' | 'contradicts';
+  evidence: ClaimEvidence;
+  /** ADR-0091: the options (alternative ids) this claim is linked to as support. */
+  options?: string[];
+  /** False when the claim is linked to options only, not to the problem. Default true. */
+  problem?: boolean;
+};
 
 type AssessmentInput = {
   problem: {
@@ -135,10 +190,12 @@ type AssessmentInput = {
     tradeoffs: string[];
     uncertainty: string;
   }[];
-  claims: { relation: 'supports' | 'contradicts'; evidence: ClaimEvidence }[];
+  claims: AssessmentInputClaim[];
   now: Date;
   /** The route's per-request input cap (`caps.responses.max_input_chars` on a plan connection). */
   input_cap?: number;
+  /** ADR-0091: the route's answer cap (`caps.responses.max_output_chars` on a plan connection). */
+  output_cap?: number;
   /** A plan connection's cap can be raised by its owner; other routes have a fixed size. */
   route?: 'plan' | 'other';
   /** ADR-0090: the team profile's packet block, when the owner has saved one. */
@@ -150,7 +207,9 @@ type AssessmentInput = {
 /**
  * The packet for one problem and how it is split into requests (ADR-0085, amending ADR-0074):
  * its options (current versions), the claims linked to it with their two strongest passages,
- * and the rubrics with their hashes. Each request carries a few options and must fit the
+ * and the rubrics with their hashes. ADR-0091: claims linked to an assessed option are read
+ * too, tagged with that option, and each option's first such claim comes before the problem's
+ * claims so a tight cap still reads something on every option. Each request carries a few options and must fit the
  * route's per-request input cap, counted with the role text. Every request reads the same
  * claim set, so options in different requests are rated on the same evidence: claims are
  * added in the order given while they fit beside the largest request's options, and the
@@ -189,10 +248,10 @@ function planAt(
       alternative_id: a.id,
       version: a.version,
       kind: a.kind,
-      title: clip(a.title, 500),
-      rationale: clip(a.rationale, 1200),
-      tradeoffs: a.tradeoffs.slice(0, 8).map((t) => clip(t, 300)),
-      uncertainty: clip(a.uncertainty, 600),
+      title: clip(draftRefs(a.title), 500),
+      rationale: clip(draftRefs(a.rationale), 1200),
+      tradeoffs: a.tradeoffs.slice(0, 8).map((t) => clip(draftRefs(t), 300)),
+      uncertainty: clip(draftRefs(a.uncertainty), 600),
       rubrics: rubricsForKind(a.kind),
     }));
   const rubrics = (['suitability', 'opportunity'] as const)
@@ -253,8 +312,34 @@ function planAt(
       };
   }
 
+  // ADR-0091: which assessed options each claim is linked to. A claim linked only to options
+  // past the eighth is not read and not counted.
+  const refOf = new Map(
+    options.map((o) => [o.alternative_id.toLowerCase(), o.ref]),
+  );
+  const tagged = input.claims.flatMap((c) => {
+    const refs = [
+      ...new Set(
+        (c.options ?? []).flatMap((id) => refOf.get(id.toLowerCase()) ?? []),
+      ),
+    ].sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
+    return c.problem === false && !refs.length ? [] : [{ ...c, refs }];
+  });
+  // Coverage first: each option's first claim of its own, then the given order (problem
+  // claims as before). With no option claims the order is unchanged.
+  const firsts = new Set<(typeof tagged)[number]>();
+  for (const o of options) {
+    const own = tagged.find((c) => c.refs.includes(o.ref));
+    if (own) firsts.add(own);
+  }
+  const eligible = [...firsts, ...tagged.filter((c) => !firsts.has(c))];
+  const problemLinked = new Set(
+    eligible
+      .filter((c) => c.problem !== false)
+      .map((c) => c.evidence.claim.id.toLowerCase()),
+  );
   // Every candidate claim, rendered once; retracted or changed support is not passed on.
-  const candidates = input.claims.map(({ relation, evidence: e }) => {
+  const candidates = eligible.map(({ relation, evidence: e, refs }) => {
     const rows = e.rows.filter(
       (r) => r.freshness !== 'retracted' && r.freshness !== 'claim_changed',
     );
@@ -269,6 +354,7 @@ function planAt(
       independent_origins: e.independent_origins,
       contrary_origins: e.contrary_origins,
       relation,
+      ...(refs.length ? { options: refs } : {}),
       passages: [...rows]
         .sort((a, b) => Number(b.counted) - Number(a.counted))
         .slice(0, 2)
@@ -297,28 +383,43 @@ function planAt(
   // Options in request-sized batches: at most `per` assessments each (the answer must fit the
   // output cap) and within the input cap. Try finer splits; keep the one that reads the most
   // claims, and of those the one with the fewest requests.
+  // ADR-0097 (PR #185 review M-1): the answer also holds each suitability assessment's checklist
+  // answers, so a batch is also kept within the answer budget counting them.
+  const answerBudget =
+    input.output_cap ?? ASSESSMENTS_PER_REQUEST * OUTPUT_CHARS_PER_ASSESSMENT;
+  const answerChars = (o: AssessmentOption) =>
+    o.rubrics.length * OUTPUT_CHARS_PER_ASSESSMENT +
+    (input.checklist
+      ? CHECKLIST_CHARS_PER_ITEM * input.checklist.items.length
+      : 0);
   const split = (per: number): string[][] => {
     const out: string[][] = [];
     let cur: string[] = [];
     let n = 0;
+    let chars = 0;
     for (const o of options) {
       const k = o.rubrics.length;
+      const w = answerChars(o);
       if (
         cur.length &&
-        (n + k > per || base([...cur, o.ref]) + NOTE_RESERVE > cap)
+        (n + k > per ||
+          chars + w > answerBudget ||
+          base([...cur, o.ref]) + NOTE_RESERVE > cap)
       ) {
         out.push(cur);
         cur = [];
         n = 0;
+        chars = 0;
       }
       cur.push(o.ref);
       n += k;
+      chars += w;
     }
     if (cur.length) out.push(cur);
     return out;
   };
   let best: { batches: string[][]; claims: AssessmentClaim[] } | null = null;
-  for (let per = ASSESSMENTS_PER_REQUEST; per >= 1; per--) {
+  for (let per = assessmentsPerRequest(input.output_cap); per >= 1; per--) {
     const batches = split(per);
     const largest = Math.max(...batches.map(base));
     const claims = pick(cap - NOTE_RESERVE - largest);
@@ -340,8 +441,8 @@ function planAt(
   const { batches } = best!;
   let claims = best!.claims;
 
-  const overMax = Math.max(0, input.claims.length - MAX_CLAIMS);
-  const forSize = (n: number) => Math.max(0, input.claims.length - n - overMax);
+  const overMax = Math.max(0, eligible.length - MAX_CLAIMS);
+  const forSize = (n: number) => Math.max(0, eligible.length - n - overMax);
   // One option per request reads the most: its largest request plus every readable claim.
   const estimate_for_all =
     Math.max(...options.map((o) => base([o.ref]))) +
@@ -349,9 +450,9 @@ function planAt(
     candidates
       .slice(0, MAX_CLAIMS)
       .reduce((n, make, i) => n + quoted(make(`C${i + 1}`)) + 1, 0);
-  const notesFor = (n: number) => {
+  const notesFor = (read: AssessmentClaim[]) => {
     const notes: string[] = [];
-    const skipped = forSize(n);
+    const skipped = forSize(read.length);
     if (input.alternatives.length > MAX_ASSESSMENT_OPTIONS)
       notes.push(
         `${input.alternatives.length - MAX_ASSESSMENT_OPTIONS} more options were not assessed: one assessment covers at most ${MAX_ASSESSMENT_OPTIONS}.`,
@@ -364,9 +465,23 @@ function planAt(
       notes.push(
         `${overMax} more linked claim${overMax === 1 ? ' was' : 's were'} not read: one assessment reads at most ${MAX_CLAIMS} claims.`,
       );
-    if (!input.claims.length)
+    if (!eligible.length)
       notes.push(
         'No claim is linked to this problem, so every rating can only be unknown.',
+      );
+    if (
+      options.some((o) =>
+        [o.title, o.rationale, o.uncertainty, ...o.tradeoffs].some((t) =>
+          t.includes('draft-C'),
+        ),
+      )
+    )
+      notes.push(
+        'Option texts cite "draft-C…" claims from the discovery run that drafted them; those are not this packet\'s claim refs and cannot be cited.',
+      );
+    if (read.some((c) => c.options))
+      notes.push(
+        'A claim with an options list is linked to those options rather than only to the problem: it is evidence about them.',
       );
     notes.push(
       'Only evidence already recorded in this workspace was read; the assessor did not search the web or fetch pages.',
@@ -375,7 +490,7 @@ function planAt(
   };
   // The exact check: every request, with its notes, under the cap; drop the last claims if not.
   for (;;) {
-    const packet = shell(claims, notesFor(claims.length));
+    const packet = shell(claims, notesFor(claims));
     const request_chars = batches.map((refs) =>
       assessmentRequestChars(packetForOptions(packet, refs)),
     );
@@ -389,6 +504,15 @@ function planAt(
         claims_left_out: forSize(claims.length),
         claims_over_max: overMax,
         cap_for_all: null,
+        option_coverage: options.map((o) => ({
+          ref: o.ref,
+          alternative_id: o.alternative_id,
+          linked: eligible.filter((c) => c.refs.includes(o.ref)).length,
+          read: claims.filter((c) => c.options?.includes(o.ref)).length,
+        })),
+        problem_claims_read: claims.filter((c) =>
+          problemLinked.has(c.claim_id.toLowerCase()),
+        ).length,
         estimate_for_all,
       };
     if (!claims.length) {
@@ -406,7 +530,7 @@ function planAt(
 
 // ---- Prompt and model input ---------------------------------------------------------------
 
-const R08 = `Assess every option in the packet against the rubrics listed for it, using only the packet: the problem, its options, the claims linked to the problem with their verified passages and statuses, and the rubric anchors. For each option and each of its rubrics, rate every criterion 1 to 5 against the anchors (2 and 4 are intermediate), or null when the packet gives no evidence for it: unknown is an honest answer and is never a neutral 3. Every non-null rating cites at least one packet claim that bears on it; its rationale says what in that claim supports the rating and what weighs against it. Weak, single-source or contested evidence lowers evidence ratings and confidence; it is not proof of demand, novelty or benefit. Judge suitability across all response types on their merits: an existing tool, a process change, human-led or hybrid response can be the better answer, and on the suitability rubric software influence is described in software_influence, never counted. Only build and hybrid options take the opportunity rubric. Ethics and access gates: say unresolved when the packet raises a concern you cannot see addressed, resolved only when the packet shows how it was dealt with, and clear only when you looked and found none; the owner may let your clear or resolved stand without a person looking, so say either only when the packet supports it (for access, when the team block shows the team can do what the option needs), and when in doubt say unresolved and name what is missing. When the packet has a team block, it is the owner's statement of what the team can run, install and do with data (declared by the owner, or found by a check on the studio's computer): use it for access, treat a capability marked yes as established and one marked no as a real limit, and when you leave a gate unresolved, name in its note the exact capability, permission or fact that is missing. When the packet has a checklist, it is the owner's list of what must hold before a gate may clear without a person: on each suitability assessment, answer every item by its ref ("K1"...) pass, fail or unknown, judged for that option. Say pass only when the packet shows the item holds and cite what shows it, as claim refs or team capability keys from the team block; say fail when the packet shows it does not hold; say unknown when the packet does not say; the note says in one sentence why. Also list in access_needs the team capability keys the option needs (for example python and pip for a Python script), including ones the team block does not show; the application checks them against the team profile itself. A checklist item is never a reason to rate higher or lower. The checks name the target users, the current workaround, the strongest contrary evidence, a measurable outcome, a validation plan and the maintenance burden, from the packet. Your ratings are proposals: application code checks them and computes every total and rank, and a person, or a rule the owner chose, decides.`;
+const R08 = `Assess every option in the packet against the rubrics listed for it, using only the packet: the problem, its options, the claims linked to the problem with their verified passages and statuses, and the rubric anchors. For each option and each of its rubrics, rate every criterion 1 to 5 against the anchors (2 and 4 are intermediate), or null when the packet gives no evidence for it: unknown is an honest answer and is never a neutral 3. Every non-null rating cites at least one packet claim that bears on it; its rationale says what in that claim supports the rating and what weighs against it. Weak, single-source or contested evidence lowers evidence ratings and confidence; it is not proof of demand, novelty or benefit. Judge suitability across all response types on their merits: an existing tool, a process change, human-led or hybrid response can be the better answer, and on the suitability rubric software influence is described in software_influence, never counted. Only build and hybrid options take the opportunity rubric. Ethics and access gates: say unresolved when the packet raises a concern you cannot see addressed, resolved only when the packet shows how it was dealt with, and clear only when you looked and found none; the owner may let your clear or resolved stand without a person looking, so say either only when the packet supports it (for access, when the team block shows the team can do what the option needs), and when in doubt say unresolved and name what is missing. When the packet has a team block, it is the owner's statement of what the team can run, install and do with data (declared by the owner, or found by a check on the studio's computer): use it for access, treat a capability marked yes as established and one marked no as a real limit, and when you leave a gate unresolved, name in its note the exact capability, permission or fact that is missing. When the packet has a checklist, it is the owner's list of what must hold before a gate may clear without a person: on each suitability assessment, answer every item by its ref ("K1"...) pass, fail or unknown, judged for that option. Say pass only when the packet shows the item holds and cite what shows it, as claim refs or team capability keys from the team block; say fail when the packet shows it does not hold; say unknown when the packet does not say; the note says in one sentence why. Also list in access_needs every team capability key the option needs (for example python and pip for a Python script), including ones the team block does not show or marks no; the application checks them, and every capability an access pass cites, against the team profile itself. An access item never passes by citing a capability the team block does not mark yes. A checklist item is never a reason to rate higher or lower. The checks name the target users, the current workaround, the strongest contrary evidence, a measurable outcome, a validation plan and the maintenance burden, from the packet. Your ratings are proposals: application code checks them and computes every total and rank, and a person, or a rule the owner chose, decides.`;
 const OUTPUT = `Refer to options only by the packet's option refs ("O1"...) and to evidence only by its claim refs ("C1"...); a ref that is not in the packet makes the answer invalid. Return exactly one assessment for each option and each rubric listed for it, and nothing else. Each assessment's ratings has exactly the rubric's criterion keys. software_influence is an object on suitability assessments and null on opportunity assessments. When the packet has a checklist, every suitability assessment has checklist (exactly one answer for each item ref, a pass citing at least one claim ref or team key) and access_needs (known capability keys); opportunity assessments, and every assessment of a packet without a checklist, omit both. Return exactly one JSON object matching the schema below, without Markdown, commentary or extra keys; omit fixture metadata. This does not expand tools, permissions or authority.`;
 function modelSchema(schema: z.ZodType) {
   const json = z.toJSONSchema(schema, { io: 'output' });
@@ -440,6 +564,33 @@ export const assessmentContext = (
  * cap; four stay near 7,000 to 11,000.
  */
 export const ASSESSMENTS_PER_REQUEST = 4;
+/**
+ * ADR-0091: answer characters allowed for each option-and-rubric assessment when the route has
+ * an answer cap. With option claims read, ratings cite more evidence: a live four-assessment
+ * answer reading eight claims passed a 16,000-character cap (one reading four was about
+ * 12,000). At 16,000 this allows three per request; at 20,000 or more, four.
+ */
+export const OUTPUT_CHARS_PER_ASSESSMENT = 5_000;
+/**
+ * ADR-0097: answer characters allowed for each checklist item a suitability assessment answers
+ * (an answer, refs and a one-sentence note: about 150 to 250 characters minified).
+ */
+export const CHECKLIST_CHARS_PER_ITEM = 250;
+/**
+ * Assessments per request under the route's answer cap (`max_output_chars`), if it has one.
+ * An option is never split across requests, so a build or hybrid option (two rubrics) still
+ * goes as two assessments in one request when this is 1 (an answer cap under 10,000).
+ */
+export const assessmentsPerRequest = (outputCap?: number) =>
+  outputCap === undefined
+    ? ASSESSMENTS_PER_REQUEST
+    : Math.max(
+        1,
+        Math.min(
+          ASSESSMENTS_PER_REQUEST,
+          Math.floor(outputCap / OUTPUT_CHARS_PER_ASSESSMENT),
+        ),
+      );
 
 /**
  * The packet one batch's task reads: the same problem, claims and notes, only its options (with
@@ -555,13 +706,20 @@ export function checkAssessmentOutput(
         ok: false,
         problem: `${a.option} does not answer exactly ${items.join(', ')}`,
       };
-    const teamKeys = new Set(
-      (packet.team?.capabilities ?? []).flatMap((c) => (c.key ? [c.key] : [])),
+    const teamStatus = new Map(
+      (packet.team?.capabilities ?? []).flatMap((c) =>
+        c.key ? [[c.key, c.status] as const] : [],
+      ),
     );
+    const teamKeys = new Set(teamStatus.keys());
+    const gateOf = new Map(packet.checklist!.items.map((i) => [i.ref, i.gate]));
     for (const [k, r] of Object.entries(a.checklist)) {
       const badClaim = r.claim_refs.find((x) => !claims.has(x));
       if (badClaim)
-        return { ok: false, problem: `cites ${badClaim}, not in the packet` };
+        return {
+          ok: false,
+          problem: `${a.option} ${k} cites ${badClaim}, not in the packet`,
+        };
       const badTeam = r.team_refs.find((x) => !teamKeys.has(x));
       if (badTeam)
         return {
@@ -572,6 +730,13 @@ export function checkAssessmentOutput(
         return {
           ok: false,
           problem: `${a.option} ${k} passes with nothing cited`,
+        };
+      // PR #185 review L-2: an access pass cannot rest on a capability the team lacks.
+      const notYes = r.team_refs.find((x) => teamStatus.get(x) !== 'yes');
+      if (r.answer === 'pass' && gateOf.get(k) === 'access' && notYes)
+        return {
+          ok: false,
+          problem: `${a.option} ${k} passes citing ${notYes}, which the team block does not mark yes`,
         };
     }
     if (new Set(a.access_needs).size !== a.access_needs.length)
@@ -778,4 +943,38 @@ export function assessmentScorecards(input: {
       body,
     };
   });
+}
+
+/**
+ * ADR-0091: one summary from a split assessment's parts, at most `max` characters. Shorter
+ * parts keep their full text and pass their unused room to longer ones; a part that still does
+ * not fit is cut at a word boundary where one is near, and ends with an ellipsis.
+ */
+export function joinSummaries(
+  parts: readonly string[],
+  max = 1200,
+): string | null {
+  const texts = parts.map((t) => t.trim()).filter(Boolean);
+  if (!texts.length) return null;
+  let room = max - (texts.length - 1);
+  const keep = new Map<number, number>();
+  const order = texts
+    .map((t, i) => ({ i, n: t.length }))
+    .sort((a, b) => a.n - b.n);
+  order.forEach(({ i, n }, k) => {
+    const share = Math.floor(room / (order.length - k));
+    const take = Math.min(n, share);
+    keep.set(i, take);
+    room -= take;
+  });
+  return texts
+    .map((t, i) => {
+      const n = keep.get(i)!;
+      if (t.length <= n) return t;
+      let cut = t.slice(0, Math.max(0, n - 1));
+      const space = cut.lastIndexOf(' ');
+      if (space > cut.length - 40 && space > 0) cut = cut.slice(0, space);
+      return `${cut.trimEnd()}…`;
+    })
+    .join(' ');
 }
