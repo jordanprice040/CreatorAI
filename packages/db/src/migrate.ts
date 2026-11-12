@@ -76,10 +76,17 @@ export async function assertSchemaCurrent(pool: Pool): Promise<number> {
   const done = await appliedVersions(pool);
   compare(done);
   const latest = migrations.at(-1)?.version ?? 0;
-  if (done.length !== migrations.length)
+  if (done.length !== migrations.length) {
+    // Review of PR #181, L-1: with numbers reserved out of order (61 merged before 56), the
+    // highest applied number can equal the code's; name what is missing instead.
+    const have = new Set(done.map((d) => d.version));
+    const missing = migrations
+      .map((m) => m.version)
+      .filter((v) => !have.has(v));
     throw new ContractError(
       'STORAGE_UNAVAILABLE',
-      `Database schema is at ${done.at(-1)?.version ?? 0}; code expects ${latest}. Run pnpm db:migrate.`,
+      `Database schema is missing migration${missing.length === 1 ? '' : 's'} ${missing.join(', ')} (code expects ${latest}). Run pnpm db:migrate.`,
     );
+  }
   return latest;
 }
