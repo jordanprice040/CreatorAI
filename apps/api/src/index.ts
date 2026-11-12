@@ -99,6 +99,7 @@ import {
 } from '@creator/executor';
 import { createAuth } from './auth.js';
 import { WebDiscoveryRunner } from './web-discovery.js';
+import { AutopilotRunner, webResearch } from './autopilot.js';
 import { desktopRoutes, visitorKey } from './desktop.js';
 import {
   GITHUB_ROUTE,
@@ -254,7 +255,7 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   STORAGE_UNAVAILABLE: 503,
 };
 const RECORD_ROUTE =
-  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|routine-policies|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|proposals|specs|search|library|destination|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback|terminals|route-registries|route-policies|route-benchmarks|route-promotions|route-decisions|context-capabilities|context-index|context-packs|context-handoffs|context-calls|context-cache|context-batches|context-evaluations|context-usage|saved-queries|semantic-search|audit-questions|audit-plans|lineage-verify|members|exploration-preview|web-discoveries|web-discovery-preview)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|build-approvals|routine-policy|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|source-searches|support|evidence|discoveries|explorations|exploration-packet|assessments|assessment-packet|assessment-preview|explored-briefs|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|manifest|compare|feedback|previews|terminals|guide|stop|decide|revision|benchmark|benchmark-results|advance|rollback|call|outcomes|escalate|compact|compactions|invalidate|poll|run|link|lineage-graph|lineage-export|research-plan|remove|explanation|reviews|files|runbook|web-discoveries|admit|dismiss))?)?)?)?$/;
+  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|routine-policies|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|proposals|specs|search|library|destination|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback|terminals|route-registries|route-policies|route-benchmarks|route-promotions|route-decisions|context-capabilities|context-index|context-packs|context-handoffs|context-calls|context-cache|context-batches|context-evaluations|context-usage|saved-queries|semantic-search|audit-questions|audit-plans|lineage-verify|members|exploration-preview|web-discoveries|web-discovery-preview|autopilots)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|build-approvals|routine-policy|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|source-searches|support|evidence|discoveries|explorations|exploration-packet|assessments|assessment-packet|assessment-preview|explored-briefs|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|manifest|compare|feedback|previews|terminals|guide|stop|decide|revision|benchmark|benchmark-results|advance|rollback|call|outcomes|escalate|compact|compactions|invalidate|poll|run|link|lineage-graph|lineage-export|research-plan|remove|explanation|reviews|files|runbook|web-discoveries|admit|dismiss|autopilots|continue))?)?)?)?$/;
 
 export function createApi(
   env: Record<string, string | undefined> = {},
@@ -510,6 +511,13 @@ export function createApi(
     store && sources && planService
       ? new WebDiscoveryRunner(store, planService, sources)
       : null;
+  // ADR-0092 (P13): autopilots drive a run's main path step by step in this process.
+  const autopilot = store
+    ? new AutopilotRunner(
+        store,
+        webDiscovery ? webResearch(webDiscovery, store) : null,
+      )
+    : null;
   const brokerActor = { actorId: BROKER_ACTOR_ID };
   // Per-process salt: stored pairing visitor keys cannot be turned back into addresses.
   const visitorSalt = randomBytes(32).toString('hex');
@@ -622,6 +630,8 @@ export function createApi(
     await maintenance.run('outbox', () => store.drainOutbox());
     worker?.start();
     qualificationQueue?.start();
+    // Autopilots a stopped studio left running carry on (each step's start is idempotent).
+    autopilot?.watch();
     if (portfolioScheduler === 'on') portfolio?.start();
   }
   let ready = init();
@@ -1803,6 +1813,18 @@ export function createApi(
           true,
         );
       }
+      if (item && method === 'POST' && action === 'autopilots') {
+        if (!autopilot)
+          throw new ContractError(
+            'INVALID_CONFIG',
+            'Autopilots need the PostgreSQL store.',
+          );
+        return send(
+          201,
+          await autopilot.start(ctx, ws, item, await readJson(req)),
+          true,
+        );
+      }
       if (item && method === 'POST' && action === 'explorations')
         return send(
           201,
@@ -2288,6 +2310,34 @@ export function createApi(
           : preview,
         false,
       );
+    } else if (collection === 'autopilots' && autopilot) {
+      // ADR-0092 (P13): read, stop and continue autopilots.
+      if (!item && method === 'GET')
+        return send(
+          200,
+          (
+            await store.listAutopilots(ctx, ws, url.searchParams.get('run'))
+          ).map((a) => autopilot.with(a)),
+          false,
+        );
+      if (item && !action && method === 'GET')
+        return send(
+          200,
+          autopilot.with(await store.getAutopilot(ctx, ws, item)),
+          false,
+        );
+      if (item && method === 'POST' && action === 'cancel')
+        return send(
+          200,
+          await autopilot.cancel(ctx, ws, item, await readJson(req)),
+          true,
+        );
+      if (item && method === 'POST' && action === 'continue')
+        return send(
+          200,
+          await autopilot.retry(ctx, ws, item, await readJson(req)),
+          true,
+        );
     } else if (collection === 'web-discoveries') {
       // ADR-0086 (P12): read, stop, resume, and decide the checked claims.
       if (!item && method === 'GET')
@@ -2671,6 +2721,7 @@ export function createApi(
     if (relay) clearInterval(relay);
     await worker?.stop();
     await qualificationQueue?.stop();
+    await autopilot?.close();
     await portfolio?.stop();
     server.closeAllConnections();
     preview.closeAllConnections();
@@ -2713,6 +2764,12 @@ import {
 export { visitorKey } from './desktop.js';
 export { createPreviewServer } from './artifacts.js';
 export { WebDiscoveryRunner, stepId, answerJson } from './web-discovery.js';
+export {
+  AutopilotRunner,
+  autopilotKey,
+  webResearch,
+  type AutopilotWeb,
+} from './autopilot.js';
 export {
   checkCwd,
   checkEnv,

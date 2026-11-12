@@ -47,6 +47,7 @@ import { envelopesFor } from './build-defaults.js';
 import { money } from './budgets.js';
 import { ThemeIntent } from './theme-intent.js';
 import { Explore, type ExploredPick } from './explore.js';
+import { Autopilot } from './autopilot.js';
 import { WebDiscover } from './web-discovery.js';
 import { Empty, Status, runNames, useLoad, type View } from './ui.js';
 import { runLabel } from './labels.js';
@@ -963,6 +964,11 @@ export function Submit({
       />
       <WebDiscover
         key={`web-${workspace.id}`}
+        session={session}
+        workspace={workspace}
+      />
+      <Autopilot
+        key={`autopilot-${workspace.id}`}
         session={session}
         workspace={workspace}
       />
