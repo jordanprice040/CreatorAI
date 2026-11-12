@@ -1,5 +1,9 @@
 # Session handoff — November 10, 2026
 
+## November 12 handoff — the last older review items (#128 N-6, #129 N-4, #90 N-4 leftover)
+
+Built on branch `claude/project-thread-kxrgo2`, no migration or ADR. `PlanRelay.#handle` (`packages/executor/src/codex-host.ts`) listens for the Codex response's `close` from admission on and aborts the upstream call with `CodexDisconnected` unless the response finished; `stopReason` classifies an abort as `codex_disconnected`, `relay_closed` (new `RelayClosed`, from `close()`) or `timeout`. `Oversight` (`apps/web/src/oversight.tsx`) keeps `loadFailed`: an error from a failed load is cleared by the next load that works; an action's error is not. #129 N-4 is covered by `tracking/evidence/member-roles/walk.mjs` (role set with SQL as a test seam, since development sign-in has one member) rather than component unit tests: the pages load their data in effects, and the repo has no DOM test harness. #75 L-1, #77 L-1 and #90 N-4 were already fixed on main. Next: independent review in a separate thread. Older items still open: PR #150 N-1..N-3.
+
 ## November 12 handoff — the owner's gate checklist (ADR-0097, migration 60)
 
 Built on branch `claude/project-thread-uf8kgy`: migration 60 (`gate_checklist_versions`; `gate_rule_versions.mode` adds `checklist`); contracts `GateChecklistSchema`, `SaveGateChecklistRequestSchema`, `PacketChecklistSchema`, `STARTER_GATE_CHECKLIST` (`packages/contracts/src/team.ts`), the packet's `checklist`, the assessor's `checklist`/`access_needs`, the card's `assessment.checklist*`, and each gate's `checklist` detail; domain `verifiedCapabilities`, `packetChecklist`, `checklistHash` (`team.ts`), the checklist checks in `checkAssessmentOutput` and the fixture answer, `checklistResult`/`checklistMiss` in `selection.ts`; store `gateChecklist`, `saveGateChecklist`, `checklistForPacket` (`team-store.ts`) and their use in `selection-store.ts`; API `workspaces/{ws}/gate-checklist`; web `GateChecklistEditor` (`team-profile.tsx`), checklist misses in `gates.tsx`, the packet preview in `assess.tsx`. Tests: `gate-checklist` (new), `team-api`, `team-domain`, and the v3 counts in the qualify tests. Next: review in a separate thread; after merge, requalify the dev studio's assessor on `assessment-synthetic-v3` (Jordan's OK).
@@ -128,7 +132,7 @@ Open items:
 - **Windows verification:** no full Windows run of main since CI stopped.
 - **Owner pilot:** finished. Jordan marked it finished on November 10 (PR #155); its window ended
   November 6.
-- **Older review items still open:** #128 N-6, #129 N-4, PR #150 N-1..N-3. Health reports configuration,
+- **Older review items still open:** PR #150 N-1..N-3 (#128 N-6 and #129 N-4 fixed November 12). Health reports configuration,
   not live state; the preview cookie-host limit remains. (#75 L-1 was repaired earlier; #77 L-1, #90 N-4
   and PR #148 N-I are fixed by the November 10 cleanup.)
 - **The web qualification record** lives in source against the dev studio's connection id, so it does not

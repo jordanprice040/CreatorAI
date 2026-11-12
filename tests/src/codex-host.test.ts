@@ -472,3 +472,140 @@ test('a Codex disconnect mid-response stops the upstream call and settles the re
   assert.equal(settled[0]!.reason_code, 'codex_disconnected');
   assert.ok(upstreamClosed, 'the upstream call was stopped');
 });
+
+for (const phase of [
+  'before the upstream headers',
+  'during a silent stream',
+] as const)
+  test(`a Codex disconnect ${phase} stops the upstream call at once (PR #128 re-review N-6)`, async (t) => {
+    // An upstream that sends nothing (or only headers) until its client goes away.
+    let markGone = () => {};
+    const upstreamGone = new Promise<void>((ok) => (markGone = ok));
+    let markAsked = () => {};
+    const upstreamAsked = new Promise<void>((ok) => (markAsked = ok));
+    const up = http.createServer((req, res) => {
+      req.resume();
+      if (phase === 'during a silent stream') {
+        res.writeHead(200, { 'content-type': 'text/event-stream' });
+        res.flushHeaders();
+      }
+      res.on('close', () => markGone());
+      markAsked();
+    });
+    await new Promise<void>((ok) => up.listen(0, '127.0.0.1', ok));
+    t.after(() => {
+      up.closeAllConnections();
+      up.close();
+    });
+    const upAddr = up.address() as { port: number };
+    const settled: RelayOutcome[] = [];
+    let markSettled = () => {};
+    const done = new Promise<void>((ok) => (markSettled = ok));
+    const relay = new PlanRelay({
+      request_timeout_ms: 60_000,
+      onViolation() {},
+      admit: async () => ({
+        api_base: `http://127.0.0.1:${upAddr.port}/v1`,
+        access_token: 'studio-held-token',
+        settle: async (o) => {
+          settled.push(o);
+          markSettled();
+        },
+      }),
+    });
+    t.after(() => relay.close());
+    const port = await relay.start();
+    const req = http.request({
+      host: '127.0.0.1',
+      port,
+      method: 'POST',
+      path: '/v1/responses',
+      headers: {
+        authorization: `Bearer ${relay.capability}`,
+        'content-type': 'application/json',
+      },
+    });
+    req.on('error', () => {});
+    req.end(
+      JSON.stringify({
+        model: 'm',
+        input: 'hi',
+        tools: [],
+        store: false,
+        stream: true,
+      }),
+    );
+    // Codex goes away once the upstream call is open and silent; no write follows.
+    await upstreamAsked;
+    await new Promise((ok) => setTimeout(ok, 100));
+    req.destroy();
+    await Promise.race([
+      Promise.all([done, upstreamGone]),
+      new Promise((_, fail) =>
+        setTimeout(
+          () => fail(new Error('relay kept waiting after disconnect')),
+          5_000,
+        ),
+      ),
+    ]);
+    assert.equal(settled.length, 1);
+    assert.equal(settled[0]!.kind, 'unknown');
+    assert.equal(settled[0]!.reason_code, 'codex_disconnected');
+  });
+
+test('closing the relay records an in-flight request as relay_closed, not timeout', async (t) => {
+  let markAsked = () => {};
+  const upstreamAsked = new Promise<void>((ok) => (markAsked = ok));
+  const up = http.createServer((req, res) => {
+    req.resume();
+    res.writeHead(200, { 'content-type': 'text/event-stream' });
+    res.flushHeaders();
+    markAsked();
+  });
+  await new Promise<void>((ok) => up.listen(0, '127.0.0.1', ok));
+  t.after(() => {
+    up.closeAllConnections();
+    up.close();
+  });
+  const upAddr = up.address() as { port: number };
+  const settled: RelayOutcome[] = [];
+  let markSettled = () => {};
+  const done = new Promise<void>((ok) => (markSettled = ok));
+  const relay = new PlanRelay({
+    request_timeout_ms: 60_000,
+    onViolation() {},
+    admit: async () => ({
+      api_base: `http://127.0.0.1:${upAddr.port}/v1`,
+      access_token: 'studio-held-token',
+      settle: async (o) => {
+        settled.push(o);
+        markSettled();
+      },
+    }),
+  });
+  const port = await relay.start();
+  const req = http.request({
+    host: '127.0.0.1',
+    port,
+    method: 'POST',
+    path: '/v1/responses',
+    headers: {
+      authorization: `Bearer ${relay.capability}`,
+      'content-type': 'application/json',
+    },
+  });
+  req.on('error', () => {});
+  req.end(
+    JSON.stringify({
+      model: 'm',
+      input: 'hi',
+      tools: [],
+      store: false,
+      stream: true,
+    }),
+  );
+  await upstreamAsked;
+  await relay.close();
+  await done;
+  assert.equal(settled[0]!.reason_code, 'relay_closed');
+});

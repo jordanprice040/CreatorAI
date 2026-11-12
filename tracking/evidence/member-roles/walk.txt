@@ -1,0 +1,32 @@
+workspace 167a66f2-5f1c-4519-97dc-ef84103d6d1c
+PASS seeded connection, budget, problem, supported claim, discovery
+PASS owner: the server reports the role owner
+PASS owner: Models "Usage has reset" shown
+PASS owner: Budgets "Close this budget…" shown
+PASS owner: Library "Archive…" shown
+PASS owner: Evidence "Retract…" shown
+PASS owner: Runs "Show the evidence packet" shown
+PASS editor: the server reports the role editor
+PASS editor: Models "Usage has reset" hidden
+PASS editor: Budgets "Close this budget…" hidden
+PASS editor: Library "Archive…" shown
+PASS editor: Evidence "Retract…" shown
+PASS editor: Runs "Show the evidence packet" shown
+PASS editor: server refuses the quota reset (403 ACCESS_DENIED)
+PASS editor: server refuses closing the budget (403 ACCESS_DENIED)
+PASS viewer: the server reports the role viewer
+PASS viewer: Models "Usage has reset" hidden
+PASS viewer: Budgets "Close this budget…" hidden
+PASS viewer: Library "Archive…" hidden
+PASS viewer: Evidence "Retract…" hidden
+PASS viewer: Runs "Show the evidence packet" shown
+PASS viewer: server refuses the quota reset (403 ACCESS_DENIED)
+PASS viewer: server refuses closing the budget (403 ACCESS_DENIED)
+PASS viewer: server refuses archiving (403 ACCESS_DENIED)
+PASS viewer: server refuses retracting (403 ACCESS_DENIED)
+PASS nothing was changed by the refused actions
+PASS no page errors
+--- poll-error.mjs
+PASS no error on first load
+PASS a failed poll shows its error
+PASS the next poll that works clears it
