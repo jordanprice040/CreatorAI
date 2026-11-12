@@ -123,7 +123,7 @@ import {
   readerInput,
   scoutInput,
 } from '@creator/domain';
-import { WebDiscoveryStore } from './web-discovery-store.js';
+import { AutopilotStore } from './autopilot-store.js';
 import {
   webDiscoveryRequestGate,
   type WebDiscoveryBinding,
@@ -664,7 +664,7 @@ type WindowUsage = PlanUsageCounts & {
   now_ms: number;
 };
 
-export class ConnectionStore extends WebDiscoveryStore {
+export class ConnectionStore extends AutopilotStore {
   /**
    * PR #126 review L-1: chat answers this studio process has begun and not yet finished. A reply
    * can come back only to the process that sent the request, so these are the answers that are

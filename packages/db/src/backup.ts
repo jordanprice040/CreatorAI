@@ -94,6 +94,8 @@ const COUNTED = [
   'gate_rule_versions',
   // ADR-0097: the owner's gate checklist.
   'gate_checklist_versions',
+  // ADR-0092: autopilots and the steps they took.
+  'autopilots',
 ] as const;
 
 /** Splits the password out so it reaches pg tools by environment, never by argv or logs. */
