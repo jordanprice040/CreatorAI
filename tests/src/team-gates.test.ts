@@ -256,6 +256,45 @@ test('the team profile is the owner’s, versioned, read by every assessment, an
       .every((x) => !x.stale),
   );
 
+  // #186 review N-1: a selection recorded now matches today's report until the team changes.
+  const before = await s.report();
+  const req = {
+    problem: { id: before.problem.id, version: before.problem.version },
+    report_hash: before.report_hash,
+    dispositions: before.suitability.candidates.map((c) => ({
+      alternative: { id: c.alternative.id, version: c.alternative.version },
+      disposition: 'defer' as const,
+      reasons: ['Waiting on the team profile (test).'],
+      reverse_if: 'The team can run it.',
+    })),
+    override_reason: 'Nothing advances yet (test).',
+    rationale: 'Defer every option for now (test).',
+    shortlist_size: 3,
+    data_class: 'synthetic' as const,
+  };
+  const runId = await s.run();
+  let picked = await s.store.select(owner, s.ws.id, runId, req);
+  if (picked.status === 'needs_human') {
+    const d = await s.store.getDecision(
+      owner,
+      s.ws.id,
+      picked.admission.decision_id!,
+    );
+    await s.store.answerDecision(owner, s.ws.id, d.id, {
+      choice: 'approve_once',
+      option_id: null,
+      rationale: 'Approved for this exact version (test).',
+      coverage_hash: d.coverage.coverage_hash,
+      standing_expires_at: null,
+      time_spent_ms: null,
+      interruption: null,
+    });
+    picked = await s.store.select(owner, s.ws.id, runId, req);
+  }
+  assert.equal(picked.status, 'recorded', picked.admission.explanation);
+  const x0 = await s.store.responseExplanation(owner, s.ws.id, s.problem.id);
+  assert.equal(x0.selection?.report_changed, false);
+
   // A change to what the model reads makes those assessments out of date until assessed again.
   await s.store.saveTeamProfile(
     owner,
@@ -282,14 +321,23 @@ test('the team profile is the owner’s, versioned, read by every assessment, an
       [o.status, o.rank, o.score],
     ]),
   );
-  assert.equal(
-    x.basis,
-    r2.suitability.candidates.some((c) => c.rank === 1) ? 'ranking' : 'none',
+  // The recorded selection's report no longer matches today's, and the explanation says so.
+  assert.equal(x.basis, 'selection');
+  assert.equal(x.selection?.report_changed, true);
+  assert.ok(
+    x.notes.some((n) => /changed since the selection was recorded/.test(n)),
   );
+  let compared = 0;
   for (const c of r2.suitability.candidates) {
     const o = seenIn.get(c.alternative.id.toLowerCase());
-    if (o) assert.deepEqual(o, [c.status, c.rank, c.score?.display ?? null]);
+    if (!o) continue; // software options are listed under software_avenues
+    assert.deepEqual(o, [c.status, c.rank, c.score?.display ?? null]);
+    compared++;
   }
+  assert.ok(
+    compared > 0,
+    'the explanation lists at least one option to compare',
+  );
 });
 
 test('the owner confirms a gate as it is now; a newer concern makes it stale; the owner chooses who clears: team profile (access only) or the model’s word', async (t) => {
