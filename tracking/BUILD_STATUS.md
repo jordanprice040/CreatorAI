@@ -1,5 +1,11 @@
 # Build status — November 10, 2026
 
+## November 12 update — PR #150 review nits N-1..N-3
+
+What now works (no migration or ADR): the web qualification test finds its own record by benchmark and connection instead of pinning one record and today's prompt hashes, so a later prompt or benchmark bump, or a second route's record, no longer turns it red (the app already ignores a stale record; the test now checks that too). The P15 results file records the SHA-256 and size of all 41 per-attempt files it was copied from (`source_files`, hashed read-only on Jordan's PC on November 12; each `package.tar` hash equals the recorded one, and the test checks that). `docs/STATIC_WEB_RECIPE.md` gives the real build-time range, 64.8 to 67.6 s.
+
+Checked: `pnpm typecheck`, `pnpm format:check`, `node scripts/p15-web-benchmark.mjs verify` (ok), the changed test, and two mutation checks (a wrong `package.tar` hash fails it; an extra record for another benchmark and connection does not). Full `pnpm test:db` result is in the PR.
+
 ## November 12 update — Oversight lock order fixes (ADR-0098)
 
 What now works (no migration): cancelling a run, revoking or revising a grant, revising a routine policy, answering a decision and admitting an action no longer deadlock against each other. Oversight writes lock run, decision, routine policy and grant, in that order, before their first audit append. The scan of other audit appenders found the same pattern in three places, and each now takes its locks first. Routine admission of web discovery claims locks its discovery, grants and sources up front. Cancelling or otherwise changing a workflow locks the workflow's run first, so it cannot deadlock with an answer to the workflow's question. A desktop job lease locks overdue jobs in id order, so two workers leasing at once cannot deadlock.
@@ -209,7 +215,7 @@ Open items:
 - **Windows verification:** no full Windows run of main since CI stopped.
 - **Owner pilot:** finished. Jordan marked it finished on November 10 (PR #155); its window ended
   November 6.
-- **Older review items still open:** PR #150 N-1..N-3 (#128 N-6 and #129 N-4 fixed November 12). Health reports configuration,
+- **Older review items:** none open. PR #150 N-1..N-3, #128 N-6 and #129 N-4 fixed November 12. Health reports configuration,
   not live state; the preview cookie-host limit remains. (#75 L-1 was repaired earlier; #77 L-1, the first point of #90 N-4
   and PR #148 N-I are fixed by the November 10 cleanup; the second point of #90 N-4, a stale poll error, on November 12.)
 - **The web qualification record** lives in source against the dev studio's connection id, so it does not

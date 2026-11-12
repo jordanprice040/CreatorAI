@@ -272,7 +272,7 @@ Run on Jordan's PC under his typed OKs (11:28 and 20:24 UTC). Raw summary:
   prompt `73cb799e…`, reviewer prompt `9e1cc6b4…` (from each build's `intent.json`, matching its prompt
   hash). 6 plan requests in all (UTC day 16 to 22 of 40), $0, credits off.
 - Each of the 3 attempts: its own run, selection, spec (equal to `spec.json` content) and product;
-  `verified_candidate` in 2 requests with no repair round in about 65 to 68 s; QA 10/10 in the WSL2
+  `verified_candidate` in 2 requests with no repair round in 64.8 to 67.6 s; QA 10/10 in the WSL2
   worker (6/6 held out); reviewer approved with no findings; package verified; the exported package
   scored 10/10. No attempt was replaced and no patch was refused. The driver's own spec comparison
   stopped attempt 1's setup once (it compared the stored record envelope); it was fixed before any

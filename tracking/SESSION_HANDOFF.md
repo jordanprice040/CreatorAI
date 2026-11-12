@@ -1,5 +1,9 @@
 # Session handoff — November 10, 2026
 
+## November 12 handoff — PR #150 review nits N-1..N-3
+
+Branch `claude/project-thread-eondj8`, no migration or ADR. `tests/src/web-recipe.test.ts`: the recorded-qualification test filters `RECIPE_QUALIFICATIONS` by the results file's benchmark and connection, no longer imports `BUILD_ROLE_PROMPTS`, expects the record to qualify its own roles only while its benchmark is current, and checks `source_files`. `tracking/evidence/p15-benchmarks/RESULTS_P15_V4_2026-11-06.json` gains `source_files` (41 files under `C:\dev\creator_agent_p15\.creator\p15-benchmarks\v4\runs\`, SHA-256 and bytes; no file there is newer than 2026-11-06 21:44). `docs/STATIC_WEB_RECIPE.md`: 64.8 to 67.6 s. No older review items remain open.
+
 ## November 12 handoff — Oversight lock order fixes (ADR-0098)
 
 Branch `claude/project-thread-iqbxmf`, no migration. `packages/db/src/oversight-store.ts`:

@@ -49,7 +49,6 @@ import {
   type SpecContent,
 } from '@creator/contracts';
 import {
-  BUILD_ROLE_PROMPTS,
   BUILD_FIXTURE_SPEC,
   frozenBrowserCases,
   taskHashes,
@@ -773,7 +772,7 @@ test('review L-9: a web pass qualifies only the connection, model and role promp
   );
 });
 
-test('the recorded web qualification is the live 3 of 3 result on the current benchmark and prompts', () => {
+test('the recorded web qualification is the live 3 of 3 result on its benchmark and prompts', () => {
   const results = JSON.parse(
     readFileSync(
       join(
@@ -783,8 +782,16 @@ test('the recorded web qualification is the live 3 of 3 result on the current be
       'utf8',
     ),
   );
-  assert.equal(RECIPE_QUALIFICATIONS.length, 1);
-  const q = RECIPE_QUALIFICATIONS[0]!;
+  // PR #150 review N-1: find this run's record instead of pinning the list or today's prompts, so a
+  // later prompt or benchmark bump, or another route's record, does not break this test.
+  // unqualifiedTrial already ignores a record whose prompts or benchmark are no longer current.
+  const records = RECIPE_QUALIFICATIONS.filter(
+    (r) =>
+      r.benchmark_id === results.benchmark_id &&
+      r.connection_id === results.route.connection_id,
+  );
+  assert.equal(records.length, 1);
+  const q = records[0]!;
   assert.match(results.outcome, /^3 of 3: qualified/);
   assert.equal(results.attempts.length, 3);
   for (const a of results.attempts) {
@@ -800,23 +807,48 @@ test('the recorded web qualification is the live 3 of 3 result on the current be
     builder_prompt_sha256: results.role_prompts.builder_prompt_sha256,
     reviewer_prompt_sha256: results.role_prompts.reviewer_prompt_sha256,
   });
-  // It qualifies only on the current benchmark version and today's role prompts.
-  assert.equal(q.benchmark_id, RECIPE_BENCHMARKS['static-web/1']);
-  assert.equal(q.builder_prompt_sha256, digest(BUILD_ROLE_PROMPTS.builder));
-  assert.equal(q.reviewer_prompt_sha256, digest(BUILD_ROLE_PROMPTS.reviewer));
   assert.equal(
     digest(readFileSync(join(BENCH, 'FREEZE.json'))),
     results.freeze.freeze_json_sha256,
   );
+  // PR #150 review N-3: the summary names the hash of every per-attempt file it was copied from,
+  // and each attempt's package.tar hash is the one the summary records for that attempt.
+  const sources = results.source_files.files as {
+    path: string;
+    sha256: string;
+  }[];
+  for (const a of results.attempts) {
+    const dir = `${results.benchmark_id}-attempt-${a.attempt}/`;
+    const own = sources.filter((f) => f.path.startsWith(dir));
+    for (const name of ['state.json', 'score.json', 'build-plan.json']) {
+      assert.ok(
+        own.some((f) => f.path === dir + name),
+        dir + name,
+      );
+    }
+    assert.equal(
+      own.find((f) => f.path === `${dir}package.tar`)?.sha256,
+      a.package_tar_sha256,
+    );
+  }
+  // The record qualifies its own roles while its benchmark is the current one, and is ignored after.
   const roles = { ...q };
   assert.equal(
     unqualifiedTrial('static-web/1', roles, RECIPE_QUALIFICATIONS),
-    false,
+    q.benchmark_id !== RECIPE_BENCHMARKS['static-web/1'],
   );
   assert.equal(
     unqualifiedTrial(
       'static-web/1',
       { ...roles, connection_id: randomUUID() },
+      RECIPE_QUALIFICATIONS,
+    ),
+    true,
+  );
+  assert.equal(
+    unqualifiedTrial(
+      'static-web/1',
+      { ...roles, builder_prompt_sha256: digest('a later builder prompt') },
       RECIPE_QUALIFICATIONS,
     ),
     true,
