@@ -121,7 +121,7 @@ const codexTurns = new Map<string, number>();
 
 /** ADR-0042 ChatGPT-plan routes under /api/workspaces/:ws/<collection>. Matched separately. */
 export const CONNECTIONS_ROUTE =
-  /^\/api\/workspaces\/([^/]+)\/(plan-connections|plan-qualifications|plan-qualification-queues|plan-benchmarks)(?:\/([^/]+)(?:\/(settings|accept-caps|credits|credits-withdraw|sign-in|sign-out|verification-grants|verify|availability-recheck|qualifications|requests|reconcile|quota-recheck|codex-builds|build-calls|build-roles-ready|run|finish|claude-code-check|qualification-queues|cancel))?)?$/;
+  /^\/api\/workspaces\/([^/]+)\/(plan-connections|plan-qualifications|plan-qualification-queues|plan-benchmarks)(?:\/([^/]+)(?:\/(settings|accept-caps|credits|credits-withdraw|sign-in|sign-out|verification-grants|verify|availability-recheck|qualifications|requests|reconcile|quota-recheck|codex-builds|build-calls|build-roles-ready|run|finish|claude-code-check|qualification-queues|cancel|copy))?)?$/;
 
 const VerifyBody = z.strictObject({
   grant_id: z.uuid(),
@@ -289,6 +289,13 @@ export async function connectionRoutes(r: {
       return send(
         200,
         await store.updatePlanSettings(ctx, ws, item, await r.body()),
+        true,
+      );
+    case 'copy':
+      // ADR-0095 (P30): a new connection in another workspace the same owner owns.
+      return send(
+        201,
+        await store.copyPlanConnection(ctx, ws, item, await r.body()),
         true,
       );
     case 'accept-caps':

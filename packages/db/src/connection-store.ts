@@ -6,6 +6,8 @@ import {
   AttestCreditsRequestSchema,
   ContractError,
   CreatePlanConnectionRequestSchema,
+  CopyPlanConnectionRequestSchema,
+  type CopyPlanConnectionResult,
   CreateVerificationGrantRequestSchema,
   PlanAdmissionRequestSchema,
   BuildApprovalRequestSchema,
@@ -682,74 +684,237 @@ export class ConnectionStore extends WebDiscoveryStore {
       const w = await c.query('select fixture from workspaces where id = $1', [
         ws,
       ]);
-      const id = randomUUID();
-      const exists = await c.query(
-        'select 1 from plan_connections where workspace_id = $1 and label = $2',
-        [ws, req.label],
-      );
-      if (exists.rowCount)
-        throw fail('DUPLICATE', 'A connection with this name exists.');
-      await c.query(
-        `insert into plan_connections (id, workspace_id, fixture, version, label, settings,
-           settings_hash, ext_agent_host_id, sign_in, credits, eligibility, quota, created_by, kind)
-         values ($1,$2,$3,1,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
-        [
-          id,
-          ws,
-          Boolean(w.rows[0]?.fixture),
-          req.label,
-          req.settings,
-          canonicalHash(req.settings),
-          // One host id per connection record, generated before the first sign-in (SIWC).
-          `urn:uuid:${randomUUID()}`,
-          {
-            state: 'not_signed_in',
-            issued_client_id: null,
-            account_label: null,
-            scopes: [],
-            plan_usage_granted: false,
-            verified_at: null,
-            access_expires_at: null,
-          },
-          {
-            state: 'unconfirmed',
-            checked_on: null,
-            confirmed_at: null,
-            confirmed_by: null,
-          },
-          {
-            state: 'unknown',
-            reason_code: null,
-            upstream_request_id: null,
-            observed_at: null,
-          },
-          { state: 'unknown', reason_code: null, observed_at: null },
-          ctx.actorId,
-          req.kind,
-        ],
-      );
-      await this.#event(
+      const id = await this.#insertConnection(
         c,
-        id,
-        'created',
-        {
-          kind: req.kind,
-          label: req.label,
-          settings_hash: canonicalHash(req.settings),
-        },
         ctx,
+        ws,
+        Boolean(w.rows[0]?.fixture),
+        req.kind,
+        req.label,
+        req.settings,
+        {},
       );
-      await this.append(c, ctx, {
-        workspaceId: ws,
-        action: 'connection.created',
-        subjectKind: 'plan_connection',
-        subjectId: id,
-        subjectVersion: 1,
-        contentHash: canonicalHash(req.settings),
-        payload: { kind: req.kind, label: req.label },
-      });
       return this.#connection(c, ws, id);
     });
+  }
+
+  /**
+   * ADR-0095 (P30): copies a connection's settings (caps, allowed data and tasks) into another
+   * workspace the same person owns. The copy is a new connection with its own version and host
+   * id: it starts not signed in, with no model checks, qualifications, credits statement or
+   * accepted caps, so nothing the source earned stands in for the copy. The source row is not
+   * changed. A ChatGPT sign-in is not shared, because its refresh token rotates and is bound to
+   * the source's host id; the owner signs in once in the target.
+   */
+  async copyPlanConnection(
+    ctxIn: CommandContext,
+    ws: string,
+    id: string,
+    body: unknown,
+  ): Promise<CopyPlanConnectionResult> {
+    const ctx = normalize(ctxIn);
+    const req = parse(CopyPlanConnectionRequestSchema, body);
+    const refusal = 'Only the owner of both workspaces can copy a connection.';
+    return this.tx(async (c) => {
+      const source = uuid(ws);
+      const target = uuid(req.target_workspace_id);
+      await this.requireOwner(c, source, ctx.actorId, refusal);
+      if (target === source)
+        throw fail(
+          'INVALID_CONTRACT',
+          'Choose another workspace; the connection is already in this one.',
+        );
+      await this.requireOwner(c, target, ctx.actorId, refusal);
+      const conn = await this.#lock(c, source, uuid(id));
+      if (conn.version !== req.expected_version)
+        throw fail(
+          'VERSION_CONFLICT',
+          'The connection changed; reload it and try again.',
+        );
+      const w = await c.query('select fixture from workspaces where id = $1', [
+        target,
+      ]);
+      const fixture = Boolean(w.rows[0]?.fixture);
+      // Fixture workspaces hold synthetic records only; their connections stay apart.
+      if (fixture !== conn.fixture)
+        throw fail(
+          'INVALID_CONTRACT',
+          fixture
+            ? "A real workspace's connection cannot be copied into a fixture workspace."
+            : "A fixture workspace's connection cannot be copied into a real workspace.",
+        );
+      const label = req.label ?? conn.label;
+      const copied = await this.#insertConnection(
+        c,
+        ctx,
+        target,
+        fixture,
+        conn.kind,
+        label,
+        conn.settings,
+        {
+          copied_from: {
+            workspace_id: source,
+            connection_id: conn.id,
+            version: conn.version,
+            settings_hash: conn.settings_hash,
+          },
+        },
+      );
+      let chat: CopyPlanConnectionResult['chat_answers'] = 'not_requested';
+      if (req.chat_answers) {
+        const from = await chatSettings(c, source);
+        if (from.connection_id !== conn.id) chat = 'source_not_using';
+        else {
+          const put = await c.query(
+            `insert into chat_settings (workspace_id, enabled, connection_id, model_id,
+               include_snapshot, daily_limit, version, updated_by)
+             values ($1,$2,$3,$4,$5,$6,1,$7)
+             on conflict (workspace_id) do nothing`,
+            [
+              target,
+              from.enabled,
+              copied,
+              from.model_id,
+              from.include_snapshot,
+              from.daily_limit,
+              ctx.actorId,
+            ],
+          );
+          if (put.rowCount) {
+            chat = 'copied';
+            const next = {
+              enabled: from.enabled,
+              connection_id: copied,
+              model_id: from.model_id,
+              include_snapshot: from.include_snapshot,
+              daily_limit: from.daily_limit,
+            };
+            await this.append(c, ctx, {
+              workspaceId: target,
+              action: 'chat.settings_changed',
+              subjectKind: 'chat_settings',
+              subjectId: target,
+              subjectVersion: 1,
+              contentHash: canonicalHash(next),
+              payload: { ...next, copied_from_workspace: source },
+            });
+          } else chat = 'target_has_own';
+        }
+      }
+      // The source's own record says where it was copied; its row and version stay as they are.
+      await this.append(c, ctx, {
+        workspaceId: source,
+        action: 'connection.copied',
+        subjectKind: 'plan_connection',
+        subjectId: conn.id,
+        subjectVersion: conn.version,
+        contentHash: conn.settings_hash,
+        payload: {
+          target_workspace_id: target,
+          copy_connection_id: copied,
+          label,
+          chat_answers: chat,
+        },
+      });
+      return {
+        source_connection_id: conn.id,
+        target_workspace_id: target,
+        connection: await this.#connection(c, target, copied),
+        chat_answers: chat,
+      };
+    });
+  }
+
+  /** One new connection row, its first event and its audit record; returns the new id. */
+  async #insertConnection(
+    c: PoolClient,
+    ctx: CommandContext,
+    ws: string,
+    fixture: boolean,
+    kind: PlanConnection['kind'],
+    label: string,
+    settings: PlanConnection['settings'],
+    origin: Row,
+  ): Promise<string> {
+    // Names are unique per workspace; the lock makes two saves of one name meet here, so the
+    // second gets DUPLICATE instead of a unique-index error.
+    await c.query('select pg_advisory_xact_lock(hashtext($1))', [
+      `plan-connection-label:${ws}`,
+    ]);
+    const exists = await c.query(
+      'select 1 from plan_connections where workspace_id = $1 and label = $2',
+      [ws, label],
+    );
+    if (exists.rowCount)
+      throw fail(
+        'DUPLICATE',
+        'copied_from' in origin
+          ? 'That workspace already has a connection with this name; choose another name.'
+          : 'A connection with this name exists.',
+      );
+    const id = randomUUID();
+    await c.query(
+      `insert into plan_connections (id, workspace_id, fixture, version, label, settings,
+           settings_hash, ext_agent_host_id, sign_in, credits, eligibility, quota, created_by, kind)
+         values ($1,$2,$3,1,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+      [
+        id,
+        ws,
+        fixture,
+        label,
+        settings,
+        canonicalHash(settings),
+        // One host id per connection record, generated before the first sign-in (SIWC).
+        `urn:uuid:${randomUUID()}`,
+        {
+          state: 'not_signed_in',
+          issued_client_id: null,
+          account_label: null,
+          scopes: [],
+          plan_usage_granted: false,
+          verified_at: null,
+          access_expires_at: null,
+        },
+        {
+          state: 'unconfirmed',
+          checked_on: null,
+          confirmed_at: null,
+          confirmed_by: null,
+        },
+        {
+          state: 'unknown',
+          reason_code: null,
+          upstream_request_id: null,
+          observed_at: null,
+        },
+        { state: 'unknown', reason_code: null, observed_at: null },
+        ctx.actorId,
+        kind,
+      ],
+    );
+    await this.#event(
+      c,
+      id,
+      'created',
+      {
+        kind,
+        label,
+        settings_hash: canonicalHash(settings),
+        ...origin,
+      },
+      ctx,
+    );
+    await this.append(c, ctx, {
+      workspaceId: ws,
+      action: 'connection.created',
+      subjectKind: 'plan_connection',
+      subjectId: id,
+      subjectVersion: 1,
+      contentHash: canonicalHash(settings),
+      payload: { kind, label, ...origin },
+    });
+    return id;
   }
 
   /**

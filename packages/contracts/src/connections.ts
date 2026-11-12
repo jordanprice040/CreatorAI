@@ -131,6 +131,38 @@ export const UpdatePlanSettingsRequestSchema = z.strictObject({
   expected_version: version,
   settings: PlanSettingsSchema,
 });
+/**
+ * ADR-0095 (P30): copy a connection's settings into another workspace the same person owns.
+ * The copy is a new connection: no sign-in, model checks, qualifications, credits statement or
+ * accepted caps come with it. `label` defaults to the source's name. With `chat_answers`, the
+ * source workspace's Chat answers setting is copied too when it uses this connection and the
+ * target workspace has none saved yet.
+ */
+export const CopyPlanConnectionRequestSchema = z.strictObject({
+  expected_version: version,
+  target_workspace_id: id,
+  label: label.optional(),
+  chat_answers: z.boolean().default(true),
+});
+export const CopyChatAnswersOutcomeSchema = z.enum([
+  /** The target's Chat answers now use the copy, with the source's model, limit and choices. */
+  'copied',
+  /** Not asked for. */
+  'not_requested',
+  /** The source workspace's Chat answers do not use this connection. */
+  'source_not_using',
+  /** The target workspace already has its own Chat answers setting, which is left as it is. */
+  'target_has_own',
+]);
+export const CopyPlanConnectionResultSchema = z.strictObject({
+  source_connection_id: id,
+  target_workspace_id: id,
+  connection: z.lazy(() => PlanConnectionSchema),
+  chat_answers: CopyChatAnswersOutcomeSchema,
+});
+export type CopyPlanConnectionResult = z.infer<
+  typeof CopyPlanConnectionResultSchema
+>;
 /** Owner accepts the exact caps now stored; any later settings change clears the acceptance. */
 export const AcceptPlanCapsRequestSchema = z.strictObject({
   expected_version: version,
