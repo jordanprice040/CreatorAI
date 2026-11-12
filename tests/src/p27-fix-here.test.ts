@@ -875,11 +875,12 @@ test("walk of November 11: a fix's outcome stays where it was pressed, for the o
   assert.equal(draw(owner), '');
 });
 
-test('review 7 M-1: while a qualification queue runs, a press that qualifies waits; one that only allows does not', async () => {
+test('review 7 M-1 and review 8 N-2: while a queue or a Run holds the connection, a press that qualifies waits; one that only allows does not', async () => {
   const { mod } = (await loadButtons()) as unknown as {
     mod: {
       queueBlocks(a: FixAction, d: unknown): string | null;
       QUEUE_BUSY: string;
+      RUN_BUSY: string;
     };
   };
   const c = connection({
@@ -925,6 +926,20 @@ test('review 7 M-1: while a qualification queue runs, a press that qualifies wai
   // A finished queue, or none, holds nothing.
   for (const s of ['done', 'stopped', 'cancelled', null])
     assert.equal(mod.queueBlocks(qualify, detail(s)), null, String(s));
+  // Review 8 N-2: a Run executing on the connection holds presses that qualify the same way.
+  const running = {
+    ...detail(null),
+    qualifications: [{ id: 'q1', state: 'running', executing: true }],
+  };
+  for (const a of [qualify, allowAndQualify])
+    assert.equal(mod.queueBlocks(a, running), mod.RUN_BUSY);
+  for (const a of [allowOnly, caps])
+    assert.equal(mod.queueBlocks(a, running), null);
+  const idle = {
+    ...detail(null),
+    qualifications: [{ id: 'q1', state: 'running', executing: false }],
+  };
+  assert.equal(mod.queueBlocks(qualify, idle), null);
 });
 
 test('after P24: "Allow and qualify" queues its tasks on the server in one request the queue route accepts', async () => {

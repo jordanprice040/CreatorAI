@@ -3776,6 +3776,13 @@ export class ConnectionStore extends WebDiscoveryStore {
       req.expected_version,
       'qualification_started',
       async (c, conn) => {
+        // PR #177 review 8 N-1: a start by hand while a queue runs would leave a started run
+        // the queue later meets and stops on (a different benchmark of the same task).
+        if (await runningQueueId(c, conn.id))
+          throw fail(
+            'INVALID_TRANSITION',
+            'A queue is qualifying tasks on this connection one after another. Wait for it to finish, or cancel it under "Qualify several tasks", then start this one.',
+          );
         await this.#checkQualificationStart(c, conn, req);
         q = await this.#insertQualification(c, conn, req, ctx.actorId);
         return {

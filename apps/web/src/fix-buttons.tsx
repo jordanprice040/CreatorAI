@@ -469,6 +469,8 @@ function FixButton({ act: a, fix }: { act: FixAction; fix: FixContext }) {
     if (d.connection.fixture)
       throw new Error('A fixture connection is not qualified in the app.');
     if (d.qualification_queue?.state === 'running') throw new Error(QUEUE_BUSY);
+    if (d.qualifications.some((x) => x.executing === true))
+      throw new Error(RUN_BUSY);
     // The server keeps one started qualification per model and task: a started run of this
     // benchmark is run on (its answered cases are skipped); one of another is never run here.
     const s = startedFor(d.qualifications, model, task, await b.hash());
@@ -534,6 +536,8 @@ function FixButton({ act: a, fix }: { act: FixAction; fix: FixContext }) {
       throw new Error('A fixture connection is not qualified in the app.');
     // The server refuses a second queue too; this says why before anything else is sent.
     if (d.qualification_queue?.state === 'running') throw new Error(QUEUE_BUSY);
+    if (d.qualifications.some((x) => x.executing === true))
+      throw new Error(RUN_BUSY);
     await post(
       `plan-connections/${d.connection.id}/qualification-queues`,
       queueRequest(offers, d.connection.version, model),
@@ -646,10 +650,9 @@ function FixButton({ act: a, fix }: { act: FixAction; fix: FixContext }) {
     <span className="fix-here">
       {open && detail ? (
         <span
-          className="notice small"
+          className="notice small fix-panel"
           role="group"
           aria-label={fixLabel(a)}
-          style={{ display: 'block', textAlign: 'left' }}
         >
           {confirmText(a, detail)}{' '}
           {started.map((x) =>
@@ -659,17 +662,13 @@ function FixButton({ act: a, fix }: { act: FixAction; fix: FixContext }) {
                 on, and its answered cases are skipped.{' '}
               </span>
             ) : (
-              <span key={x.task} className="error" style={{ display: 'block' }}>
+              <span key={x.task} className="error">
                 A {words(x.task)} qualification on {x.other} is started; finish
                 it under Models and connections first.
               </span>
             ),
           )}
-          {busy && (
-            <span className="error" style={{ display: 'block' }}>
-              {busy}
-            </span>
-          )}
+          {busy && <span className="error">{busy}</span>}
           {working && runs && (
             <>
               Running: one plan request per case; this can take several minutes,
@@ -700,12 +699,12 @@ function FixButton({ act: a, fix }: { act: FixAction; fix: FixContext }) {
         </button>
       )}
       {outcome && (
-        <span className="small" role="status" style={{ display: 'block' }}>
+        <span className="small fix-line" role="status">
           {outcome}
         </span>
       )}
       {error && (
-        <span className="error" role="alert" style={{ display: 'block' }}>
+        <span className="error" role="alert">
           {error}
         </span>
       )}
@@ -755,20 +754,26 @@ function ready(a: FixAction, d: PlanConnectionDetail): boolean {
 /** Review 7 M-1: what a press that qualifies says while a P24 queue holds the connection. */
 export const QUEUE_BUSY =
   'A queue is qualifying tasks on this connection; wait for it to finish, or cancel it under Models and connections.';
+/** Review 8 N-2: and while a Run is executing there (by hand, or another fix's Qualify now). */
+export const RUN_BUSY =
+  'A qualification is running on this connection now, and it sends one request at a time; wait for it to finish.';
 
 /**
- * Why this press may not run now (review 7 M-1): while a qualification queue runs on the
- * connection (ADR-0088), a press that qualifies would start a run the queue then trips over,
- * so it waits; a press that only allows (or accepts caps) still works.
+ * Why this press may not run now (review 7 M-1, review 8 N-2): while a qualification queue
+ * runs on the connection (ADR-0088), or a Run executes there (ADR-0084), a press that
+ * qualifies would be refused part-way (after its allow was saved), or leave a started run the
+ * queue later meets; it waits. A press that only allows (or accepts caps) still works.
  */
 export function queueBlocks(
   a: FixAction,
   d: PlanConnectionDetail,
 ): string | null {
-  if (d.qualification_queue?.state !== 'running') return null;
   const qualifying =
     a.kind === 'qualify' || (a.kind === 'allow_tasks' && qualifies(a, d));
-  return qualifying ? QUEUE_BUSY : null;
+  if (!qualifying) return null;
+  if (d.qualification_queue?.state === 'running') return QUEUE_BUSY;
+  if (d.qualifications.some((q) => q.executing === true)) return RUN_BUSY;
+  return null;
 }
 
 /** Whether an allow-and-qualify press goes on to qualify, read from the connection just now. */
