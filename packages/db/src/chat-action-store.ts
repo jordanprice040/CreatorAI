@@ -1,16 +1,21 @@
 import type { PoolClient } from 'pg';
 import {
+  CHAT_FILL_TEXT_MAX,
+  CHAT_HISTORY_TURNS,
   ChatActionInputSchema,
   ChatActionOutcomeSchema,
   ChatActionSubjectSchema,
   parse,
   z,
   type ChatAction,
+  type ChatActionFill,
+  type ChatActionFillQuestion,
   type ChatActionKind,
   type ChatActionState,
   type ChatActionSubject,
 } from '@creator/contracts';
 import { fail, iso, type Row } from './store.js';
+import { chatEscape } from './chat-store.js';
 
 // ADR-0083 (P20): the SQL behind Chat's action cards. The store methods in connection-store.ts
 // hold the transaction, the role check and the audit events.
@@ -160,4 +165,90 @@ export function cardVersion(card: ChatAction, expected: number) {
       'VERSION_CONFLICT',
       'This card changed since you opened it; reload the conversation and try again.',
     );
+}
+
+/** ADR-0096 (P31): one "Fill in with <model>" press, as the page shows it. */
+export const toChatActionFill = (r: Row): ChatActionFill => ({
+  id: String(r.id),
+  action_id: String(r.action_id),
+  conversation_id: String(r.conversation_id),
+  client_id: String(r.client_id),
+  state: String(r.state) as ChatActionFill['state'],
+  connection_kind: String(
+    r.connection_kind,
+  ) as ChatActionFill['connection_kind'],
+  fixture: Boolean(r.fixture),
+  model_id: String(r.model_id),
+  plan_request_id: r.plan_request_id ? String(r.plan_request_id) : null,
+  values: Object.fromEntries(
+    Object.entries((r.fill_values as Record<string, unknown> | null) ?? {}).map(
+      ([k, v]) => [k, String(v)],
+    ),
+  ),
+  dropped: Number(r.dropped ?? 0),
+  reason: r.reason === null || r.reason === undefined ? null : String(r.reason),
+  // A refusal sent nothing, so it shows no "what was sent".
+  sent:
+    r.state === 'refused'
+      ? null
+      : {
+          instructions_version: String(r.instructions_version),
+          instructions_hash: String(r.instructions_hash),
+          records: Boolean(r.records),
+          history_items: Number(r.history_items),
+          input_chars: String(r.input).length,
+          input: String(r.input),
+        },
+  created_by: String(r.created_by),
+  created_at: iso(r.created_at),
+  finished_at: r.finished_at ? iso(r.finished_at) : null,
+});
+
+export async function chatActionFills(
+  c: PoolClient,
+  conversation: string,
+): Promise<ChatActionFill[]> {
+  const { rows } = await c.query(
+    `select * from (select * from chat_action_fills where conversation_id = $1
+       order by created_at desc, id desc limit 2000) newest order by created_at, id`,
+    [conversation],
+  );
+  return rows.map((r) => toChatActionFill(r as Row));
+}
+
+/**
+ * ADR-0096 (P31): exactly what a fill sends with its fixed instructions: the conversation
+ * (oldest turns dropped first to fit), the card's step and its questions. Question help and
+ * answers so far can quote studio records, so they go only when `records` is true.
+ */
+export function fillInput(p: {
+  step: string;
+  history: { who: 'person' | 'assistant'; text: string }[];
+  questions: ChatActionFillQuestion[];
+  records: boolean;
+  maxChars: number;
+}): { input: string; history_items: number } | null {
+  const qs = p.questions
+    .map((q) =>
+      [
+        `- key: ${q.key} (${q.type === 'long' ? 'a paragraph' : 'one line'}, at most ${CHAT_FILL_TEXT_MAX[q.type]} characters)`,
+        `  Label: ${chatEscape(q.label)}`,
+        `  Question: ${chatEscape(q.prompt)}`,
+        ...(p.records && q.help ? [`  Help: ${chatEscape(q.help)}`] : []),
+        ...(p.records && q.current
+          ? [`  Answer so far: ${chatEscape(q.current)}`]
+          : []),
+      ].join('\n'),
+    )
+    .join('\n');
+  const tail = `<card>\nStep: ${chatEscape(p.step)}\n</card>\n\n<questions>\n${qs}\n</questions>`;
+  let turns = p.history.slice(-CHAT_HISTORY_TURNS);
+  const build = () =>
+    turns.length
+      ? `<conversation>\n${turns.map((t) => `${t.who === 'person' ? 'Person' : 'Assistant'}: ${chatEscape(t.text)}`).join('\n\n')}\n</conversation>\n\n`
+      : '';
+  while (turns.length && build().length + tail.length > p.maxChars)
+    turns = turns.slice(1);
+  if (build().length + tail.length > p.maxChars) return null;
+  return { input: `${build()}${tail}`, history_items: turns.length };
 }

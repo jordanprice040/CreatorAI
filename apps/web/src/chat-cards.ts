@@ -314,7 +314,7 @@ export function cardView(
     missing.length === 0
       ? spec.plan(values, input, data, ctx)
       : { steps: [], blockers: [] };
-  const subjects = spec.subjects(values, data);
+  const subjects = spec.subjects(values, data, input);
   // Review N-5: a card keeps at most this many records to re-check before sending.
   const tooMany =
     subjects.length > CHAT_ACTION_SUBJECTS_MAX
@@ -374,7 +374,7 @@ type Spec<D> = {
   ): { steps: Step[]; blockers: string[] };
   blockers(v: Record<string, Value>, d: D, ctx: CardCtx): string[];
   happen(v: Record<string, Value>, d: D, ctx: CardCtx, qs: Question[]): Line[];
-  subjects(v: Record<string, Value>, d: D): Subject[];
+  subjects(v: Record<string, Value>, d: D, input?: Input): Subject[];
   title(v: Record<string, Value>, d: D): string;
 };
 
@@ -886,6 +886,117 @@ const lines = (s: string) =>
     .map((x) => x.trim())
     .filter(Boolean);
 
+/** Key order does not matter when comparing a brief with the pick's. */
+const stable = (v: unknown): string =>
+  JSON.stringify(v, (_k, x: unknown) =>
+    x && typeof x === 'object' && !Array.isArray(x)
+      ? Object.fromEntries(
+          Object.entries(x as Record<string, unknown>).sort(([a], [b]) =>
+            a < b ? -1 : a > b ? 1 : 0,
+          ),
+        )
+      : x,
+  );
+
+/** ADR-0096 (P31): the Explore for me pick a discovery card was filled from, if any. */
+export type ExploredBrief = {
+  id: string;
+  version: number;
+  body: {
+    theme: string;
+    fields: [string, string];
+    target_users: string;
+    context: string | null;
+    measurable_problem: string;
+    outcome_measure: string;
+    data_and_tools: string[];
+    time_limit: string;
+    budget_limit: string;
+    nae_seed: string | null;
+    constraints: string[];
+  };
+};
+export function exploredPick(input: Input): ExploredBrief | null {
+  const e = input._explored as ExploredBrief | undefined;
+  return e &&
+    typeof e === 'object' &&
+    typeof e.id === 'string' &&
+    typeof e.version === 'number' &&
+    e.body &&
+    typeof e.body.theme === 'string'
+    ? e
+    : null;
+}
+
+/**
+ * The answers a discovery card takes from an Explore for me pick (the person's "Use this"):
+ * the brief's fields, and the cited claims recorded here that support it, as bearing on the
+ * problem. Claims cited against it are left for the person to add, as on Discover.
+ */
+export function answersFromPick(
+  brief: ExploredBrief,
+  claims: { claim_id: string; contrary: boolean }[],
+  known: ReadonlySet<string>,
+): Input {
+  const b = brief.body;
+  const supporting = [
+    ...new Set(
+      claims
+        .filter((c) => !c.contrary && known.has(c.claim_id))
+        .map((c) => c.claim_id),
+    ),
+  ];
+  return {
+    theme: b.theme,
+    field_a: b.fields[0],
+    field_b: b.fields[1],
+    target_users: b.target_users,
+    context: b.context ?? '',
+    measurable_problem: b.measurable_problem,
+    outcome_measure: b.outcome_measure,
+    time_limit: b.time_limit,
+    budget_limit: b.budget_limit,
+    constraints: b.constraints.join('\n'),
+    // Review L-5: a pick with no supporting claim here clears claims chosen for an earlier
+    // theme, so the card asks for them again.
+    claims: supporting,
+    roles: supporting.length ? ['problem'] : [],
+    _explored: brief,
+  };
+}
+
+/** The search brief a discovery card saves, from its answers (and a pick's data and seed). */
+function briefOf(
+  v: Record<string, Value>,
+  picked: ExploredBrief | null,
+  dataAndTools: string[],
+) {
+  return {
+    theme: str(v.theme),
+    fields: [str(v.field_a), str(v.field_b)],
+    target_users: str(v.target_users),
+    context: str(v.context) || null,
+    measurable_problem: str(v.measurable_problem),
+    outcome_measure: str(v.outcome_measure),
+    // ADR-0096: a brief from Explore for me keeps its own data and seed.
+    data_and_tools: picked ? picked.body.data_and_tools : dataAndTools,
+    time_limit: str(v.time_limit),
+    budget_limit: str(v.budget_limit),
+    nae_seed: picked ? picked.body.nae_seed : null,
+    constraints: lines(str(v.constraints)),
+  };
+}
+/** The Explore pick the card starts on unchanged, or null once any brief field was edited. */
+function reusedPick(
+  v: Record<string, Value>,
+  input: Input,
+): ExploredBrief | null {
+  const picked = exploredPick(input);
+  return picked && stable(picked.body) === stable(briefOf(v, picked, []))
+    ? picked
+    : null;
+}
+
 const discover: Spec<DiscoverData> = {
   questions: (input, d, ctx) => {
     const dflt = studioDefaults(ctx.fixture);
@@ -1020,34 +1131,30 @@ const discover: Spec<DiscoverData> = {
       out.push('Name two different fields.');
     return out;
   },
-  plan: (v, _i, d, ctx) => {
+  plan: (v, input, d, ctx) => {
     const base = `workspaces/${ctx.ws}`;
     const route = d.route;
     if (!route) return { steps: [], blockers: [] };
     const dflt = studioDefaults(ctx.fixture);
     const theme = str(v.theme);
-    const brief = {
-      theme,
-      fields: [str(v.field_a), str(v.field_b)],
-      target_users: str(v.target_users),
-      context: str(v.context) || null,
-      measurable_problem: str(v.measurable_problem),
-      outcome_measure: str(v.outcome_measure),
-      data_and_tools: lines(dflt.dataAndTools),
-      time_limit: str(v.time_limit),
-      budget_limit: str(v.budget_limit),
-      nae_seed: null,
-      constraints: lines(str(v.constraints)),
-    };
+    const picked = exploredPick(input);
+    const brief = briefOf(v, picked, lines(dflt.dataAndTools));
+    // An unedited Explore for me pick keeps its own brief (and its audited link to the
+    // exploration), as on Discover; any edit saves a new brief.
+    const reuse = reusedPick(v, input) !== null;
     const roles = list(v.roles);
     const limits = discoveryLimits(route);
     const steps: Step[] = [
-      {
-        label: 'Save the search brief (Discover)',
-        path: `${base}/entities`,
-        body: { kind: 'search_brief', title: theme, body: brief },
-        capture: { brief: 'id', brief_version: 'version' },
-      },
+      ...(reuse
+        ? []
+        : [
+            {
+              label: 'Save the search brief (Discover)',
+              path: `${base}/entities`,
+              body: { kind: 'search_brief', title: theme, body: brief },
+              capture: { brief: 'id', brief_version: 'version' },
+            },
+          ]),
       {
         label: 'Register the run record (Discover)',
         path: `${base}/entities`,
@@ -1101,7 +1208,10 @@ const discover: Spec<DiscoverData> = {
         path: `${base}/runs/{run}/discoveries`,
         timeoutMs: 15_000,
         body: {
-          brief: { id: '{brief}', version: '{brief_version}' },
+          brief:
+            reuse && picked
+              ? { id: picked.id, version: picked.version }
+              : { id: '{brief}', version: '{brief_version}' },
           evidence: list(v.claims).map((claim_id) => ({
             claim_id,
             bears_on: roles,
@@ -1187,8 +1297,8 @@ const discover: Spec<DiscoverData> = {
       },
     ];
   },
-  subjects: (v, d) =>
-    list(v.claims)
+  subjects: (v, d, input) => {
+    const claims = list(v.claims)
       .map((id) => d.claims.find((c) => c.id === id))
       .filter((c): c is ClaimOption => !!c)
       .map((c) => ({
@@ -1196,7 +1306,22 @@ const discover: Spec<DiscoverData> = {
         id: c.id,
         version: c.version,
         label: clip(c.title, 200),
-      })),
+      }));
+    // A picked brief the card starts on that changed since is refused as stale before
+    // anything is sent; once edited, the card no longer uses it (review L-5).
+    const picked = input ? reusedPick(v, input) : null;
+    return picked
+      ? [
+          ...claims,
+          {
+            kind: 'entity' as const,
+            id: picked.id,
+            version: picked.version,
+            label: `Search brief “${clip(picked.body.theme, 150)}”`,
+          },
+        ]
+      : claims;
+  },
   title: (v) => `Start a discovery about “${clip(str(v.theme) || '…', 60)}”`,
 };
 
@@ -1969,4 +2094,35 @@ export function cardForStep(
     default:
       return null;
   }
+}
+
+/**
+ * ADR-0096: what a fill's box says when it has no proposal left to offer. Re-review R3-N1:
+ * proposals equal to the card's answers are not "nothing to propose".
+ */
+export function fillOutcomeNote(
+  fill: { state: string; reason: string | null },
+  matching: number,
+): string {
+  if (fill.state !== 'completed')
+    return `${fill.state === 'refused' ? 'Not sent' : 'Failed'}: ${fill.reason ?? ''}`;
+  if (matching > 0)
+    return matching === 1
+      ? 'The proposal matches the answer already on this card.'
+      : `All ${matching} proposals match the answers already on this card.`;
+  return fill.reason ?? 'Nothing to propose.';
+}
+
+/**
+ * ADR-0096: why Explore for me on a card is not yet pressable (re-review R2-N1, R3-N3), or
+ * null when it is. A pick needs the card's records to keep its claims.
+ */
+export function exploreWaitNote(
+  loaded: boolean,
+  loadError: string,
+): string | null {
+  if (loaded) return null;
+  return loadError
+    ? 'This card’s records could not be read; press Read again above first.'
+    : 'Waiting for this card’s records';
 }
