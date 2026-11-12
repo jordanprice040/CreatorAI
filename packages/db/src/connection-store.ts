@@ -751,6 +751,20 @@ export class ConnectionStore extends WebDiscoveryStore {
           "This connection's settings no longer fit its type; change them here before copying.",
           issues,
         );
+      // Re-review 3 L3-1: read without a row lock. Saving Chat answers locks their row first and
+      // the connection row second (its foreign key); this copy already holds the connection, so
+      // locking the Chat answers row here as well could deadlock with such a save.
+      // Re-review 3 N3-1: checked before anything is written.
+      const from = req.chat_answers ? await chatSettings(c, source) : null;
+      if (
+        from &&
+        req.chat_answers_version !== undefined &&
+        from.version !== req.chat_answers_version
+      )
+        throw fail(
+          'VERSION_CONFLICT',
+          'Chat answers here changed since you opened this; read the note again and copy.',
+        );
       const label = req.label ?? conn.label;
       const copied = await this.#insertConnection(
         c,
@@ -771,16 +785,7 @@ export class ConnectionStore extends WebDiscoveryStore {
       );
       let chat: CopyPlanConnectionResult['chat_answers'] = 'not_requested';
       let chatOn: boolean | null = null;
-      if (req.chat_answers) {
-        const from = await chatSettings(c, source, true);
-        if (
-          req.chat_answers_version !== undefined &&
-          from.version !== req.chat_answers_version
-        )
-          throw fail(
-            'VERSION_CONFLICT',
-            'Chat answers here changed since you opened this; read the note again and copy.',
-          );
+      if (from) {
         if (from.connection_id !== conn.id) chat = 'source_not_using';
         else {
           const put = await c.query(

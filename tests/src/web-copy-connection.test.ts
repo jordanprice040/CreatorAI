@@ -23,6 +23,24 @@ type Text = {
     } | null,
     id: string,
   ) => string | null;
+  copyRequestBody: (o: {
+    connectionVersion: number;
+    connectionId: string;
+    target: string;
+    label: string;
+    ticked: boolean;
+    here: {
+      enabled: boolean;
+      connection_id: string | null;
+      model_id: string | null;
+      include_snapshot: boolean;
+      version: number;
+    } | null;
+  }) => Record<string, unknown>;
+  afterCopyRefusal: (code: string | null) => {
+    rereadChat: boolean;
+    untick: boolean;
+  };
 };
 const ws = (id: string, role = 'owner', record_mode = 'real'): Ws => ({
   id,
@@ -108,4 +126,52 @@ test('review 1 L-2: before Copy, the form says Chat answers will be on there and
     t.copiedSteps('chatgpt_plan', 'B', 'Plan', 'copied', false).join(' '),
     /off until you turn them on/,
   );
+});
+
+test('re-review 3 N3-2/N3-3: the request names the Chat answers version only when ticked; a conflict re-reads and unticks', async () => {
+  const t = (await loadWeb('copy-connection-text.ts')) as Text;
+  const here = {
+    enabled: true,
+    connection_id: 'c1',
+    model_id: 'm',
+    include_snapshot: false,
+    version: 4,
+  };
+  const base = {
+    connectionVersion: 9,
+    connectionId: 'c1',
+    target: 'w2',
+    label: '  Plan  ',
+  };
+  assert.deepEqual(t.copyRequestBody({ ...base, ticked: true, here }), {
+    expected_version: 9,
+    target_workspace_id: 'w2',
+    label: 'Plan',
+    chat_answers: true,
+    chat_answers_version: 4,
+  });
+  for (const body of [
+    t.copyRequestBody({ ...base, ticked: false, here }),
+    t.copyRequestBody({
+      ...base,
+      ticked: true,
+      here: { ...here, connection_id: 'c2' },
+    }),
+    t.copyRequestBody({ ...base, ticked: true, here: null }),
+  ]) {
+    assert.equal(body.chat_answers, false);
+    assert.equal('chat_answers_version' in body, false);
+  }
+  assert.deepEqual(t.afterCopyRefusal('VERSION_CONFLICT'), {
+    rereadChat: true,
+    untick: true,
+  });
+  assert.deepEqual(t.afterCopyRefusal('DUPLICATE'), {
+    rereadChat: false,
+    untick: false,
+  });
+  assert.deepEqual(t.afterCopyRefusal(null), {
+    rereadChat: false,
+    untick: false,
+  });
 });

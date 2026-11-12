@@ -555,3 +555,65 @@ test('ADR-0095: the copy route answers 201 with the copy, and the target lists i
     [out.connection.id],
   );
 });
+
+test('re-review 3 L3-1: a copy with Chat answers and a Chat answers save at once both finish, no deadlock', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const { store, ws, target, conn } = s;
+  // Chat answers here point at another connection first (version 2), so the save below moves
+  // them to `conn` while the copy of `conn` is in progress.
+  const other = await store.createPlanConnection(owner, ws.id, {
+    label: 'Other',
+    settings: SETTINGS,
+  });
+  const before = await store.chatSettings(owner, ws.id);
+  await store.setChatSettings(owner, ws.id, {
+    expected_version: before.version,
+    enabled: false,
+    connection_id: other.id,
+    model_id: 'm',
+    include_snapshot: false,
+    daily_limit: 7,
+  });
+  // A helper holds the target's name lock, so the copy stops after locking `conn`.
+  const helper = await s.db.pool.connect();
+  await helper.query('begin');
+  await helper.query('select pg_advisory_xact_lock(hashtext($1))', [
+    `plan-connection-label:${target.id}`,
+  ]);
+  const copy = store.copyPlanConnection(owner, ws.id, conn.id, {
+    expected_version: conn.version,
+    target_workspace_id: target.id,
+    chat_answers: true,
+  });
+  await new Promise((r) => setTimeout(r, 300));
+  // The save locks the Chat answers row, then waits on `conn` (its foreign key).
+  const save = store.setChatSettings(owner, ws.id, {
+    expected_version: before.version + 1,
+    enabled: true,
+    connection_id: conn.id,
+    model_id: 'm',
+    include_snapshot: false,
+    daily_limit: 7,
+  });
+  await new Promise((r) => setTimeout(r, 300));
+  await helper.query('commit');
+  helper.release();
+  const [c, v] = await Promise.allSettled([copy, save]);
+  assert.equal(
+    c.status,
+    'fulfilled',
+    String(c.status === 'rejected' && c.reason),
+  );
+  assert.equal(
+    v.status,
+    'fulfilled',
+    String(v.status === 'rejected' && v.reason),
+  );
+  // The copy read the setting before the save: it still named the other connection.
+  assert.equal(
+    c.status === 'fulfilled' && c.value.chat_answers,
+    'source_not_using',
+  );
+  assert.equal((await store.chatSettings(owner, ws.id)).connection_id, conn.id);
+});

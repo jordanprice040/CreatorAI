@@ -79,3 +79,37 @@ export function chatCopyNote(
   const model = here.model_id ?? 'the chosen model';
   return `Chat answers are on here. If that workspace has no Chat answers setting yet, Chat answers will be ON there, using the copy with ${model}, as soon as you verify the model there. Each answer then sends the conversation${here.include_snapshot ? " and a snapshot of that workspace's records" : ''} to the model's provider.`;
 }
+
+/**
+ * Re-review 3 N3-2: the copy request. The Chat answers setting is copied only when the box is
+ * ticked and Chat answers here use this connection, and then the request names the version the
+ * note described (re-review 2 N2-1), so the server refuses it if the setting changed since.
+ */
+export function copyRequestBody(o: {
+  connectionVersion: number;
+  connectionId: string;
+  target: string;
+  label: string;
+  ticked: boolean;
+  here: (ChatSetting & { version: number }) | null;
+}) {
+  const chat =
+    o.ticked && o.here !== null && o.here.connection_id === o.connectionId;
+  return {
+    expected_version: o.connectionVersion,
+    target_workspace_id: o.target,
+    label: o.label.trim(),
+    chat_answers: chat,
+    ...(chat && o.here ? { chat_answers_version: o.here.version } : {}),
+  };
+}
+
+/**
+ * Re-review 3 N3-2/N3-3: after a refused copy. A version conflict means the connection or this
+ * workspace's Chat answers changed: the setting is read again and the box is unticked, so a
+ * tick is only ever given for the note on screen.
+ */
+export function afterCopyRefusal(code: string | null) {
+  const stale = code === 'VERSION_CONFLICT';
+  return { rereadChat: stale, untick: stale };
+}

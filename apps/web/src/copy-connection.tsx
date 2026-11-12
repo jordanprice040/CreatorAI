@@ -12,7 +12,9 @@ import {
 } from '@creator/contracts';
 import { ApiError, api, message } from './oversight.js';
 import {
+  afterCopyRefusal,
   chatCopyNote,
+  copyRequestBody,
   copiedSteps,
   copyTargets,
   noTargetText,
@@ -79,15 +81,14 @@ export function CopyConnection({
         `workspaces/${workspace.id}/plan-connections/${connection.id}/copy`,
         {
           csrf: session.csrf_token,
-          body: {
-            expected_version: connection.version,
-            target_workspace_id: target,
-            label: label.trim(),
-            chat_answers: chat && note !== null,
-            // Re-review N2-1: the server refuses the copy if this setting changed since the
-            // note was read, so the note is what gets copied.
-            ...(chat && here ? { chat_answers_version: here.version } : {}),
-          },
+          body: copyRequestBody({
+            connectionVersion: connection.version,
+            connectionId: connection.id,
+            target,
+            label,
+            ticked: chat,
+            here,
+          }),
         },
       );
       setDone({
@@ -98,8 +99,11 @@ export function CopyConnection({
       setOpen(false);
     } catch (e) {
       setError(message(e));
-      // A stale Chat answers note is read again, so the next press copies what it says.
-      if (e instanceof ApiError && e.code === 'VERSION_CONFLICT')
+      // A stale Chat answers note is read again and the box unticked, so the next press
+      // copies only what the note on screen says.
+      const next = afterCopyRefusal(e instanceof ApiError ? e.code : null);
+      if (next.untick) setChat(false);
+      if (next.rereadChat)
         await api(
           ChatSettingsSchema,
           `workspaces/${workspace.id}/chat-settings`,
