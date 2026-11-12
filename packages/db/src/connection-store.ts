@@ -1949,7 +1949,11 @@ export class ConnectionStore extends WebDiscoveryStore {
         include_snapshot: req.include_snapshot,
         daily_limit: req.daily_limit,
       };
-      await c.query(
+      // PR #180 re-review 5 L5-1: the version is checked again inside the write. A first save
+      // reads no row (nothing to lock), so another first write (a second tab, or a connection
+      // copy bringing Chat answers along) can land before this insert; the update then matches
+      // no row and this save is refused instead of overwriting it.
+      const wrote = await c.query(
         `insert into chat_settings (workspace_id, enabled, connection_id, model_id,
            include_snapshot, daily_limit, version, updated_by)
          values ($1,$2,$3,$4,$5,$6,1,$7)
@@ -1957,7 +1961,8 @@ export class ConnectionStore extends WebDiscoveryStore {
            connection_id = excluded.connection_id, model_id = excluded.model_id,
            include_snapshot = excluded.include_snapshot, daily_limit = excluded.daily_limit,
            version = chat_settings.version + 1, updated_by = excluded.updated_by,
-           updated_at = clock_timestamp()`,
+           updated_at = clock_timestamp()
+         where chat_settings.version = $8`,
         [
           uuid(ws),
           next.enabled,
@@ -1966,8 +1971,14 @@ export class ConnectionStore extends WebDiscoveryStore {
           next.include_snapshot,
           next.daily_limit,
           ctx.actorId,
+          current.version,
         ],
       );
+      if (!wrote.rowCount)
+        throw fail(
+          'VERSION_CONFLICT',
+          'The chat setting changed since you opened it; reload and try again.',
+        );
       await this.append(c, ctx, {
         workspaceId: uuid(ws),
         action: 'chat.settings_changed',

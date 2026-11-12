@@ -640,7 +640,7 @@ test('re-review 3 L3-1: a copy with Chat answers and a Chat answers save at once
   assert.equal((await store.chatSettings(owner, ws.id)).connection_id, conn.id);
 });
 
-test('review 4 L4-1: a ticked copy and a Chat answers save in the target at once both finish, with or without a target setting', async (t) => {
+test('review 4 L4-1 / re-review 5 L5-1: a ticked copy and a Chat answers save in the target at once never deadlock, and a stale first save is refused', async (t) => {
   for (const targetHasOwn of [false, true]) {
     const s = await setup(t);
     if (!s) return;
@@ -674,27 +674,90 @@ test('review 4 L4-1: a ticked copy and a Chat answers save in the target at once
       include_snapshot: false,
       daily_limit: 5,
     });
-    // The save waits too: on the copy's new row, or for the audit lock after its own row.
+    // The save waits too. With no target setting it waits on the copy's new row and is then
+    // refused, because the setting changed under it (re-review 5 L5-1); with its own setting
+    // it saves its row and waits for the audit lock.
     await lockWaiters(s.db.pool, 2);
     await helper.query('commit');
     helper.release();
     const [c, v] = await Promise.allSettled([copy, save]);
+    // Neither side deadlocks.
     assert.equal(
       c.status,
       'fulfilled',
       String(c.status === 'rejected' && c.reason),
     );
     assert.equal(
-      v.status,
-      'fulfilled',
-      String(v.status === 'rejected' && v.reason),
-    );
-    assert.equal(
       c.status === 'fulfilled' && c.value.chat_answers,
       targetHasOwn ? 'target_has_own' : 'copied',
     );
     const after = await store.chatSettings(owner, target.id);
-    assert.equal(after.daily_limit, 5);
-    assert.equal(after.version, 2);
+    const audit = await s.db.pool.query(
+      `select subject_version, payload from audit_events
+        where action = 'chat.settings_changed' and workspace_id = $1 order by sequence`,
+      [target.id],
+    );
+    if (targetHasOwn) {
+      assert.equal(
+        v.status,
+        'fulfilled',
+        String(v.status === 'rejected' && v.reason),
+      );
+      assert.equal(after.daily_limit, 5);
+      assert.equal(after.version, 2);
+      assert.deepEqual(
+        audit.rows.map((r) => r.subject_version),
+        [1, 2],
+      );
+    } else {
+      // The copied setting stays; the stale first save is refused, not written over it.
+      assert.ok(
+        v.status === 'rejected' &&
+          v.reason instanceof ContractError &&
+          v.reason.code === 'VERSION_CONFLICT',
+        String(v.status === 'rejected' ? v.reason : 'save succeeded'),
+      );
+      assert.equal(after.version, 1);
+      assert.equal(after.daily_limit, 7);
+      assert.equal(
+        after.connection_id,
+        c.status === 'fulfilled' && c.value.connection.id,
+      );
+      assert.deepEqual(
+        audit.rows.map((r) => r.subject_version),
+        [1],
+      );
+    }
   }
+});
+
+test('re-review 5 L5-1: two first Chat answers saves at once give one save and one VERSION_CONFLICT, never an overwrite', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const { store, target } = s;
+  const save = (daily_limit: number) =>
+    store.setChatSettings(owner, target.id, {
+      expected_version: 0,
+      enabled: false,
+      connection_id: null,
+      model_id: null,
+      include_snapshot: true,
+      daily_limit,
+    });
+  const results = await Promise.allSettled([save(3), save(4)]);
+  const ok = results.filter((r) => r.status === 'fulfilled');
+  assert.equal(ok.length, 1);
+  const failed = results.find((r) => r.status === 'rejected');
+  assert.ok(
+    failed?.status === 'rejected' &&
+      failed.reason instanceof ContractError &&
+      failed.reason.code === 'VERSION_CONFLICT',
+    String(failed?.status === 'rejected' && failed.reason),
+  );
+  const after = await store.chatSettings(owner, target.id);
+  assert.equal(after.version, 1);
+  assert.equal(
+    after.daily_limit,
+    ok[0]!.status === 'fulfilled' ? ok[0]!.value.daily_limit : -1,
+  );
 });
