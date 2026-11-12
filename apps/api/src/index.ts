@@ -2585,7 +2585,12 @@ export function createApi(
       const status = statusFor[e.code] ?? 400;
       if (!res.destroyed && !res.headersSent)
         respond(res, status, {
-          error: { code: e.code, message: e.message, details: e.details },
+          error: {
+            code: e.code,
+            message: e.message,
+            details: e.details,
+            ...(e.reasons.length ? { reasons: e.reasons } : {}),
+          },
         });
     });
   });
@@ -2639,6 +2644,7 @@ export { visitorKey } from './desktop.js';
 export { createPreviewServer } from './artifacts.js';
 export { WebDiscoveryRunner, stepId, answerJson } from './web-discovery.js';
 export {
+  checkCwd,
   checkEnv,
   runCapabilityCheck,
   type CapabilityRunner,

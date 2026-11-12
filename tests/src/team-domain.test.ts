@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { checkEnv, runCapabilityCheck } from '@creator/api';
+import { checkCwd, checkEnv, runCapabilityCheck } from '@creator/api';
+import { existsSync, readdirSync, rmdirSync } from 'node:fs';
 import {
   assessmentRoleInput,
   checkOutcome,
@@ -239,4 +240,15 @@ test('the packet says how each answer is known without naming the computer, and 
   })[0]!.text;
   assert.match(system, /team block/);
   assert.match(system, /r08-assessor\/1\.2/);
+});
+
+test('checks run in an empty studio-made folder, made again if a temp clean-up deleted it', () => {
+  const dir = checkCwd();
+  assert.ok(existsSync(dir));
+  assert.deepEqual(readdirSync(dir), []);
+  assert.equal(checkCwd(), dir);
+  rmdirSync(dir);
+  const again = checkCwd();
+  assert.ok(existsSync(again));
+  assert.notEqual(again, dir);
 });

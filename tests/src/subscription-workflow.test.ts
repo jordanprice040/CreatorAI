@@ -335,7 +335,15 @@ test('exploration on a plan needs only the locator qualification and spends noth
       e instanceof ContractError &&
       e.code === 'ACCESS_DENIED' &&
       e.message === 'Exploration route is not ready.' &&
-      e.details.some((d) => d.includes('not qualified')),
+      e.details.some((d) => d.includes('not qualified')) &&
+      // ADR-0087: the refusal also carries its code and what its fix needs.
+      e.reasons.some(
+        (r) =>
+          r.code === 'not_qualified' &&
+          r.task_class === 'research_synthesis' &&
+          r.model_id === s.resource.model_id &&
+          r.connection_id === s.resource.connection_id,
+      ),
   );
   await s.qualify(['research_synthesis']);
   const started = await s.store.startExploration(owner, s.ws.id, s.runId, req);

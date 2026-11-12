@@ -1,9 +1,13 @@
+import { FixButtons, type FixContext } from './fix-buttons.js';
+import type { FixAction } from './fix-here.js';
 import type { View } from './pages.js';
 
 /** One reason an action cannot run yet, with the tab that can fix it when there is one. */
 export type BlockedReason = {
   text: string;
   fix?: { view: View; label: string };
+  /** ADR-0087: the owner's fixes for this reason, offered in place (needs `fixes`). */
+  acts?: FixAction[];
 };
 
 /**
@@ -17,12 +21,15 @@ export function Blocked({
   reasons,
   open,
   id,
+  fixes,
 }: {
   /** What cannot happen yet, e.g. "start this discovery". */
   action: string;
   reasons: readonly BlockedReason[];
   open?: (view: View) => void;
   id?: string;
+  /** ADR-0087: where in-place fixes are pressed; without it only the tab links show. */
+  fixes?: FixContext | null;
 }) {
   if (reasons.length === 0) return null;
   // The same fix offered for several reasons is shown once, after the last of them.
@@ -37,6 +44,7 @@ export function Blocked({
         {reasons.map((r, i) => (
           <li key={`${i}-${r.text}`}>
             {r.text}
+            <FixButtons acts={r.acts} fix={fixes} />
             {r.fix && open && lastFix.get(r.fix.view) === i && (
               <>
                 {' '}

@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtempSync } from 'node:fs';
+import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { CapabilityCheck, TeamCapabilityKey } from '@creator/contracts';
@@ -49,17 +49,21 @@ export function checkEnv(
 }
 
 /**
- * The working directory checks run in: an empty directory the studio made for them (owner-only
- * permissions), never the API's own directory or a shared temporary folder where a stray
+ * The working directory checks run in: an empty directory the studio made for them in the
+ * user's own temporary folder, never the API's own directory or a shared temporary folder where a stray
  * python.exe could sit. Windows looks for a program in the working directory before PATH unless
  * the CALLING process has NoDefaultCurrentDirectoryInExePath set (libuv reads the parent's
  * environment, not the child's), so the API sets that for itself too.
  */
 let checkDir: string | null = null;
-function checkCwd(): string {
+/** Exported for tests: the folder checks run in, made again if it was deleted. */
+export function checkCwd(): string {
   if (process.platform === 'win32')
     process.env.NoDefaultCurrentDirectoryInExePath = '1';
-  checkDir ??= mkdtempSync(join(tmpdir(), 'creator-checks-'));
+  // A temp clean-up (Windows Storage Sense, Disk Clean-up) can delete the folder while the
+  // studio runs for days; a missing working directory would make every check say "not found".
+  if (!checkDir || !existsSync(checkDir))
+    checkDir = mkdtempSync(join(tmpdir(), 'creator-checks-'));
   return checkDir;
 }
 

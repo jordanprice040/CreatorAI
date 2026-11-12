@@ -27,7 +27,17 @@ import {
   forWebDiscovery,
   isQualified,
 } from '@creator/contracts';
-import { api, message, when, words } from './oversight.js';
+import { api, message, refusalsOf, when, words } from './oversight.js';
+import {
+  FixOutcome,
+  FixButtons,
+  FixRow,
+  qualifierFor,
+  routeFixes,
+  useQualifyOffers,
+  type FixContext,
+} from './fix-buttons.js';
+import { refusalFixes, type FixAction } from './fix-here.js';
 import { newestFirst } from './versions.js';
 import { envelopesFor } from './build-defaults.js';
 import { Empty, Status, useLoad, type View } from './ui.js';
@@ -111,6 +121,8 @@ export function Explore({
   open: (view: View, id?: string) => void;
 }) {
   const base = `workspaces/${workspace.id}`;
+  // ADR-0087: the server's discovery benchmarks, so a fix can qualify a discovery task.
+  useQualifyOffers(base);
   const fixture = workspace.record_mode === 'fixture';
   const ctx = useLoad(async () => {
     const [workflows, envelopes, pricing, connections, claims] =
@@ -169,6 +181,7 @@ export function Explore({
   const [leaveOut, setLeaveOut] = useState<Map<string, string>>(new Map());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [errorFixes, setErrorFixes] = useState<FixAction[]>([]);
   const [openId, setOpenId] = useState('');
 
   const c = ctx.data;
@@ -280,6 +293,13 @@ export function Explore({
     data_class: dataClass,
     limits,
   };
+  // As the server admits Explore (P27 review L-4): the discovery role's newest decided
+  // qualification counts, so a later failure withdraws a pass (ADR-0052), and a
+  // web-discovery qualification does not count (ADR-0086).
+  const explorationQualified = Boolean(
+    plan &&
+    isDiscoveryQualified(plan.qualifications, model, EXPLORATION_TASK_CLASS),
+  );
   const blockers =
     resourceKind === 'subscription'
       ? [
@@ -291,15 +311,7 @@ export function Explore({
           !plan.connection.settings.allowed_data_classes.includes(dataClass)
             ? ['This connection does not permit the selected sharing class.']
             : []),
-          ...(plan &&
-          model &&
-          // ADR-0089: the newest decided qualification bound to the discovery role counts,
-          // as the server admits Explore.
-          !isDiscoveryQualified(
-            plan.qualifications,
-            model,
-            EXPLORATION_TASK_CLASS,
-          )
+          ...(plan && model && !explorationQualified
             ? [
                 // P23 item 8: name the reason when the task is not allowed here at all,
                 // and only fixes that exist (review of PR #172, M-1).
@@ -326,6 +338,25 @@ export function Explore({
           ...(envelope ? [] : ['No active shared budget (Monitor › Budgets).']),
           ...(price ? [] : ['No pricing snapshot (Monitor › Budgets).']),
         ];
+  // ADR-0087 (P27): the owner fixes the route's refusals here, without leaving Explore.
+  const fixes: FixContext = {
+    base,
+    place: 'explore',
+    csrf: session.csrf_token,
+    owner: workspace.role === 'owner',
+    onDone: () => ctx.refresh(),
+  };
+  const blockerFixes =
+    resourceKind === 'subscription'
+      ? routeFixes({
+          plan,
+          dataClass,
+          model,
+          missing:
+            plan && !explorationQualified ? [EXPLORATION_TASK_CLASS] : [],
+          role: 'discovery',
+        })
+      : [];
   const scopeIssues = scopeCheck.success
     ? []
     : scopeCheck.error.issues.map((i) => i.message);
@@ -342,6 +373,7 @@ export function Explore({
     if (!ready) return;
     setBusy(true);
     setError('');
+    setErrorFixes([]);
     // What a refused start leaves behind is undone (PR #131 review L-1).
     let runId = '';
     let grant: { id: string; version: number } | null = null;
@@ -418,6 +450,13 @@ export function Explore({
         return;
       }
       setError(message(err));
+      setErrorFixes(
+        refusalFixes(
+          refusalsOf(err),
+          'discovery',
+          plan ? qualifierFor('discovery', plan.connection) : () => false,
+        ),
+      );
       // A changed preview is read again so the owner can check it before retrying.
       ctx.refresh();
       const undo = 'Explore for me did not start.';
@@ -657,6 +696,10 @@ export function Explore({
                   ))}
                 </ul>
               )}
+              {blockers.length > 0 && (
+                <FixRow acts={blockerFixes} fix={fixes} />
+              )}
+              <FixOutcome fix={fixes} />
               {workspace.role !== 'owner' && (
                 <p className="small">Only the workspace owner can explore.</p>
               )}
@@ -666,6 +709,7 @@ export function Explore({
               {error && (
                 <p className="error" role="alert">
                   {error}
+                  <FixButtons acts={errorFixes} fix={fixes} />
                 </p>
               )}
             </form>

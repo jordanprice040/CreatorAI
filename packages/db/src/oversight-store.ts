@@ -196,7 +196,12 @@ export class OversightStore extends Store {
     return rows[0].kind;
   }
   /** Policy changes (grants, run registration, cancellation) are owner actions by a person. */
-  protected async requireOwner(c: PoolClient, ws: string, actorId: string) {
+  protected async requireOwner(
+    c: PoolClient,
+    ws: string,
+    actorId: string,
+    refusal = 'Only a workspace owner, signed in as a person, can change oversight policy.',
+  ) {
     const role = await this.role(c, ws, actorId, true);
     // ADR-0075: tester accounts are never workspace owners for policy purposes.
     if (
@@ -204,10 +209,7 @@ export class OversightStore extends Store {
       (await this.actorKind(c, actorId)) !== 'human' ||
       (await this.isTester(c, actorId))
     )
-      throw fail(
-        'ACCESS_DENIED',
-        'Only a workspace owner, signed in as a person, can change oversight policy.',
-      );
+      throw fail('ACCESS_DENIED', refusal);
   }
 
   // ---- Sessions -------------------------------------------------------------------------

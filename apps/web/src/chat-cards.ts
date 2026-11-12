@@ -7,6 +7,7 @@
 import {
   CHAT_ACTION_SUBJECTS_MAX,
   WORKFLOW_WALL_MAX_SECONDS,
+  type PlanConnectionDetail,
 } from '@creator/contracts';
 import { studioDefaults } from './discover-defaults.js';
 import { overridesFor, type CarryReport } from './carry-decisions.js';
@@ -156,6 +157,16 @@ export type DiscoverData = {
   route: DiscoverRoute | null;
   /** Why no route can run a discovery now, in the Discover form's words. */
   routeBlockers: string[];
+  /**
+   * ADR-0087 (P27): what the owner's fixes for those blockers need (the connection as read,
+   * the model and the discovery tasks it lacks). The card draws the buttons from these facts,
+   * never from the model's reply.
+   */
+  routeFix?: {
+    plan: Pick<PlanConnectionDetail, 'connection' | 'refusals'>;
+    model: string;
+    missing: string[];
+  };
 };
 export type DecisionOption = {
   id: string;

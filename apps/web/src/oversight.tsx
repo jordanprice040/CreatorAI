@@ -19,8 +19,10 @@ import {
   SessionInfoSchema,
   parse,
   z,
+  PlanRefusalSchema,
   type Decision,
   type Grant,
+  type PlanRefusal,
   type RoutinePolicyView,
   type RunControl,
   type SessionInfo,
@@ -32,10 +34,15 @@ export class ApiError extends Error {
   constructor(
     public readonly code: string,
     message: string,
+    /** ADR-0087: plan refusals the server sent with their codes, for fixes in place. */
+    public readonly reasons: readonly PlanRefusal[] = [],
   ) {
     super(message);
   }
 }
+/** The coded plan refusals of a failed request, if any (ADR-0087). */
+export const refusalsOf = (e: unknown): readonly PlanRefusal[] =>
+  e instanceof ApiError ? e.reasons : [];
 /**
  * Sent on `window` after every request that changes something (any POST), whether it worked
  * or was refused, so the what's-next line and other summaries read again right away.
@@ -102,14 +109,27 @@ export async function api<T>(
   if (!response.ok) {
     const e =
       body && typeof body === 'object' && 'error' in body
-        ? (body.error as { code?: string; message?: string; details?: unknown })
+        ? (body.error as {
+            code?: string;
+            message?: string;
+            details?: unknown;
+            reasons?: unknown;
+          })
         : {};
+    // Only reasons that match the contract are kept; anything else is just not offered a fix.
+    const reasons = Array.isArray(e.reasons)
+      ? e.reasons.flatMap((r) => {
+          const ok = PlanRefusalSchema.safeParse(r);
+          return ok.success ? [ok.data] : [];
+        })
+      : [];
     const details = Array.isArray(e.details)
       ? ` ${e.details.map(String).slice(0, 6).join('; ')}`
       : '';
     throw new ApiError(
       e.code ?? 'ERROR',
       `${e.message ?? `API error ${response.status}`}${details}`,
+      reasons,
     );
   }
   return parse(schema, body);
