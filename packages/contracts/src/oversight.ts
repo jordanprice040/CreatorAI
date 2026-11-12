@@ -263,6 +263,12 @@ export const RoutinePolicyViewSchema = z.strictObject({
   state: z.enum(['active', 'paused', 'expired', 'revoked']),
   /** Why it admits nothing now; null while active. */
   state_reason: z.string().max(400).nullable(),
+  /**
+   * A stop condition that holds (a person rejected a decision, an unknown outcome), reported
+   * even when an end time or used-up steps is the state's reason (review 3 L-1). A revision
+   * from an automation level is refused while it is set.
+   */
+  stop_reason: z.string().max(400).nullable(),
   recent: z
     .array(
       z.strictObject({
