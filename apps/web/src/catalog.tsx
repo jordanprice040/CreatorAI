@@ -36,6 +36,7 @@ import {
 } from './owner-actions.js';
 import { ReasonForm } from './reason-form.js';
 import { useListSort } from './list-sort.js';
+import { ClaimLinks } from './link-claims.js';
 
 const LIBRARY_SORTS = LibrarySortSchema.options;
 const LIBRARY_SORT_LABEL: Record<LibrarySort, string> = {
@@ -546,6 +547,20 @@ export function Catalog({
                 names={names}
                 open={onFocus}
               />
+              {e.kind === 'claim' && e.status === 'active' && (
+                <ClaimLinks
+                  key={e.id}
+                  session={session}
+                  workspace={workspace}
+                  claimId={e.id}
+                  editor={workspace.role !== 'viewer'}
+                  onChanged={() =>
+                    void api(EntityDetailSchema, `${base}/entities/${e.id}`)
+                      .then(setDetail)
+                      .catch(() => undefined)
+                  }
+                />
+              )}
               <h3>Lineage</h3>
               <div className="filters">
                 <label htmlFor="lin-dir" className="inline">
