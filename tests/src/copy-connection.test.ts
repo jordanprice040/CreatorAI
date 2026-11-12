@@ -9,7 +9,9 @@ import {
   type ErrorCode,
   type PlanConnection,
 } from '@creator/contracts';
+import type { Pool } from 'pg';
 import {
+  AUDIT_CHAIN_LOCK,
   ConnectionStore,
   OPERATIONS_ACTOR_ID,
   OpsStore,
@@ -48,6 +50,24 @@ const until = async (f: () => boolean, ms = 5000) => {
     await new Promise((r) => setTimeout(r, 20));
   }
 };
+
+/**
+ * Review 4 N4-1: waits until `n` sessions in this test database are waiting on a lock, so a
+ * concurrency test orders its steps by what PostgreSQL reports, not by sleeping.
+ */
+async function lockWaiters(pool: Pool, n: number, ms = 10_000) {
+  const end = Date.now() + ms;
+  for (;;) {
+    const { rows } = await pool.query(
+      `select count(*)::int as n from pg_stat_activity
+        where datname = current_database() and wait_event_type = 'Lock'`,
+    );
+    if (rows[0].n >= n) return;
+    if (Date.now() > end)
+      throw new Error(`timed out waiting for ${n} lock waiters`);
+    await new Promise((r) => setTimeout(r, 20));
+  }
+}
 
 async function setup(t: test.TestContext) {
   const db = await freshDatabase(t);
@@ -586,7 +606,8 @@ test('re-review 3 L3-1: a copy with Chat answers and a Chat answers save at once
     target_workspace_id: target.id,
     chat_answers: true,
   });
-  await new Promise((r) => setTimeout(r, 300));
+  // The copy now holds `conn` and waits for the name lock.
+  await lockWaiters(s.db.pool, 1);
   // The save locks the Chat answers row, then waits on `conn` (its foreign key).
   const save = store.setChatSettings(owner, ws.id, {
     expected_version: before.version + 1,
@@ -596,7 +617,8 @@ test('re-review 3 L3-1: a copy with Chat answers and a Chat answers save at once
     include_snapshot: false,
     daily_limit: 7,
   });
-  await new Promise((r) => setTimeout(r, 300));
+  // The save now holds the Chat answers row and waits for `conn`.
+  await lockWaiters(s.db.pool, 2);
   await helper.query('commit');
   helper.release();
   const [c, v] = await Promise.allSettled([copy, save]);
@@ -616,4 +638,63 @@ test('re-review 3 L3-1: a copy with Chat answers and a Chat answers save at once
     'source_not_using',
   );
   assert.equal((await store.chatSettings(owner, ws.id)).connection_id, conn.id);
+});
+
+test('review 4 L4-1: a ticked copy and a Chat answers save in the target at once both finish, with or without a target setting', async (t) => {
+  for (const targetHasOwn of [false, true]) {
+    const s = await setup(t);
+    if (!s) return;
+    const { store, ws, target, conn } = s;
+    if (targetHasOwn)
+      await store.setChatSettings(owner, target.id, {
+        expected_version: 0,
+        enabled: false,
+        connection_id: null,
+        model_id: null,
+        include_snapshot: true,
+        daily_limit: 3,
+      });
+    const version = (await store.chatSettings(owner, target.id)).version;
+    // A helper holds the audit lock, which every audit append takes until commit.
+    const helper = await s.db.pool.connect();
+    await helper.query('begin');
+    await helper.query('select pg_advisory_xact_lock($1)', [AUDIT_CHAIN_LOCK]);
+    const copy = store.copyPlanConnection(owner, ws.id, conn.id, {
+      expected_version: conn.version,
+      target_workspace_id: target.id,
+      chat_answers: true,
+    });
+    // The copy has written its rows and waits for the audit lock.
+    await lockWaiters(s.db.pool, 1);
+    const save = store.setChatSettings(owner, target.id, {
+      expected_version: version,
+      enabled: false,
+      connection_id: null,
+      model_id: null,
+      include_snapshot: false,
+      daily_limit: 5,
+    });
+    // The save waits too: on the copy's new row, or for the audit lock after its own row.
+    await lockWaiters(s.db.pool, 2);
+    await helper.query('commit');
+    helper.release();
+    const [c, v] = await Promise.allSettled([copy, save]);
+    assert.equal(
+      c.status,
+      'fulfilled',
+      String(c.status === 'rejected' && c.reason),
+    );
+    assert.equal(
+      v.status,
+      'fulfilled',
+      String(v.status === 'rejected' && v.reason),
+    );
+    assert.equal(
+      c.status === 'fulfilled' && c.value.chat_answers,
+      targetHasOwn ? 'target_has_own' : 'copied',
+    );
+    const after = await store.chatSettings(owner, target.id);
+    assert.equal(after.daily_limit, 5);
+    assert.equal(after.version, 2);
+  }
 });

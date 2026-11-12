@@ -766,6 +766,10 @@ export class ConnectionStore extends WebDiscoveryStore {
           'Chat answers here changed since you opened this; read the note again and copy.',
         );
       const label = req.label ?? conn.label;
+      // Review 4 L4-1: every row is written before the first audit append (which takes the
+      // global audit lock to commit); a Chat answers save in the target writes its row first
+      // and appends second, so appending earlier here could deadlock with it.
+      const audit: Parameters<ConnectionStore['append']>[2][] = [];
       const copied = await this.#insertConnection(
         c,
         ctx,
@@ -782,6 +786,7 @@ export class ConnectionStore extends WebDiscoveryStore {
             settings_hash: conn.settings_hash,
           },
         },
+        audit,
       );
       let chat: CopyPlanConnectionResult['chat_answers'] = 'not_requested';
       let chatOn: boolean | null = null;
@@ -813,7 +818,7 @@ export class ConnectionStore extends WebDiscoveryStore {
               include_snapshot: from.include_snapshot,
               daily_limit: from.daily_limit,
             };
-            await this.append(c, ctx, {
+            audit.push({
               workspaceId: target,
               action: 'chat.settings_changed',
               subjectKind: 'chat_settings',
@@ -826,7 +831,7 @@ export class ConnectionStore extends WebDiscoveryStore {
         }
       }
       // The source's own record says where it was copied; its row and version stay as they are.
-      await this.append(c, ctx, {
+      audit.push({
         workspaceId: source,
         action: 'connection.copied',
         subjectKind: 'plan_connection',
@@ -840,6 +845,7 @@ export class ConnectionStore extends WebDiscoveryStore {
           chat_answers: chat,
         },
       });
+      for (const e of audit) await this.append(c, ctx, e);
       return {
         source_connection_id: conn.id,
         target_workspace_id: target,
@@ -879,6 +885,11 @@ export class ConnectionStore extends WebDiscoveryStore {
     label: string,
     settings: PlanConnection['settings'],
     origin: Row,
+    /**
+     * Review 4 L4-1: when given, the audit record is pushed here for the caller to append after
+     * its own row writes. Every append takes one global lock held to commit, so rows go first.
+     */
+    later?: Parameters<ConnectionStore['append']>[2][],
   ): Promise<string> {
     // Names are unique per workspace; the lock makes two saves of one name meet here, so the
     // second gets DUPLICATE instead of a unique-index error.
@@ -948,7 +959,7 @@ export class ConnectionStore extends WebDiscoveryStore {
       },
       ctx,
     );
-    await this.append(c, ctx, {
+    const created = {
       workspaceId: ws,
       action: 'connection.created',
       subjectKind: 'plan_connection',
@@ -956,7 +967,9 @@ export class ConnectionStore extends WebDiscoveryStore {
       subjectVersion: 1,
       contentHash: canonicalHash(settings),
       payload: { kind, label, ...origin },
-    });
+    };
+    if (later) later.push(created);
+    else await this.append(c, ctx, created);
     return id;
   }
 
