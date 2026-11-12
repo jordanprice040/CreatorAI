@@ -3288,7 +3288,11 @@ create unique index chat_action_fills_one_pending on chat_action_fills (action_i
 create index chat_action_fills_conversation on chat_action_fills (conversation_id, created_at);
 create function chat_action_fills_settle_once() returns trigger language plpgsql as $$
 begin
- if tg_op = 'DELETE' and not exists (select 1 from chat_actions where id = old.action_id) then
+ -- A fill goes with its card or its conversation, whichever cascade reaches it first (the
+ -- order of the two cascades depends on trigger names, which a restore can change).
+ if tg_op = 'DELETE' and (
+      not exists (select 1 from chat_actions where id = old.action_id)
+   or not exists (select 1 from chat_conversations where id = old.conversation_id)) then
    return old;
  end if;
  if tg_op = 'DELETE' or old.state <> 'pending' or new.state = 'pending'

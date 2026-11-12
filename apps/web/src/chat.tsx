@@ -447,7 +447,9 @@ export function Chat({
    */
   function nextFor(c: ChatAction) {
     const actions = detail?.actions ?? [];
-    if (c.state !== 'done' || actions.at(-1)?.id !== c.id) return null;
+    // Review N-4: a card put away after it does not hide it.
+    const latest = actions.filter((x) => x.state !== 'dismissed').at(-1);
+    if (c.state !== 'done' || latest?.id !== c.id) return null;
     const f = replyFacts(facts, true);
     if (!f.step) return null;
     const kind = f.pending
@@ -460,7 +462,12 @@ export function Chat({
       return actions.some(
         (x) => x.kind === kind && !CHAT_ACTION_FINAL.includes(x.state),
       )
-        ? null
+        ? {
+            label: `Next step: ${LABEL[kind].toLowerCase()}`,
+            run: null,
+            busy: false,
+            note: 'Its card is already open in this conversation.',
+          }
         : {
             label: `Next step: ${LABEL[kind].toLowerCase()}`,
             run: () => void startCard(kind, latestMessage.current),

@@ -53,6 +53,8 @@ import {
   CHAT_FILL_OUTPUT_MAX,
   ChatActionFillQuestionSchema,
   ChatActionFillRequestSchema,
+  CHAT_FILL_TEXT_MAX,
+  fillType,
   fillableKey,
   readFillValues,
   type ChatActionFill,
@@ -2205,6 +2207,19 @@ export class ConnectionStore extends WebDiscoveryStore {
           'ACCESS_DENIED',
           `A model may propose only a card's descriptive text, never a pick, a rating, a gate, a reason or a routine setting (${refused.map((q) => q.key).join(', ')}).`,
         );
+      // Review L-3: each question's length and its answer so far come from the server (the
+      // card as saved), not from the page; only its wording comes from the page.
+      const questions: ChatActionFillQuestion[] = req.questions.map((q) => {
+        const saved = card.input[q.key];
+        const { current: _sent, ...rest } = q;
+        return {
+          ...rest,
+          type: fillType(q.key),
+          ...(typeof saved === 'string' && saved.trim()
+            ? { current: saved.slice(0, CHAT_FILL_TEXT_MAX.long) }
+            : {}),
+        };
+      });
       const settings = await chatSettings(c, uuid(ws));
       if (!settings.enabled || !settings.connection_id || !settings.model_id)
         throw fail(
@@ -2212,6 +2227,15 @@ export class ConnectionStore extends WebDiscoveryStore {
           'Chat answers are turned off. The owner can turn them on in Models and connections.',
         );
       const conn = await this.#connection(c, uuid(ws), settings.connection_id);
+      // Review N-6: say so before anything is recorded when the cap cannot hold a fill at all.
+      const room =
+        conn.settings.caps.responses.max_input_chars -
+        CHAT_FILL_INSTRUCTIONS.length;
+      if (room < 500)
+        throw fail(
+          'INVALID_CONTRACT',
+          `The connection's input limit (${conn.settings.caps.responses.max_input_chars} characters) is too small for a fill's instructions and questions, so nothing was sent. Fill the card in by hand, or raise the limit in Models and connections.`,
+        );
       // The person's messages always go. Model answers that used studio records go only when
       // the owner's chat setting lets studio records go (ADR-0070), as do the card's records.
       const records = settings.include_snapshot;
@@ -2235,13 +2259,9 @@ export class ConnectionStore extends WebDiscoveryStore {
       const built = fillInput({
         step: CHAT_ACTION_LABEL[card.kind],
         history,
-        questions: req.questions,
+        questions,
         records,
-        maxChars: Math.max(
-          500,
-          conn.settings.caps.responses.max_input_chars -
-            CHAT_FILL_INSTRUCTIONS.length,
-        ),
+        maxChars: room,
       });
       if (!built)
         throw fail(
@@ -2270,7 +2290,7 @@ export class ConnectionStore extends WebDiscoveryStore {
           op,
           CHAT_FILL_INSTRUCTIONS_VERSION,
           createHash('sha256').update(CHAT_FILL_INSTRUCTIONS).digest('hex'),
-          JSON.stringify(req.questions),
+          JSON.stringify(questions),
           records,
           built.history_items,
           built.input,
@@ -2292,7 +2312,7 @@ export class ConnectionStore extends WebDiscoveryStore {
           kind: card.kind,
           connection_id: conn.id,
           model_id: settings.model_id,
-          keys: req.questions.map((q) => q.key),
+          keys: questions.map((q) => q.key),
           records,
         },
       });
@@ -2302,7 +2322,7 @@ export class ConnectionStore extends WebDiscoveryStore {
         input: built.input,
         logical_operation_id: op,
         connection_id: conn.id,
-        questions: req.questions,
+        questions,
       };
     });
     if (!begun.replay) this.#liveChatFills.add(begun.fill.id);

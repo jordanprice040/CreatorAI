@@ -481,6 +481,24 @@ test("ADR-0096: an Explore for me pick fills a discovery card; unedited, it star
     ).brief,
     { id: 'B', version: 1 },
   );
+  // Review L-5: once edited, the card no longer uses the pick, so it is not re-checked.
+  assert.ok(!edited.subjects.some((x) => x.id === brief.id));
+  // A pick with no supporting claim here clears claims chosen for an earlier theme.
+  const bare = m.answersFromPick(
+    brief,
+    [{ claim_id: against.id, contrary: true }],
+    new Set([support.id, against.id]),
+  );
+  assert.deepEqual(bare.claims, []);
+  assert.deepEqual(bare.roles, []);
+  const again = m.cardView(
+    'start_discovery',
+    { ...input, ...bare },
+    data,
+    ctx(),
+  );
+  assert.equal(again.current?.key, 'claims', 'the claims are asked again');
+
   // "Send again" starts from the person's answers without the pick (a new brief).
   assert.ok(!('_explored' in m.againInput('start_discovery', input)));
 });

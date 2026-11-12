@@ -306,6 +306,14 @@ export const CHAT_FILL_KEYS: Record<ChatActionKind, RegExp | null> = {
 };
 export const fillableKey = (kind: ChatActionKind, key: string) =>
   CHAT_FILL_KEYS[kind]?.test(key) ?? false;
+/**
+ * Review of PR #181, L-3: the server, not the page, says whether a fillable question takes a
+ * paragraph or one line (and so how long a proposal may be).
+ */
+const CHAT_FILL_LONG =
+  /^(measurable_problem|statement|uncertainty|quote|summary|s_.+)$/;
+export const fillType = (key: string): 'text' | 'long' =>
+  CHAT_FILL_LONG.test(key) ? 'long' : 'text';
 
 /** Longest proposal per question: a one-line field, or a paragraph. */
 export const CHAT_FILL_TEXT_MAX = { text: 500, long: 4000 } as const;
@@ -406,19 +414,30 @@ export function readFillValues(
   text: string,
   questions: Pick<ChatActionFillQuestion, 'key' | 'type'>[],
 ): { values: Record<string, string>; dropped: number; readable: boolean } {
-  const start = text.indexOf('{');
+  // Review N-5: a fenced block first, then each `{` that starts a parseable object with
+  // `values`, so a brace in prose before the JSON does not hide it.
+  const candidates: string[] = [];
+  const fence = /```(?:json)?\s*([\s\S]*?)```/.exec(text);
+  if (fence) candidates.push(fence[1]!.trim());
   const end = text.lastIndexOf('}');
-  let raw: unknown;
-  try {
-    raw =
-      start >= 0 && end > start ? JSON.parse(text.slice(start, end + 1)) : null;
-  } catch {
-    raw = null;
+  for (
+    let i = text.indexOf('{');
+    i >= 0 && i < end;
+    i = text.indexOf('{', i + 1)
+  )
+    candidates.push(text.slice(i, end + 1));
+  let got: unknown;
+  for (const c of candidates) {
+    try {
+      const raw: unknown = JSON.parse(c);
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        got = (raw as Record<string, unknown>).values;
+        if (got !== undefined) break;
+      }
+    } catch {
+      // Try the next candidate.
+    }
   }
-  const got =
-    raw && typeof raw === 'object' && !Array.isArray(raw)
-      ? (raw as Record<string, unknown>).values
-      : undefined;
   if (!got || typeof got !== 'object' || Array.isArray(got))
     return { values: {}, dropped: 0, readable: false };
   const asked = new Map(questions.map((q) => [q.key, q.type]));

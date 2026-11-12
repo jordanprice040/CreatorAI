@@ -128,7 +128,13 @@ export function ActionCard({
     wait: () => Promise<number>;
   } | null;
   /** ADR-0096: "Next step" on a finished card adds the Path's next card (or opens its tab). */
-  next?: { label: string; run: () => void; busy: boolean } | null;
+  next?: {
+    label: string;
+    /** Null when the next card is already open; `note` says so. */
+    run: (() => void) | null;
+    busy: boolean;
+    note?: string;
+  } | null;
   /** ADR-0096: the workspace, for Explore for me on a discovery card. */
   workspace?: Workspace | null;
 }) {
@@ -144,7 +150,10 @@ export function ActionCard({
   const [changing, setChanging] = useState<string | null>(null);
   const [exploring, setExploring] = useState(false);
   // One id per Fill press, reused if the same press is retried, so it never asks twice.
-  const fillId = useRef<string | null>(null);
+  // Review N-2: only for the same card version; an edited card asks afresh.
+  const fillId = useRef<{ id: string; version: number } | null>(null);
+  // Review N-3: one pick saved at a time.
+  const picking = useRef(false);
   const draft = card.state === 'draft';
   const input = card.input as Input;
   const ctx = {
@@ -222,6 +231,13 @@ export function ActionCard({
         )
       : {};
   const proposedKeys = Object.keys(proposed);
+  // Review L-4: a proposal never replaces a typed answer unless the person asks for that.
+  const typed = (k: string) => {
+    const v = input[k];
+    return typeof v === 'string' && v.trim() !== '';
+  };
+  const freshKeys = proposedKeys.filter((k) => !typed(k));
+  const replacing = proposedKeys.filter((k) => typed(k));
 
   async function save(patch: Input, viewFor: CardView | null) {
     const next: Input = {
@@ -256,12 +272,13 @@ export function ActionCard({
     if (!modelHelp || fillable.length === 0) return;
     setBusy('fill');
     setError('');
-    fillId.current ??= crypto.randomUUID();
+    if (fillId.current?.version !== card.version)
+      fillId.current = { id: crypto.randomUUID(), version: card.version };
     try {
       const done = await api(ChatActionFillSchema, `${base}/fill`, {
         csrf: session.csrf_token,
         body: {
-          client_id: fillId.current,
+          client_id: fillId.current.id,
           expected_version: card.version,
           questions: fillable.map((q) => {
             const cur = input[q.key];
@@ -283,8 +300,11 @@ export function ActionCard({
       if (done.state !== 'completed') setError(done.reason ?? 'No proposals.');
       await reload();
     } catch (e) {
+      // Review N-1: a refusal the server gave is final; only a lost answer is worth a retry.
       setError(
-        `${errorText(e)} Press Fill in again to retry; it will not be sent twice.`,
+        e instanceof ApiError
+          ? errorText(e)
+          : `${errorText(e)} Press Fill in again to retry; it will not be sent twice.`,
       );
     } finally {
       setBusy('');
@@ -292,12 +312,16 @@ export function ActionCard({
   }
 
   /** The person's click: the proposals become this card's answers, still to check and send. */
-  async function useProposals() {
-    if (!lastFill || proposedKeys.length === 0) return;
+  async function useProposals(replace: boolean) {
+    const keys = replace ? proposedKeys : freshKeys;
+    if (!lastFill || keys.length === 0) return;
     setBusy('use');
     setError('');
     try {
-      const patch: Input = { ...proposed, _fill: lastFill.id };
+      const patch: Input = {
+        ...Object.fromEntries(keys.map((k) => [k, proposed[k]!])),
+        _fill: lastFill.id,
+      };
       await save(patch, cardView(card.kind, { ...input, ...patch }, data, ctx));
       setChanging(null);
     } catch (e) {
@@ -309,6 +333,9 @@ export function ActionCard({
 
   /** ADR-0096: an Explore for me pick fills the discovery card (the person's "Use this"). */
   async function usePick(pick: ExploredPick) {
+    if (picking.current) return;
+    picking.current = true;
+    setBusy('pick');
     setError('');
     try {
       const known = new Set(
@@ -322,6 +349,9 @@ export function ActionCard({
       setChanging(null);
     } catch (e) {
       setError(errorText(e));
+    } finally {
+      picking.current = false;
+      setBusy('');
     }
   }
 
@@ -584,9 +614,10 @@ export function ActionCard({
               fill={lastFill}
               model={modelHelp?.model ?? lastFill.model_id}
               proposed={proposed}
+              replacing={replacing}
               labels={Object.fromEntries(fillable.map((q) => [q.key, q.label]))}
               busy={busy !== ''}
-              use={() => void useProposals()}
+              use={(replace) => void useProposals(replace)}
             />
           )}
           {used && lastFill && (
@@ -736,14 +767,20 @@ export function ActionCard({
       {!draft && card.state !== 'sending' && <Finished card={card} />}
       {next && card.state === 'done' && (
         <p className="chat-actions">
-          <button
-            type="button"
-            className="secondary strong"
-            disabled={next.busy}
-            onClick={next.run}
-          >
-            {next.label}
-          </button>
+          {next.run ? (
+            <button
+              type="button"
+              className="secondary strong"
+              disabled={next.busy}
+              onClick={next.run}
+            >
+              {next.label}
+            </button>
+          ) : (
+            <span className="small">
+              {next.label}. {next.note}
+            </span>
+          )}
         </p>
       )}
       {['refused', 'partial', 'unconfirmed', 'stale'].includes(card.state) ||
@@ -952,6 +989,7 @@ function FillResult({
   fill,
   model,
   proposed,
+  replacing,
   labels,
   busy,
   use,
@@ -959,11 +997,14 @@ function FillResult({
   fill: ChatActionFill;
   model: string;
   proposed: Record<string, string>;
+  /** Proposals for questions that already have the person's answer. */
+  replacing: string[];
   labels: Record<string, string>;
   busy: boolean;
-  use: () => void;
+  use: (replace: boolean) => void;
 }) {
   const keys = Object.keys(proposed);
+  const fresh = keys.length - replacing.length;
   return (
     <div className="chat-card-fill" role="group" aria-label="Proposals">
       {keys.length > 0 ? (
@@ -975,20 +1016,43 @@ function FillResult({
             {keys.map((k) => (
               <div key={k}>
                 <dt>{labels[k] ?? k}</dt>
-                <dd>{proposed[k]}</dd>
+                <dd>
+                  {proposed[k]}
+                  {replacing.includes(k) && (
+                    <span className="source"> · you already answered this</span>
+                  )}
+                </dd>
               </div>
             ))}
           </dl>
           {fill.reason && <p className="small">{fill.reason}</p>}
           <p className="chat-actions">
-            <button
-              type="button"
-              className="secondary strong"
-              disabled={busy}
-              onClick={use}
-            >
-              {busy ? 'Saving…' : 'Use these'}
-            </button>
+            {fresh > 0 && (
+              <button
+                type="button"
+                className="secondary strong"
+                disabled={busy}
+                onClick={() => use(false)}
+              >
+                {busy
+                  ? 'Saving…'
+                  : replacing.length
+                    ? `Use the ${fresh} for unanswered questions`
+                    : 'Use these'}
+              </button>
+            )}
+            {replacing.length > 0 && (
+              <button
+                type="button"
+                className="secondary"
+                disabled={busy}
+                onClick={() => use(true)}
+              >
+                {fresh > 0
+                  ? 'Use all, replacing my answers'
+                  : 'Replace my answers with these'}
+              </button>
+            )}
           </p>
           <p className="small">
             Using them saves them as this card&apos;s answers, which you can

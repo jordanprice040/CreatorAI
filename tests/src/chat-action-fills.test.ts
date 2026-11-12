@@ -379,8 +379,28 @@ test('fill in with the model: owner only, chat admission, proposals only, card u
     include_snapshot: true,
     daily_limit: 10,
   });
+  // A brace in prose before the JSON does not hide it (review N-5).
+  setFake(s.host.config_dir, {
+    status: SUBSCRIBED,
+    text: 'Fill {key} like this:\n```json\n{"values": {"theme": "Clinic waits"}}\n```',
+  });
+  const braced = await fill(owner);
+  assert.deepEqual(braced.values, { theme: 'Clinic waits' });
+  // Review L-3: the answer so far comes from the saved card, not from the page, and the
+  // length of each question is the server's (an address is one line).
+  const saved = await store.updateChatAction(owner, ws.id, chat.id, card.id, {
+    expected_version: 1,
+    input: { ...card.input, target_users: 'SAVED-ON-THE-CARD' },
+    subjects: [],
+  });
   setFake(s.host.config_dir, { status: SUBSCRIBED, text: 'Happy to help!' });
-  const prose = await fill(owner);
+  const prose = await fill(owner, {
+    expected_version: saved.version,
+    questions: [Q.theme, { ...Q.users, type: 'long' }],
+  });
+  assert.match(prose.sent?.input ?? '', /SAVED-ON-THE-CARD/);
+  assert.doesNotMatch(prose.sent?.input ?? '', /SECRET-ANSWER-SO-FAR/);
+  assert.match(prose.sent?.input ?? '', /key: target_users \(one line/);
   assert.equal(prose.state, 'completed');
   assert.deepEqual(prose.values, {});
   assert.match(prose.reason ?? '', /not the JSON/);
@@ -415,11 +435,22 @@ test('fill in with the model: owner only, chat admission, proposals only, card u
 
   // A sent card is no longer filled in.
   await store.sendChatAction(owner, ws.id, chat.id, card.id, {
-    expected_version: 1,
+    expected_version: saved.version,
   });
-  await rejects('INVALID_TRANSITION', fill(owner));
+  await rejects(
+    'INVALID_TRANSITION',
+    fill(owner, { expected_version: saved.version }),
+  );
 
-  // The conversation (cards and fills with it) can still be deleted.
+  // The conversation (cards and fills with it) can still be deleted, whichever cascade
+  // reaches the fills first (review M-1). Recreating the cards' conversation key gives its
+  // cascade trigger a newer name, so the conversation's cascade reaches the fills while their
+  // card still exists, as after a backup restore.
+  await s.db.pool.query(`alter table chat_actions
+    drop constraint chat_actions_workspace_id_conversation_id_fkey,
+    add constraint chat_actions_workspace_id_conversation_id_fkey
+      foreign key (workspace_id, conversation_id)
+      references chat_conversations (workspace_id, id) on delete cascade`);
   const deleted = await store.deleteChat(owner, ws.id, chat.id);
   assert.equal(deleted.id, chat.id);
   assert.equal(

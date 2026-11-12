@@ -957,9 +957,44 @@ export function answersFromPick(
     time_limit: b.time_limit,
     budget_limit: b.budget_limit,
     constraints: b.constraints.join('\n'),
-    ...(supporting.length ? { claims: supporting, roles: ['problem'] } : {}),
+    // Review L-5: a pick with no supporting claim here clears claims chosen for an earlier
+    // theme, so the card asks for them again.
+    claims: supporting,
+    roles: supporting.length ? ['problem'] : [],
     _explored: brief,
   };
+}
+
+/** The search brief a discovery card saves, from its answers (and a pick's data and seed). */
+function briefOf(
+  v: Record<string, Value>,
+  picked: ExploredBrief | null,
+  dataAndTools: string[],
+) {
+  return {
+    theme: str(v.theme),
+    fields: [str(v.field_a), str(v.field_b)],
+    target_users: str(v.target_users),
+    context: str(v.context) || null,
+    measurable_problem: str(v.measurable_problem),
+    outcome_measure: str(v.outcome_measure),
+    // ADR-0096: a brief from Explore for me keeps its own data and seed.
+    data_and_tools: picked ? picked.body.data_and_tools : dataAndTools,
+    time_limit: str(v.time_limit),
+    budget_limit: str(v.budget_limit),
+    nae_seed: picked ? picked.body.nae_seed : null,
+    constraints: lines(str(v.constraints)),
+  };
+}
+/** The Explore pick the card starts on unchanged, or null once any brief field was edited. */
+function reusedPick(
+  v: Record<string, Value>,
+  input: Input,
+): ExploredBrief | null {
+  const picked = exploredPick(input);
+  return picked && stable(picked.body) === stable(briefOf(v, picked, []))
+    ? picked
+    : null;
 }
 
 const discover: Spec<DiscoverData> = {
@@ -1103,25 +1138,10 @@ const discover: Spec<DiscoverData> = {
     const dflt = studioDefaults(ctx.fixture);
     const theme = str(v.theme);
     const picked = exploredPick(input);
-    const brief = {
-      theme,
-      fields: [str(v.field_a), str(v.field_b)],
-      target_users: str(v.target_users),
-      context: str(v.context) || null,
-      measurable_problem: str(v.measurable_problem),
-      outcome_measure: str(v.outcome_measure),
-      // ADR-0096: a brief from Explore for me keeps its own data and seed.
-      data_and_tools: picked
-        ? picked.body.data_and_tools
-        : lines(dflt.dataAndTools),
-      time_limit: str(v.time_limit),
-      budget_limit: str(v.budget_limit),
-      nae_seed: picked ? picked.body.nae_seed : null,
-      constraints: lines(str(v.constraints)),
-    };
+    const brief = briefOf(v, picked, lines(dflt.dataAndTools));
     // An unedited Explore for me pick keeps its own brief (and its audited link to the
     // exploration), as on Discover; any edit saves a new brief.
-    const reuse = picked && stable(picked.body) === stable(brief);
+    const reuse = reusedPick(v, input) !== null;
     const roles = list(v.roles);
     const limits = discoveryLimits(route);
     const steps: Step[] = [
@@ -1287,8 +1307,9 @@ const discover: Spec<DiscoverData> = {
         version: c.version,
         label: clip(c.title, 200),
       }));
-    // A picked brief that changed since is refused as stale before anything is sent.
-    const picked = input ? exploredPick(input) : null;
+    // A picked brief the card starts on that changed since is refused as stale before
+    // anything is sent; once edited, the card no longer uses it (review L-5).
+    const picked = input ? reusedPick(v, input) : null;
     return picked
       ? [
           ...claims,
