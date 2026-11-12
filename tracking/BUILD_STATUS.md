@@ -1,5 +1,15 @@
 # Build status — November 10, 2026
 
+## November 12 update — Oversight lock order fixes (ADR-0098)
+
+What now works (no migration): cancelling a run, revoking or revising a grant, revising a routine policy, answering a decision and admitting an action no longer deadlock against each other. Oversight writes lock run, decision, routine policy, grant in that order and before their first audit append. From the scan of other audit appenders, routine admission of web discovery claims, a workflow stop and a desktop job lease were reordered the same way.
+
+Checked: `pnpm typecheck`, `pnpm format:check`, `pnpm test:db` on a throwaway PostgreSQL 16 (1089 tests: 1055 pass, 29 skipped, the 5 PowerShell-wrapper failures that always fail in the cloud). New tests in `tests/src/oversight-lock-order.test.ts` (5): each parks two transactions at the point where the old order deadlocked and fails with "deadlock detected" on the old code.
+
+Limitations: the web discovery, workflow stop and desktop lease fixes were found by reading and have no deadlock test. Callers that append before `coordinateIn` could still hold the audit lock when a stop closes decisions (none found that reach that state).
+
+Next eligible: unchanged (P33 after P13 merges).
+
 ## November 12 update — P29 extra requests when the daily cap runs out (ADR-0094)
 
 What now works (migration 59): when a connection's studio daily request cap is used up, the owner can add **20 requests for the next 24 hours**, and again each time it runs out (Jordan's decision of November 11). The top-bar usage button says "· used up", its panel says when the next request is possible and offers **Add 20 requests for 24 hours** with a confirmation, and the connection's card in Models and connections shows the same notice. While an extra is in force both say "Includes 20 extra requests until …; after that the cap is 40 a day again". A refused request has its own code (`daily_cap_reached`), so the P27 fix buttons offer the same press beside the refusal. Admission counts the configured cap plus unexpired extras; the configured cap, accepted caps and recorded usage do not change, so the next window starts at the configured cap. Owner-only, offered only while used up (a second press with room left is refused), bound to the connection version, kept in an append-only table and audited. The provider's own limit stays a notice, and the $20 runtime ceiling is not touched.

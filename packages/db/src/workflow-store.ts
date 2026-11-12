@@ -871,6 +871,21 @@ export class WorkflowStore extends BudgetStore {
       constraints: string[];
       perspectives: string[];
     };
+    // ADR-0098: a stop closes the questions of waiting tasks. Their decision rows are locked
+    // before the first task change appends to the audit log, since an answer holds its decision
+    // and then waits for the audit lock.
+    const asked = plan.actions.some(
+      (a) => a.type !== 'delegate' && a.type !== 'release_synthesis',
+    )
+      ? tasks.flatMap((t) =>
+          t.state === 'waiting_human' && t.decision_id ? [t.decision_id] : [],
+        )
+      : [];
+    if (asked.length)
+      await c.query(
+        'select 1 from decision_requests where id = any($1::uuid[]) order by id for update',
+        [asked],
+      );
     for (const a of plan.actions) {
       if (a.type === 'delegate') {
         const prior = a.repair_of

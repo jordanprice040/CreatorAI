@@ -1,5 +1,21 @@
 # Decision log
 
+## ADR-0098 — Oversight lock order: run, decision, routine policy, grant, then the audit log (November 12, 2026)
+
+Found while fixing #180's L4-1 (a copy and a Chat answers save deadlocked because one appended to the audit log and then waited on a row the other held while it waited for the audit lock). No migration. Every audit append takes one advisory lock (`AUDIT_CHAIN_LOCK`) until commit, so any transaction that appends and then waits on a row lock can deadlock with one that holds that row and then appends.
+
+- **The rule.** Oversight writes take row locks in the order run (`run_controls`), decision, routine policy, grant, and take every row lock they need before their first audit append. A transaction that must append before it admits locks the admission's grants first (`lockAdmissionGrants`).
+- **Fixed, each reproduced first** (`tests/src/oversight-lock-order.test.ts`, which parks both transactions with #180's lock-waiter helper; all five fail with "deadlock detected" on the old code):
+  1. `cancelRun` appended `decision.closed` and only then locked the run's grants, while `revokeGrant` locked the grant and then appended. The cancel now locks the run's active routine policies and grants before any append.
+  2. `writeGrant` (revoked) updated `routine_policies` after appending, while `reviseRoutinePolicy` locks run, policy, grant. `revokeGrant` and `reviseGrant` now lock through `lockGrantForWrite`: the grant's run, then its routine policy, then the grant; `writeGrant` updates the policy row before either append.
+  3. Found by reading: `answerDecision` locked the decision, and an approve-once grant's foreign key then waited on the run, which a cancel held while it waited on the decision. The answer now locks the run first.
+  4. Found by reading: an admission expired overdue decisions (locks and appends) before locking its run; a cancel held the run and waited on the decision. The admission now locks the run and its grants before expiring.
+  5. Found by reading: the same expiry, then the grant lock, against a revoke of a workspace-wide grant. Covered by the same reorder.
+- **Fixed from the scan of other appenders, by reading only** (no deadlock test; existing suites pass): routine admission of web discovery claims (`admitWebClaimsByPolicy`) admitted claim 2 after claim 1 appended, and updated the discovery row last; it now locks the discovery row and the admission grants up front. A workflow stop (`coordinateIn`) closed waiting tasks' decisions after appending task changes, while an answer holds its decision and then appends; it now locks those decisions before the first change. A desktop job lease expired jobs (appends) before locking the device's queued job, while a cancel locks the job and then appends; it now locks the device's queued jobs first.
+- **Scanned and left as is.** The other appenders that lock or update a row after appending (budget attempts, research fetches, GitHub operations and webhooks, context cache hits, connection owner changes, study attempts, routing promotions, payments, tester seeding) either lock that row before the append, append only in a closure on a return path, or serialize on a lock taken first (the GitHub connection row, the budget envelope). Callers that append before `coordinateIn` still hold the audit lock when a stop closes decisions; no such caller was found that can reach a stop with an open question, but it is not proven.
+
+Rejected: taking the audit lock at the start of every write (it serializes all writes and still leaves row-against-row cycles); `skip locked` for the desktop lease (it reorders the queue); `for share` on admission grants (a revoke's `for update` still conflicts with it).
+
 ## ADR-0094 — Extra requests when a connection's daily cap runs out: +20 for 24 hours, owner-only, as often as needed (November 12, 2026)
 
 P29 of the [installed-walk fix plan](../docs/FIX_PLAN_INSTALLED_WALK_2026-11-11.md) (walk item 6), with correction M-5 of the plan review (`PR169_FIX_PLAN_REVIEW.md`). **Migration 59** (`plan_extra_requests`; 57 and 58 are held by P13 and P28). No model call or spending was needed to build or verify it.

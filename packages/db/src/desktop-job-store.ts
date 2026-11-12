@@ -255,6 +255,12 @@ export class DesktopJobStore extends DesktopStore {
           'ACCESS_DENIED',
           'Presence capability does not authorize execution.',
         );
+      // ADR-0098: the device's queued jobs are locked before expiring, which may append to the
+      // audit log; a cancel locks its job and then appends.
+      await c.query(
+        `select 1 from desktop_jobs where device_id=$1 and state='queued' order by id for update`,
+        [device.id],
+      );
       await this.expireJobs(c);
       const r = await c.query(
         `select * from desktop_jobs where device_id=$1 and state='queued' order by created_at limit 1 for update`,

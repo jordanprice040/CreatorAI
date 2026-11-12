@@ -626,6 +626,12 @@ export class WebDiscoveryStore extends PortfolioStore {
       if (!d) throw fail('NOT_FOUND', 'Web discovery not found.');
       const runId = String(d.run_id);
       await this.lockRun(c, ws, runId);
+      // ADR-0098: every row this transaction writes is locked before the first claim appends to
+      // the audit log: the discovery (updated at the end) and the grants each admission reads.
+      await c.query('select 1 from web_discoveries where id = $1 for update', [
+        id,
+      ]);
+      await this.lockAdmissionGrants(c, ws, runId);
       const pending = (
         await c.query(
           `select * from web_discovery_claims where discovery_id = $1 and decision = 'pending'
