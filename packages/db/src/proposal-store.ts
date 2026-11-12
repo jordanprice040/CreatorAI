@@ -70,8 +70,14 @@ export class ProposalStore extends CatalogStore {
   }
 
   private async explain(c: PoolClient, ws: string, problemId: string) {
-    const { problem, candidates, evidence, linked_hash, problem_linked_hash } =
-      await this.gather(c, ws, problemId);
+    const {
+      problem,
+      candidates,
+      evidence,
+      linked_hash,
+      problem_linked_hash,
+      team_hash,
+    } = await this.gather(c, ws, problemId);
     const report = selectionReport({
       problem: {
         id: problem.id,
@@ -83,6 +89,9 @@ export class ProposalStore extends CatalogStore {
       evidence,
       linked_hash,
       problem_linked_hash,
+      // Merge review L-1: the same inputs as recordSelection, so team staleness and the
+      // report hash agree.
+      team_hash,
     });
     const ids = candidates.map((x) => x.alternative.id);
     const alts = (

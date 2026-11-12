@@ -273,6 +273,23 @@ test('the team profile is the owner’s, versioned, read by every assessment, an
       ),
     ),
   );
+  // #178 merge review L-1: the response explanation reads the same report, so team-stale
+  // cards stop counting there too (status, rank and score agree with Compare).
+  const x = await s.store.responseExplanation(owner, s.ws.id, s.problem.id);
+  const seenIn = new Map(
+    [...x.chosen, ...x.others].map((o) => [
+      o.alternative.id.toLowerCase(),
+      [o.status, o.rank, o.score],
+    ]),
+  );
+  assert.equal(
+    x.basis,
+    r2.suitability.candidates.some((c) => c.rank === 1) ? 'ranking' : 'none',
+  );
+  for (const c of r2.suitability.candidates) {
+    const o = seenIn.get(c.alternative.id.toLowerCase());
+    if (o) assert.deepEqual(o, [c.status, c.rank, c.score?.display ?? null]);
+  }
 });
 
 test('the owner confirms a gate as it is now; a newer concern makes it stale; the owner chooses who clears: team profile (access only) or the model’s word', async (t) => {
