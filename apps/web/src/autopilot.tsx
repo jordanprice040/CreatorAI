@@ -483,8 +483,12 @@ export function Autopilot({
                         onChange={(e) => setMaxCalls(Number(e.target.value))}
                       />
                       <p className="small">
-                        At least {AUTOPILOT_MIN_CALLS}: exploring, discovery and
-                        assessment need about that many on the shortest path.
+                        At least {AUTOPILOT_MIN_CALLS}
+                        {researchOn
+                          ? ` (${AUTOPILOT_MIN_CALLS + 2} with web search)`
+                          : ''}
+                        : exploring, discovery and assessment need about that
+                        many on the shortest path.
                       </p>
                     </div>
                     <div>

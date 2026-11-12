@@ -217,6 +217,12 @@ export const AutopilotConfigSchema = z
         path: ['research'],
         message: 'Web search reads public pages; use public or synthetic data.',
       });
+    if (r.research && r.limits.max_calls < AUTOPILOT_MIN_CALLS + 2)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['limits', 'max_calls'],
+        message: `Searching the web first takes 2 more calls: allow at least ${AUTOPILOT_MIN_CALLS + 2}.`,
+      });
     if (r.start && r.research)
       ctx.addIssue({
         code: 'custom',

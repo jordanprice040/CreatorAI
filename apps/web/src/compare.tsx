@@ -1409,6 +1409,14 @@ export function Compare({
                       summary={
                         <>
                           <strong>{s.current ? 'Current' : 'Replaced'}</strong>{' '}
+                          {s.autopilot_id ? (
+                            <span
+                              className="badge"
+                              title="Recorded by an autopilot under the run's routine approvals, not chosen by a person (ADR-0092)."
+                            >
+                              Autopilot
+                            </span>
+                          ) : null}{' '}
                           · {when(s.created_at)} ·{' '}
                           <span className="fold-title">
                             {clip(s.rationale, 120)}

@@ -878,6 +878,215 @@ async function personScores(
     }
 }
 
+/** The owner clears one option's gates in one click (ADR-0090) and chooses it under Decide. */
+async function ownerChooses(
+  h: Harness,
+  runId: string,
+  problemId: string,
+  kind = 'use_existing',
+) {
+  let rep = await h.store.selectionReport(owner, h.ws.id, problemId);
+  const target = rep.suitability.candidates.find(
+    (c) => c.alternative.kind === kind,
+  )!;
+  for (const gate of ['ethics', 'access'] as const)
+    await h.store.confirmGate(owner, h.ws.id, problemId, {
+      alternative: {
+        id: target.alternative.id,
+        version: target.alternative.version,
+      },
+      gate,
+      reason: 'I checked this one (test).',
+      concerns_seen:
+        target.gates.gate_details
+          ?.find((d) => d.gate === gate)
+          ?.concerns.map((x) => x.scorecard) ?? [],
+    });
+  rep = await h.store.selectionReport(owner, h.ws.id, problemId);
+  const out = await h.store.select(owner, h.ws.id, runId, {
+    problem: { id: rep.problem.id, version: rep.problem.version },
+    report_hash: rep.report_hash,
+    dispositions: rep.suitability.candidates.map((c) => ({
+      alternative: { id: c.alternative.id, version: c.alternative.version },
+      disposition:
+        c.alternative.id === target.alternative.id
+          ? 'recommend_alternative'
+          : 'defer',
+      reasons: ['My call between tied options (test).'],
+      reverse_if: 'New evidence.',
+    })),
+    override_reason: null,
+    rationale: 'I chose between the tied options (test).',
+    shortlist_size: 3,
+    data_class: 'synthetic',
+  });
+  assert.equal(out.status, 'recorded', out.admission.explanation);
+  return { target, selection: out.selection! };
+}
+
+const until = async (check: () => Promise<boolean>, ms = 20_000) => {
+  const end = Date.now() + ms;
+  while (!(await check())) {
+    if (Date.now() > end) throw new Error('timed out waiting');
+    await new Promise((r) => setTimeout(r, 10));
+  }
+};
+
+test('review 2 L-2: an autopilot started at a problem you already chose for keeps your choice', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  const runId = await h.run();
+  const first = await h.start(runId);
+  const problem = first.steps[2]!.problem!;
+  const { target, selection } = await ownerChooses(h, runId, problem.id);
+  // Later, an autopilot is started part way at the same problem (P33's "automate the rest").
+  const later = await h.start(
+    await h.run(h.policy(['selection'])),
+    h.config({ start: { stage: 'select', problem } }),
+  );
+  assert.equal(later.outcome, 'proposal', later.explanation);
+  const chose = later.steps[0]!;
+  assert.equal(chose.child!.id, selection.id);
+  assert.equal(chose.option!.id, target.alternative.id);
+  // The owner's selection stays the current one; the autopilot recorded none of its own.
+  const sels = await h.store.listSelections(owner, h.ws.id, problem.id);
+  assert.deepEqual(
+    sels.map((x) => [x.id, x.current, x.autopilot_id]),
+    [[selection.id, true, null]],
+  );
+});
+
+test('review 2 L-1: the end time stops the step’s workflow on every path; a child started as Stop came in is stopped', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  // End time (review 1 L-2, the driver's check): a studio stops while the exploration is out,
+  // the end time passes, and the next studio finishes the autopilot and cancels the workflow.
+  let first: AutopilotRunner | null = null;
+  first = new AutopilotRunner(h.store, null, {
+    pollMs: 5,
+    onWait: async () => {
+      void first!.close();
+    },
+  });
+  const runId = await h.run();
+  const a = await first.start(owner, h.ws.id, runId, h.body(h.config()));
+  await first.settled(a.id);
+  const mid = await h.store.getAutopilot(owner, h.ws.id, a.id);
+  const wf = mid.steps[0]!.child!.id;
+  await h.db.pool.query(
+    `update autopilots set config = jsonb_set(config, '{limits,ends_at}', to_jsonb($2::text))
+      where id = $1`,
+    [a.id, new Date(Date.now() - 1000).toISOString()],
+  );
+  const second = new AutopilotRunner(h.store, null, { pollMs: 5 });
+  await second.recover();
+  await second.settled(a.id);
+  const late = await h.store.getAutopilot(owner, h.ws.id, a.id);
+  assert.equal(late.outcome, 'limit_reached', late.explanation);
+  assert.equal(
+    (await h.store.getWorkflow(owner, h.ws.id, wf)).workflow.state,
+    'cancelled',
+  );
+
+  // Review 1 L-1: Stop lands between the web search's start and its record. The runner cancels
+  // the search it just started; the stop route could not see it.
+  const research = {
+    connection_id: '00000000-0000-4000-8000-0000000000c1',
+    model_id: 'gpt-test',
+    scope: WebDiscoveryScopeSchema.parse({ interests: ['volunteers'] }),
+    input_hash: 'c'.repeat(64),
+  };
+  const full = h.policy(['research', 'evidence', 'model_work', 'selection'], {
+    data_classes: ['public', 'synthetic'],
+  });
+  const cancelled: string[] = [];
+  let stopping: { id: string } | null = null;
+  const web: AutopilotWeb = {
+    start: async () => {
+      const cur = await h.store.getAutopilot(owner, h.ws.id, stopping!.id);
+      await h.store.cancelAutopilot(owner, h.ws.id, cur.id, {});
+      return { id: '00000000-0000-4000-8000-0000000000d2' };
+    },
+    read: async (_c, _w, id) =>
+      ({ id, version: 1, state: 'searching' }) as unknown as WebDiscovery,
+    isActive: () => true,
+    resume: async () => null,
+    cancel: async (_c, _w, id) => {
+      cancelled.push(id);
+      return null;
+    },
+  };
+  const runner = new AutopilotRunner(h.store, web, { pollMs: 5 });
+  const c = h.config({
+    research,
+    limits: { max_calls: 80, ends_at: inHours(2) },
+  });
+  const b = await h.store.startAutopilot(
+    owner,
+    h.ws.id,
+    await h.run(full),
+    h.body(c),
+  );
+  stopping = b;
+  await runner.recover();
+  await runner.settled(b.id);
+  assert.deepEqual(cancelled, ['00000000-0000-4000-8000-0000000000d2']);
+  const stopped = await h.store.getAutopilot(owner, h.ws.id, b.id);
+  assert.equal(stopped.outcome, 'cancelled');
+  assert.equal(stopped.steps[0]!.child, null);
+});
+
+test('review 2 L-1: a running autopilot no driver holds is picked up within the recovery interval; 60 steps at most', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  const watcher = new AutopilotRunner(h.store, null, {
+    pollMs: 5,
+    recoverMs: 20,
+    onWait: () => h.worker.settle(),
+  });
+  t.after(() => watcher.close());
+  watcher.watch();
+  // Started without any driver (as if the driver died on an error it could not record).
+  const a = await h.store.startAutopilot(
+    owner,
+    h.ws.id,
+    await h.run(),
+    h.body(h.config()),
+  );
+  await until(async () => watcher.isActive(a.id));
+  await watcher.settled(a.id);
+  assert.equal(
+    (await h.store.getAutopilot(owner, h.ws.id, a.id)).outcome,
+    'needs_person',
+  );
+  await watcher.close();
+
+  // Review 1 N-4: the store and the database refuse more than 60 steps.
+  const b = await h.store.startAutopilot(
+    owner,
+    h.ws.id,
+    await h.run(),
+    h.body(h.config()),
+  );
+  const many = Array.from({ length: 61 }, () => step('explore', 'stopped'));
+  await rejects(
+    'LIMIT_EXCEEDED',
+    h.store.advanceAutopilot(owner, h.ws.id, b.id, b.version, { steps: many }),
+    /at most 60 steps/,
+  );
+  await assert.rejects(
+    h.db.pool.query('update autopilots set steps = $2 where id = $1', [
+      b.id,
+      JSON.stringify(many),
+    ]),
+    /autopilots_steps_max/,
+  );
+  await h.store.cancelAutopilot(owner, h.ws.id, b.id, {});
+});
+
 test('review M-1: after a tie, a choice recorded under Decide is the one Continue goes on with', async (t) => {
   const h = await setup(t);
   if (!h) return;

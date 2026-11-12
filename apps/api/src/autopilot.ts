@@ -917,7 +917,12 @@ export class AutopilotRunner {
       (await this.store.listSelections(ctx, ws, problem.id)).find(
         (x) => x.current,
       ) ?? null;
-    const mine = personChoice(current, a.created_at);
+    // An autopilot that starts at a recorded problem keeps a choice a person already made there
+    // (review 2 L-2); otherwise only one made after it began counts (an older one predates it).
+    const mine = personChoice(
+      current,
+      a.config.start ? new Date(0).toISOString() : a.created_at,
+    );
     if (mine.kind === 'stop')
       return { stop: { outcome: mine.outcome, note: mine.reason } };
     if (mine.kind === 'carry')
@@ -926,10 +931,16 @@ export class AutopilotRunner {
           child: { kind: 'selection', id: current!.id },
           problem: current!.problem,
           option: mine.option,
-          note: `Going on with your choice under Decide: “${mine.option.title}” (${mine.disposition.replaceAll('_', ' ')}).`.slice(
-            0,
-            1200,
-          ),
+          note: `Going on with your choice under Decide: “${mine.option.title}” (${mine.disposition.replaceAll('_', ' ')}).${
+            a.steps.some(
+              (s) =>
+                s.stage === 'select' &&
+                s.state === 'stopped' &&
+                /question also waits/.test(s.note),
+            )
+              ? ' The question the autopilot left under Monitor › Approvals is answered by this choice; you can leave it to expire.'
+              : ''
+          }`.slice(0, 1200),
         },
       };
     const report = await this.store.selectionReport(ctx, ws, problem.id);
@@ -945,7 +956,8 @@ export class AutopilotRunner {
         stop: {
           outcome: 'needs_authority',
           note: `The choice of “${choice.option.title}” was not admitted (${out.admission.reason_code}): ${out.admission.explanation}${
-            out.admission.decision_id
+            out.admission.decision_id &&
+            !out.admission.reason_code.startsWith('already_answered')
               ? ' A person decides: choose under Decide yourself (the question also waits under Monitor › Approvals), then continue, and the autopilot goes on with your choice.'
               : ''
           }`.slice(0, 1200),
