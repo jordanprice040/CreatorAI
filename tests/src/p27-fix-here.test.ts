@@ -48,6 +48,7 @@ const connection = (over: Partial<PlanConnection> = {}) =>
 const USAGE = {
   last_24h_requests: 0,
   last_24h_codex_builds: 0,
+  extra_requests: 0,
   run_requests: 0,
   build_requests: 0,
   in_flight: 0,
@@ -133,7 +134,7 @@ test('plan refusals carry codes and the facts their fix needs; the words are unc
     },
   });
   assert.ok(capped.some((r) => r.code === 'not_verified'));
-  assert.ok(capped.some((r) => r.code === 'cap_reached'));
+  assert.ok(capped.some((r) => r.code === 'daily_cap_reached'));
 });
 
 test('a ContractError keeps reasons beside its details', () => {

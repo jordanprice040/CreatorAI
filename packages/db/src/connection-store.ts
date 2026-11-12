@@ -3,6 +3,8 @@ import type { PoolClient } from 'pg';
 import {
   BenchmarkCheckSchema,
   AcceptPlanCapsRequestSchema,
+  GrantExtraRequestsRequestSchema,
+  PLAN_EXTRA_HOURS,
   AttestCreditsRequestSchema,
   ContractError,
   CreatePlanConnectionRequestSchema,
@@ -92,6 +94,7 @@ import {
   assessmentRoleInput,
   ASSESSMENT_ROLE_VERSION,
   admissionRefusals,
+  dailyCap,
   canonicalHash,
   connectionBlockers,
   connectionRefusals,
@@ -788,10 +791,15 @@ export class ConnectionStore extends WebDiscoveryStore {
   async usageSummary(ctxIn: CommandContext, ws: string): Promise<UsageSummary> {
     const ctx = normalize(ctxIn);
     return this.tx(async (c) => {
-      await this.role(c, uuid(ws), ctx.actorId, false);
+      const role = await this.role(c, uuid(ws), ctx.actorId, false);
       const owner = await this.isCeilingOwner(c, ctx.actorId);
-      return usageSummary(c, uuid(ws), this.spending, owner, (r) =>
-        connectionBlockers(toConnection(r)),
+      return usageSummary(
+        c,
+        uuid(ws),
+        this.spending,
+        owner,
+        (r) => connectionBlockers(toConnection(r)),
+        role === 'owner',
       );
     });
   }
@@ -2974,8 +2982,7 @@ export class ConnectionStore extends WebDiscoveryStore {
       const usage = await this.#usage(c, conn.id, run.run_id, null);
       const caps = conn.settings.caps;
       const runRoom = caps.responses.max_requests_per_run - usage.run_requests;
-      const dayRoom =
-        caps.shared.max_model_requests_per_day - usage.last_24h_requests;
+      const dayRoom = dailyCap(caps, usage) - usage.last_24h_requests;
       if (runRoom < 2)
         out.push(
           `This run has room for ${Math.max(0, runRoom)} more plan request${runRoom === 1 ? '' : 's'} on this connection; a build needs at least 2 (builder and reviewer). Raise the per-run cap in Settings or use a fresh run.`,
@@ -4934,6 +4941,8 @@ export class ConnectionStore extends WebDiscoveryStore {
         last_24h_codex_builds: usage.last_24h_codex_builds,
         in_flight: usage.in_flight,
         unresolved: usage.unresolved,
+        extra_requests: usage.extra_requests,
+        extra_until: (await this.#extra(c, id)).until,
       },
       open_requests: (open.rows as Row[]).map((r) => {
         const flying = r.state === 'in_flight';
@@ -4969,6 +4978,7 @@ export class ConnectionStore extends WebDiscoveryStore {
       [id, runId, buildId],
     );
     const r = rows[0] as Row;
+    const extra = await this.#extra(c, id);
     return {
       last_24h_requests: Number(r.day),
       last_24h_codex_builds: Number(r.builds),
@@ -4976,7 +4986,87 @@ export class ConnectionStore extends WebDiscoveryStore {
       build_requests: Number(r.build),
       in_flight: Number(r.in_flight),
       unresolved: Number(r.unresolved),
+      extra_requests: extra.requests,
     };
+  }
+
+  /** ADR-0094: unexpired extra requests on a connection, and when the last of them expires. */
+  async #extra(
+    c: PoolClient,
+    id: string,
+  ): Promise<{ requests: number; until: string | null }> {
+    const { rows } = await c.query(
+      `select coalesce(sum(requests), 0) as n, max(expires_at) as until
+         from plan_extra_requests
+        where connection_id = $1 and expires_at > clock_timestamp()`,
+      [id],
+    );
+    const r = rows[0] as Row;
+    return { requests: Number(r.n), until: r.until ? iso(r.until) : null };
+  }
+
+  /**
+   * ADR-0094 (P29, walk item 6): the owner adds 20 requests to a connection's daily cap for the
+   * next 24 hours, the length of the rolling window, so only the window in use now is raised.
+   * Offered only while the cap (with any earlier extra) is used up, and again each time it runs
+   * out; a second press after the first succeeded is refused because there is room again. The
+   * configured cap, recorded usage, the provider's own limit and the runtime spending ceiling
+   * are not changed. The connection's version moves on and the grant is audited.
+   */
+  async grantExtraRequests(
+    ctxIn: CommandContext,
+    ws: string,
+    id: string,
+    body: unknown,
+  ): Promise<PlanConnection> {
+    const ctx = normalize(ctxIn);
+    const req = parse(GrantExtraRequestsRequestSchema, body);
+    return this.#ownerChange(
+      ctx,
+      ws,
+      id,
+      req.expected_version,
+      'extra_requests_granted',
+      async (c, conn) => {
+        const usage = await this.#usage(c, conn.id, null, null);
+        const configured = conn.settings.caps.shared.max_model_requests_per_day;
+        const cap = dailyCap(conn.settings.caps, usage);
+        if (usage.last_24h_requests < cap)
+          throw fail(
+            'INVALID_TRANSITION',
+            `This connection still has room today (${usage.last_24h_requests} of ${cap} requests used); extra requests are added only once the daily cap is used up.`,
+          );
+        const { rows } = await c.query(
+          `insert into plan_extra_requests (id, connection_id, requests, configured_cap,
+             used_at_grant, settings_hash, connection_version, granted_by, expires_at)
+           values ($1,$2,$3,$4,$5,$6,$7,$8, clock_timestamp() + make_interval(hours => $9))
+           returning id, granted_at, expires_at`,
+          [
+            randomUUID(),
+            conn.id,
+            req.requests,
+            configured,
+            usage.last_24h_requests,
+            conn.settings_hash,
+            conn.version,
+            ctx.actorId,
+            PLAN_EXTRA_HOURS,
+          ],
+        );
+        const g = rows[0] as Row;
+        return {
+          grant_id: String(g.id),
+          requests: req.requests,
+          configured_cap: configured,
+          used_at_grant: usage.last_24h_requests,
+          cap_before: cap,
+          cap_now: cap + req.requests,
+          granted_at: iso(g.granted_at),
+          expires_at: iso(g.expires_at),
+          summary: `Added ${req.requests} requests to today's cap (${cap} → ${cap + req.requests}) until ${iso(g.expires_at)}; the configured cap stays ${configured}.`,
+        };
+      },
+    );
   }
 
   async #access(c: PoolClient, id: string): Promise<PlanModelAccess[]> {

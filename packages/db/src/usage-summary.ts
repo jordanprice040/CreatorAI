@@ -22,6 +22,8 @@ export async function usageSummary(
   canSeeCost: boolean,
   /** Why the connection as a whole refuses inference now (admission's connectionBlockers). */
   blockersFor: (row: Row) => string[],
+  /** Whether the person owns this workspace, so may add extra requests (ADR-0094). */
+  workspaceOwner = false,
 ): Promise<UsageSummary> {
   const now = await c.query<{ now: Date }>('select clock_timestamp() as now');
   const conns = await c.query(
@@ -32,7 +34,11 @@ export async function usageSummary(
        max(r.started_at) filter (where r.started_at > clock_timestamp() - interval '24 hours') as newest,
        count(r.id) filter (where r.state = 'in_flight') as in_flight,
        count(r.id) filter (where r.state = 'unknown') as unresolved,
-       count(r.id) as total
+       count(r.id) as total,
+       (select coalesce(sum(x.requests), 0) from plan_extra_requests x
+         where x.connection_id = p.id and x.expires_at > clock_timestamp()) as extra,
+       (select max(x.expires_at) from plan_extra_requests x
+         where x.connection_id = p.id and x.expires_at > clock_timestamp()) as extra_until
      from plan_connections p left join plan_requests r on r.connection_id = p.id
      where p.workspace_id = $1
      group by p.id order by p.created_at limit 50`,
@@ -73,7 +79,10 @@ export async function usageSummary(
   const plans = (conns.rows as Row[]).map((r) => {
     const caps = (r.settings as { caps: PlanCaps }).caps;
     const used = Number(r.day);
-    const cap = caps.shared.max_model_requests_per_day;
+    // ADR-0094: admission's cap is the configured one plus unexpired extra requests.
+    const configured = caps.shared.max_model_requests_per_day;
+    const extra = Number(r.extra);
+    const cap = configured + extra;
     const quota = r.quota as { state: string; observed_at: string | null };
     // One more request is admitted once used - cap + 1 requests have left the window, so the
     // deciding one is the (used - cap)-th oldest (0-based); below the cap it is the oldest.
@@ -83,6 +92,7 @@ export async function usageSummary(
     const deciding = starts[Math.max(0, used - cap)]?.started_at ?? null;
     return {
       connection_id: String(r.id),
+      connection_version: Number(r.version),
       kind: (r.kind ?? 'chatgpt_plan') as 'chatgpt_plan' | 'claude_code',
       label: String(r.label),
       fixture: Boolean(r.fixture),
@@ -90,6 +100,10 @@ export async function usageSummary(
         used,
         cap,
         remaining: Math.max(0, cap - used),
+        configured_cap: configured,
+        extra,
+        extra_until: r.extra_until ? iso(r.extra_until) : null,
+        can_add_extra: workspaceOwner && used >= cap,
         next_frees_at: later(deciding),
         clears_at: later(r.newest),
       },

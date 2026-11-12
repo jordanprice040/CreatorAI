@@ -13,6 +13,7 @@ import {
   writeOpen,
 } from './oversight.js';
 import { money } from './budgets.js';
+import { AddExtraRequests, extraLine } from './extra-requests.js';
 import {
   NO_WATCH,
   nextReadMs,
@@ -105,8 +106,25 @@ function Meter({
   );
 }
 
-function PlanBlock({ p, now }: { p: PlanConnectionUsage; now: number }) {
+function PlanBlock({
+  p,
+  now,
+  workspace,
+  csrf,
+  reload,
+}: {
+  p: PlanConnectionUsage;
+  now: number;
+  workspace: Workspace;
+  csrf: string;
+  reload: () => void;
+}) {
   const provider = PROVIDER[p.kind];
+  const extra = extraLine(
+    p.daily.extra,
+    p.daily.extra_until,
+    p.daily.configured_cap,
+  );
   const tone = planTone(p);
   return (
     <section className="usage-block" aria-label={p.label}>
@@ -138,7 +156,7 @@ function PlanBlock({ p, now }: { p: PlanConnectionUsage; now: number }) {
       />
       <p className="small">
         {p.daily.remaining === 0
-          ? `Full. The next request is possible at ${p.daily.next_frees_at ? untilText(p.daily.next_frees_at, now) : 'once a request leaves the window'}.`
+          ? `Full. The next request is possible at ${p.daily.next_frees_at ? untilText(p.daily.next_frees_at, now) : 'once a request leaves the window'}${p.daily.can_add_extra ? ', or add extra requests now' : ''}.`
           : `${p.daily.remaining} left.`}{' '}
         {p.daily.remaining > 0 &&
           p.daily.next_frees_at &&
@@ -147,6 +165,17 @@ function PlanBlock({ p, now }: { p: PlanConnectionUsage; now: number }) {
           <>, and all of them by {untilText(p.daily.clears_at, now)}.</>
         )}
       </p>
+      {extra && <p className="small">{extra}</p>}
+      {p.daily.can_add_extra && csrf && (
+        <AddExtraRequests
+          path={`workspaces/${workspace.id}/plan-connections/${p.connection_id}`}
+          csrf={csrf}
+          version={p.connection_version}
+          configured={p.daily.configured_cap}
+          cap={p.daily.cap}
+          onDone={reload}
+        />
+      )}
       {p.kind === 'chatgpt_plan' && p.codex_builds.cap > 0 && (
         <p className="small">
           Codex builds today: {p.codex_builds.used} of {p.codex_builds.cap}.
@@ -197,10 +226,15 @@ export function UsagePanel({
   usage,
   workspace,
   now,
+  csrf = '',
+  reload = () => {},
 }: {
   usage: UsageSummary;
   workspace: Workspace;
   now: number;
+  /** The session's CSRF token, for the owner's extra-requests press (ADR-0094). */
+  csrf?: string;
+  reload?: () => void;
 }) {
   const c = usage.api_cost;
   return (
@@ -215,7 +249,14 @@ export function UsagePanel({
         </p>
       ) : (
         usage.plans.map((p) => (
-          <PlanBlock key={p.connection_id} p={p} now={now} />
+          <PlanBlock
+            key={p.connection_id}
+            p={p}
+            now={now}
+            workspace={workspace}
+            csrf={csrf}
+            reload={reload}
+          />
         ))
       )}
       <section className="usage-block" aria-label="App usage">
@@ -268,7 +309,13 @@ export function UsagePanel({
  * The top bar's usage button; it reads every minute, on focus, on page changes, and every few
  * seconds for a while after a write here.
  */
-export function UsageIndicator({ workspace }: { workspace: Workspace }) {
+export function UsageIndicator({
+  workspace,
+  csrf = '',
+}: {
+  workspace: Workspace;
+  csrf?: string;
+}) {
   const [usage, setUsage] = useState<UsageSummary | null>(null);
   const [error, setError] = useState('');
   const [now, setNow] = useState(() => Date.now());
@@ -360,6 +407,8 @@ export function UsageIndicator({ workspace }: { workspace: Workspace }) {
     ...(usage?.api_cost ? [costTone(usage.api_cost)] : []),
   ];
   const tone: Tone = error ? 'warn' : worst(tones);
+  // ADR-0094: a connection whose daily cap is used up is named in the button.
+  const full = usage?.plans.some((p) => p.daily.remaining === 0) ?? false;
   // The busiest plan connection stands for all of them in the button.
   const top = usage?.plans
     .slice()
@@ -382,6 +431,8 @@ export function UsageIndicator({ workspace }: { workspace: Workspace }) {
             {top && (
               <span>
                 {PROVIDER[top.kind].short} {top.daily.used}/{top.daily.cap}
+                {/* ADR-0094: say it in words too when a connection is used up. */}
+                {full && ' · used up'}
               </span>
             )}
             {usage.api_cost && (
@@ -401,7 +452,15 @@ export function UsageIndicator({ workspace }: { workspace: Workspace }) {
       >
         <h2>Usage</h2>
         {error && <p className="error small">{error}</p>}
-        {usage && <UsagePanel usage={usage} workspace={workspace} now={now} />}
+        {usage && (
+          <UsagePanel
+            usage={usage}
+            workspace={workspace}
+            now={now}
+            csrf={csrf}
+            reload={load}
+          />
+        )}
         <p className="small usage-foot">
           {usage && `Updated ${new Date(usage.as_of).toLocaleTimeString()}. `}
           <button className="text" onClick={load}>

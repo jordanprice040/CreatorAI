@@ -137,6 +137,22 @@ export const AcceptPlanCapsRequestSchema = z.strictObject({
   settings_hash: hash,
 });
 /**
+ * ADR-0094 (P29, walk item 6): a temporary extra allowance on a connection's daily request cap.
+ * Jordan's decision of November 11, 2026: 20 more requests at a time, offered again each time the
+ * connection runs out. It lasts as long as the rolling window (24 hours), so it raises only the
+ * window in use now; the configured cap is unchanged and applies again once it expires.
+ */
+export const PLAN_EXTRA_REQUESTS = 20;
+export const PLAN_EXTRA_HOURS = 24;
+export const GrantExtraRequestsRequestSchema = z.strictObject({
+  expected_version: version,
+  /** What the owner saw on the button; only the decided amount is accepted. */
+  requests: z.literal(PLAN_EXTRA_REQUESTS),
+});
+export type GrantExtraRequestsRequest = z.infer<
+  typeof GrantExtraRequestsRequestSchema
+>;
+/**
  * The studio cannot see per request whether ChatGPT credits were used after a plan limit, so
  * inference stays blocked until the owner records that credits are off for this app.
  */
@@ -605,6 +621,8 @@ export const PlanRefusalCodeSchema = z.enum([
   'task_class_not_allowed',
   'request_open',
   'cap_reached',
+  /** ADR-0094: the daily request cap (with any extra allowance) is used up. */
+  'daily_cap_reached',
   'not_verified',
   'not_qualified',
   'grant',
@@ -692,6 +710,12 @@ export const PlanConnectionDetailSchema = z.strictObject({
     last_24h_codex_builds: counter,
     in_flight: counter,
     unresolved: counter,
+    /**
+     * ADR-0094: extra requests granted on top of the daily cap that have not expired yet, and
+     * when the last of them expires. Optional so a reply from an older studio still parses.
+     */
+    extra_requests: counter.optional(),
+    extra_until: timestamp.nullable().optional(),
   }),
   /** ADR-0064: in-flight or unknown requests, oldest first. */
   open_requests: z.array(PlanOpenRequestSchema),

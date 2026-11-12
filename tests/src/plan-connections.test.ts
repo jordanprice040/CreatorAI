@@ -340,6 +340,7 @@ test('pure admission keeps sign-in, credits, caps, model access and qualificatio
   const usage = {
     last_24h_requests: 0,
     last_24h_codex_builds: 0,
+    extra_requests: 0,
     run_requests: 0,
     build_requests: 0,
     in_flight: 0,

@@ -51,6 +51,7 @@ const rejects = (code: ErrorCode, p: Promise<unknown>, detail?: RegExp) =>
 const USAGE = {
   last_24h_requests: 0,
   last_24h_codex_builds: 0,
+  extra_requests: 0,
   run_requests: 0,
   build_requests: 0,
   in_flight: 0,
