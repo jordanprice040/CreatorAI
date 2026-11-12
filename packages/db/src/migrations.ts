@@ -3315,6 +3315,36 @@ create table workspace_api_keys (
 `,
   },
   {
+    // ADR-0094 (P29, walk item 6): temporary extra requests on a connection's daily cap, granted
+    // by the owner when the cap is used up (20 at a time, Jordan, November 11, 2026). Each grant
+    // lasts as long as the rolling window and then stops counting; the configured cap is never
+    // changed and recorded usage is never rewritten. Grants are kept as they were made.
+    // Version 59 (coordinator's table, November 12, 2026): #179 holds 56, P13 57, P28 58,
+    // P30 60 and P31 61. Keep this array in ascending version order when merging.
+    version: 59,
+    name: 'plan_extra_requests',
+    sql: `
+create table plan_extra_requests (
+ id uuid primary key,
+ connection_id uuid not null references plan_connections(id),
+ requests integer not null check (requests between 1 and 1000),
+ configured_cap integer not null check (configured_cap >= 0),
+ used_at_grant integer not null check (used_at_grant >= 0),
+ settings_hash char(64) not null,
+ connection_version integer not null check (connection_version >= 1),
+ granted_by uuid not null references actors(id),
+ granted_at timestamptz not null default clock_timestamp(),
+ expires_at timestamptz not null,
+ check (expires_at > granted_at)
+);
+create index plan_extra_requests_live on plan_extra_requests (connection_id, expires_at);
+create trigger plan_extra_requests_no_update before update on plan_extra_requests
+  for each row execute function creator_reject_change();
+create trigger plan_extra_requests_no_delete before delete on plan_extra_requests
+  for each row execute function creator_reject_change();
+`,
+  },
+  {
     // ADR-0096 (P31): "Fill in with <model>" on a Chat card. One row per press holds exactly
     // what was sent to the chat model, its reply and the proposals the studio could read. The
     // proposals answer nothing: the person uses them (saving the card's answers as usual) and

@@ -48,6 +48,7 @@ const connection = (over: Partial<PlanConnection> = {}) =>
 const USAGE = {
   last_24h_requests: 0,
   last_24h_codex_builds: 0,
+  extra_requests: 0,
   run_requests: 0,
   build_requests: 0,
   in_flight: 0,
@@ -133,7 +134,7 @@ test('plan refusals carry codes and the facts their fix needs; the words are unc
     },
   });
   assert.ok(capped.some((r) => r.code === 'not_verified'));
-  assert.ok(capped.some((r) => r.code === 'cap_reached'));
+  assert.ok(capped.some((r) => r.code === 'daily_cap_reached'));
 });
 
 test('a ContractError keeps reasons beside its details', () => {
@@ -389,6 +390,7 @@ async function loadButtons() {
     mod: mod as {
       canQualifyFor(role: string): (t: string) => boolean;
       confirmText(a: FixAction, d: unknown): string;
+      ready(a: FixAction, d: unknown): boolean;
       FixButtons(p: unknown): unknown;
     },
     react: web('react') as {
@@ -996,4 +998,32 @@ test('after P24: "Allow and qualify" queues its tasks on the server in one reque
       ['patch_build', 1, 1],
     ],
   );
+});
+
+test("P29 re-review 2 L-1: the extra-requests fix follows the server's can_add_extra, not the role", async () => {
+  const { mod } = await loadButtons();
+  const c = {
+    ...connection(),
+    version: 3,
+    settings: SETTINGS,
+  } as unknown as PlanConnection;
+  const cap = SETTINGS.caps.shared.max_model_requests_per_day;
+  const detail = (can: boolean, used = cap) => ({
+    connection: c,
+    usage: {
+      last_24h_requests: used,
+      extra_requests: 0,
+      extras: [],
+      can_add_extra: can,
+    },
+  });
+  const a = { kind: 'extra_requests', connection_id: c.id } as FixAction;
+  // A tester holding the owner role: the server says no, so the press is not offered.
+  assert.equal(mod.ready(a, detail(false)), false);
+  assert.match(mod.confirmText(a, detail(false)), /Only the workspace owner/);
+  // The owner, used up: offered, and the confirmation says what changes.
+  assert.equal(mod.ready(a, detail(true)), true);
+  assert.match(mod.confirmText(a, detail(true)), /Adds 20 requests/);
+  // Room again: nothing to do.
+  assert.equal(mod.ready(a, detail(true, 0)), false);
 });

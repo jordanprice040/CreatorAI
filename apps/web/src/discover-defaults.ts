@@ -450,7 +450,9 @@ export type FixAction =
       model_id: string;
       task_class: string;
       role: QualifyRole;
-    };
+    }
+  /** ADR-0094: add 20 requests to a used-up daily cap for the next 24 hours. */
+  | { kind: 'extra_requests'; connection_id: string };
 
 /**
  * The fixes for a model missing tasks: allow the ones not allowed (and then qualify them),

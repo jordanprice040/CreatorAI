@@ -121,7 +121,7 @@ const codexTurns = new Map<string, number>();
 
 /** ADR-0042 ChatGPT-plan routes under /api/workspaces/:ws/<collection>. Matched separately. */
 export const CONNECTIONS_ROUTE =
-  /^\/api\/workspaces\/([^/]+)\/(plan-connections|plan-qualifications|plan-qualification-queues|plan-benchmarks)(?:\/([^/]+)(?:\/(settings|accept-caps|credits|credits-withdraw|sign-in|sign-out|verification-grants|verify|availability-recheck|qualifications|requests|reconcile|quota-recheck|codex-builds|build-calls|build-roles-ready|run|finish|claude-code-check|qualification-queues|cancel))?)?$/;
+  /^\/api\/workspaces\/([^/]+)\/(plan-connections|plan-qualifications|plan-qualification-queues|plan-benchmarks)(?:\/([^/]+)(?:\/(settings|accept-caps|credits|credits-withdraw|sign-in|sign-out|verification-grants|verify|availability-recheck|qualifications|requests|reconcile|quota-recheck|codex-builds|build-calls|build-roles-ready|run|finish|claude-code-check|qualification-queues|cancel|extra-requests))?)?$/;
 
 const VerifyBody = z.strictObject({
   grant_id: z.uuid(),
@@ -295,6 +295,12 @@ export async function connectionRoutes(r: {
       return send(
         200,
         await store.acceptPlanCaps(ctx, ws, item, await r.body()),
+        true,
+      );
+    case 'extra-requests':
+      return send(
+        200,
+        await store.grantExtraRequests(ctx, ws, item, await r.body()),
         true,
       );
     case 'credits':

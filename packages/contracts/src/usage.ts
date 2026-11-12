@@ -1,5 +1,9 @@
 import { z, id, timestamp, counter, nanoUsd } from './primitives.js';
-import { PlanProviderSchema, QuotaStateSchema } from './connections.js';
+import {
+  PlanExtraSchema,
+  PlanProviderSchema,
+  QuotaStateSchema,
+} from './connections.js';
 
 // Runbook step 9 usage indicator: one read-only summary of how much of each limit the studio
 // has used. It reports the studio's own counts and caps. A provider's own plan allowance
@@ -19,18 +23,29 @@ export type PlanRunUsage = z.infer<typeof PlanRunUsageSchema>;
 
 export const PlanConnectionUsageSchema = z.strictObject({
   connection_id: id,
+  /** The connection's version, so an owner's extra-requests press is bound to it (ADR-0094). */
+  connection_version: counter,
   kind: PlanProviderSchema,
   label,
   fixture: z.boolean(),
   /** Rolling 24 hours, both paths: the studio's own daily cap, not the provider's limit. */
   daily: z.strictObject({
     used: counter,
+    /** The cap admission uses now: the configured cap plus any unexpired extra (ADR-0094). */
     cap: counter,
+    /** The cap in the connection's settings, which applies again when the extra expires. */
+    configured_cap: counter,
+    /** Unexpired extra requests granted by the owner (ADR-0094), in total and soonest first. */
+    extra: counter,
+    // Not capped (re-review 2 N-1): the server lists every unexpired grant.
+    extras: z.array(PlanExtraSchema),
+    /** Whether this person may add extra requests now: the owner, with the cap used up. */
+    can_add_extra: z.boolean(),
     remaining: counter,
     /**
      * When one more request becomes possible: the oldest request in the window leaving it, or,
-     * when a lowered cap sits below what is already used, the request whose leaving brings
-     * used back under the cap.
+     * when the cap is used up, the request whose leaving brings used back under the cap, with
+     * any extra that expires before then counted (ADR-0094 review L-2).
      */
     next_frees_at: timestamp.nullable(),
     /** When every request now in the window has left it. */
