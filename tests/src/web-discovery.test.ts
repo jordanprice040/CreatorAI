@@ -1399,3 +1399,37 @@ test('ADR-0098 review 1 L-1: a routine claim admission and an archive of its sou
   assert.equal(a.status === 'fulfilled' && a.value.admitted, 1);
   assert.equal(a.status === 'fulfilled' && a.value.note, null);
 });
+
+test('ADR-0098 re-review 3 L-1: an owner claim admission and an archive of its source never deadlock', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.qualify();
+  const runId = await h.run();
+  const d = await h.start(runId);
+  const verified = d.proposals.find((p) => p.check === 'verified')!;
+  const sourceId = verified.evidence.find(
+    (e) => e.verified && e.passage_id,
+  )!.source_id!;
+  const { rows } = await h.db.pool.query(
+    'select version from entities where id = $1',
+    [sourceId],
+  );
+  const release = await holdAudit(h.db.pool);
+  // The owner path inserts the claim (appends) before it share-locks the passage's source.
+  const admit = h.store.admitWebClaims(owner, h.ws.id, d.id, {
+    proposal_ids: [verified.id],
+  });
+  await lockWaiters(h.db.pool, 1);
+  const archive = h.store.archiveEntity(owner, h.ws.id, sourceId, {
+    expected_version: Number(rows[0].version),
+    reason: 'Out of date.',
+  });
+  await lockWaiters(h.db.pool, 2);
+  await release();
+  const [a, r] = await Promise.allSettled([admit, archive]);
+  for (const x of [a, r])
+    assert.ok(
+      !(x.status === 'rejected' && /deadlock/i.test(String(x.reason))),
+      String(x.status === 'rejected' && x.reason),
+    );
+});

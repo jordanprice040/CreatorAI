@@ -14,6 +14,7 @@ Other stores:
 - `workflow-store.ts`: `lockWorkflowRun` (run, then workflow) is used by `controlWorkflow`, task finish, `sweepLeases`, `wakeIn` and `reconcileTasks`. `coordinateIn` locks waiting tasks' decisions before a stop's changes.
 - `desktop-job-store.ts`: `expireJobs(c, queuedOf)` locks overdue jobs, plus that device's queued jobs, in id order, then updates exactly those. `desktopControlChanged` locks the device's jobs in id order before updating them.
 - `connection-store.ts`: `#admitPlanRequest` locks a workflow task's run before its workflow.
+- Re-review 3: `Store.consumerLocks(topic)` (WorkflowStore: decision answered/closed), and `drainOutbox` delivers such an event first in its own transaction. `#lockClaimSources` is used by both web claim paths. `recordRouteOutcome` locks the promotion first. `lockAssessmentRows` runs from `lockWorkflowRun` for an unfinished assessment, and `coordinateWorkflow` uses `lockWorkflowRun`. `claimTasks` gates every workflow before leasing. `admitIn` takes the portfolio fence before `expireDue`.
 
 Tests: the lock-waiter helpers (`lockWaiters`, `hold`, `holdAudit`) are in `tests/src/pg-harness.ts`. #180's `copy-connection.test.ts` now uses the shared `lockWaiters` too.
 

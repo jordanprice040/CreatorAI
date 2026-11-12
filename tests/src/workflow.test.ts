@@ -25,7 +25,7 @@ import {
   type ModelAdapter,
 } from '@creator/broker';
 import { Worker } from '@creator/orchestrator';
-import { freshDatabase, holdAudit, lockWaiters } from './pg-harness.js';
+import { freshDatabase, hold, holdAudit, lockWaiters } from './pg-harness.js';
 
 const rejects = (code: ErrorCode, p: Promise<unknown>) =>
   assert.rejects(
@@ -626,5 +626,72 @@ test('ADR-0098 review 1 M-2: cancelling a workflow while its question is answere
   assert.equal(
     (await s.store.getDecision(owner, s.ws.id, d.id)).status,
     'cancelled',
+  );
+});
+
+test('ADR-0098 re-review 3 M-1: an outbox drain waking two runs never deadlocks with a pause', async (t) => {
+  const adapter = new ScriptedAdapter(async (req) => byKind(req));
+  const s = await setup(t, adapter);
+  if (!s) return;
+  const waitingIn = async () => {
+    const runId = await s.run('human_in_loop', false);
+    const { workflow } = await s.store.startWorkflow(
+      owner,
+      s.ws.id,
+      runId,
+      s.request(['evidence']),
+    );
+    await s.worker().settle();
+    const view = await s.store.getWorkflow(owner, s.ws.id, workflow.id);
+    const w = view.tasks.find((x) => x.state === 'waiting_human')!;
+    return {
+      view,
+      d: await s.store.getDecision(owner, s.ws.id, w.decision_id!),
+    };
+  };
+  const one = await waitingIn();
+  const two = await waitingIn();
+  await s.store.drainOutbox();
+  for (const { d } of [one, two])
+    await s.store.answerDecision(owner, s.ws.id, d.id, {
+      choice: 'approve_once',
+      option_id: null,
+      rationale: 'Fine.',
+      coverage_hash: d.coverage.coverage_hash,
+      standing_expires_at: null,
+      time_spent_ms: 800,
+      interruption: null,
+    });
+  // Park the pause on workflow 2 while it holds run 2.
+  const release = await hold(
+    s.db.pool,
+    'select 1 from workflows where id = $1 for update',
+    [two.view.workflow.id],
+  );
+  const pause = s.store.controlWorkflow(
+    owner,
+    s.ws.id,
+    two.view.workflow.id,
+    'pause',
+    {
+      expected_version: two.view.workflow.version,
+      reason: 'Pause.',
+    },
+  );
+  await lockWaiters(s.db.pool, 1);
+  // The drain wakes run 1's task (appends), then waits on run 2.
+  const drain = s.store.drainOutbox();
+  await lockWaiters(s.db.pool, 2);
+  await release();
+  const [p, d] = await Promise.allSettled([pause, drain]);
+  assert.equal(
+    p.status,
+    'fulfilled',
+    String(p.status === 'rejected' && p.reason),
+  );
+  assert.equal(
+    d.status,
+    'fulfilled',
+    String(d.status === 'rejected' && d.reason),
   );
 });

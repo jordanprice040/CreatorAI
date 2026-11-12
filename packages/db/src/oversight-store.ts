@@ -1905,9 +1905,10 @@ export class OversightStore extends Store {
       // a revoke holds its grant and then waits for the audit lock.
       const run = await this.lockRun(c, ws, runId);
       const allGrants = await this.lockAdmissionGrants(c, ws, runId);
+      // Re-review 3 N-1: the portfolio job fence locks its job row before expiry appends too.
+      await portfolioEffectFence(c, ws, runId, ctx.idempotencyKey);
       await this.expireDue(c, ctx, ws);
       const { binding, stale } = await this.bind(c, ws, runId, req);
-      await portfolioEffectFence(c, ws, runId, ctx.idempotencyKey);
       const hash = bindingHash(binding);
       // ADR-0079: a policy's grant is never matched as an ordinary grant; only the policy
       // path below may use it, with the policy's limits and stop conditions.

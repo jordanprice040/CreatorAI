@@ -816,7 +816,31 @@ export class WorkflowStore extends BudgetStore {
         String(rows[0].workspace_id),
         String(rows[0].run_id),
       );
-    return this.lockWorkflow(c, workflowId);
+    const wf = await this.lockWorkflow(c, workflowId);
+    if (wf.role === 'r08_assessment' && !wf.finished_at)
+      await this.lockAssessmentRows(c, wf);
+    return wf;
+  }
+  /**
+   * ADR-0098 (re-review 3 L-3): finishing an assessment share-locks its options and locks the
+   * older assessment scorecards it replaces, after task changes have appended. A person's edit
+   * of an option or scorecard locks it and then appends, so these rows are locked up front, in
+   * id order, by every entry point that may finish the workflow.
+   */
+  private async lockAssessmentRows(c: PoolClient, wf: Workflow) {
+    const options = `select lower(o->>'alternative_id') from workflows w,
+        jsonb_array_elements(w.context->'packet'->'options') o where w.id = $2`;
+    await c.query(
+      `select 1 from entities where workspace_id = $1 and id::text in (${options})
+        order by id for share`,
+      [wf.workspace_id, wf.id],
+    );
+    await c.query(
+      `select 1 from entities where workspace_id = $1 and kind = 'scorecard' and status = 'active'
+          and body ? 'assessment' and lower(body->'subject'->>'id') in (${options})
+        order by id for update`,
+      [wf.workspace_id, wf.id],
+    );
   }
   private async lockWorkflow(c: PoolClient, workflowId: string) {
     const { rows } = await c.query(
@@ -1714,6 +1738,8 @@ export class WorkflowStore extends BudgetStore {
       if (!rows[0]) throw fail('NOT_FOUND', 'Workflow not found.');
       const ws = String(rows[0].workspace_id);
       await this.role(c, ws, ctx.actorId, true);
+      // ADR-0098: run, workflow and (for an assessment) the rows it may write, before appending.
+      await this.lockWorkflowRun(c, workflowId);
       return this.coordinateIn(c, ctx, ws, workflowId);
     });
   }
@@ -1816,19 +1842,25 @@ export class WorkflowStore extends BudgetStore {
             and exists (select 1 from workflow_tasks t where t.workflow_id = w.id and t.state = 'queued')
           order by w.created_at for update skip locked`,
       );
-      const leases: TaskLease[] = [];
+      // ADR-0098 (re-review 3 L-4): every workflow's portfolio gate runs before the first lease
+      // appends, because the gate share-locks bound knowledge that a verification locks before
+      // it appends.
+      const open: Workflow[] = [];
       for (const raw of wfs) {
-        if (leases.length >= max) break;
         const wf = toWorkflow(raw as Row);
         if (
-          await portfolioActionGate(
+          !(await portfolioActionGate(
             c,
             wf.workspace_id,
             wf.run_id,
             'model.generate',
-          )
+          ))
         )
-          continue;
+          open.push(wf);
+      }
+      const leases: TaskLease[] = [];
+      for (const wf of open) {
+        if (leases.length >= max) break;
         const { rows: busy } = await c.query<{ n: string }>(
           `select count(*) as n from workflow_tasks where workflow_id = $1 and state = 'leased'`,
           [wf.id],
@@ -2056,6 +2088,9 @@ export class WorkflowStore extends BudgetStore {
 
   // ---- Decisions and unknown outcomes --------------------------------------------------
 
+  protected override consumerLocks(topic: string): boolean {
+    return topic === 'decision.answered' || topic === 'decision.closed';
+  }
   /** Outbox consumer: an answered or closed decision wakes the task waiting on it. */
   protected override async consume(c: PoolClient, event: Row): Promise<void> {
     if (

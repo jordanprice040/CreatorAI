@@ -1161,6 +1161,9 @@ export class RoutingStore extends GitHubStore {
           'INVALID_CONTRACT',
           'Related operations exclude the routed call itself.',
         );
+      // ADR-0098 (re-review 3 L-2): the promotion is locked before the outcome is written and
+      // appended, as advancing or rolling it back locks it before appending.
+      if (target.promotion) await this.lockPromotion(c, ws, target.promotion);
       const own = await this.operationCost(
         c,
         ws,
