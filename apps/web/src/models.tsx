@@ -1069,7 +1069,7 @@ export function Models({
               queue={detail.qualification_queue ?? null}
               requestsLeft={
                 c.settings.caps.shared.max_model_requests_per_day +
-                (detail.usage.extra_requests ?? 0) -
+                detail.usage.extra_requests -
                 detail.usage.last_24h_requests
               }
               busy={busy || !session}
@@ -1111,7 +1111,6 @@ export function Models({
           <DailyCapNotice
             path={`${base}/${p}`}
             csrf={session?.csrf_token ?? ''}
-            owner={owner}
             connection={c}
             usage={detail.usage}
             onDone={() => void load()}

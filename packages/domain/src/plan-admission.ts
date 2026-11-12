@@ -39,6 +39,34 @@ export interface PlanUsageCounts {
   extra_requests: number;
 }
 
+const DAY_MS = 86_400_000;
+
+/**
+ * ADR-0094 (review L-2): when one more request is admitted, given the start times (ms, oldest
+ * first) of the requests now in the rolling window, the configured cap and the unexpired extras.
+ * Below the cap it is when the oldest request leaves; at the cap it is the first moment a
+ * request leaves and enough remain under the cap in force then, so an extra that expires first
+ * is counted. Null with nothing in the window, or when no leaving ever makes room (cap 0).
+ */
+export function nextRequestAt(
+  startsMs: readonly number[],
+  configured: number,
+  extras: readonly { requests: number; expires_ms: number }[],
+  nowMs: number,
+): number | null {
+  const capAt = (t: number) =>
+    configured +
+    extras.reduce((n, x) => n + (x.expires_ms > t ? x.requests : 0), 0);
+  const used = startsMs.length;
+  if (!used) return null;
+  if (used < capAt(nowMs)) return startsMs[0]! + DAY_MS;
+  for (let i = 0; i < used; i++) {
+    const t = startsMs[i]! + DAY_MS;
+    if (used - (i + 1) < capAt(t)) return t;
+  }
+  return null;
+}
+
 /** The daily request cap admission uses now: the configured cap plus unexpired extras. */
 export const dailyCap = (
   caps: PlanCaps,
@@ -251,8 +279,8 @@ export function admissionRefusals(input: AdmissionInput): PlanRefusal[] {
     push(
       'daily_cap_reached',
       u.extra_requests > 0
-        ? `The studio daily request cap for this connection is reached, including ${u.extra_requests} extra requests. The owner can add ${PLAN_EXTRA_REQUESTS} more for the next ${PLAN_EXTRA_HOURS} hours.`
-        : `The studio daily request cap for this connection is reached. The owner can add ${PLAN_EXTRA_REQUESTS} more for the next ${PLAN_EXTRA_HOURS} hours.`,
+        ? `The studio daily request cap for this connection is reached, including ${u.extra_requests} extra requests. The workspace owner can add ${PLAN_EXTRA_REQUESTS} more for the next ${PLAN_EXTRA_HOURS} hours.`
+        : `The studio daily request cap for this connection is reached. The workspace owner can add ${PLAN_EXTRA_REQUESTS} more for the next ${PLAN_EXTRA_HOURS} hours.`,
     );
   if (r.path === 'responses') {
     if (r.input_chars > caps.responses.max_input_chars)

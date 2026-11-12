@@ -1,5 +1,9 @@
 import { z, id, timestamp, counter, nanoUsd } from './primitives.js';
-import { PlanProviderSchema, QuotaStateSchema } from './connections.js';
+import {
+  PlanExtraSchema,
+  PlanProviderSchema,
+  QuotaStateSchema,
+} from './connections.js';
 
 // Runbook step 9 usage indicator: one read-only summary of how much of each limit the studio
 // has used. It reports the studio's own counts and caps. A provider's own plan allowance
@@ -31,16 +35,16 @@ export const PlanConnectionUsageSchema = z.strictObject({
     cap: counter,
     /** The cap in the connection's settings, which applies again when the extra expires. */
     configured_cap: counter,
-    /** Unexpired extra requests granted by the owner (ADR-0094), and when the last expires. */
+    /** Unexpired extra requests granted by the owner (ADR-0094), in total and soonest first. */
     extra: counter,
-    extra_until: timestamp.nullable(),
+    extras: z.array(PlanExtraSchema).max(50),
     /** Whether this person may add extra requests now: the owner, with the cap used up. */
     can_add_extra: z.boolean(),
     remaining: counter,
     /**
      * When one more request becomes possible: the oldest request in the window leaving it, or,
-     * when a lowered cap sits below what is already used, the request whose leaving brings
-     * used back under the cap.
+     * when the cap is used up, the request whose leaving brings used back under the cap, with
+     * any extra that expires before then counted (ADR-0094 review L-2).
      */
     next_frees_at: timestamp.nullable(),
     /** When every request now in the window has left it. */

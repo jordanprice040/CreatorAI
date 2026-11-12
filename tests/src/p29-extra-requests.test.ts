@@ -12,7 +12,7 @@ import {
   type PlanConnection,
   type PlanRefusal,
 } from '@creator/contracts';
-import { admissionRefusals, dailyCap } from '@creator/domain';
+import { admissionRefusals, dailyCap, nextRequestAt } from '@creator/domain';
 import { ConnectionStore, type CommandContext } from '@creator/db';
 import { freshDatabase } from './pg-harness.js';
 import { loadWeb } from './web-module.js';
@@ -134,10 +134,12 @@ test('only the owner adds extra requests, only when used up, and only the curren
   const owner: CommandContext = { actorId: randomUUID() };
   const editor: CommandContext = { actorId: randomUUID() };
   const viewer: CommandContext = { actorId: randomUUID() };
+  const tester: CommandContext = { actorId: randomUUID() };
   for (const [a, n] of [
     [owner, 'owner'],
     [editor, 'editor'],
     [viewer, 'viewer'],
+    [tester, 'tester'],
   ] as const)
     await store.ensureActor({ id: a.actorId, kind: 'human', display_name: n });
   const ws = await store.createWorkspace(owner, {
@@ -146,6 +148,8 @@ test('only the owner adds extra requests, only when used up, and only the curren
   });
   await store.addMember(owner, ws.id, editor.actorId, 'editor');
   await store.addMember(owner, ws.id, viewer.actorId, 'viewer');
+  // Made an owner before it became a tester account (the route refuses a tester owner).
+  await store.addMember(owner, ws.id, tester.actorId, 'owner');
   let conn = await store.createPlanConnection(owner, ws.id, {
     label: 'ChatGPT plan',
     settings: SETTINGS,
@@ -197,6 +201,32 @@ test('only the owner adds extra requests, only when used up, and only the curren
   assert.equal(full.connection_version, conn.version);
   assert.equal((await plan(viewer)).daily.can_add_extra, false);
   assert.equal((await plan(editor)).daily.can_add_extra, false);
+  // Review L-3: the card's detail says when the next request is possible, as the panel does.
+  const fullDetail = PlanConnectionDetailSchema.parse(
+    await store.planConnectionDetail(owner, ws.id, conn.id),
+  );
+  assert.equal(fullDetail.usage.next_frees_at, full.daily.next_frees_at);
+  assert.ok(fullDetail.usage.next_frees_at);
+  assert.equal(fullDetail.usage.can_add_extra, true);
+  assert.equal(
+    (await store.planConnectionDetail(viewer, ws.id, conn.id)).usage
+      .can_add_extra,
+    false,
+  );
+  // Review L-1: a tester account holding the owner role is not offered the press, and the
+  // server refuses it, as it does every policy change (ADR-0075).
+  await db.pool.query(
+    `insert into tester_accounts (actor_id, issuer, subject, workspace_role, expires_at, created_by)
+     values ($1, 'https://issuer.example', 'tester', 'editor', now() + interval '1 day', $2)`,
+    [tester.actorId, owner.actorId],
+  );
+  assert.equal((await plan(tester)).daily.can_add_extra, false);
+  assert.equal(
+    (await store.planConnectionDetail(tester, ws.id, conn.id)).usage
+      .can_add_extra,
+    false,
+  );
+  await refused(grant(tester), 'ACCESS_DENIED');
 
   // A viewer and an editor are refused; nothing is recorded.
   await refused(grant(viewer), 'ACCESS_DENIED');
@@ -225,19 +255,23 @@ test('only the owner adds extra requests, only when used up, and only the curren
   assert.equal(raised.daily.extra, PLAN_EXTRA_REQUESTS);
   assert.equal(raised.daily.remaining, PLAN_EXTRA_REQUESTS);
   assert.equal(raised.daily.can_add_extra, false);
-  const until = Date.parse(raised.daily.extra_until!);
+  assert.equal(raised.daily.extras.length, 1);
+  const until = Date.parse(raised.daily.extras[0]!.expires_at);
   assert.ok(Math.abs(until - (now + PLAN_EXTRA_HOURS * HOUR)) < 60_000);
   const detail = PlanConnectionDetailSchema.parse(
     await store.planConnectionDetail(owner, ws.id, conn.id),
   );
   assert.equal(detail.usage.extra_requests, PLAN_EXTRA_REQUESTS);
-  assert.equal(detail.usage.extra_until, raised.daily.extra_until);
+  assert.deepEqual(detail.usage.extras, raised.daily.extras);
+  // With room again there is no "next request at" and no offer.
+  assert.equal(detail.usage.next_frees_at, null);
+  assert.equal(detail.usage.can_add_extra, false);
   // Admission, given the store's counts, admits again.
   assert.ok(
     !codes(ready(), {
       ...USAGE,
       last_24h_requests: detail.usage.last_24h_requests,
-      extra_requests: detail.usage.extra_requests!,
+      extra_requests: detail.usage.extra_requests,
     }).includes('daily_cap_reached'),
   );
   // A second press while there is room is refused (no doubling by a double click).
@@ -325,7 +359,7 @@ test('an expired extra stops counting and the next window starts at the configur
   let p = await summary();
   assert.equal(p.daily.cap, CAP);
   assert.equal(p.daily.extra, 0);
-  assert.equal(p.daily.extra_until, null);
+  assert.deepEqual(p.daily.extras, []);
   const d = await store.planConnectionDetail(owner, ws.id, conn.id);
   assert.equal(d.usage.extra_requests, 0);
   await grantAt(1);
@@ -338,8 +372,7 @@ test('the confirmation says what changes and what does not', async () => {
   const m = (await loadWeb('extra-requests-text.ts')) as {
     extraConfirmText: (configured: number, cap: number) => string;
     extraLine: (
-      n: number,
-      until: string | null,
+      extras: { requests: number; expires_at: string }[],
       configured: number,
     ) => string | null;
   };
@@ -347,9 +380,54 @@ test('the confirmation says what changes and what does not', async () => {
   assert.match(text, /Adds 20 requests .* next 24 hours \(60 → 80\)/);
   assert.match(text, /configured cap of 40 a day is not changed/);
   assert.match(text, /not API money/);
-  assert.equal(m.extraLine(0, null, 40), null);
+  assert.equal(m.extraLine([], 40), null);
+  const soon = new Date(Date.now() + 2 * HOUR).toISOString();
+  const late = new Date(Date.now() + 20 * HOUR).toISOString();
   assert.match(
-    m.extraLine(20, new Date().toISOString(), 40)!,
+    m.extraLine([{ requests: 20, expires_at: soon }], 40)!,
     /^Includes 20 extra requests until .*; after that the cap is 40 a day again\.$/,
   );
+  // Review L-2: two extras are each named with their own expiry.
+  assert.match(
+    m.extraLine(
+      [
+        { requests: 20, expires_at: soon },
+        { requests: 20, expires_at: late },
+      ],
+      40,
+    )!,
+    /^Includes 40 extra requests: 20 until .+ and 20 until .+; after the last expires the cap is 40 a day again\.$/,
+  );
+});
+
+test('review L-2: the next request time counts an extra that expires before a request leaves', () => {
+  const now = Date.parse('2026-11-12T12:00:00Z');
+  const DAY = 24 * HOUR;
+  // Below the cap: when the oldest request leaves.
+  assert.equal(
+    nextRequestAt([now - 5 * HOUR], 2, [], now),
+    now - 5 * HOUR + DAY,
+  );
+  assert.equal(nextRequestAt([], 2, [], now), null);
+  // Configured cap 2, no extra, 3 used: two must leave.
+  const starts = [now - 20 * HOUR, now - 10 * HOUR, now - 1 * HOUR];
+  assert.equal(nextRequestAt(starts, 2, [], now), starts[1]! + DAY);
+  // With an extra of 1 expiring in an hour (cap 3 now, 2 after), the cap is used up; the first
+  // leaving (in 4 h) is after the extra expired, so one leaving is not enough: two must leave.
+  assert.equal(
+    nextRequestAt(starts, 2, [{ requests: 1, expires_ms: now + HOUR }], now),
+    starts[1]! + DAY,
+  );
+  // An extra that outlasts the first leaving: one leaving is enough.
+  assert.equal(
+    nextRequestAt(
+      starts,
+      2,
+      [{ requests: 1, expires_ms: now + 8 * HOUR }],
+      now,
+    ),
+    starts[0]! + DAY,
+  );
+  // Cap 0 and nothing extra: no leaving ever makes room.
+  assert.equal(nextRequestAt([now - HOUR], 0, [], now), null);
 });

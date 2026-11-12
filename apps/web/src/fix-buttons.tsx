@@ -810,7 +810,7 @@ const qualifies = (
 const dailyFull = (d: PlanConnectionDetail) =>
   d.usage.last_24h_requests >=
   d.connection.settings.caps.shared.max_model_requests_per_day +
-    (d.usage.extra_requests ?? 0);
+    d.usage.extra_requests;
 
 const verified = (d: PlanConnectionDetail, model: string) =>
   d.model_access.some(
@@ -901,10 +901,7 @@ export function confirmText(a: FixAction, d: PlanConnectionDetail): string {
     case 'extra_requests': {
       const configured = c.settings.caps.shared.max_model_requests_per_day;
       return dailyFull(d)
-        ? extraConfirmText(
-            configured,
-            configured + (d.usage.extra_requests ?? 0),
-          )
+        ? extraConfirmText(configured, configured + d.usage.extra_requests)
         : 'This connection has room for more requests today again.';
     }
     case 'qualify': {

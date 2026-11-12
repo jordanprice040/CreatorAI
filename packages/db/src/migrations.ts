@@ -3245,7 +3245,8 @@ create unique index plan_qualification_queue_items_one_running on plan_qualifica
     // by the owner when the cap is used up (20 at a time, Jordan, November 11, 2026). Each grant
     // lasts as long as the rolling window and then stops counting; the configured cap is never
     // changed and recorded usage is never rewritten. Grants are kept as they were made.
-    // Version 59: P13 holds 57 and P28 holds 58 (coordinator's table, November 12, 2026).
+    // Version 59 (coordinator's table, November 12, 2026): #179 holds 56, P13 57, P28 58,
+    // P30 60 and P31 61. Keep this array in ascending version order when merging.
     version: 59,
     name: 'plan_extra_requests',
     sql: `

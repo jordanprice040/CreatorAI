@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import {
   CREDITS_OFF_STATEMENT,
   ContractError,
+  PLAN_EXTRA_REQUESTS,
   PlanConnectionSchema,
   type ErrorCode,
   type PlanConnection,
@@ -3038,4 +3039,72 @@ test('ADR-0087 (P27 review L-3): the routes the fix-it-here buttons call refuse 
     c.settings.allowed_data_classes,
   );
   assert.equal(s.fake.responseRequests.length, sent);
+});
+
+test('ADR-0094 (P29 review L-4): a real plan request is refused at the daily cap and admitted after the owner adds 20', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  await s.signIn();
+  let c = await s.ready();
+  const grant = await s.store.createPlanVerificationGrant(
+    owner,
+    s.ws.id,
+    c.id,
+    {
+      expected_version: c.version,
+      model_id: 'm',
+      path: 'responses',
+      expires_in_minutes: 5,
+    },
+  );
+  // Fill the studio's daily cap with finished requests in the window.
+  const cap = c.settings.caps.shared.max_model_requests_per_day;
+  for (let i = 0; i < cap; i++)
+    await s.db.pool.query(
+      `insert into plan_requests (id, connection_id, logical_operation_id, path, purpose,
+         model_id, data_class, state, created_by, started_at)
+       values ($1, $2, $3, 'responses', 'task', 'm', 'synthetic', 'completed', $4,
+         clock_timestamp() - interval '1 hour')`,
+      [randomUUID(), c.id, randomUUID(), owner.actorId],
+    );
+  const admit = () =>
+    s.store.admitPlanRequest(owner, s.ws.id, {
+      connection_id: c.id,
+      logical_operation_id: randomUUID(),
+      path: 'responses',
+      purpose: 'verification',
+      model_id: 'm',
+      task_class: null,
+      data_class: 'synthetic',
+      run_id: null,
+      build_id: null,
+      grant_id: grant.id,
+      qualification_id: null,
+      input_chars: 10,
+    });
+  await assert.rejects(admit(), (e: unknown) => {
+    assert.ok(e instanceof ContractError, String(e));
+    assert.equal(e.code, 'ACCESS_DENIED');
+    assert.ok(
+      e.reasons.some((r) => r.code === 'daily_cap_reached'),
+      JSON.stringify(e.reasons),
+    );
+    return true;
+  });
+  assert.equal(
+    (
+      await s.db.pool.query(
+        `select count(*)::int as n from plan_requests where connection_id = $1 and purpose = 'verification'`,
+        [c.id],
+      )
+    ).rows[0].n,
+    0,
+  );
+  c = await s.current();
+  await s.store.grantExtraRequests(owner, s.ws.id, c.id, {
+    expected_version: c.version,
+    requests: PLAN_EXTRA_REQUESTS,
+  });
+  const admitted = await admit();
+  assert.ok(admitted.request_id);
 });

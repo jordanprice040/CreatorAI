@@ -622,7 +622,7 @@ export function Submit({
   const ceilingsText =
     resourceKind === 'subscription'
       ? plan
-        ? `${plan.usage.last_24h_requests} of ${plan.connection.settings.caps.shared.max_model_requests_per_day + (plan.usage.extra_requests ?? 0)} plan requests used on this connection in the last 24 hours${plan.usage.extra_requests ? ` (including ${plan.usage.extra_requests} extra)` : ''}`
+        ? `${plan.usage.last_24h_requests} of ${plan.connection.settings.caps.shared.max_model_requests_per_day + plan.usage.extra_requests} plan requests used on this connection in the last 24 hours${plan.usage.extra_requests ? ` (including ${plan.usage.extra_requests} extra)` : ''}`
         : 'No connection yet'
       : [
           chosenEnvelope

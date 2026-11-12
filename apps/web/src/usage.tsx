@@ -120,11 +120,7 @@ function PlanBlock({
   reload: () => void;
 }) {
   const provider = PROVIDER[p.kind];
-  const extra = extraLine(
-    p.daily.extra,
-    p.daily.extra_until,
-    p.daily.configured_cap,
-  );
+  const extra = extraLine(p.daily.extras, p.daily.configured_cap);
   const tone = planTone(p);
   return (
     <section className="usage-block" aria-label={p.label}>

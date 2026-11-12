@@ -144,6 +144,12 @@ export const AcceptPlanCapsRequestSchema = z.strictObject({
  */
 export const PLAN_EXTRA_REQUESTS = 20;
 export const PLAN_EXTRA_HOURS = 24;
+/** One unexpired extra allowance: how many requests, and when it stops counting. */
+export const PlanExtraSchema = z.strictObject({
+  requests: counter,
+  expires_at: timestamp,
+});
+export type PlanExtra = z.infer<typeof PlanExtraSchema>;
 export const GrantExtraRequestsRequestSchema = z.strictObject({
   expected_version: version,
   /** What the owner saw on the button; only the decided amount is accepted. */
@@ -710,12 +716,16 @@ export const PlanConnectionDetailSchema = z.strictObject({
     last_24h_codex_builds: counter,
     in_flight: counter,
     unresolved: counter,
+    /** ADR-0094: unexpired extra requests on top of the daily cap, in total and one by one. */
+    extra_requests: counter,
+    extras: z.array(PlanExtraSchema).max(50),
     /**
-     * ADR-0094: extra requests granted on top of the daily cap that have not expired yet, and
-     * when the last of them expires. Optional so a reply from an older studio still parses.
+     * When one more request becomes possible while the cap (with extras) is used up, counting
+     * requests leaving the window and extras expiring; null when there is room (review L-3).
      */
-    extra_requests: counter.optional(),
-    extra_until: timestamp.nullable().optional(),
+    next_frees_at: timestamp.nullable(),
+    /** Whether this person may add extra requests now: a policy owner, cap used up (L-1). */
+    can_add_extra: z.boolean(),
   }),
   /** ADR-0064: in-flight or unknown requests, oldest first. */
   open_requests: z.array(PlanOpenRequestSchema),

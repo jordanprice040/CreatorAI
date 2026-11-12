@@ -4,6 +4,7 @@ import {
   BenchmarkCheckSchema,
   AcceptPlanCapsRequestSchema,
   GrantExtraRequestsRequestSchema,
+  type PlanExtra,
   PLAN_EXTRA_HOURS,
   AttestCreditsRequestSchema,
   ContractError,
@@ -95,6 +96,7 @@ import {
   ASSESSMENT_ROLE_VERSION,
   admissionRefusals,
   dailyCap,
+  nextRequestAt,
   canonicalHash,
   connectionBlockers,
   connectionRefusals,
@@ -791,7 +793,7 @@ export class ConnectionStore extends WebDiscoveryStore {
   async usageSummary(ctxIn: CommandContext, ws: string): Promise<UsageSummary> {
     const ctx = normalize(ctxIn);
     return this.tx(async (c) => {
-      const role = await this.role(c, uuid(ws), ctx.actorId, false);
+      await this.role(c, uuid(ws), ctx.actorId, false);
       const owner = await this.isCeilingOwner(c, ctx.actorId);
       return usageSummary(
         c,
@@ -799,7 +801,7 @@ export class ConnectionStore extends WebDiscoveryStore {
         this.spending,
         owner,
         (r) => connectionBlockers(toConnection(r)),
-        role === 'owner',
+        await this.isPolicyOwner(c, uuid(ws), ctx.actorId),
       );
     });
   }
@@ -2229,7 +2231,7 @@ export class ConnectionStore extends WebDiscoveryStore {
     const ctx = normalize(ctxIn);
     return this.tx(async (c) => {
       await this.role(c, uuid(ws), ctx.actorId, false);
-      return this.#detail(c, ws, uuid(id));
+      return this.#detail(c, ws, uuid(id), ctx.actorId);
     });
   }
 
@@ -4901,6 +4903,7 @@ export class ConnectionStore extends WebDiscoveryStore {
     c: PoolClient,
     ws: string,
     id: string,
+    actorId: string,
   ): Promise<PlanConnectionDetail> {
     const connection = await this.#connection(c, ws, id);
     const grants = await c.query(
@@ -4942,7 +4945,12 @@ export class ConnectionStore extends WebDiscoveryStore {
         in_flight: usage.in_flight,
         unresolved: usage.unresolved,
         extra_requests: usage.extra_requests,
-        extra_until: (await this.#extra(c, id)).until,
+        extras: usage.extras,
+        next_frees_at: await this.#nextFreesAt(c, connection, usage),
+        can_add_extra:
+          usage.last_24h_requests >=
+            dailyCap(connection.settings.caps, usage) &&
+          (await this.isPolicyOwner(c, ws, actorId)),
       },
       open_requests: (open.rows as Row[]).map((r) => {
         const flying = r.state === 'in_flight';
@@ -4965,7 +4973,7 @@ export class ConnectionStore extends WebDiscoveryStore {
     id: string,
     runId: string | null,
     buildId: string | null,
-  ): Promise<PlanUsageCounts> {
+  ): Promise<PlanUsageCounts & { extras: PlanExtra[] }> {
     const { rows } = await c.query(
       `select
          count(*) filter (where started_at > clock_timestamp() - interval '24 hours') as day,
@@ -4978,7 +4986,7 @@ export class ConnectionStore extends WebDiscoveryStore {
       [id, runId, buildId],
     );
     const r = rows[0] as Row;
-    const extra = await this.#extra(c, id);
+    const extras = await this.#extras(c, id);
     return {
       last_24h_requests: Number(r.day),
       last_24h_codex_builds: Number(r.builds),
@@ -4986,23 +4994,56 @@ export class ConnectionStore extends WebDiscoveryStore {
       build_requests: Number(r.build),
       in_flight: Number(r.in_flight),
       unresolved: Number(r.unresolved),
-      extra_requests: extra.requests,
+      extra_requests: extras.reduce((n, x) => n + x.requests, 0),
+      extras,
     };
   }
 
-  /** ADR-0094: unexpired extra requests on a connection, and when the last of them expires. */
-  async #extra(
+  /**
+   * ADR-0094 (review L-3): when one more request is admitted while the cap is used up, as the
+   * usage indicator computes it; null while there is room.
+   */
+  async #nextFreesAt(
     c: PoolClient,
-    id: string,
-  ): Promise<{ requests: number; until: string | null }> {
+    conn: PlanConnection,
+    usage: PlanUsageCounts & { extras: PlanExtra[] },
+  ): Promise<string | null> {
+    if (usage.last_24h_requests < dailyCap(conn.settings.caps, usage))
+      return null;
     const { rows } = await c.query(
-      `select coalesce(sum(requests), 0) as n, max(expires_at) as until
-         from plan_extra_requests
-        where connection_id = $1 and expires_at > clock_timestamp()`,
+      `select started_at, clock_timestamp() as now from plan_requests
+        where connection_id = $1 and started_at > clock_timestamp() - interval '24 hours'
+        order by started_at`,
+      [conn.id],
+    );
+    const list = rows as Row[];
+    const nowMs = list[0]
+      ? new Date(list[0].now as Date).getTime()
+      : Date.now();
+    const t = nextRequestAt(
+      list.map((x) => new Date(x.started_at as Date).getTime()),
+      conn.settings.caps.shared.max_model_requests_per_day,
+      usage.extras.map((x) => ({
+        requests: x.requests,
+        expires_ms: Date.parse(x.expires_at),
+      })),
+      nowMs,
+    );
+    return t === null ? null : new Date(t).toISOString();
+  }
+
+  /** ADR-0094: a connection's unexpired extra requests, soonest expiry first. */
+  async #extras(c: PoolClient, id: string): Promise<PlanExtra[]> {
+    const { rows } = await c.query(
+      `select requests, expires_at from plan_extra_requests
+        where connection_id = $1 and expires_at > clock_timestamp()
+        order by expires_at, granted_at`,
       [id],
     );
-    const r = rows[0] as Row;
-    return { requests: Number(r.n), until: r.until ? iso(r.until) : null };
+    return (rows as Row[]).map((x) => ({
+      requests: Number(x.requests),
+      expires_at: iso(x.expires_at),
+    }));
   }
 
   /**

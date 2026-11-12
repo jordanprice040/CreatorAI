@@ -16,12 +16,20 @@ export function extraConfirmText(configured: number, cap: number): string {
   return `Adds ${PLAN_EXTRA_REQUESTS} requests to this connection's cap for the next ${PLAN_EXTRA_HOURS} hours (${cap} → ${cap + PLAN_EXTRA_REQUESTS}). The configured cap of ${configured} a day is not changed and applies again when they expire; change it in the connection's caps if you want more every day. Plan requests use your subscription, not API money, and your provider's own usage limit still applies.`;
 }
 
-/** The line that says extra requests are in force, or null when none are. */
+/**
+ * The line that says extra requests are in force, each with its own expiry (review L-2), or
+ * null when none are. `extras` are soonest first, as the server sends them.
+ */
 export function extraLine(
-  extra: number,
-  until: string | null | undefined,
+  extras: readonly { requests: number; expires_at: string }[],
   configured: number,
 ): string | null {
-  if (extra <= 0 || !until) return null;
-  return `Includes ${extra} extra request${extra === 1 ? '' : 's'} until ${atText(until)}; after that the cap is ${configured} a day again.`;
+  if (!extras.length) return null;
+  const total = extras.reduce((n, x) => n + x.requests, 0);
+  const each = extras.map((x) => `${x.requests} until ${atText(x.expires_at)}`);
+  const head = `Includes ${total} extra request${total === 1 ? '' : 's'}`;
+  const back = `the cap is ${configured} a day again.`;
+  return extras.length === 1
+    ? `${head} until ${atText(extras[0]!.expires_at)}; after that ${back}`
+    : `${head}: ${each.slice(0, -1).join(', ')} and ${each.at(-1)}; after the last expires ${back}`;
 }

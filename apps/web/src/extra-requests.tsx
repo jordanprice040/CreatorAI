@@ -12,7 +12,7 @@ import {
   type PlanConnectionDetail,
 } from '@creator/contracts';
 import { api, message } from './oversight.js';
-import { extraConfirmText, extraLine } from './extra-requests-text.js';
+import { atText, extraConfirmText, extraLine } from './extra-requests-text.js';
 
 export { extraConfirmText, extraLine };
 
@@ -97,45 +97,45 @@ export function AddExtraRequests({
 }
 
 /**
- * On a connection's card in Models and connections: says when the daily cap is used up (and
- * when extra requests are in force), and offers the owner the press. Nothing when there is room
+ * On a connection's card in Models and connections: says when the daily cap is used up and
+ * when the next request is possible (review L-3), shows extra requests in force, and offers the
+ * press when the server says this person may add them (review L-1). Nothing when there is room
  * and no extra.
  */
 export function DailyCapNotice({
   path,
   csrf,
-  owner,
   connection,
   usage,
   onDone,
 }: {
   path: string;
   csrf: string;
-  owner: boolean;
   connection: PlanConnection;
   usage: PlanConnectionDetail['usage'];
   onDone: () => void;
 }) {
   const configured = connection.settings.caps.shared.max_model_requests_per_day;
-  const extra = usage.extra_requests ?? 0;
-  const cap = configured + extra;
+  const cap = configured + usage.extra_requests;
   const full = usage.last_24h_requests >= cap;
-  const line = extraLine(extra, usage.extra_until, configured);
+  const line = extraLine(usage.extras, configured);
   if (!full && !line) return null;
+  const at = usage.next_frees_at
+    ? `The next request is possible at ${atText(usage.next_frees_at)}`
+    : 'New requests wait until older ones leave the 24-hour window';
   return (
     <div className={full ? 'extra-notice usage-alert' : 'extra-notice'}>
       {full && (
         <p className="small" role="status">
           This connection&apos;s daily cap is used up: {usage.last_24h_requests}{' '}
-          of {cap} requests in the last 24 hours. New requests wait until older
-          ones leave the 24-hour window
-          {owner
+          of {cap} requests in the last 24 hours. {at}
+          {usage.can_add_extra
             ? ', or add extra requests now.'
-            : '; the owner can add extra requests.'}
+            : '; the workspace owner can add extra requests.'}
         </p>
       )}
       {line && <p className="small">{line}</p>}
-      {full && owner && csrf && (
+      {full && usage.can_add_extra && csrf && (
         <AddExtraRequests
           path={path}
           csrf={csrf}
