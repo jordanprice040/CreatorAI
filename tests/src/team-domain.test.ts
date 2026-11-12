@@ -251,4 +251,6 @@ test('checks run in an empty studio-made folder, made again if a temp clean-up d
   const again = checkCwd();
   assert.ok(existsSync(again));
   assert.notEqual(again, dir);
+  // Leave nothing behind (the next check would make it again).
+  rmdirSync(again);
 });
