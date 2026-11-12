@@ -96,6 +96,36 @@ export function assessmentFixtureAnswer(
           maintenance: 'Not assessed by fixture rules.',
         },
         uncertainty: 'Fixture rules over synthetic evidence.',
+        // ADR-0097: every checklist item on suitability, passed only when it can cite a ref.
+        ...(packet.checklist && rubric === 'suitability'
+          ? (() => {
+              const yes = (packet.team?.capabilities ?? []).find(
+                (c) => c.status === 'yes' && c.key,
+              )?.key;
+              return {
+                checklist: Object.fromEntries(
+                  packet.checklist.items.map((i) => {
+                    const team_refs = i.gate === 'access' && yes ? [yes] : [];
+                    const claim_refs =
+                      !team_refs.length && best ? [best.ref] : [];
+                    const pass = team_refs.length + claim_refs.length > 0;
+                    return [
+                      i.ref,
+                      {
+                        answer: pass ? ('pass' as const) : ('unknown' as const),
+                        claim_refs,
+                        team_refs,
+                        note: pass
+                          ? 'Fixture rule: a packet ref exists for this item.'
+                          : 'Fixture rule: nothing in the packet bears on this item.',
+                      },
+                    ];
+                  }),
+                ),
+                access_needs: yes ? [yes] : [],
+              };
+            })()
+          : {}),
       })),
     ),
     not_covered: ['Fixture assessor does not judge evidence quality.'],

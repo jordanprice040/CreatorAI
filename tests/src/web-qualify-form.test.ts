@@ -602,14 +602,14 @@ test('P24: Qualify several says before it starts when the queue needs more than 
         act: async () => null,
       }),
     );
-  // Six bundled benchmarks: 8 + 8 + 11 + 4 + 4 + 13 plan requests on a fresh connection.
+  // Six bundled benchmarks: 8 + 8 + 15 + 4 + 4 + 13 plan requests on a fresh connection.
   const fresh = html(40);
-  assert.match(fresh, /Qualify all \(6, up to 48 plan requests\)/);
+  assert.match(fresh, /Qualify all \(6, up to 52 plan requests\)/);
   assert.match(
     fresh,
-    /Qualify all needs up to 48 plan requests, more than this connection&#x27;s cap of 40 in any 24 hours/,
+    /Qualify all needs up to 52 plan requests, more than this connection&#x27;s cap of 40 in any 24 hours/,
   );
-  assert.doesNotMatch(html(48), /more than this connection/);
+  assert.doesNotMatch(html(52), /more than this connection/);
 });
 
 test('ADR-0089: the discovery benchmarks are listed with their own allow, start and qualified states', async () => {
@@ -654,7 +654,7 @@ test('ADR-0089: the discovery benchmarks are listed with their own allow, start 
     some,
     /scoring for discovery · plan-discovery-semantics-v2-scoring/,
   );
-  assert.match(some, /scoring for assessments · assessment-synthetic-v2/);
+  assert.match(some, /scoring for assessments · assessment-synthetic-v3/);
   // A started discovery qualification shows Run with that benchmark's request count.
   const started = html(
     ['research_synthesis'],
@@ -812,7 +812,7 @@ test("PR #175 review L-1 and M-2: another role running is named, and no role bor
     manifestRole(
       JSON.parse(
         await readFile(
-          'config/connections/benchmarks/assessment-synthetic-v2.json',
+          'config/connections/benchmarks/assessment-synthetic-v3.json',
           'utf8',
         ),
       ),
@@ -944,8 +944,8 @@ test('P24 with P34: Qualify several offers the discovery benchmarks by name, per
   const skeptic = discovery.find((b) => b.task_class === 'scoring')!.name;
   const fresh = byName([]);
   for (const b of discovery) assert.equal(fresh[b.name]?.eligible, true);
-  // Qualify all on a fresh connection: the six bundled benchmarks (48 plan requests) and the
-  // three discovery ones (2 + 4 cases each) come to 66, above the default 40 in any 24 hours.
+  // Qualify all on a fresh connection: the six bundled benchmarks (52 plan requests) and the
+  // three discovery ones (2 + 4 cases each) come to 70, above the default 40 in any 24 hours.
   assert.equal(
     queueChoices(
       [],
@@ -959,9 +959,9 @@ test('P24 with P34: Qualify several offers the discovery benchmarks by name, per
       ],
       list,
     ).reduce((n, c) => n + (c as unknown as { requests: number }).requests, 0),
-    66,
+    70,
   );
-  assert.equal(fresh['assessment-synthetic-v2']?.eligible, true);
+  assert.equal(fresh['assessment-synthetic-v3']?.eligible, true);
   // A discovery benchmark is queued by name; the server loads its manifest.
   assert.deepEqual(queueBody(1, 'gpt-6-astra', [fresh[skeptic]!]).items, [
     { benchmark: skeptic },
@@ -975,19 +975,19 @@ test('P24 with P34: Qualify several offers the discovery benchmarks by name, per
   const assessed = byName([
     qualification({ ...pass, admits_assessment: true }),
   ]);
-  assert.equal(assessed['assessment-synthetic-v2']?.eligible, false);
+  assert.equal(assessed['assessment-synthetic-v3']?.eligible, false);
   assert.equal(assessed[skeptic]?.eligible, true);
   const skeptical = byName([
     qualification({ ...pass, admits_discovery: true }),
   ]);
-  assert.equal(skeptical['assessment-synthetic-v2']?.eligible, true);
+  assert.equal(skeptical['assessment-synthetic-v3']?.eligible, true);
   assert.equal(skeptical[skeptic]?.eligible, false);
   // A started skeptic run blocks the assessor (one run per model and task class): not offered.
   const running = byName([
     qualification({ task_class: 'scoring', admits_discovery: true }),
   ]);
-  assert.equal(running['assessment-synthetic-v2']?.state.kind, 'other_running');
-  assert.equal(running['assessment-synthetic-v2']?.eligible, false);
+  assert.equal(running['assessment-synthetic-v3']?.state.kind, 'other_running');
+  assert.equal(running['assessment-synthetic-v3']?.eligible, false);
   assert.equal(
     running[skeptic]?.eligible,
     true,
