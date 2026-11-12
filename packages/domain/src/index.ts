@@ -15,6 +15,7 @@ export * from './discovery-scenarios.js';
 export * from './selection.js';
 export * from './selection-fixture.js';
 export * from './assessment.js';
+export * from './team.js';
 export * from './proposal.js';
 export * from './runbook.js';
 export * from './runbook-fixture.js';
