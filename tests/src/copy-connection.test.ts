@@ -9,7 +9,13 @@ import {
   type ErrorCode,
   type PlanConnection,
 } from '@creator/contracts';
-import { ConnectionStore, type CommandContext } from '@creator/db';
+import {
+  ConnectionStore,
+  OPERATIONS_ACTOR_ID,
+  OpsStore,
+  TesterStore,
+  type CommandContext,
+} from '@creator/db';
 import { MemoryVault, PlanConnectionService } from '@creator/broker';
 import { once } from 'node:events';
 import { createApi } from '@creator/api';
@@ -171,6 +177,7 @@ test('ADR-0095: a copy has the settings and nothing else, and the source is unch
     await store.copyPlanConnection(owner, ws.id, conn.id, {
       expected_version: conn.version,
       target_workspace_id: target.id,
+      chat_answers: true,
     }),
   );
   const copy = out.connection;
@@ -261,6 +268,7 @@ test('ADR-0095: a copy has the settings and nothing else, and the source is unch
     expected_version: conn.version,
     target_workspace_id: target.id,
     label: 'ChatGPT plan 2',
+    chat_answers: true,
   });
   assert.equal(second.chat_answers, 'target_has_own');
   assert.equal(
@@ -271,8 +279,8 @@ test('ADR-0095: a copy has the settings and nothing else, and the source is unch
     expected_version: conn.version,
     target_workspace_id: target.id,
     label: 'ChatGPT plan 3',
-    chat_answers: false,
   });
+  // Review 1 L-2: copying the Chat answers setting is opted into, never the default.
   assert.equal(third.chat_answers, 'not_requested');
 });
 
@@ -354,26 +362,121 @@ test('ADR-0095: only the owner of both workspaces copies, within fixture or real
   assert.equal(none.rows[0].n, 0);
 });
 
-test('ADR-0095: two copies with one name at once give one copy and one DUPLICATE', async (t) => {
+test('ADR-0095: a copy and a new connection saving one name at once give one connection and one DUPLICATE', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const { store, ws, target, conn } = s;
+  // Review 1 L-1: two copies of one source are already serialised by the source's lock; a copy
+  // racing a plain create into the target is what the per-workspace name lock is for. Several
+  // rounds, because without the lock the second insert fails with a unique-index error.
+  for (let round = 0; round < 8; round++) {
+    const label = `Same name ${round}`;
+    const calls = [
+      store.copyPlanConnection(owner, ws.id, conn.id, {
+        expected_version: conn.version,
+        target_workspace_id: target.id,
+        label,
+      }),
+      store.createPlanConnection(owner, target.id, {
+        label,
+        settings: SETTINGS,
+      }),
+    ];
+    const results = await Promise.allSettled(
+      round % 2 ? calls : [...calls].reverse(),
+    );
+    assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
+    const failed = results.find((r) => r.status === 'rejected');
+    assert.ok(
+      failed?.status === 'rejected' &&
+        failed.reason instanceof ContractError &&
+        failed.reason.code === 'DUPLICATE',
+      String(failed?.status === 'rejected' && failed.reason),
+    );
+  }
+  const named = await s.db.pool.query(
+    `select count(*)::int as n from plan_connections where workspace_id = $1 and label like 'Same name %'`,
+    [target.id],
+  );
+  assert.equal(named.rows[0].n, 8);
+});
+
+test('ADR-0095: viewers and testers get the copy refusal; Chat answers on another connection are not copied; old settings that no longer fit are refused', async (t) => {
   const s = await setup(t);
   if (!s) return;
   const { store, ws, target, conn } = s;
   const body = {
     expected_version: conn.version,
     target_workspace_id: target.id,
-    label: 'Same name',
   };
-  const results = await Promise.allSettled([
-    store.copyPlanConnection(owner, ws.id, conn.id, body),
-    store.copyPlanConnection(owner, ws.id, conn.id, body),
-  ]);
-  assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
-  const failed = results.find((r) => r.status === 'rejected');
-  assert.ok(
-    failed?.status === 'rejected' &&
-      failed.reason instanceof ContractError &&
-      failed.reason.code === 'DUPLICATE',
-    String(failed?.status === 'rejected' && failed.reason),
+  // Review 1 N-2/N-3: a viewer of the target (owner of the source) is refused in the copy's words.
+  const theirs = await store.createWorkspace(other, {
+    name: 'Theirs',
+    record_mode: 'fixture',
+  });
+  await store.addMember(other, theirs.id, owner.actorId, 'viewer');
+  await rejects(
+    'ACCESS_DENIED',
+    store.copyPlanConnection(owner, ws.id, conn.id, {
+      ...body,
+      target_workspace_id: theirs.id,
+    }),
+    /owner of both/,
+  );
+  // A tester account that holds the owner role in both workspaces is refused too (ADR-0075).
+  const ops = new OpsStore(s.db.pool);
+  await ops.ensureOperationsActor();
+  const tester = await new TesterStore(s.db.pool).addTester(
+    { actorId: OPERATIONS_ACTOR_ID },
+    {
+      issuer: 'https://idp.example',
+      subject: 'tester-copy',
+      display_name: 'Tester',
+      expires_at: new Date(Date.now() + 86_400_000).toISOString(),
+    },
+  );
+  for (const w of [ws.id, target.id])
+    await s.db.pool.query(
+      `insert into workspace_members (workspace_id, actor_id, role) values ($1, $2, 'owner')`,
+      [w, tester.actor_id],
+    );
+  await rejects(
+    'ACCESS_DENIED',
+    store.copyPlanConnection(
+      { actorId: tester.actor_id },
+      ws.id,
+      conn.id,
+      body,
+    ),
+    /owner of both/,
+  );
+  // Chat answers on another connection: nothing to copy, and the target keeps none.
+  const second = await store.createPlanConnection(owner, ws.id, {
+    label: 'Second',
+    settings: SETTINGS,
+  });
+  const out = await store.copyPlanConnection(owner, ws.id, second.id, {
+    expected_version: second.version,
+    target_workspace_id: target.id,
+    chat_answers: true,
+  });
+  assert.equal(out.chat_answers, 'source_not_using');
+  assert.equal((await store.chatSettings(owner, target.id)).version, 0);
+  // Review 1 N-1: settings saved before a rule tightened are checked again before copying
+  // (here a ChatGPT connection holding a Claude plan type, which a save refuses today).
+  await s.db.pool.query(
+    `update plan_connections set settings = jsonb_set(settings, '{plan_type}', '"max"')
+     where id = $1`,
+    [second.id],
+  );
+  await rejects(
+    'INVALID_CONTRACT',
+    store.copyPlanConnection(owner, ws.id, second.id, {
+      expected_version: second.version,
+      target_workspace_id: target.id,
+      label: 'Second again',
+    }),
+    /no longer fit/,
   );
 });
 
@@ -413,7 +516,7 @@ test('ADR-0095: the copy route answers 201 with the copy, and the target lists i
   assert.equal(conn.status, 201);
   const copied = await post(
     `workspaces/${ws}/plan-connections/${conn.body.id}/copy`,
-    { expected_version: 1, target_workspace_id: target },
+    { expected_version: 1, target_workspace_id: target, chat_answers: true },
   );
   assert.equal(copied.status, 201, JSON.stringify(copied.body));
   const out = CopyPlanConnectionResultSchema.parse(copied.body);

@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import {
   z,
+  ChatSettingsSchema,
   CopyPlanConnectionResultSchema,
   WorkspaceSchema,
+  type ChatSettings,
   type CopyPlanConnectionResult,
   type PlanConnection,
   type SessionInfo,
@@ -10,6 +12,7 @@ import {
 } from '@creator/contracts';
 import { api, message } from './oversight.js';
 import {
+  chatCopyNote,
   copiedSteps,
   copyTargets,
   noTargetText,
@@ -35,24 +38,31 @@ export function CopyConnection({
   const [targets, setTargets] = useState<Workspace[] | null>(null);
   const [target, setTarget] = useState('');
   const [label, setLabel] = useState(connection.label);
-  const [chat, setChat] = useState(true);
+  const [chat, setChat] = useState(false);
+  // Review 1 L-2: this workspace's Chat answers setting, read when the form opens.
+  const [here, setHere] = useState<ChatSettings | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState<{
     out: CopyPlanConnectionResult;
     target: string;
+    chatOn: boolean;
   } | null>(null);
 
+  const note = chatCopyNote(here, connection.id);
   async function start() {
     setOpen(true);
     setDone(null);
     setError('');
     setLabel(connection.label);
     try {
-      const list = copyTargets(
-        await api(z.array(WorkspaceSchema), 'workspaces'),
-        workspace,
-      );
+      setChat(false);
+      const [all, settings] = await Promise.all([
+        api(z.array(WorkspaceSchema), 'workspaces'),
+        api(ChatSettingsSchema, `workspaces/${workspace.id}/chat-settings`),
+      ]);
+      setHere(settings);
+      const list = copyTargets(all, workspace);
       setTargets(list);
       setTarget(list[0]?.id ?? '');
     } catch (e) {
@@ -73,13 +83,14 @@ export function CopyConnection({
             expected_version: connection.version,
             target_workspace_id: target,
             label: label.trim(),
-            chat_answers: chat,
+            chat_answers: chat && note !== null,
           },
         },
       );
       setDone({
         out,
         target: targets?.find((w) => w.id === target)?.name ?? 'that workspace',
+        chatOn: Boolean(here?.enabled),
       });
       setOpen(false);
     } catch (e) {
@@ -102,6 +113,7 @@ export function CopyConnection({
             done.target,
             done.out.connection.label,
             done.out.chat_answers,
+            done.chatOn,
           ).map((s) => (
             <li key={s}>{s}</li>
           ))}
@@ -161,15 +173,24 @@ export function CopyConnection({
               value={label}
               onChange={(e) => setLabel(e.target.value)}
             />
-            <label className="inline">
-              <input
-                type="checkbox"
-                checked={chat}
-                onChange={(e) => setChat(e.target.checked)}
-              />{' '}
-              Also copy the Chat answers setting, if Chat answers here use this
-              connection and that workspace has none yet
-            </label>
+            {note === null ? (
+              <p className="small">
+                Chat answers here do not use this connection, so their setting
+                is not copied.
+              </p>
+            ) : (
+              <>
+                <label className="inline">
+                  <input
+                    type="checkbox"
+                    checked={chat}
+                    onChange={(e) => setChat(e.target.checked)}
+                  />{' '}
+                  Also copy the Chat answers setting
+                </label>
+                <p className="small">{note}</p>
+              </>
+            )}
           </>
         )}
         <div className="actions">

@@ -135,14 +135,15 @@ export const UpdatePlanSettingsRequestSchema = z.strictObject({
  * ADR-0095 (P30): copy a connection's settings into another workspace the same person owns.
  * The copy is a new connection: no sign-in, model checks, qualifications, credits statement or
  * accepted caps come with it. `label` defaults to the source's name. With `chat_answers`, the
- * source workspace's Chat answers setting is copied too when it uses this connection and the
- * target workspace has none saved yet.
+ * source workspace's Chat answers setting (on or off, model, snapshot choice, daily limit) is
+ * copied too when it uses this connection and the target workspace has none saved yet.
  */
 export const CopyPlanConnectionRequestSchema = z.strictObject({
   expected_version: version,
   target_workspace_id: id,
   label: label.optional(),
-  chat_answers: z.boolean().default(true),
+  /** Opt in (review 1 L-2): the form says first what the copied setting turns on there. */
+  chat_answers: z.boolean().default(false),
 });
 export const CopyChatAnswersOutcomeSchema = z.enum([
   /** The target's Chat answers now use the copy, with the source's model, limit and choices. */

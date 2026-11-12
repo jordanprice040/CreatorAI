@@ -2,7 +2,7 @@
 
 ## November 12 update — P30 copy connections between workspaces (ADR-0095)
 
-Walk item 20. Models and connections › a connection › **Copy to another workspace** (owner of both workspaces) makes a new connection there with the same kind, name and settings (caps, allowed data and tasks). The copy starts not signed in, with no model checks, qualifications, credits statement or accepted caps; the source is unchanged. A ChatGPT sign-in is not shared, because its refresh token rotates (deviation from the plan's suggestion, recorded in ADR-0095). Optionally the source's Chat answers setting is copied when the target has none. Store `copyPlanConnection`, route `plan-connections/{id}/copy`, web `copy-connection.tsx`. No migration. Tests: `tests/src/copy-connection.test.ts` (DB and route) and `tests/src/web-copy-connection.test.ts`.
+Walk item 20. Models and connections › a connection › **Copy to another workspace** (owner of both workspaces) makes a new connection there with the same kind, name and settings (caps, allowed data and tasks). The copy starts not signed in, with no model checks, qualifications, credits statement or accepted caps; the source is unchanged. A ChatGPT sign-in is not shared, because its refresh token rotates (deviation from the plan's suggestion, recorded in ADR-0095). Optionally (opt-in, explained before Copy) the source's Chat answers setting is copied when the target has none. Store `copyPlanConnection`, route `plan-connections/{id}/copy`, web `copy-connection.tsx`. No migration. Tests: `tests/src/copy-connection.test.ts` (DB and route) and `tests/src/web-copy-connection.test.ts`.
 
 ## November 11 update — P27 fix it here (ADR-0087)
 

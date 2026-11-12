@@ -33,6 +33,8 @@ export function copiedSteps(
   target: string,
   label: string,
   chat: ChatOutcome,
+  /** Whether the copied Chat answers setting is on (only read when `chat` is 'copied'). */
+  chatOn = false,
 ): string[] {
   const steps = [
     `Switch to "${target}" with the workspace picker at the top, then open Models and connections › "${label}".`,
@@ -44,11 +46,35 @@ export function copiedSteps(
   ];
   if (chat === 'copied')
     steps.push(
-      'Chat answers there now use this connection and model; they start working once the model is verified.',
+      chatOn
+        ? 'Chat answers there are on and use this connection and model; they start answering once the model is verified. Turn them off there under Chat answers if you did not mean that.'
+        : 'Chat answers there now use this connection and model, and are off until you turn them on there.',
     );
   if (chat === 'target_has_own')
     steps.push(
       'That workspace already had its own Chat answers setting, so it was left as it was.',
     );
   return steps;
+}
+
+type ChatSetting = {
+  enabled: boolean;
+  connection_id: string | null;
+  model_id: string | null;
+  include_snapshot: boolean;
+};
+
+/**
+ * Review 1 L-2: what copying the Chat answers setting would do in the target, said before Copy
+ * is pressed. `null` when Chat answers here do not use this connection (nothing to copy).
+ */
+export function chatCopyNote(
+  here: ChatSetting | null,
+  connectionId: string,
+): string | null {
+  if (!here || here.connection_id !== connectionId) return null;
+  const model = here.model_id ?? 'its model';
+  if (!here.enabled)
+    return `Chat answers are off here. If that workspace has no Chat answers setting yet, it gets this one: off, using the copy with ${model}.`;
+  return `Chat answers are on here. If that workspace has no Chat answers setting yet, Chat answers will be ON there, using the copy with ${model}, as soon as you verify the model there. Each answer then sends the conversation${here.include_snapshot ? " and a snapshot of that workspace's records" : ''} to the model's provider.`;
 }

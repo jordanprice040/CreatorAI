@@ -718,13 +718,13 @@ export class ConnectionStore extends WebDiscoveryStore {
     return this.tx(async (c) => {
       const source = uuid(ws);
       const target = uuid(req.target_workspace_id);
-      await this.requireOwner(c, source, ctx.actorId, refusal);
+      await this.#requireCopyOwner(c, source, ctx.actorId, refusal);
       if (target === source)
         throw fail(
           'INVALID_CONTRACT',
           'Choose another workspace; the connection is already in this one.',
         );
-      await this.requireOwner(c, target, ctx.actorId, refusal);
+      await this.#requireCopyOwner(c, target, ctx.actorId, refusal);
       const conn = await this.#lock(c, source, uuid(id));
       if (conn.version !== req.expected_version)
         throw fail(
@@ -742,6 +742,14 @@ export class ConnectionStore extends WebDiscoveryStore {
           fixture
             ? "A real workspace's connection cannot be copied into a fixture workspace."
             : "A fixture workspace's connection cannot be copied into a real workspace.",
+        );
+      // Review 1 N-1: the source passed these checks when saved; a rule added since applies too.
+      const issues = kindSettingsIssues(conn.kind, conn.settings);
+      if (issues.length)
+        throw new ContractError(
+          'INVALID_CONTRACT',
+          "This connection's settings no longer fit its type; change them here before copying.",
+          issues,
         );
       const label = req.label ?? conn.label;
       const copied = await this.#insertConnection(
@@ -824,6 +832,25 @@ export class ConnectionStore extends WebDiscoveryStore {
         chat_answers: chat,
       };
     });
+  }
+
+  /**
+   * Review 1 N-2: a viewer, editor or tester of either workspace gets the copy's own refusal;
+   * a workspace the person is not in stays NOT_FOUND.
+   */
+  async #requireCopyOwner(
+    c: PoolClient,
+    ws: string,
+    actorId: string,
+    refusal: string,
+  ) {
+    try {
+      await this.requireOwner(c, ws, actorId, refusal);
+    } catch (e) {
+      if (e instanceof ContractError && e.code === 'ACCESS_DENIED')
+        throw fail('ACCESS_DENIED', refusal);
+      throw e;
+    }
   }
 
   /** One new connection row, its first event and its audit record; returns the new id. */
