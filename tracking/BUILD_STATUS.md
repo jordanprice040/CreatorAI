@@ -4,7 +4,7 @@
 
 What now works (no migration): cancelling a run, revoking or revising a grant, revising a routine policy, answering a decision and admitting an action no longer deadlock against each other. Oversight writes lock run, decision, routine policy and grant, in that order, before their first audit append. The scan of other audit appenders found the same pattern in three places, and each now takes its locks first. Routine admission of web discovery claims locks its discovery, grants and sources up front. Cancelling or otherwise changing a workflow locks the workflow's run first, so it cannot deadlock with an answer to the workflow's question. A desktop job lease locks overdue jobs in id order, so two workers leasing at once cannot deadlock.
 
-Checked: `pnpm typecheck`, `pnpm format:check`, `pnpm test:db` on a throwaway PostgreSQL 16 (after re-review 3, with main at #185: 1139 tests, 1105 pass, 29 skipped, the 5 PowerShell-wrapper failures that always fail in the cloud). New tests: `tests/src/oversight-lock-order.test.ts` (5), `tests/src/desktop-lock-order.test.ts` (2), plus one each in `workflow.test.ts`, `subscription-workflow.test.ts` and `web-discovery.test.ts`. Each parks two transactions where the old order deadlocked and fails with "deadlock detected" on the old code.
+Checked: `pnpm typecheck`, `pnpm format:check`, `pnpm test:db` on a throwaway PostgreSQL 16 (after review 4 and merging main with #189: 1146 tests, 1112 pass, 29 skipped, the 5 PowerShell-wrapper failures that always fail in the cloud). New tests: `tests/src/oversight-lock-order.test.ts` (5), `tests/src/desktop-lock-order.test.ts` (2), plus one each in `workflow.test.ts`, `subscription-workflow.test.ts` and `web-discovery.test.ts`. Each parks two transactions where the old order deadlocked and fails with "deadlock detected" on the old code.
 
 Review 1 (2 Medium, 2 Low, 4 nits) fixed. M-1: the first lease fix deadlocked two workers; expiry now locks in one id-ordered statement. M-2: a workflow cancel against an answer still deadlocked; workflow entry points now lock the run first. L-1: claim sources are locked up front. L-2: the three reorders now have tests. Nits: `lockGrantForWrite` reports the policy row; the lock-waiter helpers moved to `pg-harness.ts`; the ADR names what is defence in depth.
 
@@ -17,6 +17,12 @@ Review 4 (1 Low, 3 nits) fixed: tests for L-2, L-3 and L-4 from the reviewer's p
 Limitations: four of the `lockWorkflowRun` call sites (task finish, lease sweep, decision wake, reconcile) are reasoned from the tested cancel path.
 
 Next eligible: unchanged (P33 after P13 merges).
+
+## November 12 update — the last older review items (#128 N-6, #129 N-4, #90 N-4 leftover)
+
+Checked on main 9c6e751: #75 L-1 (stale-prompt rows read "historical pass (older prompt)"), #77 L-1 (`manifestCalls` test) and the first point of #90 N-4 (a failed Revoke or Stop keeps its message) were already fixed. What now works: the Codex plan relay stops the upstream call as soon as Codex disconnects, also while it waits for upstream data (before the headers or during a silent stretch), and records it as `codex_disconnected`; a relay closed by the builder records `relay_closed` instead of `timeout` (#128 N-6 and its note; `packages/executor/src/codex-host.ts`). Monitor › Approvals clears an error from a failed background poll when the next poll works, while an action's error stays (#90 re-review N-4, second point; `apps/web/src/oversight.tsx`). Review fixes (4 nits): a Codex disconnect during admission is noticed too, so nothing is sent upstream (test); the `relay_closed` test has a timeout; `poll-error.mjs` also checks that a refused Revoke keeps its error through a good poll (6/6 PASS); these logs say which point of #90 N-4 each change fixed. #129 N-4: a browser walk checks the owner-action buttons for each member role (owner, editor, viewer) on Models, Budgets, Library, Evidence and Runs, and that the server refuses each hidden action for that role (`tracking/evidence/member-roles/`). No migration, no ADR.
+
+Checked (cloud container, throwaway PostgreSQL 16): `pnpm typecheck`, `pnpm format:check`, `pnpm test:db` (after the review fixes 1131 tests: 1097 pass, 29 skipped, 5 fail, all five the known PowerShell-wrapper tests; no pwsh in the container). New tests in `tests/src/codex-host.test.ts`: a disconnect before the upstream headers and during a silent stream each stop the upstream call and settle `codex_disconnected` (both fail with the new close listener removed), and closing the relay settles `relay_closed`. Walks on review ports 5183/4330/4340: `member-roles/walk.mjs` 27/27 PASS, `poll-error.mjs` 3/3 PASS (with the old `oversight.tsx` the error stayed after a good poll). Not independently reviewed yet. Still open from older reviews: PR #150 N-1..N-3.
 
 ## November 12 update — the owner's gate checklist (ADR-0097, migration 60)
 
@@ -203,9 +209,9 @@ Open items:
 - **Windows verification:** no full Windows run of main since CI stopped.
 - **Owner pilot:** finished. Jordan marked it finished on November 10 (PR #155); its window ended
   November 6.
-- **Older review items still open:** #128 N-6, #129 N-4, PR #150 N-1..N-3. Health reports configuration,
-  not live state; the preview cookie-host limit remains. (#75 L-1 was repaired earlier; #77 L-1, #90 N-4
-  and PR #148 N-I are fixed by the November 10 cleanup.)
+- **Older review items still open:** PR #150 N-1..N-3 (#128 N-6 and #129 N-4 fixed November 12). Health reports configuration,
+  not live state; the preview cookie-host limit remains. (#75 L-1 was repaired earlier; #77 L-1, the first point of #90 N-4
+  and PR #148 N-I are fixed by the November 10 cleanup; the second point of #90 N-4, a stale poll error, on November 12.)
 - **The web qualification record** lives in source against the dev studio's connection id, so it does not
   apply to the installed app's connection.
 
@@ -727,7 +733,7 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   the results file; nothing removed). PR #150 review M-1 is restated as open for Jordan; the record is unchanged.
 - Fixes: `CREATOR_SESSION_FILE` is no longer read as a secret file by the API and migrations (L2, with a test);
   `pnpm cli help` prints plain usage and exits 0 (L7); the Windows-only foreign-listener safety test skips elsewhere (L8);
-  a failed Revoke or Stop keeps its message (#90 N-4); the comparison's call counts are tested (#77 L-1, `manifestCalls`);
+  a failed Revoke or Stop keeps its message (#90 N-4, first point; its second point, a stale poll error, was fixed November 12); the comparison's call counts are tested (#77 L-1, `manifestCalls`);
   no bare `: ` label for a control-character source title (PR #148 N-I).
 - Left open: `config/owner-pilot.json` status, the installed-app upgrade and the web record decision (Jordan); #128 N-6,
   #129 N-4, PR #150 N-1..N-3; the qualification record living in source (L1). `t17-test.log` stays (the X10 manifest lists it).

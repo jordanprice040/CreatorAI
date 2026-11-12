@@ -214,6 +214,15 @@ export interface RelayOptions {
 /** PR #128 re-review L-3: Codex went away mid-response, so the relay stopped the upstream call. */
 const CODEX_DISCONNECTED = 'codex_disconnected';
 class CodexDisconnected extends Error {}
+/** The builder closed the relay (the build ended) while a request was still in flight. */
+class RelayClosed extends Error {}
+/** Why the relay stopped an upstream call itself, or null when it did not. */
+function stopReason(signal: AbortSignal): string | null {
+  if (!signal.aborted) return null;
+  if (signal.reason instanceof CodexDisconnected) return CODEX_DISCONNECTED;
+  if (signal.reason instanceof RelayClosed) return 'relay_closed';
+  return 'timeout';
+}
 
 const STRIPPED = [
   'max_output_tokens',
@@ -247,7 +256,7 @@ export class PlanRelay {
     return this.port;
   }
   async close() {
-    for (const c of this.#upstream) c.abort(new Error('relay closed'));
+    for (const c of this.#upstream) c.abort(new RelayClosed('relay closed'));
     await new Promise<void>((ok) =>
       this.#server ? this.#server.close(() => ok()) : ok(),
     );
@@ -320,6 +329,18 @@ export class PlanRelay {
       response_id: null,
     };
     const forwarded = createHash('sha256');
+    // PR #128 re-review N-6: a write notices a disconnect only when it happens, so also stop
+    // the upstream call as soon as Codex goes away while the relay waits for upstream data
+    // (before the headers, or during a long stretch with no output).
+    const gone = () => {
+      if (!res.writableFinished)
+        controller.abort(
+          new CodexDisconnected('Codex disconnected while the relay waited.'),
+        );
+    };
+    res.once('close', gone);
+    // Codex may already have gone while the request was being admitted.
+    if (res.destroyed) gone();
     try {
       let up: Response;
       try {
@@ -338,7 +359,8 @@ export class PlanRelay {
           },
         );
       } catch {
-        outcome.reason_code = 'network_error';
+        outcome.reason_code = stopReason(controller.signal) ?? 'network_error';
+        if (res.destroyed) return;
         return deny(502, 'studio_relay_upstream');
       }
       outcome.http_status = up.status;
@@ -447,12 +469,11 @@ export class PlanRelay {
         outcome.reason_code =
           e instanceof CodexDisconnected
             ? CODEX_DISCONNECTED
-            : controller.signal.aborted
-              ? 'timeout'
-              : 'stream_error';
+            : (stopReason(controller.signal) ?? 'stream_error');
       }
       res.destroy();
     } finally {
+      res.off('close', gone);
       // PR #128 re-review L-3: whatever ended the relay's side (Codex gone, a stream error),
       // stop the upstream call too, so the model does not keep generating against the plan.
       // After a finished stream this does nothing; the outcome is classified above, first.
