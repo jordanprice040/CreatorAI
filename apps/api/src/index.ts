@@ -255,7 +255,7 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   STORAGE_UNAVAILABLE: 503,
 };
 const RECORD_ROUTE =
-  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|routine-policies|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|proposals|specs|search|library|destination|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback|terminals|route-registries|route-policies|route-benchmarks|route-promotions|route-decisions|context-capabilities|context-index|context-packs|context-handoffs|context-calls|context-cache|context-batches|context-evaluations|context-usage|saved-queries|semantic-search|audit-questions|audit-plans|lineage-verify|members|exploration-preview|web-discoveries|web-discovery-preview|autopilots)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|build-approvals|routine-policy|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|source-searches|support|evidence|discoveries|explorations|exploration-packet|assessments|assessment-packet|assessment-preview|explored-briefs|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|manifest|compare|feedback|previews|terminals|guide|stop|decide|revision|benchmark|benchmark-results|advance|rollback|call|outcomes|escalate|compact|compactions|invalidate|poll|run|link|lineage-graph|lineage-export|research-plan|remove|explanation|reviews|files|runbook|web-discoveries|admit|dismiss|autopilots|continue))?)?)?)?$/;
+  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|routine-policies|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|proposals|specs|search|library|destination|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback|terminals|route-registries|route-policies|route-benchmarks|route-promotions|route-decisions|context-capabilities|context-index|context-packs|context-handoffs|context-calls|context-cache|context-batches|context-evaluations|context-usage|saved-queries|semantic-search|audit-questions|audit-plans|lineage-verify|members|exploration-preview|web-discoveries|web-discovery-preview|autopilots|automations)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|build-approvals|routine-policy|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|source-searches|support|evidence|discoveries|explorations|exploration-packet|assessments|assessment-packet|assessment-preview|explored-briefs|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|manifest|compare|feedback|previews|terminals|guide|stop|decide|revision|benchmark|benchmark-results|advance|rollback|call|outcomes|escalate|compact|compactions|invalidate|poll|run|link|lineage-graph|lineage-export|research-plan|remove|explanation|reviews|files|runbook|web-discoveries|admit|dismiss|autopilots|continue|automation))?)?)?)?$/;
 
 export function createApi(
   env: Record<string, string | undefined> = {},
@@ -1825,6 +1825,23 @@ export function createApi(
           true,
         );
       }
+      // ADR-0099 (P33): "Automate selection" on this run.
+      if (item && method === 'POST' && action === 'automation') {
+        if (!autopilot)
+          throw new ContractError(
+            'INVALID_CONFIG',
+            'Automation needs the PostgreSQL store.',
+          );
+        const set = await store.setRunAutomation(
+          ctx,
+          ws,
+          item,
+          await readJson(req),
+        );
+        // An assessment that finished after the level was set is picked up now, not in a minute.
+        void autopilot.automate().catch(() => undefined);
+        return send(201, set, true);
+      }
       if (item && method === 'POST' && action === 'explorations')
         return send(
           201,
@@ -2338,6 +2355,32 @@ export function createApi(
           await autopilot.retry(ctx, ws, item, await readJson(req)),
           true,
         );
+    } else if (collection === 'automations' && autopilot) {
+      // ADR-0099 (P33): automation levels set on runs; Stop sets the run back to Manual and
+      // stops the autopilot the level has running, if any (what it made is kept).
+      if (!item && method === 'GET')
+        return send(200, await store.listRunAutomations(ctx, ws), false);
+      if (item && method === 'POST' && action === 'stop') {
+        const stopped = await store.stopRunAutomation(
+          ctx,
+          ws,
+          item,
+          await readJson(req),
+        );
+        for (const a of stopped.autopilots.filter((x) => x.state === 'running'))
+          await autopilot
+            .cancel(ctx, ws, a.id, {
+              reason: 'The project was set back to Manual.',
+            })
+            .catch(() => undefined);
+        return send(
+          200,
+          await store
+            .listRunAutomations(ctx, ws)
+            .then((l) => l.find((x) => x.id === stopped.id) ?? stopped),
+          true,
+        );
+      }
     } else if (collection === 'web-discoveries') {
       // ADR-0086 (P12): read, stop, resume, and decide the checked claims.
       if (!item && method === 'GET')

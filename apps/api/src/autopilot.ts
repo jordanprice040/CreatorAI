@@ -223,14 +223,37 @@ export class AutopilotRunner {
    * error it could not even record (a database blip) is picked up without a restart (review L-7).
    */
   watch() {
-    void this.recover().catch(() => undefined);
+    const tick = () =>
+      void this.recover()
+        .then(() => this.automate())
+        .catch(() => undefined);
+    tick();
     if (this.#watch) return;
-    this.#watch = setInterval(
-      () => void this.recover().catch(() => undefined),
-      this.#recoverMs,
-    );
+    this.#watch = setInterval(tick, this.#recoverMs);
     this.#watch.unref?.();
   }
+
+  /**
+   * ADR-0099 (P33): starts a selection autopilot for each assessment an active "Automate
+   * selection" level has not acted on yet (the store checks the owner, run and policy again),
+   * and drives it. Runs with `watch`, and once after the owner sets a level.
+   */
+  async automate() {
+    if (this.#automating) return;
+    this.#automating = true;
+    try {
+      for (const due of await this.store.dueAutomations()) {
+        const started = await this.store
+          .startAutomationAutopilot(due)
+          .catch(() => null);
+        if (started)
+          this.#launch(started.created_by, due.workspace_id, started.id);
+      }
+    } finally {
+      this.#automating = false;
+    }
+  }
+  #automating = false;
 
   #launch(actorId: string, ws: string, id: string) {
     const key = id.toLowerCase();

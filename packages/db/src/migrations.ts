@@ -3463,6 +3463,52 @@ create trigger chat_action_fills_settle_once before update or delete on chat_act
  for each row execute function chat_action_fills_settle_once();
 `,
   },
+  {
+    // ADR-0099 (P33): automation levels. "Automate selection" is a standing record on a run; while
+    // it is active the studio starts a selection-only autopilot for each assessment that finishes
+    // on the run (at most one per assessment, held by the unique index). The other levels need no
+    // table: "Automate the rest" and "Whole process" are autopilots (migration 57). Version 62:
+    // #185 holds 60, P31 61.
+    version: 62,
+    name: 'run_automations',
+    sql: `
+create table run_automations (
+ id uuid primary key,
+ workspace_id uuid not null references workspaces(id),
+ run_id uuid not null,
+ fixture boolean not null,
+ level text not null check (level = 'selection'),
+ config jsonb not null check (jsonb_typeof(config) = 'object'),
+ config_hash char(64) not null,
+ summary text[] not null check (cardinality(summary) >= 1),
+ policy_version text not null,
+ state text not null check (state in ('active','stopped')),
+ stop_reason text check (stop_reason is null or length(stop_reason) <= 600),
+ version integer not null check (version >= 1),
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ updated_at timestamptz not null default clock_timestamp(),
+ stopped_at timestamptz,
+ foreign key (workspace_id, run_id) references run_controls (workspace_id, run_id),
+ foreign key (workspace_id, fixture) references workspaces (id, fixture),
+ unique (workspace_id, id),
+ check ((state = 'stopped') = (stopped_at is not null)),
+ check ((state = 'stopped') = (stop_reason is not null))
+);
+create unique index run_automations_one_active on run_automations (workspace_id, run_id)
+ where state = 'active';
+create index run_automations_by_workspace on run_automations (workspace_id, created_at desc);
+-- The assessment workflow an automation's autopilot was started for; one autopilot per pair.
+alter table autopilots add column automation_id uuid;
+alter table autopilots add column trigger_workflow_id uuid references workflows(id);
+alter table autopilots add constraint autopilots_automation_fk
+ foreign key (workspace_id, automation_id) references run_automations (workspace_id, id);
+alter table autopilots add constraint autopilots_automation_trigger
+ check ((automation_id is null) = (trigger_workflow_id is null));
+create unique index autopilots_one_per_trigger on autopilots (automation_id, trigger_workflow_id)
+ where automation_id is not null;
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

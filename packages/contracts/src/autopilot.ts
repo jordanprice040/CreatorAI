@@ -276,6 +276,8 @@ export const AutopilotSchema = z.strictObject({
   finished_at: timestamp.nullable(),
   /** True while this studio process is driving it. */
   active: z.boolean(),
+  /** P33 (ADR-0099): the "Automate selection" level that started it, if one did. */
+  automation_id: id.nullable(),
 });
 export type Autopilot = z.infer<typeof AutopilotSchema>;
 
