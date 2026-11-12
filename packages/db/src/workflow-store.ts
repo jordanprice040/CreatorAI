@@ -52,6 +52,7 @@ import {
   checkExplorationOutput,
   checkAssessmentOutput,
   coordinateAssessment,
+  joinSummaries,
   assessmentContext,
   packetForOptions,
   assessmentScorecards,
@@ -1002,24 +1003,10 @@ export class WorkflowStore extends BudgetStore {
         const recorded: AssessmentResult | null = results.length
           ? {
               ...results[0]!,
-              // Each part's summary gets an equal share, cut with an ellipsis, so the joined
-              // summary never ends mid-word (it ended "…maintenance o" on the dev studio).
-              summary: (() => {
-                const parts = results.flatMap((r) =>
-                  r.summary ? [r.summary] : [],
-                );
-                if (!parts.length) return null;
-                const share = Math.floor(
-                  (1200 - (parts.length - 1)) / parts.length,
-                );
-                return parts
-                  .map((t) =>
-                    t.length > share
-                      ? `${t.slice(0, share - 1).trimEnd()}…`
-                      : t,
-                  )
-                  .join(' ');
-              })(),
+              // Review N-1: shorter parts keep their text; a part cut to fit ends with "…".
+              summary: joinSummaries(
+                results.flatMap((r) => (r.summary ? [r.summary] : [])),
+              ),
               scorecards: results.flatMap((r) => r.scorecards),
               replaced: results.flatMap((r) => r.replaced),
               not_covered: [

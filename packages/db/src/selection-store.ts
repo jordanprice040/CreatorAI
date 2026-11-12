@@ -802,6 +802,7 @@ export class SelectionStore extends DiscoveryStore {
       claims_over_max: built.claims_over_max,
       cap_for_all: built.cap_for_all,
       option_coverage: built.option_coverage,
+      problem_claims_read: built.problem_claims_read,
     };
   }
 
@@ -830,7 +831,12 @@ export class SelectionStore extends DiscoveryStore {
     ctx: CommandContext,
     ws: string,
     problemId: string,
-    route: { connection_id: string; settings_hash?: string } | null,
+    route: {
+      connection_id: string;
+      settings_hash?: string;
+      /** The run's answer cap, at most the connection's (review L-1). */
+      max_output_chars?: number;
+    } | null,
   ): Promise<{
     packet: AssessmentPacket;
     batches: string[][];
@@ -840,6 +846,7 @@ export class SelectionStore extends DiscoveryStore {
     claims_over_max: number;
     cap_for_all: number | null;
     option_coverage: OptionCoverage[];
+    problem_claims_read: number;
     evidence: AssessmentWorkflowContext['evidence'];
     linked_hash: string;
   }> {
@@ -872,7 +879,14 @@ export class SelectionStore extends DiscoveryStore {
             'Connection settings changed; refresh run setup.',
           );
         cap = conn.rows[0].settings.caps?.responses?.max_input_chars;
-        outputCap = conn.rows[0].settings.caps?.responses?.max_output_chars;
+        // Review L-1: the worker sends the run's cap, and the plan service applies the
+        // smaller of it and the connection's, so the requests are sized to that.
+        const connCap = conn.rows[0].settings.caps?.responses?.max_output_chars;
+        const runCap = route.max_output_chars;
+        outputCap =
+          connCap !== undefined && runCap !== undefined
+            ? Math.min(connCap, runCap)
+            : (connCap ?? runCap);
       }
       const p = await c.query(
         `select * from entities where workspace_id = $1 and id = $2 and kind = 'problem'`,
@@ -998,6 +1012,7 @@ export class SelectionStore extends DiscoveryStore {
       claims_over_max: plan.claims_over_max,
       cap_for_all: plan.cap_for_all,
       option_coverage: plan.option_coverage,
+      problem_claims_read: plan.problem_claims_read,
       // Same keys as linkedClaimsHash: a problem claim by id, an option claim as claim:option.
       linked_hash: supportHash(
         read.claims.flatMap((x) => [

@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import {
+  EntityDetailSchema,
   ProblemComparisonSchema,
   RunControlSchema,
   SelectOutcomeSchema,
@@ -203,6 +204,37 @@ type Row = {
  * option's scores and gates, then a selection. The server decides whether the selection
  * needs your approval (supervised gates) and refuses gated or non-code builds.
  */
+/**
+ * Review L-3: claims a scorecard cites that neither the problem's claims nor the newest-500
+ * claim list name (an option claim past that list), read by id so they are named, not numbered.
+ */
+async function citedPastList(
+  base: string,
+  scorecards: StoredEntity[],
+  known: string[],
+): Promise<{ id: string; title: string }[]> {
+  const have = new Set(known.map((x) => x.toLowerCase()));
+  const cited = new Set<string>();
+  for (const c of scorecards) {
+    const ratings = (c.body?.ratings ?? {}) as Record<
+      string,
+      { evidence_refs?: { id: string }[] }
+    >;
+    for (const r of Object.values(ratings))
+      for (const e of r?.evidence_refs ?? [])
+        if (!have.has(e.id.toLowerCase())) cited.add(e.id.toLowerCase());
+  }
+  const read = await Promise.all(
+    [...cited].slice(0, 60).map((x) =>
+      api(EntityDetailSchema, `${base}/entities/${x}`).then(
+        (r) => ({ id: r.entity.id, title: r.entity.title }),
+        () => null,
+      ),
+    ),
+  );
+  return read.filter((x) => x !== null);
+}
+
 export function Compare({
   session,
   workspace,
@@ -264,7 +296,13 @@ export function Compare({
       names,
       wf,
       scorecards,
-      claimNames: claimNames.map((c) => ({ id: c.id, title: c.title })),
+      claimNames: [
+        ...claimNames.map((c) => ({ id: c.id, title: c.title })),
+        ...(await citedPastList(base, scorecards, [
+          ...claimNames.map((c) => c.id),
+          ...cmp.claims.map((c) => c.evidence.claim.id),
+        ])),
+      ],
     };
   }, [workspace.id, focus]);
 

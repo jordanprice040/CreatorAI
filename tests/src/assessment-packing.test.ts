@@ -5,6 +5,7 @@ import {
   ASSESSMENTS_PER_REQUEST,
   assessmentPreviewHash,
   assessmentsPerRequest,
+  joinSummaries,
   assessmentRequestChars,
   assessmentRoleInput,
   buildAssessmentPacket,
@@ -393,7 +394,11 @@ test('ADR-0091: option texts citing the drafting packet ("C3") are renamed draft
       {
         ...s.alternatives[0]!,
         rationale: 'Uses the export (C3, C12).',
-        tradeoffs: ['Feasibility: Data: C3.', 'CSV and C99X stay as they are.'],
+        tradeoffs: [
+          'Feasibility: Data: C3.',
+          'CSV and C99X stay as they are.',
+          'Runs on AWS C5 instances; Category C3 users; claims C4 and C5.',
+        ],
       },
       s.alternatives[1]!,
     ],
@@ -404,9 +409,26 @@ test('ADR-0091: option texts citing the drafting packet ("C3") are renamed draft
   assert.deepEqual(o.tradeoffs, [
     'Feasibility: Data: draft-C3.',
     'CSV and C99X stay as they are.',
+    'Runs on AWS C5 instances; Category C3 users; claims draft-C4 and draft-C5.',
   ]);
   assert.ok(plan.packet.notes.some((n) => /draft-C/.test(n)));
   const plain = buildAssessmentPacket(small());
   assert.ok(plain.ok);
   assert.ok(!plain.packet.notes.some((n) => /draft-C/.test(n)));
+});
+
+test('ADR-0091 review N-1: a split summary keeps short parts whole and cuts a long one with an ellipsis', () => {
+  assert.equal(joinSummaries([]), null);
+  assert.equal(joinSummaries(['One.', '  ']), 'One.');
+  const long = 'word '.repeat(400).trim();
+  const out = joinSummaries(['Short part.', long])!;
+  assert.ok(out.length <= 1200, String(out.length));
+  assert.ok(out.startsWith('Short part. '));
+  assert.ok(out.endsWith('…'));
+  assert.ok(!/wor…$/.test(out), 'cut at a word boundary');
+  // The short part's unused room goes to the long one.
+  assert.ok(out.length > 1100);
+  const two = joinSummaries([long, long])!;
+  assert.ok(two.length <= 1200);
+  assert.equal(two.split('…').length - 1, 2);
 });

@@ -57,7 +57,10 @@ export const rubricsForKind = (kind: string): RubricId[] =>
  * numbers are not this packet's claim refs, so the assessor read them as wrong citations. They
  * are renamed "draft-C3" and a note says what they are.
  */
-const DRAFT_REF = /\bC([1-9][0-9]?)\b/g;
+// Review L-2: only in citation positions ("Data: C3", "(C3, C12)", "claims C3 and C5"), so
+// "AWS C5 instances" or "Category C3" are left alone.
+const DRAFT_REF =
+  /(?<=(?:[:(,;[]|\b(?:claims?|cites?|cited|see|and|per|from))\s*)C([1-9][0-9]?)\b/g;
 const draftRefs = (s: string) => s.replace(DRAFT_REF, 'draft-C$1');
 const clip = (s: string, n: number) =>
   s.length > n ? `${s.slice(0, n - 1)}…` : s;
@@ -123,6 +126,8 @@ export type AssessmentPlan =
        * them the packet reads.
        */
       option_coverage: OptionCoverage[];
+      /** Claims the packet reads that are linked to the problem itself (review N-4). */
+      problem_claims_read: number;
     }
   | { ok: false; problem: string; needed: number; input_cap: number };
 
@@ -298,6 +303,11 @@ function planAt(
     if (own) firsts.add(own);
   }
   const eligible = [...firsts, ...tagged.filter((c) => !firsts.has(c))];
+  const problemLinked = new Set(
+    eligible
+      .filter((c) => c.problem !== false)
+      .map((c) => c.evidence.claim.id.toLowerCase()),
+  );
   // Every candidate claim, rendered once; retracted or changed support is not passed on.
   const candidates = eligible.map(({ relation, evidence: e, refs }) => {
     const rows = e.rows.filter(
@@ -455,6 +465,9 @@ function planAt(
           linked: eligible.filter((c) => c.refs.includes(o.ref)).length,
           read: claims.filter((c) => c.options?.includes(o.ref)).length,
         })),
+        problem_claims_read: claims.filter((c) =>
+          problemLinked.has(c.claim_id.toLowerCase()),
+        ).length,
         estimate_for_all,
       };
     if (!claims.length) {
@@ -513,7 +526,11 @@ export const ASSESSMENTS_PER_REQUEST = 4;
  * 12,000). At 16,000 this allows three per request; at 20,000 or more, four.
  */
 export const OUTPUT_CHARS_PER_ASSESSMENT = 5_000;
-/** Assessments per request under the route's answer cap (`max_output_chars`), if it has one. */
+/**
+ * Assessments per request under the route's answer cap (`max_output_chars`), if it has one.
+ * An option is never split across requests, so a build or hybrid option (two rubrics) still
+ * goes as two assessments in one request when this is 1 (an answer cap under 10,000).
+ */
 export const assessmentsPerRequest = (outputCap?: number) =>
   outputCap === undefined
     ? ASSESSMENTS_PER_REQUEST
@@ -784,4 +801,38 @@ export function assessmentScorecards(input: {
       body,
     };
   });
+}
+
+/**
+ * ADR-0091: one summary from a split assessment's parts, at most `max` characters. Shorter
+ * parts keep their full text and pass their unused room to longer ones; a part that still does
+ * not fit is cut at a word boundary where one is near, and ends with an ellipsis.
+ */
+export function joinSummaries(
+  parts: readonly string[],
+  max = 1200,
+): string | null {
+  const texts = parts.map((t) => t.trim()).filter(Boolean);
+  if (!texts.length) return null;
+  let room = max - (texts.length - 1);
+  const keep = new Map<number, number>();
+  const order = texts
+    .map((t, i) => ({ i, n: t.length }))
+    .sort((a, b) => a.n - b.n);
+  order.forEach(({ i, n }, k) => {
+    const share = Math.floor(room / (order.length - k));
+    const take = Math.min(n, share);
+    keep.set(i, take);
+    room -= take;
+  });
+  return texts
+    .map((t, i) => {
+      const n = keep.get(i)!;
+      if (t.length <= n) return t;
+      let cut = t.slice(0, Math.max(0, n - 1));
+      const space = cut.lastIndexOf(' ');
+      if (space > cut.length - 40 && space > 0) cut = cut.slice(0, space);
+      return `${cut.trimEnd()}…`;
+    })
+    .join(' ');
 }

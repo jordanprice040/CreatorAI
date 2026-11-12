@@ -943,3 +943,49 @@ test('ADR-0091: a claim linked to an option is read for that option, and linking
   const gone = await s.store.previewAssessment(owner, s.ws.id, s.problem.id);
   assert.ok(!gone.packet.claims.some((c) => c.claim_id === claim.id));
 });
+
+test('ADR-0091 review L-4: an option link alone marks the assessment stale, and one added after the preview stops the start', async (t) => {
+  const s = await setup(t, new FixtureAdapter());
+  if (!s) return;
+  await s.assess();
+  assert.ok(rows(await s.report()).every((x) => !x.system || !x.stale));
+  const preview = await s.store.previewAssessment(owner, s.ws.id, s.problem.id);
+  // Keep the claim's problem link and also link it to an option: the problem's claim set is
+  // the same, so only the claim:option key can mark the assessment stale.
+  const claimId = preview.packet.claims[0]!.claim_id;
+  const claim = (await s.store.getEntity(owner, s.ws.id, claimId)).entity;
+  const target = preview.packet.options[0]!;
+  const alt = (await s.store.getEntity(owner, s.ws.id, target.alternative_id))
+    .entity;
+  await s.store.createLink(owner, s.ws.id, {
+    relation: 'supports',
+    from: { id: claim.id, version: claim.version },
+    to: { id: alt.id, version: alt.version },
+    rationale: 'Also about this option (test).',
+  });
+  const sys = rows(await s.report()).filter((x) => x.system);
+  assert.ok(sys.length > 0);
+  assert.ok(
+    sys.every(
+      (x) =>
+        x.stale &&
+        x.stale_reasons!.some((r) =>
+          /linked to the problem or its options changed/.test(r),
+        ),
+    ),
+  );
+  const after = await s.store.previewAssessment(owner, s.ws.id, s.problem.id);
+  const read = after.packet.claims.find((c) => c.claim_id === claim.id)!;
+  assert.deepEqual(read.options, [target.ref]);
+  assert.equal(after.problem_claims_read, preview.problem_claims_read);
+  // The preview read before the option link no longer matches what a start would send.
+  const runId = await s.run();
+  await rejects(
+    'VERSION_CONFLICT',
+    s.store.startAssessment(owner, s.ws.id, runId, {
+      ...s.request(),
+      preview_hash: preview.preview_hash,
+    }),
+    /changed since the preview/,
+  );
+});

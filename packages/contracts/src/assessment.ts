@@ -199,5 +199,7 @@ export const AssessmentPreviewSchema = z.strictObject({
       }),
     )
     .max(8),
+  /** Claims the packet reads that are linked to the problem itself (not only to options). */
+  problem_claims_read: z.number().int().min(0),
 });
 export type AssessmentPreview = z.infer<typeof AssessmentPreviewSchema>;

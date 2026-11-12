@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import {
   EntityDetailSchema,
   StoredEntitySchema,
@@ -17,6 +17,11 @@ import {
   type SuggestableClaim,
 } from './claim-suggest.js';
 import { requestWebSearch } from './web-search-handoff.js';
+import { ReasonForm } from './reason-form.js';
+import { REASON_MAX } from './owner-actions.js';
+
+/** The entity list route returns the newest 500 (`listEntities`); say so when a list is full. */
+const LIST_LIMIT = 500;
 
 // ADR-0091: linking recorded claims to a problem or one of its options from the web app (it
 // was CLI-only). A link is a "supports" link, claim → problem or claim → option: the evidence
@@ -130,6 +135,7 @@ export function LinkClaims({
   );
   const [picked, setPicked] = useState<Set<string> | null>(null);
   const ticked = picked ?? new Set(suggested);
+  const uid = useId();
   const [filter, setFilter] = useState('');
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
@@ -177,7 +183,8 @@ export function LinkClaims({
       setNote(
         `Linked ${r.linked} claim${r.linked === 1 ? '' : 's'}. Earlier automatic assessments of this problem are now stale; assess again to read ${r.linked === 1 ? 'it' : 'them'}.`,
       );
-      setPicked(new Set());
+      // Back to the default: whatever is suggested after the refresh starts ticked.
+      setPicked(null);
       data.refresh();
       onLinked();
     }
@@ -224,11 +231,14 @@ export function LinkClaims({
           })}
         </ul>
       )}
-      <label htmlFor={`lc-filter-${target.id}`} className="small">
+      <label htmlFor={`lc-filter-${uid}`} className="small">
         Find another claim
+        {d.claims.length >= LIST_LIMIT
+          ? ` (searches the newest ${LIST_LIMIT} claims)`
+          : ''}
       </label>
       <input
-        id={`lc-filter-${target.id}`}
+        id={`lc-filter-${uid}`}
         type="search"
         value={filter}
         placeholder="Words in the claim"
@@ -243,10 +253,9 @@ export function LinkClaims({
         >
           {busy
             ? 'Linking…'
-            : `Link ${ticked.size || ''} claim${ticked.size === 1 ? '' : 's'} to ${what}`.replace(
-                '  ',
-                ' ',
-              )}
+            : ticked.size
+              ? `Link ${ticked.size} claim${ticked.size === 1 ? '' : 's'} to ${what}`
+              : `Link claims to ${what}`}
         </button>{' '}
         <button
           type="button"
@@ -313,20 +322,66 @@ export function ClaimLinks({
         `${base}/entities?kind=alternative&status=active`,
       ),
     ]);
-    return { detail, problems, options };
+    // Names of what the claim is linked to, read by id so a record past the newest 500 is
+    // still named (review L-3).
+    const listed = new Set(
+      [...problems, ...options].map((e) => e.id.toLowerCase()),
+    );
+    const linkedIds = [
+      ...new Set(
+        [
+          ...detail.outgoing.map((l) => l.to.id),
+          ...detail.incoming.map((l) => l.from.id),
+        ]
+          .map((x) => x.toLowerCase())
+          .filter((x) => !listed.has(x)),
+      ),
+    ];
+    const extra = (
+      await Promise.all(
+        linkedIds.map((x) =>
+          api(EntityDetailSchema, `${base}/entities/${x}`).then(
+            (r) => r.entity,
+            () => null,
+          ),
+        ),
+      )
+    ).filter(
+      (e): e is StoredEntity =>
+        !!e && (e.kind === 'problem' || e.kind === 'alternative'),
+    );
+    return { detail, problems, options, extra };
   }, [workspace.id, claimId]);
+  const uid = useId();
+  // The supports link whose Unlink reason form is open.
+  const [unlinking, setUnlinking] = useState('');
   const [problemId, setProblemId] = useState('');
   const opts = useLoad(async () => {
     if (!problemId) return [];
     const p = await api(EntityDetailSchema, `${base}/entities/${problemId}`);
-    return p.incoming
-      .filter(
-        (l) =>
-          !l.retracted_at &&
-          l.relation === 'derived_from' &&
-          l.from.kind === 'alternative',
+    // The problem's options, read by id (review L-3: not limited to the newest 500).
+    const ids = [
+      ...new Set(
+        p.incoming
+          .filter(
+            (l) =>
+              !l.retracted_at &&
+              l.relation === 'derived_from' &&
+              l.from.kind === 'alternative',
+          )
+          .map((l) => l.from.id.toLowerCase()),
+      ),
+    ];
+    return (
+      await Promise.all(
+        ids.map((x) =>
+          api(EntityDetailSchema, `${base}/entities/${x}`).then(
+            (r) => r.entity,
+            () => null,
+          ),
+        ),
       )
-      .map((l) => l.from.id.toLowerCase());
+    ).filter((e): e is StoredEntity => !!e && e.status === 'active');
   }, [workspace.id, problemId]);
   const [targetId, setTargetId] = useState('');
   const [busy, setBusy] = useState(false);
@@ -336,7 +391,10 @@ export function ClaimLinks({
   if (data.error) return <p className="error small">{data.error}</p>;
   if (!d) return null;
   const names = new Map(
-    [...d.problems, ...d.options].map((e) => [e.id.toLowerCase(), e]),
+    [...d.problems, ...d.options, ...d.extra, ...(opts.data ?? [])].map((e) => [
+      e.id.toLowerCase(),
+      e,
+    ]),
   );
   // Claim → problem or option links, and "problem derived_from claim" (a drafted problem).
   const links = [
@@ -357,7 +415,7 @@ export function ClaimLinks({
       )
       .map((l) => ({ link: l, kind: l.from.kind, id: l.from.id })),
   ];
-  const optionChoices = (opts.data ?? []).flatMap((id) => names.get(id) ?? []);
+  const optionChoices = opts.data ?? [];
   const target = names.get((targetId || problemId).toLowerCase());
   const already = links.some(
     (l) => l.id.toLowerCase() === target?.id.toLowerCase(),
@@ -384,19 +442,22 @@ export function ClaimLinks({
       onChanged?.();
     }
   }
-  async function unlink(l: StoredLink) {
+  /** Retracts a claim → problem or option "supports" link, with the person's reason. */
+  async function unlink(l: StoredLink, reason: string) {
     setError('');
     setNote('');
     try {
       await api(StoredLinkSchema, `${base}/links/${l.id}/retract`, {
         csrf: session.csrf_token,
-        body: { reason: 'Unlinked from Sources.' },
+        body: { reason },
       });
-      data.refresh();
-      onChanged?.();
     } catch (e) {
-      setError(message(e));
+      return message(e);
     }
+    setUnlinking('');
+    data.refresh();
+    onChanged?.();
+    return null;
   }
   return (
     <div className="claim-links">
@@ -409,19 +470,38 @@ export function ClaimLinks({
               <li key={l.id}>
                 {kind === 'problem' ? 'Problem' : 'Option'}:{' '}
                 {e ? clip(e.title, 100) : `${kind} ${id.slice(0, 8)}`}
-                {l.relation === 'derived_from' ? ' (drafted from it)' : ''}
-                {editor && (
-                  <>
-                    {' '}
-                    <button
-                      type="button"
-                      className="text"
-                      onClick={() => void unlink(l)}
-                    >
-                      Unlink
-                    </button>
-                  </>
-                )}
+                {/* Review M-1: "drafted from" is the problem's lineage, not an evidence link
+                    to undo here, so it has no Unlink. */}
+                {l.relation === 'derived_from'
+                  ? ' (the problem was drafted from it; an assessment always reads it)'
+                  : ''}
+                {editor &&
+                  l.relation !== 'derived_from' &&
+                  (unlinking === l.id ? (
+                    <ReasonForm
+                      id={`unlink-${l.id}`}
+                      label="Why this claim is not evidence about it"
+                      placeholder="e.g. it is about a different tool"
+                      note="Assessments stop reading this claim for it, and earlier automatic assessments become stale. The link stays on record, marked retracted; you can link the claim again."
+                      confirm="Unlink"
+                      busyLabel="Unlinking…"
+                      keep="Keep it"
+                      max={REASON_MAX.retract}
+                      onCancel={() => setUnlinking('')}
+                      onConfirm={(reason) => unlink(l, reason)}
+                    />
+                  ) : (
+                    <>
+                      {' '}
+                      <button
+                        type="button"
+                        className="text"
+                        onClick={() => setUnlinking(l.id)}
+                      >
+                        Unlink…
+                      </button>
+                    </>
+                  ))}
               </li>
             );
           })}
@@ -434,9 +514,12 @@ export function ClaimLinks({
       {editor && d.problems.length > 0 && (
         <div className="two">
           <div>
-            <label htmlFor="cl-problem">Link to problem</label>
+            <label htmlFor={`cl-problem-${uid}`}>
+              Link to problem
+              {d.problems.length >= LIST_LIMIT ? ` (newest ${LIST_LIMIT})` : ''}
+            </label>
             <select
-              id="cl-problem"
+              id={`cl-problem-${uid}`}
               value={problemId}
               onChange={(e) => {
                 setProblemId(e.target.value);
@@ -452,9 +535,9 @@ export function ClaimLinks({
             </select>
           </div>
           <div>
-            <label htmlFor="cl-option">About</label>
+            <label htmlFor={`cl-option-${uid}`}>About</label>
             <select
-              id="cl-option"
+              id={`cl-option-${uid}`}
               value={targetId}
               disabled={!problemId}
               onChange={(e) => setTargetId(e.target.value)}

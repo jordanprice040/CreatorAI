@@ -660,7 +660,7 @@ function Coverage({
   const bare = preview.option_coverage.filter((c) => c.read === 0);
   if (!bare.length) return null;
   const total = preview.packet.options.length;
-  const shared = preview.packet.claims.filter((c) => !c.options).length;
+  const shared = preview.problem_claims_read;
   const option = (ref: string) =>
     preview.packet.options.find((o) => o.ref === ref)!;
   const toggle = (key: string) => setOpenRef((k) => (k === key ? '' : key));
@@ -689,7 +689,7 @@ function Coverage({
                 {' '}
                 ·{' '}
                 {c.linked
-                  ? `${c.linked} linked claim${c.linked === 1 ? '' : 's'} left out to fit the input cap`
+                  ? `${c.linked} linked claim${c.linked === 1 ? '' : 's'} not read (input cap or the 30-claim limit)`
                   : 'no linked claim'}
               </span>
               {canLink && (
@@ -1099,7 +1099,7 @@ export function RangeWhy({
                 className="text"
                 onClick={() => onFill(null)}
               >
-                Rate the unknowns on your own card
+                Score this option yourself
               </button>{' '}
               ·{' '}
             </>
