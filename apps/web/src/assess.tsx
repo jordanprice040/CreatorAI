@@ -456,7 +456,9 @@ export function AutoAssess({
         unknown. The studio checks every reference, records one scorecard per
         option and rubric, and computes the totals and ranks itself. You can
         edit any rating below as your own scorecard; the original stays. Only
-        you can clear an ethics or access gate, and nothing is selected for you.
+        you clear ethics and access gates, unless you chose in Settings › Team
+        profile to let your team profile or the model’s word clear them, and
+        nothing is selected for you.
       </p>
       {ctx.error && <p className="error">{ctx.error}</p>}
       {c && (
@@ -815,6 +817,22 @@ function Packet({ packet }: { packet: AssessmentPacket }) {
         </ul>
       ) : (
         <p>No claims are linked to this problem.</p>
+      )}
+      {packet.team ? (
+        <>
+          <p>Team profile v{packet.team.version}:</p>
+          <ul>
+            {packet.team.capabilities.map((t) => (
+              <li key={t.capability}>
+                {t.capability}: {t.status} ({t.basis})
+                {t.note ? ` · ${t.note}` : ''}
+              </li>
+            ))}
+          </ul>
+          {packet.team.notes && <p>Team notes: {packet.team.notes}</p>}
+        </>
+      ) : (
+        <p>No team profile is saved, so none is sent.</p>
       )}
       <p>
         Rubrics:{' '}

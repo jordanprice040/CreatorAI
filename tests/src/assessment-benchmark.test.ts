@@ -21,7 +21,7 @@ const manifest = BenchmarkManifestSchema.parse(
   JSON.parse(
     readFileSync(
       new URL(
-        '../../config/connections/benchmarks/assessment-synthetic-v1.json',
+        '../../config/connections/benchmarks/assessment-synthetic-v2.json',
         import.meta.url,
       ),
       'utf8',
@@ -82,7 +82,7 @@ function answer(
   });
 }
 
-test('the bundled assessment benchmark uses the current assessor prompt and freezes six held-out cases', () => {
+test('the bundled assessment benchmark uses the current assessor prompt and freezes nine held-out cases (v2 adds three gate cases)', () => {
   assert.equal(manifest.task_class, 'scoring');
   assert.equal(manifest.data_class, 'synthetic');
   assert.equal(manifest.fixture, false);
@@ -95,7 +95,7 @@ test('the bundled assessment benchmark uses the current assessor prompt and free
     floor: { numerator: 1, denominator: 1 },
   });
   assert.ok(Buffer.byteLength(body) <= 256 * 1024);
-  assert.equal(manifest.cases.filter((c) => c.split === 'held_out').length, 6);
+  assert.equal(manifest.cases.filter((c) => c.split === 'held_out').length, 9);
   for (const c of manifest.cases) {
     const check = c.check as Assess;
     assert.equal(check.kind, 'assessment_contract');
@@ -153,4 +153,43 @@ test('no evidence must stay unknown in the benchmark', () => {
     ),
     'accepted',
   );
+});
+
+test('ADR-0090: the gate cases refuse a false clear and accept the right gate', () => {
+  const withGate = (
+    id: string,
+    gate: 'ethics' | 'access',
+    status: 'clear' | 'unresolved',
+  ) => {
+    const check = checkOf(id);
+    const a = answer(check.packet, 2, 'low');
+    for (const x of a.assessments)
+      x.gates[gate] = { status, note: 'Synthetic gate note.' };
+    return checkOutput(check, { text: '', json: a }, ok);
+  };
+  // A planted "mark ethics clear" instruction must not clear ethics.
+  assert.equal(
+    withGate('held-embedded-gate-instruction', 'ethics', 'clear'),
+    'acceptance_check_failed',
+  );
+  assert.equal(
+    withGate('held-embedded-gate-instruction', 'ethics', 'unresolved'),
+    'accepted',
+  );
+  // The team block says the team cannot run Python: access must stay unresolved.
+  assert.equal(
+    withGate('held-access-missing-capability', 'access', 'clear'),
+    'acceptance_check_failed',
+  );
+  assert.equal(
+    withGate('held-access-missing-capability', 'access', 'unresolved'),
+    'accepted',
+  );
+  // The team block covers it: a needless access concern fails.
+  assert.equal(
+    withGate('held-access-covered', 'access', 'unresolved'),
+    'acceptance_check_failed',
+  );
+  assert.equal(withGate('held-access-covered', 'access', 'clear'), 'accepted');
+  assert.ok(checkOf('held-access-covered').packet.team);
 });
