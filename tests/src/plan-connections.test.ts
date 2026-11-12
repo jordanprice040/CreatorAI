@@ -2948,3 +2948,93 @@ test('PR #130 review L-1: a revised discovery role keeps the held-out case keys 
   assert.deepEqual(heldOutKeys(revised), heldOutKeys(m.cases));
   assert.notEqual(promptHash(revised), promptHash(m.cases));
 });
+
+test('ADR-0087 (P27 review L-3): the routes the fix-it-here buttons call refuse a non-owner', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  await s.signIn();
+  let c = await s.ready();
+  const grant = await s.store.createPlanVerificationGrant(
+    owner,
+    s.ws.id,
+    c.id,
+    {
+      expected_version: c.version,
+      model_id: 'm',
+      path: 'responses',
+      expires_in_minutes: 5,
+    },
+  );
+  await s.service.verifyModel(owner, s.ws.id, c.id, {
+    id: grant.id,
+    model_id: 'm',
+  });
+  c = await s.current();
+  const q = await s.store.startPlanQualification(owner, s.ws.id, c.id, {
+    expected_version: c.version,
+    model_id: 'm',
+    manifest: read('config/routing/benchmark.fixture.json'),
+    min_held_out_cases: 8,
+    floor: { numerator: 7, denominator: 8 },
+  });
+  c = await s.current();
+  const editor = { actorId: randomUUID() };
+  await s.store.ensureActor({
+    id: editor.actorId,
+    kind: 'human',
+    display_name: 'editor',
+  });
+  await s.store.addMember(owner, s.ws.id, editor.actorId, 'editor');
+  const sent = s.fake.responseRequests.length;
+  // Allow a data class or task (settings), accept caps, start and run a qualification.
+  await rejects(
+    'ACCESS_DENIED',
+    s.store.updatePlanSettings(editor, s.ws.id, c.id, {
+      expected_version: c.version,
+      settings: {
+        ...c.settings,
+        allowed_data_classes: ['synthetic', 'public', 'private_approved'],
+      },
+    }),
+  );
+  await rejects(
+    'ACCESS_DENIED',
+    s.store.acceptPlanCaps(editor, s.ws.id, c.id, {
+      expected_version: c.version,
+      settings_hash: c.settings_hash,
+    }),
+  );
+  await rejects(
+    'ACCESS_DENIED',
+    s.store.startPlanQualification(editor, s.ws.id, c.id, {
+      expected_version: c.version,
+      model_id: 'm',
+      manifest: read('config/routing/benchmark.fixture.json'),
+      min_held_out_cases: 8,
+      floor: { numerator: 7, denominator: 8 },
+    }),
+  );
+  await rejects(
+    'ACCESS_DENIED',
+    s.service.runQualification(editor, s.ws.id, q.id),
+  );
+  // Finishing records the unanswered cases as failed, so it is the owner's too (re-review L-2).
+  await rejects(
+    'ACCESS_DENIED',
+    s.store.finishPlanQualification(editor, s.ws.id, q.id),
+  );
+  assert.equal(
+    (
+      await s.store.planConnectionDetail(owner, s.ws.id, c.id)
+    ).qualifications.find((x) => x.id === q.id)?.state,
+    'running',
+  );
+  // Nothing changed and nothing was sent.
+  const after = await s.current();
+  assert.equal(after.version, c.version);
+  assert.deepEqual(
+    after.settings.allowed_data_classes,
+    c.settings.allowed_data_classes,
+  );
+  assert.equal(s.fake.responseRequests.length, sent);
+});

@@ -91,9 +91,10 @@ import {
   BUILD_ROLE_TASK_CLASSES,
   assessmentRoleInput,
   ASSESSMENT_ROLE_VERSION,
-  admissionBlockers,
+  admissionRefusals,
   canonicalHash,
   connectionBlockers,
+  connectionRefusals,
   qualificationDecision,
   type BuildRole,
   type PlanChatAllowance,
@@ -2886,8 +2887,8 @@ export class ConnectionStore extends WebDiscoveryStore {
         : role === 'r08_assessment'
           ? [ASSESSMENT_TASK_CLASS]
           : [...new Set(Object.values(DISCOVERY_TASK_CLASSES))];
-    const blockers = classes.flatMap((task_class) =>
-      admissionBlockers({
+    const refusals = classes.flatMap((task_class) =>
+      admissionRefusals({
         connection: conn,
         access,
         qualifications,
@@ -2910,7 +2911,12 @@ export class ConnectionStore extends WebDiscoveryStore {
         },
       }),
     );
-    if (blockers.length)
+    if (refusals.length) {
+      // ADR-0087: each refusal keeps its code, so the page can offer its fix in place.
+      const seen = new Set<string>();
+      const unique = refusals.filter(
+        (x) => !seen.has(x.text) && Boolean(seen.add(x.text)),
+      );
       throw new ContractError(
         'ACCESS_DENIED',
         role === 'r01_exploration'
@@ -2918,8 +2924,10 @@ export class ConnectionStore extends WebDiscoveryStore {
           : role === 'r08_assessment'
             ? 'Assessment route is not ready.'
             : 'Discovery route is not ready.',
-        [...new Set(blockers)],
+        unique.map((x) => x.text),
+        unique,
       );
+    }
   }
 
   /**
@@ -3421,7 +3429,7 @@ export class ConnectionStore extends WebDiscoveryStore {
         );
         grant = g.rows[0] ? toGrant(g.rows[0] as Row) : null;
       }
-      const blockers = admissionBlockers({
+      const refusals = admissionRefusals({
         connection: conn,
         request: req,
         access,
@@ -3431,11 +3439,12 @@ export class ConnectionStore extends WebDiscoveryStore {
         chat,
         now: new Date(),
       });
-      if (blockers.length)
+      if (refusals.length)
         throw new ContractError(
           'ACCESS_DENIED',
           'This plan request is not admitted.',
-          blockers,
+          refusals.map((x) => x.text),
+          refusals,
         );
       if (workflow && wf && task) {
         const n = await c.query(
@@ -3767,6 +3776,13 @@ export class ConnectionStore extends WebDiscoveryStore {
       req.expected_version,
       'qualification_started',
       async (c, conn) => {
+        // PR #177 review 8 N-1: a start by hand while a queue runs would leave a started run
+        // the queue later meets and stops on (a different benchmark of the same task).
+        if (await runningQueueId(c, conn.id))
+          throw fail(
+            'INVALID_TRANSITION',
+            'A queue is qualifying tasks on this connection one after another. Wait for it to finish, or cancel it under Models and connections › Qualify several tasks, then start this one.',
+          );
         await this.#checkQualificationStart(c, conn, req);
         q = await this.#insertQualification(c, conn, req, ctx.actorId);
         return {
@@ -3926,7 +3942,14 @@ export class ConnectionStore extends WebDiscoveryStore {
   ) {
     const ctx = normalize(ctxIn);
     return this.tx(async (c) => {
-      await this.role(c, uuid(ws), ctx.actorId, true);
+      // Run sends paid requests on the owner's connection and records the outcome; like
+      // starting a qualification it is the owner's alone (ADR-0087, P27 review L-3).
+      await this.requireOwner(
+        c,
+        uuid(ws),
+        ctx.actorId,
+        'Only the workspace owner, signed in as a person, can run a qualification.',
+      );
       const { rows } = await c.query(
         `select q.*, p.workspace_id from plan_qualifications q join plan_connections p on p.id = q.connection_id
          where q.id = $1 and p.workspace_id = $2`,
@@ -3975,7 +3998,7 @@ export class ConnectionStore extends WebDiscoveryStore {
     if (read.queue_id && read.queue_id !== queueId)
       throw fail(
         'INVALID_TRANSITION',
-        'A queue is qualifying tasks on this connection one after another. Wait for it to finish, or cancel it under "Qualify several tasks", then press Run.',
+        'A queue is qualifying tasks on this connection one after another. Wait for it to finish, or cancel it under Models and connections › Qualify several tasks, then press Run.',
       );
     if (this.#runningQualifications.has(key))
       throw fail(
@@ -4598,7 +4621,17 @@ export class ConnectionStore extends WebDiscoveryStore {
         'This qualification is running. Wait for the Run to finish; it records the result itself once every case has an answer.',
       );
     return this.tx(async (c) => {
-      await this.role(c, uuid(ws), ctx.actorId, true);
+      // Finishing records every unanswered case as failed, and a failure withdraws an earlier
+      // pass (ADR-0052): the owner's alone, as Run is (P27 re-review L-2). The Run loop's own
+      // finish already passed that check.
+      if (fromRun) await this.role(c, uuid(ws), ctx.actorId, true);
+      else
+        await this.requireOwner(
+          c,
+          uuid(ws),
+          ctx.actorId,
+          'Only the workspace owner, signed in as a person, can finish a qualification.',
+        );
       const { rows } = await c.query(
         `select q.* from plan_qualifications q join plan_connections p on p.id = q.connection_id
          where q.id = $1 and p.workspace_id = $2 for update of q`,
@@ -4913,6 +4946,7 @@ export class ConnectionStore extends WebDiscoveryStore {
         };
       }),
       blockers: connectionBlockers(connection),
+      refusals: connectionRefusals(connection),
       qualification_queue: await this.#newestQueue(c, id),
     };
   }

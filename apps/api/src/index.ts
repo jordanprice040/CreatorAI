@@ -2455,7 +2455,12 @@ export function createApi(
       const status = statusFor[e.code] ?? 400;
       if (!res.destroyed && !res.headersSent)
         respond(res, status, {
-          error: { code: e.code, message: e.message, details: e.details },
+          error: {
+            code: e.code,
+            message: e.message,
+            details: e.details,
+            ...(e.reasons.length ? { reasons: e.reasons } : {}),
+          },
         });
     });
   });

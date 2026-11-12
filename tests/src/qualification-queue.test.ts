@@ -197,6 +197,18 @@ test('ADR-0088: a queue runs its tasks in order, each started once, and finishes
     'INVALID_TRANSITION',
     /queue is qualifying tasks/,
   );
+  // So is a start by hand (PR #177 review 8 N-1): the queue would later meet that run.
+  await refused(
+    s.store.startPlanQualification(owner, s.ws.id, s.conn.id, {
+      expected_version: (await s.current()).version,
+      model_id: 'm',
+      manifest: bench('summarization'),
+      min_held_out_cases: 8,
+      floor: { numerator: 1, denominator: 1 },
+    }),
+    'INVALID_TRANSITION',
+    /queue is qualifying tasks/,
+  );
   hold = false;
   release();
   held = Promise.resolve();
