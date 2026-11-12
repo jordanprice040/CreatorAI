@@ -4,6 +4,8 @@ import { AssessmentPacketSchema, type ClaimEvidence } from '@creator/contracts';
 import {
   ASSESSMENTS_PER_REQUEST,
   assessmentPreviewHash,
+  assessmentsPerRequest,
+  joinSummaries,
   assessmentRequestChars,
   assessmentRoleInput,
   buildAssessmentPacket,
@@ -277,4 +279,168 @@ test('one option that does not fit alone is refused with what it needs and where
   if (api.ok) return;
   assert.doesNotMatch(api.problem, /cap under Models/);
   assert.match(api.problem, /Shorten its rationale or trade-offs\.$/);
+});
+
+test('ADR-0091: claims linked to an option are read, tagged with it, and come first so a tight cap still covers each option', () => {
+  const base = large(24_000);
+  const extra = option(9, 'build', true);
+  const plan = buildAssessmentPacket({
+    ...base,
+    alternatives: [...base.alternatives, extra],
+    claims: [
+      ...base.claims.slice(0, 10),
+      // Option-only claims: one on O5, one on O6 and O2, one on the ninth (not assessed).
+      {
+        relation: 'supports' as const,
+        evidence: claimEvidence(31, 600),
+        options: [uid(2005)],
+        problem: false,
+      },
+      {
+        relation: 'supports' as const,
+        evidence: claimEvidence(32, 600),
+        options: [uid(2006).toUpperCase(), uid(2002)],
+        problem: false,
+      },
+      {
+        relation: 'supports' as const,
+        evidence: claimEvidence(33, 600),
+        options: [extra.id],
+        problem: false,
+      },
+    ],
+  });
+  assert.ok(plan.ok);
+  AssessmentPacketSchema.parse(plan.packet);
+  // Each option's first own claim in option order, then the problem's claims.
+  assert.deepEqual(
+    plan.packet.claims
+      .slice(0, 2)
+      .map((c) => [c.claim_id, c.options, c.relation]),
+    [
+      [uid(1032), ['O2', 'O6'], 'supports'],
+      [uid(1031), ['O5'], 'supports'],
+    ],
+  );
+  assert.ok(plan.packet.claims.slice(2).every((c) => c.options === undefined));
+  // The ninth option's claim is neither read nor counted as left out.
+  assert.ok(!plan.packet.claims.some((c) => c.claim_id === uid(1033)));
+  assert.equal(plan.packet.claims.length + plan.claims_left_out, 12);
+  assert.ok(plan.packet.notes.some((n) => /with an options list/.test(n)));
+  const cov = Object.fromEntries(
+    plan.option_coverage.map((c) => [c.ref, [c.linked, c.read]]),
+  );
+  assert.deepEqual(cov, {
+    O1: [0, 0],
+    O2: [1, 1],
+    O3: [0, 0],
+    O4: [0, 0],
+    O5: [1, 1],
+    O6: [1, 1],
+    O7: [0, 0],
+    O8: [0, 0],
+  });
+  // A claim linked to the problem and an option keeps its problem relation and its tag.
+  const both = buildAssessmentPacket({
+    ...small(),
+    claims: [
+      {
+        relation: 'contradicts' as const,
+        evidence: claimEvidence(1),
+        options: [uid(2002)],
+      },
+    ],
+  });
+  assert.ok(both.ok);
+  assert.deepEqual(
+    both.packet.claims.map((c) => [c.relation, c.options]),
+    [['contradicts', ['O2']]],
+  );
+  assert.deepEqual(
+    both.option_coverage.map((c) => c.read),
+    [0, 1],
+  );
+});
+
+test('ADR-0091: requests also fit the answer cap: fewer assessments per request under a smaller output cap', () => {
+  assert.equal(assessmentsPerRequest(), ASSESSMENTS_PER_REQUEST);
+  assert.equal(assessmentsPerRequest(16_000), 3);
+  assert.equal(assessmentsPerRequest(32_000), 4);
+  assert.equal(assessmentsPerRequest(2_000), 1);
+  const per = (outputCap?: number) => {
+    const plan = buildAssessmentPacket({
+      ...large(200_000, 'mid'),
+      ...(outputCap ? { output_cap: outputCap } : {}),
+    });
+    assert.ok(plan.ok);
+    return plan.batches.map((refs) =>
+      packetForOptions(plan.packet, refs).options.reduce(
+        (n, o) => n + o.rubrics.length,
+        0,
+      ),
+    );
+  };
+  assert.ok(per().every((n) => n <= 4));
+  assert.ok(per(16_000).every((n) => n <= 3));
+  assert.ok(per(16_000).length > per().length);
+  // One option still goes alone even when its two rubrics pass the per-request number.
+  assert.ok(per(2_000).every((n) => n <= 2));
+});
+
+test('ADR-0091: option texts citing the drafting packet ("C3") are renamed draft-C3 and explained', () => {
+  const s = small();
+  const plan = buildAssessmentPacket({
+    ...s,
+    alternatives: [
+      {
+        ...s.alternatives[0]!,
+        rationale: 'Uses the export (C3, C12).',
+        tradeoffs: [
+          'Feasibility: Data: C3.',
+          'CSV and C99X stay as they are.',
+          'Runs on AWS C5 instances; Category C3 users; claims C4 and C5.',
+          'Claims C3 and C5 agree. See C7.',
+          'Exports (C3–C5) and from C2 to C4.',
+          'Claims C3 or C5, C3/C5 & C6; Data: C3 through C5 to C7.',
+          'Compare C3 and C5. Ref C3, C4. C3 shows exports; CLAIMS C8.',
+          // Eight trade-offs at most are kept, so the last cases share one.
+          'Claims C3 OR C5; Data: C3 To C5; already draft-C3 and C4. Mixed draft-C3 or C4; Compare C3 and draft-C5; Draft-C3 and C4; DRAFT–C6 to C7.',
+        ],
+      },
+      s.alternatives[1]!,
+    ],
+  });
+  assert.ok(plan.ok);
+  const o = plan.packet.options[0]!;
+  assert.equal(o.rationale, 'Uses the export (draft-C3, draft-C12).');
+  assert.deepEqual(o.tradeoffs, [
+    'Feasibility: Data: draft-C3.',
+    'CSV and C99X stay as they are.',
+    'Runs on AWS C5 instances; Category C3 users; claims draft-C4 and draft-C5.',
+    'Claims draft-C3 and draft-C5 agree. See draft-C7.',
+    'Exports (draft-C3–draft-C5) and from draft-C2 to draft-C4.',
+    'Claims draft-C3 or draft-C5, draft-C3/draft-C5 & draft-C6; Data: draft-C3 through draft-C5 to draft-C7.',
+    'Compare draft-C3 and draft-C5. Ref draft-C3, draft-C4. C3 shows exports; CLAIMS draft-C8.',
+    'Claims draft-C3 OR draft-C5; Data: draft-C3 To draft-C5; already draft-C3 and draft-C4. Mixed draft-C3 or draft-C4; Compare draft-C3 and draft-C5; Draft-C3 and draft-C4; DRAFT–C6 to draft-C7.',
+  ]);
+  assert.ok(plan.packet.notes.some((n) => /draft-C/.test(n)));
+  const plain = buildAssessmentPacket(small());
+  assert.ok(plain.ok);
+  assert.ok(!plain.packet.notes.some((n) => /draft-C/.test(n)));
+});
+
+test('ADR-0091 review N-1: a split summary keeps short parts whole and cuts a long one with an ellipsis', () => {
+  assert.equal(joinSummaries([]), null);
+  assert.equal(joinSummaries(['One.', '  ']), 'One.');
+  const long = 'word '.repeat(400).trim();
+  const out = joinSummaries(['Short part.', long])!;
+  assert.ok(out.length <= 1200, String(out.length));
+  assert.ok(out.startsWith('Short part. '));
+  assert.ok(out.endsWith('…'));
+  assert.ok(!/wor…$/.test(out), 'cut at a word boundary');
+  // The short part's unused room goes to the long one.
+  assert.ok(out.length > 1100);
+  const two = joinSummaries([long, long])!;
+  assert.ok(two.length <= 1200);
+  assert.equal(two.split('…').length - 1, 2);
 });

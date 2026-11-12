@@ -613,7 +613,9 @@ test('review fixes: an unlinked claim marks assessments stale; edits move on to 
   assert.ok(sys.length > 0);
   assert.ok(
     sys.every((x) =>
-      x.stale_reasons!.some((r) => /linked to the problem changed/.test(r)),
+      x.stale_reasons!.some((r) =>
+        /linked to the problem or its options changed/.test(r),
+      ),
     ),
   );
 });
@@ -880,4 +882,172 @@ test('P25: the preview sizes requests to the chosen plan connection input cap, a
   );
   const workflows = await s.store.listWorkflows(owner, s.ws.id);
   assert.ok(!workflows.some((w) => w.run_id === runId));
+});
+
+test('ADR-0091 re-review 2 N-5: a run output cap below the connection cap sizes the start to the smaller one', async (t) => {
+  const s = await setup(t, new FixtureAdapter());
+  if (!s) return;
+  const connections = new ConnectionStore(s.db.pool);
+  const settings = JSON.parse(
+    readFileSync(
+      new URL('../../config/connections/chatgpt-plan.json', import.meta.url),
+      'utf8',
+    ),
+  ) as PlanConnection['settings'];
+  const conn = await connections.createPlanConnection(owner, s.ws.id, {
+    kind: 'chatgpt_plan',
+    label: 'Wide answers',
+    settings: {
+      ...settings,
+      caps: {
+        ...settings.caps,
+        responses: {
+          ...settings.caps.responses,
+          max_input_chars: 200_000,
+          max_output_chars: 16_000,
+        },
+      },
+    },
+  });
+  const preview = await s.store.previewAssessment(
+    owner,
+    s.ws.id,
+    s.problem.id,
+    conn.id,
+  );
+  // One assessment per request at a 5,000-character answer cap: more requests than the
+  // preview sized to the connection's 16,000, so a one-task limit is refused with that count.
+  const runId = await s.run();
+  const refused = await s.store
+    .startAssessment(
+      owner,
+      s.ws.id,
+      runId,
+      s.request(s.problem.version, {
+        resource_setup: {
+          kind: 'subscription',
+          connection_id: conn.id,
+          model_id: 'gpt-test',
+          settings_hash: conn.settings_hash,
+          max_output_chars: 5_000,
+        },
+        limits: { ...s.request().limits, max_children: 1 },
+      }),
+    )
+    .then(
+      () => null,
+      (e: unknown) => (e instanceof ContractError ? e.message : String(e)),
+    );
+  const taken = Number(/takes (\d+) requests/.exec(refused ?? '')?.[1]);
+  assert.ok(taken > preview.requests, `${refused} vs ${preview.requests}`);
+});
+
+test('ADR-0091: a claim linked to an option is read for that option, and linking one marks the assessment stale', async (t) => {
+  const s = await setup(t, new FixtureAdapter());
+  if (!s) return;
+  await s.assess();
+  assert.ok(rows(await s.report()).every((x) => !x.stale));
+  const before = await s.store.previewAssessment(owner, s.ws.id, s.problem.id);
+  assert.ok(before.option_coverage.every((c) => c.linked === 0));
+  // Move one problem claim onto the second option only.
+  const link = (
+    await s.db.pool.query<{ id: string; from_id: string }>(
+      `select id, from_id from entity_links where workspace_id = $1 and to_id = $2
+         and from_kind = 'claim' and retracted_at is null order by from_id limit 1`,
+      [s.ws.id, s.problem.id],
+    )
+  ).rows[0]!;
+  await s.store.retractLink(owner, s.ws.id, link.id, { reason: 'Test.' });
+  const claim = (await s.store.getEntity(owner, s.ws.id, link.from_id)).entity;
+  const target = before.packet.options[1]!;
+  const alt = (await s.store.getEntity(owner, s.ws.id, target.alternative_id))
+    .entity;
+  await s.store.createLink(owner, s.ws.id, {
+    relation: 'supports',
+    from: { id: claim.id, version: claim.version },
+    to: { id: alt.id, version: alt.version },
+    rationale: 'Evidence about this option (test).',
+  });
+  const after = await s.store.previewAssessment(owner, s.ws.id, s.problem.id);
+  const read = after.packet.claims.find((c) => c.claim_id === claim.id);
+  assert.ok(read, 'the option claim is in the packet');
+  assert.deepEqual(read.options, [target.ref]);
+  assert.equal(read.relation, 'supports');
+  assert.equal(after.packet.claims.length, before.packet.claims.length);
+  assert.deepEqual(
+    after.option_coverage.map((c) => [c.ref, c.linked, c.read]),
+    after.packet.options.map((o) =>
+      o.ref === target.ref ? [o.ref, 1, 1] : [o.ref, 0, 0],
+    ),
+  );
+  // The earlier assessment did not read it as option evidence: stale (the set changed when
+  // the problem link was retracted, and stays changed with the option link).
+  const r = await s.report();
+  assert.ok(
+    rows(r)
+      .filter((x) => x.system)
+      .every((x) => x.stale && /linked/.test(x.stale_reason ?? '')),
+  );
+  // A fresh assessment reads it and is current.
+  const wf = await s.assess();
+  assert.equal(wf.workflow.state, 'succeeded');
+  const r2 = await s.report();
+  assert.ok(rows(r2).filter((x) => x.system && !x.stale).length > 0);
+  // An option claim on an archived option is not read.
+  await s.store.archiveEntity(owner, s.ws.id, alt.id, {
+    expected_version: alt.version,
+    reason: 'Drop this option (test).',
+  });
+  const gone = await s.store.previewAssessment(owner, s.ws.id, s.problem.id);
+  assert.ok(!gone.packet.claims.some((c) => c.claim_id === claim.id));
+});
+
+test('ADR-0091 review L-4: an option link alone marks the assessment stale, and one added after the preview stops the start', async (t) => {
+  const s = await setup(t, new FixtureAdapter());
+  if (!s) return;
+  await s.assess();
+  assert.ok(rows(await s.report()).every((x) => !x.system || !x.stale));
+  const preview = await s.store.previewAssessment(owner, s.ws.id, s.problem.id);
+  // Keep the claim's problem link and also link it to an option: the problem's claim set is
+  // the same, so only the claim:option key can mark the assessment stale.
+  const claimId = preview.packet.claims[0]!.claim_id;
+  const claim = (await s.store.getEntity(owner, s.ws.id, claimId)).entity;
+  const target = preview.packet.options[0]!;
+  const alt = (await s.store.getEntity(owner, s.ws.id, target.alternative_id))
+    .entity;
+  await s.store.createLink(owner, s.ws.id, {
+    relation: 'supports',
+    from: { id: claim.id, version: claim.version },
+    to: { id: alt.id, version: alt.version },
+    rationale: 'Also about this option (test).',
+  });
+  const sys = rows(await s.report()).filter((x) => x.system);
+  assert.ok(sys.length > 0);
+  assert.ok(
+    sys.every(
+      (x) =>
+        x.stale &&
+        // Review 2 L-2: only option claims differ, which an upgrade also causes, so the
+        // reason must not claim a link changed.
+        x.stale_reasons!.some(
+          (r) =>
+            /did not read claims now linked to the options/.test(r) &&
+            /studio was upgraded/.test(r),
+        ),
+    ),
+  );
+  const after = await s.store.previewAssessment(owner, s.ws.id, s.problem.id);
+  const read = after.packet.claims.find((c) => c.claim_id === claim.id)!;
+  assert.deepEqual(read.options, [target.ref]);
+  assert.equal(after.problem_claims_read, preview.problem_claims_read);
+  // The preview read before the option link no longer matches what a start would send.
+  const runId = await s.run();
+  await rejects(
+    'VERSION_CONFLICT',
+    s.store.startAssessment(owner, s.ws.id, runId, {
+      ...s.request(),
+      preview_hash: preview.preview_hash,
+    }),
+    /changed since the preview/,
+  );
 });

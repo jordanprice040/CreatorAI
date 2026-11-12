@@ -21,6 +21,10 @@ import {
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
 import { Status, useLoad } from './ui.js';
+import {
+  onWebSearchPrefill,
+  type WebSearchPrefill,
+} from './web-search-handoff.js';
 
 // P12 "Search the web" (ADR-0086). One search request on the owner's ChatGPT plan connection
 // uses the provider's own web search; the studio records its search calls and sources, fetches
@@ -125,6 +129,37 @@ export function WebDiscover({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [openId, setOpenId] = useState('');
+  // ADR-0091: "Find evidence on the web" from Compare and decide fills this form.
+  const sectionRef = useRef<HTMLElement>(null);
+  const [offered, setOffered] = useState<WebSearchPrefill | null>(null);
+  const typedRef = useRef({ question: '', interests: '' });
+  typedRef.current = {
+    question: question.trim(),
+    interests: interests.trim(),
+  };
+  useEffect(
+    () =>
+      onWebSearchPrefill((p) => {
+        // Review N-7: a question or interests the person already typed are kept; the
+        // suggestion is offered beside them instead.
+        if (typedRef.current.question || typedRef.current.interests)
+          setOffered(p);
+        else {
+          setQuestion(p.question);
+          setInterests(p.interests);
+          setOffered(null);
+        }
+        setTimeout(
+          () =>
+            sectionRef.current?.scrollIntoView({
+              behavior: 'smooth',
+              block: 'start',
+            }),
+          50,
+        );
+      }),
+    [],
+  );
 
   const plan =
     c?.details.find((p) => p.connection.id === connectionId) ??
@@ -289,7 +324,7 @@ export function WebDiscover({
 
   const shown = openId || c?.discoveries[0]?.id || '';
   return (
-    <section className="explore" aria-labelledby="web-title">
+    <section className="explore" aria-labelledby="web-title" ref={sectionRef}>
       <h3 id="web-title">Search the web</h3>
       <p>
         One request on your ChatGPT plan searches the web with the provider's
@@ -327,6 +362,30 @@ export function WebDiscover({
                     />
                   </div>
                 </div>
+                {offered && (
+                  <p className="notice small" role="status">
+                    Suggested from Compare and decide: “{offered.question}”.
+                    Your own entries are kept.{' '}
+                    <button
+                      type="button"
+                      className="text"
+                      onClick={() => {
+                        setQuestion(offered.question);
+                        setInterests(offered.interests);
+                        setOffered(null);
+                      }}
+                    >
+                      Use the suggestion
+                    </button>{' '}
+                    <button
+                      type="button"
+                      className="text"
+                      onClick={() => setOffered(null)}
+                    >
+                      Dismiss
+                    </button>
+                  </p>
+                )}
                 <label htmlFor="w-question">A question to answer</label>
                 <input
                   id="w-question"
