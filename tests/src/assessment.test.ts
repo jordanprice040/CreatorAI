@@ -32,6 +32,7 @@ import {
 } from '@creator/broker';
 import { ConnectionStore } from '@creator/db';
 import { discoverySetup, owner } from './discovery-harness.js';
+import { holdAudit, lockWaiters } from './pg-harness.js';
 
 // P08 automatic assessments (ADR-0074): system ratings with evidence-linked rationales on the
 // T05 workflow path, application-computed totals, people's edits that keep the original, and
@@ -1050,4 +1051,58 @@ test('ADR-0091 review L-4: an option link alone marks the assessment stale, and 
     }),
     /changed since the preview/,
   );
+});
+
+test('ADR-0098 re-review 3 L-3: an assessment finishing while a person archives one of its options never deadlocks', async (t) => {
+  const s = await setup(t, new FixtureAdapter());
+  if (!s) return;
+  const preview = await s.store.previewAssessment(owner, s.ws.id, s.problem.id);
+  const opt = preview.packet.options[0]!;
+  // Park the commit of the last assessor task until the audit lock is held.
+  const store = s.store as unknown as {
+    commitTask: (...a: unknown[]) => Promise<unknown>;
+  };
+  const real = store.commitTask.bind(store);
+  let succeeded = 0;
+  let parked!: () => void;
+  const reached = new Promise<void>((r) => (parked = r));
+  let go!: () => void;
+  const gate = new Promise<void>((r) => (go = r));
+  let commit: Promise<unknown> | null = null;
+  store.commitTask = (...a: unknown[]) => {
+    const outcome = a[3] as { state: string };
+    if (outcome.state === 'succeeded') succeeded += 1;
+    if (succeeded === preview.requests && !commit) {
+      commit = (async () => {
+        parked();
+        await gate;
+        return real(...a);
+      })();
+      return commit;
+    }
+    return real(...a);
+  };
+  const runId = await s.run();
+  await s.store.startAssessment(owner, s.ws.id, runId, s.request());
+  // No heartbeat waits on the task row while the commit holds it.
+  (s.worker as unknown as { stallHeartbeats: boolean }).stallHeartbeats = true;
+  const settled = s.worker.settle();
+  await reached;
+  const release = await holdAudit(s.db.pool);
+  go();
+  // The commit locks run and workflow (and, with the fix, the options) and waits for the audit lock.
+  await lockWaiters(s.db.pool, 1);
+  const archive = s.store.archiveEntity(owner, s.ws.id, opt.alternative_id, {
+    expected_version: opt.version,
+    reason: 'Drop this option (test).',
+  });
+  await lockWaiters(s.db.pool, 2);
+  await release();
+  const [c, a] = await Promise.allSettled([commit!, archive]);
+  await settled;
+  for (const x of [c, a])
+    assert.ok(
+      !(x.status === 'rejected' && /deadlock/i.test(String(x.reason))),
+      String(x.status === 'rejected' && x.reason),
+    );
 });

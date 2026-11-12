@@ -10,9 +10,11 @@ Review 1 (2 Medium, 2 Low, 4 nits) fixed. M-1: the first lease fix deadlocked tw
 
 Re-review 2 (2 Medium, 3 nits) fixed: a subscription plan request for a workflow task now locks the run before the workflow (M-1), and pausing or revoking a device locks its jobs in id order (M-2), each with a test that deadlocks without the fix; the ADR and the workflow store's lock-order comment are corrected.
 
-Re-review 3 (1 Medium, 4 Lows, 2 nits, all also on main) fixed. M-1: the outbox relay delivers a decision wake in its own transaction, so it no longer deadlocks with a pause or task commit on another run. L-1: the owner's Add of web claims locks the claims' sources up front. L-2: a route outcome locks its promotion first. L-3: an assessment's options and older scorecards are locked up front by every workflow entry point. L-4: task claiming runs all portfolio gates before leasing. N-1: admission takes the portfolio job fence before expiring decisions. Tests for M-1 and L-1.
+Re-review 3 (1 Medium, 4 Lows, 2 nits, all also on main) fixed. M-1: the outbox relay delivers a decision wake in its own transaction, so it no longer deadlocks with a pause or task commit on another run. L-1: the owner's Add of web claims locks the claims' sources up front. L-2: a route outcome locks its promotion first. L-3: an assessment's options and older scorecards are locked up front by every workflow entry point. L-4: task claiming runs all portfolio gates before leasing. N-1: admission takes the portfolio job fence before expiring decisions. Tests for M-1 and L-1 (and, after review 4, L-2 to L-4).
 
-Limitations: L-2, L-3 and L-4 are fixed by reasoning and the reviewer's lock tracer, with no deadlock test. Four of the `lockWorkflowRun` call sites (task finish, lease sweep, decision wake, reconcile) are reasoned from the tested cancel path.
+Review 4 (1 Low, 3 nits) fixed: tests for L-2, L-3 and L-4 from the reviewer's patch (each deadlocks on the old code); the ADR names the real L-2 cycle (two outcomes of one promotion); finishing assessments of one problem take turns on an advisory lock; the options lock uses the primary key.
+
+Limitations: four of the `lockWorkflowRun` call sites (task finish, lease sweep, decision wake, reconcile) are reasoned from the tested cancel path.
 
 Next eligible: unchanged (P33 after P13 merges).
 

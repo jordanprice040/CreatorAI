@@ -828,16 +828,24 @@ export class WorkflowStore extends BudgetStore {
    * id order, by every entry point that may finish the workflow.
    */
   private async lockAssessmentRows(c: PoolClient, wf: Workflow) {
-    const options = `select lower(o->>'alternative_id') from workflows w,
-        jsonb_array_elements(w.context->'packet'->'options') o where w.id = $2`;
+    // Review 4 N-2: finishing assessments of one problem take turns, so one never reads the
+    // scorecard set before another's new scorecards are committed and then locks those late.
     await c.query(
-      `select 1 from entities where workspace_id = $1 and id::text in (${options})
+      `select pg_advisory_xact_lock(hashtextextended('assessment:' || (context->'packet'->'problem'->>'id'), 0))
+         from workflows where id = $1`,
+      [wf.id],
+    );
+    const options = `select (o->>'alternative_id')::uuid from workflows w,
+        jsonb_array_elements(w.context->'packet'->'options') o where w.id = $2`;
+    // Review 4 N-3: compared as uuids, so the options are found by primary key.
+    await c.query(
+      `select 1 from entities where workspace_id = $1 and id = any(array(${options}))
         order by id for share`,
       [wf.workspace_id, wf.id],
     );
     await c.query(
       `select 1 from entities where workspace_id = $1 and kind = 'scorecard' and status = 'active'
-          and body ? 'assessment' and lower(body->'subject'->>'id') in (${options})
+          and body ? 'assessment' and (body->'subject'->>'id')::uuid = any(array(${options}))
         order by id for update`,
       [wf.workspace_id, wf.id],
     );
