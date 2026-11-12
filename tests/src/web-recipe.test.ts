@@ -782,16 +782,29 @@ test('the recorded web qualification is the live 3 of 3 result on its benchmark 
       'utf8',
     ),
   );
-  // PR #150 review N-1: find this run's record instead of pinning the list or today's prompts, so a
-  // later prompt or benchmark bump, or another route's record, does not break this test.
-  // unqualifiedTrial already ignores a record whose prompts or benchmark are no longer current.
+  // PR #150 review N-1: find this run's own record instead of pinning the list or today's prompts,
+  // so a later prompt or benchmark bump, a requalification with new prompts, or another route's or
+  // model's record does not break this test. unqualifiedTrial already ignores a stale record.
+  const expected = {
+    recipe: results.recipe,
+    benchmark_id: results.benchmark_id,
+    connection_id: results.route.connection_id,
+    model_id: results.route.model_id,
+    builder_prompt_sha256: results.role_prompts.builder_prompt_sha256,
+    reviewer_prompt_sha256: results.role_prompts.reviewer_prompt_sha256,
+  };
   const records = RECIPE_QUALIFICATIONS.filter(
     (r) =>
-      r.benchmark_id === results.benchmark_id &&
-      r.connection_id === results.route.connection_id,
+      r.recipe === expected.recipe &&
+      r.benchmark_id === expected.benchmark_id &&
+      r.connection_id === expected.connection_id &&
+      r.model_id === expected.model_id &&
+      r.builder_prompt_sha256 === expected.builder_prompt_sha256 &&
+      r.reviewer_prompt_sha256 === expected.reviewer_prompt_sha256,
   );
   assert.equal(records.length, 1);
   const q = records[0]!;
+  assert.deepEqual(q, expected);
   assert.match(results.outcome, /^3 of 3: qualified/);
   assert.equal(results.attempts.length, 3);
   for (const a of results.attempts) {
@@ -799,16 +812,17 @@ test('the recorded web qualification is the live 3 of 3 result on its benchmark 
     assert.equal(a.score.passed, '10/10');
     assert.equal(a.score.held_out, '6/6');
   }
-  assert.deepEqual(q, {
-    recipe: results.recipe,
-    benchmark_id: results.benchmark_id,
-    connection_id: results.route.connection_id,
-    model_id: results.route.model_id,
-    builder_prompt_sha256: results.role_prompts.builder_prompt_sha256,
-    reviewer_prompt_sha256: results.role_prompts.reviewer_prompt_sha256,
-  });
   assert.equal(
-    digest(readFileSync(join(BENCH, 'FREEZE.json'))),
+    digest(
+      readFileSync(
+        join(
+          ROOT,
+          'config/web-benchmarks',
+          results.benchmark_id,
+          'FREEZE.json',
+        ),
+      ),
+    ),
     results.freeze.freeze_json_sha256,
   );
   // PR #150 review N-3: the summary names the hash of every per-attempt file it was copied from,

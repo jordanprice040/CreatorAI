@@ -2,7 +2,9 @@
 
 ## November 12 handoff — PR #150 review nits N-1..N-3
 
-Branch `claude/project-thread-eondj8`, no migration or ADR. `tests/src/web-recipe.test.ts`: the recorded-qualification test filters `RECIPE_QUALIFICATIONS` by the results file's benchmark and connection, no longer imports `BUILD_ROLE_PROMPTS`, expects the record to qualify its own roles only while its benchmark is current, and checks `source_files`. `tracking/evidence/p15-benchmarks/RESULTS_P15_V4_2026-11-06.json` gains `source_files` (41 files under `C:\dev\creator_agent_p15\.creator\p15-benchmarks\v4\runs\`, SHA-256 and bytes; no file there is newer than 2026-11-06 21:44). `docs/STATIC_WEB_RECIPE.md`: 64.8 to 67.6 s. No older review items remain open.
+Branch `claude/project-thread-eondj8`, no migration or ADR. `tests/src/web-recipe.test.ts`: the recorded-qualification test filters `RECIPE_QUALIFICATIONS` by the results file's benchmark and connection, no longer imports `BUILD_ROLE_PROMPTS`, expects the record to qualify its own roles only while its benchmark is current, and checks `source_files`. `tracking/evidence/p15-benchmarks/RESULTS_P15_V4_2026-11-06.json` gains `source_files` (40 files under `C:\dev\creator_agent_p15\.creator\p15-benchmarks\v4\runs\`, SHA-256 and bytes; no file there is newer than 2026-11-06 21:44). `docs/STATIC_WEB_RECIPE.md`: 64.8 to 67.6 s. No older review items remain open.
+
+Review 1 fixes (2 Lows, 2 nits): the test matches the record on all six fields, so a requalification with new prompts or another model's record on the same connection stays green; the count is 40 files, not 41; the freeze check reads the results file's own benchmark folder; the note says intent.json and the screenshots are not among the hashed files (hashing intent.json needs read access to the p15 worktree's `.creator` folder, which was not granted).
 
 ## November 12 handoff — P33 automation levels for a project (ADR-0099, migration 62)
 
