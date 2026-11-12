@@ -60,3 +60,4 @@ export * from './chat.js';
 export * from './chat-actions.js';
 export * from './sidebar.js';
 export * from './files.js';
+export * from './api-keys.js';
