@@ -25,7 +25,12 @@ export function Operations() {
   return (
     <section className="panel">
       <h2>Workers</h2>
-      <Status loading={data.loading} error={data.error} retry={data.reload} />
+      <Status
+        loading={data.loading}
+        error={data.error}
+        stale={data.stale}
+        retry={data.reload}
+      />
       {s && (
         <>
           <p>

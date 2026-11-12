@@ -130,6 +130,7 @@ export function EvidenceSites({
       <Status
         loading={data.loading && !d}
         error={data.error}
+        stale={data.stale}
         retry={data.reload}
       >
         {d && (

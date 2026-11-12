@@ -164,6 +164,13 @@ export function Autopilot({
       ? String(BigInt(Math.round(money * 100)) * 10_000_000n)
       : null;
   const policy = config ? autopilotRoutinePolicy(config, moneyNano) : null;
+  // PR #191 review R-N1: what the owner ticked is the two summaries as read; any change to them
+  // (the end time included) unticks it, as in the automation levels panel.
+  const summariesRead = JSON.stringify([
+    config ? autopilotSummary(config) : null,
+    policy ? routinePolicySummary(policy) : null,
+  ]);
+  useEffect(() => setConfirmed(false), [summariesRead]);
   const blockers = [
     ...(!route
       ? [

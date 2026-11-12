@@ -43,7 +43,7 @@ import {
 } from './autopilot-routes.js';
 import { Empty, Status, useLoad } from './ui.js';
 import { usePoll } from './page-active.js';
-import { useEndTime } from './end-time.js';
+import { endTimeClose, useEndTime } from './end-time.js';
 
 // P33 (ADR-0099): how much of a project is automated. Four levels, each a preset over what
 // already exists: Manual; Automate selection (a standing level on the run that starts a
@@ -324,7 +324,7 @@ export function Automation({
     if (!ready || !run || !step) return;
     // The form may have stayed open: an end time that is (nearly) here is set again, and the
     // owner reads the summaries again before applying (review N-3).
-    if (Date.parse(endsAt) < Date.now() + 5 * 60_000) {
+    if (endTimeClose(endsAt)) {
       renewEndsAt();
       setError(
         'The end time came too close while the form was open; it was set again. Read the summaries again and confirm.',

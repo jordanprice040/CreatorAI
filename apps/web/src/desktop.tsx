@@ -10,7 +10,7 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { api, message, when } from './oversight.js';
-import { useLoad } from './ui.js';
+import { useLoad, StaleNote } from './ui.js';
 
 /** X06: an active worker whose presence lease lapsed is shown as unreachable, not active. */
 function availability(d: DesktopDevice): string {
@@ -97,6 +97,7 @@ export function DesktopDevices({
           {error || data.error}
         </p>
       )}
+      <StaleNote stale={data.stale} />
       {data.loading && (
         <p className="small loading" role="status">
           Loading devices…
@@ -324,6 +325,7 @@ function PairedJobs({
           {error || history.error || artifacts.error}
         </p>
       )}
+      <StaleNote stale={history.stale || artifacts.stale} />
       {history.loading && (
         <p className="small loading" role="status">
           Loading job history…

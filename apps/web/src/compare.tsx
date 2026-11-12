@@ -589,6 +589,7 @@ export function Compare({
       <Status
         loading={problems.loading}
         error={problems.error}
+        stale={problems.stale}
         retry={problems.reload}
       >
         {problemList?.length === 0 && (
@@ -601,6 +602,7 @@ export function Compare({
       <Status
         loading={detail.loading && !d}
         error={detail.error}
+        stale={detail.stale}
         retry={detail.reload}
       >
         {d && (

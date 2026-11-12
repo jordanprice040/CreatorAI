@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import ts from 'typescript';
 
@@ -255,4 +255,63 @@ test('end times are on the minute, never in the past, and capped where the serve
     assert.equal(endAfter(bad, undefined, now), '2026-11-12T10:01:00.000Z');
   // 100 days asked, 90 allowed: the last whole minute before the 90-day limit.
   assert.equal(endAfter(2400, 90, now), '2027-02-10T09:59:00.000Z');
+});
+
+test('review R-N4: a refresh that lands with new dependencies is a full load', async () => {
+  const host = hookHost();
+  const ui = load<{
+    useLoad: <T>(f: () => Promise<T>, deps: unknown[]) => Loaded<T>;
+  }>('ui.tsx', {
+    react: host.react,
+    './page-active.js': { useOnShow: () => {} },
+    './oversight.js': { message: (e: Error) => e.message },
+    './pages.js': {},
+    './labels.js': {},
+  });
+  let ws = 'A';
+  let answer: () => Promise<string> = async () => 'A data';
+  const hook = () => ui.useLoad(() => answer(), [ws]);
+  let v = host.render(hook);
+  await settle();
+  v = host.render(hook);
+  assert.equal(v.data, 'A data');
+  // Workspace B is picked in the same render as a poll's refresh, and B's read fails.
+  answer = async () => {
+    throw new Error('B unavailable.');
+  };
+  ws = 'B';
+  v.refresh();
+  v = host.render(hook);
+  await settle();
+  v = host.render(hook);
+  assert.equal(v.data, null, 'A’s data is not shown as B’s');
+  assert.equal(v.error, 'B unavailable.');
+  assert.equal(v.stale, '');
+  host.unmount();
+});
+
+test('review R-N2: an end time is read again only once it is close or past', () => {
+  const host = hookHost();
+  const { endTimeClose } = load<{
+    endTimeClose: (endsAt: string, now?: number) => boolean;
+  }>('end-time.ts', {
+    react: host.react,
+    './page-active.js': { useOnShow: () => {} },
+  });
+  const now = Date.parse('2026-11-12T10:00:00.000Z');
+  assert.equal(endTimeClose('2026-11-12T11:00:00.000Z', now), false);
+  assert.equal(endTimeClose('2026-11-12T10:04:00.000Z', now), true);
+  assert.equal(endTimeClose('2026-11-12T09:00:00.000Z', now), true);
+});
+
+test('review R-L2: every view that reads with useLoad shows when a refresh failed', () => {
+  const dir = 'apps/web/src';
+  const missing: string[] = [];
+  for (const f of readdirSync(dir).filter((x) => x.endsWith('.tsx'))) {
+    if (f === 'ui.tsx') continue;
+    const text = readFileSync(`${dir}/${f}`, 'utf8');
+    for (const m of text.matchAll(/const (\w+) = useLoad\b/g))
+      if (!text.includes(`${m[1]}.stale`)) missing.push(`${f}: ${m[1]}`);
+  }
+  assert.deepEqual(missing, []);
 });

@@ -187,13 +187,21 @@ export function useLoad<T>(load: () => Promise<T>, deps: unknown[]) {
   const [stale, setStale] = useState('');
   const quiet = useRef(false);
   const shown = useRef(false);
+  // PR #191 review R-N4: what the shown data was read for; a read for other dependencies is a
+  // full load even when a refresh lands in the same render.
+  const shownFor = useRef<unknown[] | null>(null);
   useOnShow(() => {
     quiet.current = true;
     setTick((t) => t + 1);
   });
   useEffect(() => {
     let stop = false;
-    const background = quiet.current && shown.current;
+    const prev = shownFor.current;
+    const sameDeps =
+      prev !== null &&
+      prev.length === deps.length &&
+      prev.every((v, i) => Object.is(v, deps[i]));
+    const background = quiet.current && shown.current && sameDeps;
     if (!quiet.current) setLoading(true);
     quiet.current = false;
     if (!background) setError('');
@@ -201,6 +209,7 @@ export function useLoad<T>(load: () => Promise<T>, deps: unknown[]) {
       .then((d) => {
         if (!stop) {
           shown.current = true;
+          shownFor.current = deps;
           setData(d);
           setError('');
           setStale('');
@@ -213,6 +222,7 @@ export function useLoad<T>(load: () => Promise<T>, deps: unknown[]) {
           return;
         }
         shown.current = false;
+        shownFor.current = null;
         setData(null);
         setError(message(e));
         setStale('');
@@ -272,13 +282,19 @@ export function Status({
     );
   return (
     <>
-      {stale && (
-        <p className="small" role="status">
-          Could not refresh: {stale} Showing what was read last.
-        </p>
-      )}
+      <StaleNote stale={stale} />
       {children}
     </>
+  );
+}
+
+/** A failed background read (useLoad's `stale`), for views that do not use `Status`. */
+export function StaleNote({ stale }: { stale?: string | undefined }) {
+  if (!stale) return null;
+  return (
+    <p className="small" role="status">
+      Could not refresh: {stale} Showing what was read last.
+    </p>
   );
 }
 export function Empty({ children }: { children: ReactNode }) {

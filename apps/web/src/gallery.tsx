@@ -28,7 +28,7 @@ import {
 import { api, message, when, words } from './oversight.js';
 import { SpecForm, type SpecFormMode } from './spec-form.js';
 import { feedbackRevisionBlocker, feedbackSuperseded } from './spec-fields.js';
-import { Empty, Status, shortId, useLoad, type View } from './ui.js';
+import { Empty, Status, shortId, useLoad, type View, StaleNote } from './ui.js';
 import { newestFirst } from './versions.js';
 import { argsToSend, needsExactArgs } from './terminal-args.js';
 
@@ -75,7 +75,12 @@ export function Gallery({
         archive and started again in the isolated worker before it is offered as
         a demo. Old versions stay here after a revision.
       </p>
-      <Status loading={list.loading} error={list.error} retry={list.reload}>
+      <Status
+        loading={list.loading}
+        error={list.error}
+        stale={list.stale}
+        retry={list.reload}
+      >
         {list.data && list.data.length === 0 && (
           <Empty>
             No packaged artifacts yet. Package a verified build with its Package
@@ -184,6 +189,7 @@ function ArtifactPanel({
       <Status
         loading={detail.loading}
         error={detail.error}
+        stale={detail.stale}
         retry={detail.reload}
       >
         {d && (
@@ -574,6 +580,7 @@ function UsageGuide({
           The guide could not be loaded: {guide.error}
         </p>
       )}
+      <StaleNote stale={guide.stale} />
       {g && (
         <>
           {g.spec && g.spec.flows.length > 0 && (
@@ -963,11 +970,7 @@ function TerminalPanel({
           {sessions.error}
         </p>
       )}
-      {sessions.stale && (
-        <p className="small" role="status">
-          Could not refresh: {sessions.stale} Showing what was read last.
-        </p>
-      )}
+      <StaleNote stale={sessions.stale} />
     </section>
   );
 }

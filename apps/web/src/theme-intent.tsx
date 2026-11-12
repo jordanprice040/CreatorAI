@@ -11,7 +11,7 @@ import {
   type ThemeIntentBody,
 } from '@creator/contracts';
 import { api, message } from './oversight.js';
-import { useLoad } from './ui.js';
+import { useLoad, StaleNote } from './ui.js';
 
 const blank = () => ({
   theme: '',
@@ -176,6 +176,7 @@ export function ThemeIntent({
           </button>
         </p>
       )}
+      <StaleNote stale={saved.stale} />
       <ul className="rows" aria-label="Saved theme drafts">
         {saved.data?.map((d) => (
           <li key={d.id}>

@@ -176,3 +176,13 @@ Jordan asked for the Lows and nits to be fixed; L-3 (the docs refresh) is left f
 - **N-5:** `is_multiple_of` in `studio.rs`; clippy is clean.
 - **N-6:** `openSystemBrowser` ignores a launcher that cannot start on every platform.
 - **N-7:** `dueAutomations` lets only a newer assessment that has not failed or been cancelled hide an older one (test, mutation-checked).
+
+### Review 1 fixes (PR #191, 2 Lows, 5 nits)
+
+- **R-L1:** the live assessment (`assess.tsx` `Run`) and exploration views poll with `usePoll`, so a failed read no longer stops them, and they show the stale note.
+- **R-L2:** every view that reads with `useLoad` shows a failed refresh: `Status` takes `stale` everywhere it is fed by `useLoad`, and views without `Status` render `StaleNote`. A test scans `apps/web/src` so a new `useLoad` without it fails.
+- **R-N1:** Autopilot unticks "I have read both summaries" whenever either summary changes, the end time included.
+- **R-N2:** returning to the page or window works the end time out again only once it has passed or is within 5 minutes (`endTimeClose`), so switching windows no longer unticks the confirmation.
+- **R-N3:** Monitor (Overview) polls with `usePoll`, so it also pauses while the window is hidden.
+- **R-N4:** `useLoad` remembers which dependencies its data was read for; a refresh that lands with new dependencies is a full load (test, mutation-checked).
+- **R-N5:** the project-files copy of this report now matches this one.

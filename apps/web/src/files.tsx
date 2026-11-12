@@ -193,7 +193,12 @@ export function Files({
         </p>
       )}
       <div className="files-layout">
-        <Status loading={page.loading} error={page.error} retry={page.reload}>
+        <Status
+          loading={page.loading}
+          error={page.error}
+          stale={page.stale}
+          retry={page.reload}
+        >
           {items.length === 0 ? (
             <Empty>
               {query
@@ -307,6 +312,7 @@ function FileDetail({
       <Status
         loading={detail.loading}
         error={detail.error}
+        stale={detail.stale}
         retry={detail.reload}
       >
         {detail.data &&
@@ -585,7 +591,12 @@ function FileView({
       </p>
     );
   return (
-    <Status loading={text.loading} error={text.error} retry={text.reload}>
+    <Status
+      loading={text.loading}
+      error={text.error}
+      stale={text.stale}
+      retry={text.reload}
+    >
       {text.data && (
         <div className="file-view">
           {text.data.truncated && (

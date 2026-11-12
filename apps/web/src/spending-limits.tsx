@@ -218,6 +218,7 @@ export function SpendingLimits({ session }: { session: SessionInfo }) {
       <Status
         loading={data.loading && !v}
         error={data.error}
+        stale={data.stale}
         retry={data.reload}
       >
         {v && !draft && (

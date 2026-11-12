@@ -10,7 +10,7 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { ApiError, api, message } from './oversight.js';
-import { useLoad, type View } from './ui.js';
+import { StaleNote, useLoad, type View } from './ui.js';
 import {
   matchesFilter,
   suggestClaims,
@@ -142,6 +142,7 @@ export function LinkClaims({
   const [errors, setErrors] = useState<string[]>([]);
   if (data.error) return <p className="error small">{data.error}</p>;
   if (!d) return <p className="small muted">Loading claims…</p>;
+  const stale = data.stale;
   const byId = new Map(d.claims.map((c) => [c.id, c]));
   const shown = [
     ...suggested,
@@ -198,6 +199,7 @@ export function LinkClaims({
   );
   return (
     <div className="link-claims">
+      <StaleNote stale={stale} />
       <p className="small">
         {d.linked.size
           ? `${d.linked.size} claim${d.linked.size === 1 ? ' is' : 's are'} already linked to ${what}. `
@@ -397,6 +399,7 @@ export function ClaimLinks({
   const d = data.data;
   if (data.error) return <p className="error small">{data.error}</p>;
   if (!d) return null;
+  const stale = data.stale || opts.stale;
   const names = new Map(
     [...d.problems, ...d.options, ...d.extra, ...(opts.data ?? [])].map((e) => [
       e.id.toLowerCase(),
@@ -468,6 +471,7 @@ export function ClaimLinks({
   }
   return (
     <div className="claim-links">
+      <StaleNote stale={stale} />
       <h4>Evidence for</h4>
       {links.length ? (
         <ul className="small">

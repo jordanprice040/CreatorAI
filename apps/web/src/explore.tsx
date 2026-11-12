@@ -1,3 +1,4 @@
+import { usePoll } from './page-active.js';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   EXPLORATION_TASK_CLASS,
@@ -486,7 +487,12 @@ export function Explore({
         duplicates, excluded topics and thin evidence. Nothing is fetched, built
         or sent anywhere else, and an empty answer is a real answer.
       </p>
-      <Status loading={ctx.loading} error={ctx.error} retry={ctx.reload}>
+      <Status
+        loading={ctx.loading}
+        error={ctx.error}
+        stale={ctx.stale}
+        retry={ctx.reload}
+      >
         {c && (
           <>
             {c.claims === 0 && (
@@ -775,11 +781,8 @@ function Exploration({
   );
   const wf: Workflow | undefined = d.data?.workflow;
   const live = wf ? LIVE.has(wf.state) : false;
-  useEffect(() => {
-    if (!live) return;
-    const t = setTimeout(() => d.refresh(), 2000);
-    return () => clearTimeout(t);
-  }, [live, d.data]);
+  // PR #191 review R-L1: polled while shown, and a failed read keeps polling (it shows stale).
+  usePoll(d.refresh, 2000, live);
   useEffect(() => {
     if (wf?.finished_at) onFinished();
   }, [wf?.finished_at]);
@@ -853,7 +856,12 @@ function Exploration({
   }
 
   return (
-    <Status loading={d.loading} error={d.error} retry={d.reload}>
+    <Status
+      loading={d.loading}
+      error={d.error}
+      stale={d.stale}
+      retry={d.reload}
+    >
       {d.data && wf && (
         <div className="exploration" aria-live="polite">
           {live ? (
