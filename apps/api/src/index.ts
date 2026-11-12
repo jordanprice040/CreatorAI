@@ -388,6 +388,7 @@ export function createApi(
         store,
         vault: planVaultFromEnv(env),
         environment: live,
+        log: (m) => console.error(m),
         ...(env.CREATOR_OPENAI_BASE_URL
           ? { baseUrl: env.CREATOR_OPENAI_BASE_URL }
           : {}),
@@ -680,7 +681,7 @@ export function createApi(
   const EVIDENCE_SITES_ROUTE = /^\/api\/workspaces\/([^/]+)\/(evidence-sites)$/;
   // ADR-0093 (P28): the workspace's own OpenAI API key (status, save or replace, remove).
   const API_KEY_ROUTE =
-    /^\/api\/workspaces\/([^/]+)\/(api-keys)\/(openai)(?:\/(remove))?$/;
+    /^\/api\/workspaces\/([^/]+)\/(api-keys)\/(openai)(?:\/(remove|model))?$/;
   const CHAT_ROUTE =
     /^\/api\/workspaces\/([^/]+)\/(chats)(?:\/([^/]+)(?:\/(messages|title|delete))?)?$/;
   // ADR-0057: a model answer to one saved message, and the owner's chat-answer setting.
@@ -872,6 +873,12 @@ export function createApi(
         return send(
           200,
           await apiKeys.save(ctx, ws, await readJson(req)),
+          true,
+        );
+      if (method === 'POST' && action === 'model')
+        return send(
+          200,
+          await apiKeys.changeModel(ctx, ws, await readJson(req)),
           true,
         );
       if (method === 'POST' && action === 'remove')
@@ -2318,7 +2325,9 @@ export function createApi(
               live || sourceConfig.adapter ? 'live_configured' : 'fixture',
             provider: live
               ? `${live.provider}/${live.model_id} (configured, unverified) + deterministic-fixture-v1`
-              : 'deterministic-fixture-v1',
+              : apiKeys
+                ? 'deterministic-fixture-v1 + OpenAI keys saved per workspace'
+                : 'deterministic-fixture-v1',
             live_enabled: Boolean(live || sourceConfig.adapter),
             live: {
               model: live ? 'configured_unverified' : 'not_configured',
@@ -2340,7 +2349,7 @@ export function createApi(
             live_model_id: live?.model_id ?? null,
             note: live
               ? `Live adapter for ${live.model_id} is configured; a call still needs pricing, a covering grant and a funded envelope. No live call has been verified.`
-              : 'Fixture workspaces use the deterministic adapter. Real workspaces are denied until a live provider is configured.',
+              : 'Fixture workspaces use the deterministic adapter. No OpenAI key was set when the studio started; a real workspace can use the OpenAI API route once its owner saves a key in Models and connections, and is denied until then.',
           }),
         );
       if (req.method === 'GET' && req.url === '/api/sources/status')

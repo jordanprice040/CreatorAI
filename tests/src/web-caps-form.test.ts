@@ -47,6 +47,7 @@ type CapsFields = {
   ) => string[];
   classSummary: (data: string[], tasks: string[]) => string;
   defaultTaskClasses: (kind: string) => string[];
+  NEW_CONNECTION_MAX_INPUT_CHARS: number;
   missingTaskClasses: (kind: string, allowed: string[]) => string[];
 };
 type Choice = { key: string; label: string; codexOnly: boolean };
@@ -402,6 +403,24 @@ test('client waits follow the connection timeout, per call, under the timer boun
   assert.equal(planWaitMs(120_000, 0), 180_000, 'at least one call');
   assert.equal(planWaitMs(2_147_460_000, 1, 120_000), TIMER_MAX_MS);
   assert.equal(planWaitMs(2_000_000_000, 8), TIMER_MAX_MS);
+});
+
+test('ADR-0093: new connections propose a 64,000-character input cap, in the app and the config', async () => {
+  const m = await load();
+  assert.equal(m.NEW_CONNECTION_MAX_INPUT_CHARS, 64000);
+  for (const f of ['chatgpt-plan.json', 'claude-code.json']) {
+    const s = PlanSettingsSchema.parse(
+      JSON.parse(await readFile(`config/connections/${f}`, 'utf8')),
+    );
+    assert.equal(s.caps.responses.max_input_chars, 64000, f);
+  }
+  // Both buttons on the Models page use the shared value, never a number of their own.
+  const page = await readFile('apps/web/src/models.tsx', 'utf8');
+  assert.equal(
+    page.match(/max_input_chars: NEW_CONNECTION_MAX_INPUT_CHARS,/g)?.length,
+    2,
+  );
+  assert.ok(!/max_input_chars: \d/.test(page));
 });
 
 test('ADR-0084: new connections allow every task their kind can take, in the app and the config', async () => {

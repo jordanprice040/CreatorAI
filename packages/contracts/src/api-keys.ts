@@ -22,6 +22,12 @@ export const ApiKeySaveSchema = z.strictObject({
 });
 export type ApiKeySave = z.infer<typeof ApiKeySaveSchema>;
 
+/** Review 1 N-6: point the saved key at another model; the key itself is not sent again. */
+export const ApiKeyModelSchema = z.strictObject({
+  model_id: ApiKeySaveSchema.shape.model_id,
+  expected_version: z.number().int().positive(),
+});
+
 export const ApiKeyRemoveSchema = z.strictObject({
   expected_version: z.number().int().positive(),
 });
@@ -40,10 +46,13 @@ export const ApiKeyStatusSchema = z.strictObject({
     })
     .nullable(),
   /** Which key a call from this workspace would use now. */
-  in_use: z.enum(['environment', 'saved', 'none']),
+  /** `saved_unavailable`: a key is saved but this studio cannot open it (no store, missing file). */
+  in_use: z.enum(['environment', 'saved', 'saved_unavailable', 'none']),
   model_id: z.string().max(200).nullable(),
   /** False when the studio has no protected store, so a key cannot be saved here. */
   can_save: z.boolean(),
-  note: z.string().max(400).nullable(),
+  note: z.string().max(800).nullable(),
+  /** Review 1 L-2: an unused key file could not be deleted from this computer just now. */
+  unused_file_left: z.boolean(),
 });
 export type ApiKeyStatus = z.infer<typeof ApiKeyStatusSchema>;

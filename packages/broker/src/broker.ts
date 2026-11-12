@@ -179,7 +179,10 @@ export class ModelBroker {
       adapter: this.#adapterFor(
         fixture,
         model,
-        fixture ? null : await this.#live(ctx, ws),
+        // Review 1 N-3: only an OpenAI model can use the workspace's OpenAI key.
+        fixture || model.provider !== 'openai'
+          ? (this.adapters.live ?? null)
+          : await this.#live(ctx, ws),
       ),
       model,
     }));

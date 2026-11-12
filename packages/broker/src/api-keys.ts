@@ -1,4 +1,5 @@
 import {
+  ApiKeyModelSchema,
   ApiKeyRemoveSchema,
   ApiKeySaveSchema,
   ApiKeyStatusSchema,
@@ -21,8 +22,12 @@ import { newApiKeyRef, type PlanVault } from './plan-vault.js';
  * budget and room under the overall ceiling, which the broker checks as for any paid call.
  */
 export class ApiKeyService {
-  /** Adapters by vault reference; a replaced key has a new reference, so nothing goes stale. */
+  /** Adapters by vault reference and model; a replaced key has a new reference. */
   readonly #adapters = new Map<string, Promise<ModelAdapter | null>>();
+  /** The cache entry each workspace used last, so a key changed elsewhere is forgotten. */
+  readonly #current = new Map<string, string>();
+  /** Unused vault entries whose delete failed; retried at the next save or remove. */
+  readonly #leftovers = new Set<string>();
   constructor(
     private readonly deps: {
       store: Pick<
@@ -31,31 +36,60 @@ export class ApiKeyService {
         | 'workspaceApiKeyRef'
         | 'saveWorkspaceApiKey'
         | 'removeWorkspaceApiKey'
+        | 'changeWorkspaceApiKeyModel'
       >;
       vault: PlanVault | null;
       /** The studio process's own key, from the environment. */
       environment: ModelAdapter | null;
       /** Loopback base for contract tests; the official API otherwise. */
       baseUrl?: string;
+      /** Where unlock and delete failures are reported (references only, never a key). */
+      log?: (m: string) => void;
     },
   ) {}
 
-  async status(ctx: CommandContext, ws: string): Promise<ApiKeyStatus> {
+  async status(
+    ctx: CommandContext,
+    ws: string,
+    leftover = false,
+  ): Promise<ApiKeyStatus> {
     const saved = await this.deps.store.workspaceApiKey(ctx, ws);
     const env = this.deps.environment;
+    // Review 1 L-1: a saved key counts as in use only if this studio can actually open it.
+    const usable =
+      !env && saved ? (await this.#resolve(ctx, ws)) !== null : false;
+    const in_use = env
+      ? 'environment'
+      : !saved
+        ? 'none'
+        : usable
+          ? 'saved'
+          : 'saved_unavailable';
+    const notes = [
+      env && saved
+        ? `The studio was started with its own OpenAI key, which is used instead of the saved one (…${saved.last_four}) until it is started without it.`
+        : null,
+      in_use === 'saved_unavailable'
+        ? this.deps.vault
+          ? `The saved key …${saved!.last_four} cannot be opened on this computer (its protected file is missing, damaged, or belongs to another Windows account), so calls are refused. Replace or remove it.`
+          : `The saved key …${saved!.last_four} cannot be used: this studio has no protected store for keys. Remove it here, or open the desktop app.`
+        : null,
+      !this.deps.vault && in_use !== 'saved_unavailable'
+        ? 'This studio has no protected store for keys, so a key cannot be saved here. The desktop app has one.'
+        : null,
+      leftover
+        ? "The old key's protected file could not be deleted from this computer. It is no longer used by anything; it is removed the next time a key is saved or removed here."
+        : null,
+    ].filter((n): n is string => n !== null);
     return parse(ApiKeyStatusSchema, {
       provider: 'openai',
       environment: env ? { model_id: env.model_id } : null,
       saved,
-      in_use: env ? 'environment' : saved ? 'saved' : 'none',
+      in_use,
       model_id: env?.model_id ?? saved?.model_id ?? null,
       can_save: this.deps.vault !== null,
-      note:
-        env && saved
-          ? `The studio was started with its own OpenAI key, which is used instead of the saved one (…${saved.last_four}) until it is started without it.`
-          : !this.deps.vault
-            ? 'This studio has no protected store for keys, so a key cannot be saved here. The desktop app has one.'
-            : null,
+      note: notes.length ? notes.join(' ').slice(0, 800) : null,
+      unused_file_left: leftover,
     });
   }
 
@@ -88,14 +122,28 @@ export class ApiKeyService {
         })
       ).replaced_credential_ref;
     } catch (e) {
-      await vault.delete(ref).catch(() => {});
+      if (!(await this.#discard(ref))) this.#leftovers.add(ref);
       throw e;
     }
-    if (replaced) {
-      this.#adapters.delete(replaced);
-      // The record already points at the new key; a leftover file is unreadable to calls.
-      await vault.delete(replaced).catch(() => {});
-    }
+    // The record already points at the new key, so the old file is unused by any call.
+    const leftover = replaced ? !(await this.#discard(replaced)) : false;
+    await this.#retryLeftovers();
+    return this.status(ctx, ws, leftover);
+  }
+
+  /** Review 1 N-6: point the saved key at another model without pasting the key again. */
+  async changeModel(
+    ctx: CommandContext,
+    ws: string,
+    raw: unknown,
+  ): Promise<ApiKeyStatus> {
+    const b = parse(ApiKeyModelSchema, raw);
+    await this.deps.store.changeWorkspaceApiKeyModel(
+      ctx,
+      ws,
+      b.model_id,
+      b.expected_version,
+    );
     return this.status(ctx, ws);
   }
 
@@ -110,9 +158,9 @@ export class ApiKeyService {
       ws,
       b.expected_version,
     );
-    this.#adapters.delete(credential_ref);
-    await this.deps.vault?.delete(credential_ref).catch(() => {});
-    return this.status(ctx, ws);
+    const leftover = !(await this.#discard(credential_ref));
+    await this.#retryLeftovers();
+    return this.status(ctx, ws, leftover);
   }
 
   /**
@@ -121,20 +169,70 @@ export class ApiKeyService {
    */
   async liveFor(ctx: CommandContext, ws: string): Promise<ModelAdapter | null> {
     if (this.deps.environment) return this.deps.environment;
+    return this.#resolve(ctx, ws);
+  }
+
+  async #resolve(
+    ctx: CommandContext,
+    ws: string,
+  ): Promise<ModelAdapter | null> {
     if (!this.deps.vault) return null;
     const rec = await this.deps.store.workspaceApiKeyRef(ctx, ws);
-    if (!rec) return null;
+    const id = ws.toLowerCase();
+    const before = this.#current.get(id);
+    const cacheKey = rec ? `${rec.credential_ref}#${rec.model_id}` : null;
+    // Review 1 N-5: forget a key another process replaced or removed, not only our own.
+    if (before && before !== cacheKey) this.#adapters.delete(before);
+    if (!rec || !cacheKey) {
+      this.#current.delete(id);
+      return null;
+    }
+    this.#current.set(id, cacheKey);
     const vault = this.deps.vault;
-    let pending = this.#adapters.get(rec.credential_ref);
+    let pending = this.#adapters.get(cacheKey);
     if (!pending) {
       pending = vault
         .getApiKey(rec.credential_ref)
         .then((key) => (key ? this.#adapter(key, rec.model_id) : null));
-      // A failed unlock is retried on the next call rather than remembered.
-      pending.catch(() => this.#adapters.delete(rec.credential_ref));
-      this.#adapters.set(rec.credential_ref, pending);
+      this.#adapters.set(cacheKey, pending);
     }
-    return pending.catch(() => null);
+    try {
+      const adapter = await pending;
+      // A missing file is asked again next time (it may be restored), not remembered.
+      if (!adapter) this.#adapters.delete(cacheKey);
+      return adapter;
+    } catch (e) {
+      // A failed unlock is retried on the next call rather than remembered. The log names the
+      // reference only, never the key.
+      this.#adapters.delete(cacheKey);
+      this.#log(
+        `The saved OpenAI key ${rec.credential_ref} could not be opened (${e instanceof Error ? e.message : String(e)}).`,
+      );
+      return null;
+    }
+  }
+
+  /** Deletes a vault entry; false (and a log line naming the reference) when that failed. */
+  async #discard(ref: string): Promise<boolean> {
+    for (const k of this.#adapters.keys())
+      if (k.startsWith(`${ref}#`)) this.#adapters.delete(k);
+    try {
+      await this.deps.vault?.delete(ref);
+      this.#leftovers.delete(ref);
+      return true;
+    } catch (e) {
+      this.#leftovers.add(ref);
+      this.#log(
+        `The unused OpenAI key file ${ref} could not be deleted (${e instanceof Error ? e.message : String(e)}); it is retried at the next save or remove.`,
+      );
+      return false;
+    }
+  }
+  async #retryLeftovers() {
+    for (const ref of [...this.#leftovers]) await this.#discard(ref);
+  }
+  #log(m: string) {
+    (this.deps.log ?? console.error)(m);
   }
 
   #adapter(key: string, model_id: string): ModelAdapter {

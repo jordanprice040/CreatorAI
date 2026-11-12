@@ -53,12 +53,14 @@ export function ApiKeyCheck({
   const [keys, setKeys] = useState<ApiKeyStatus | null>(null);
   const [draftKey, setDraftKey] = useState('');
   const [draftModel, setDraftModel] = useState(DEFAULT_OPENAI_KEY_MODEL);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState<'none' | 'key' | 'model'>('none');
   const [removing, setRemoving] = useState(false);
   const [keyError, setKeyError] = useState('');
   const [keyDone, setKeyDone] = useState('');
   const live =
-    keys && keys.in_use !== 'none' ? 'configured_unverified' : 'not_configured';
+    keys?.in_use === 'environment' || keys?.in_use === 'saved'
+      ? 'configured_unverified'
+      : 'not_configured';
   const modelId = keys?.model_id ?? null;
   const [pricing, setPricing] = useState<PricingSnapshot[]>([]);
   const [envelopes, setEnvelopes] = useState<Envelope[]>([]);
@@ -126,12 +128,39 @@ export function ApiKeyCheck({
       setKeyDone(
         `Saved. The studio keeps the key protected on this computer; only …${next.saved?.last_four ?? ''} is shown from now on.`,
       );
-      setEditing(false);
+      setEditing('none');
     } catch (e) {
       setKeyError(message(e));
     } finally {
       // The key leaves the page whether or not it was saved.
       setDraftKey('');
+      setBusy(false);
+    }
+  }
+  async function changeModel() {
+    if (!session || !keys?.saved) return;
+    setBusy(true);
+    setKeyError('');
+    setKeyDone('');
+    try {
+      const next = await api(
+        ApiKeyStatusSchema,
+        `${base}/api-keys/openai/model`,
+        {
+          csrf: session.csrf_token,
+          body: {
+            model_id: draftModel.trim(),
+            expected_version: keys.saved.version,
+          },
+          timeoutMs: 30000,
+        },
+      );
+      setKeys(next);
+      setEditing('none');
+      setKeyDone(`Calls now name ${next.saved?.model_id ?? 'the new model'}.`);
+    } catch (e) {
+      setKeyError(message(e));
+    } finally {
       setBusy(false);
     }
   }
@@ -142,14 +171,21 @@ export function ApiKeyCheck({
     setKeyDone('');
     setRemoving(false);
     try {
-      setKeys(
-        await api(ApiKeyStatusSchema, `${base}/api-keys/openai/remove`, {
+      const next = await api(
+        ApiKeyStatusSchema,
+        `${base}/api-keys/openai/remove`,
+        {
           csrf: session.csrf_token,
           body: { expected_version: keys.saved.version },
           timeoutMs: 30000,
-        }),
+        },
       );
-      setKeyDone('Removed. Calls from this workspace no longer use that key.');
+      setKeys(next);
+      setKeyDone(
+        next.unused_file_left
+          ? 'Removed. Calls from this workspace no longer use that key; its protected file is still on this computer (see the note above).'
+          : 'Removed. Calls from this workspace no longer use that key, and its protected file is deleted from this computer.',
+      );
     } catch (e) {
       setKeyError(message(e));
     } finally {
@@ -240,9 +276,11 @@ export function ApiKeyCheck({
           ? `the studio was started with its own key for ${modelId ?? 'a model'}.`
           : keys?.in_use === 'saved'
             ? `this workspace's key …${keys.saved?.last_four ?? ''} for ${modelId ?? 'a model'}.`
-            : fixture
-              ? 'fixture workspaces never use a real key.'
-              : 'no key yet, so this workspace never uses this route.'}{' '}
+            : keys?.in_use === 'saved_unavailable'
+              ? `this workspace's key …${keys.saved?.last_four ?? ''} is saved but cannot be used on this computer, so calls are refused.`
+              : fixture
+                ? 'fixture workspaces never use a real key.'
+                : 'no key yet, so this workspace never uses this route.'}{' '}
         A key is not permission to spend: every call still needs a grant, a
         funded budget and room under your overall ceiling.
       </p>
@@ -256,7 +294,47 @@ export function ApiKeyCheck({
               {when(keys.saved.saved_at)}. The key itself is never shown again.
             </p>
           )}
-          {!keys.can_save ? null : !keys.saved || editing ? (
+          {editing === 'model' && keys.saved ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void changeModel();
+              }}
+            >
+              <label>
+                Model
+                <input
+                  value={draftModel}
+                  onChange={(e) => setDraftModel(e.target.value)}
+                />
+              </label>
+              <p className="small">
+                Keeps the saved key …{keys.saved.last_four}; only the model its
+                calls name changes. Add the documented price for the new model
+                before testing it.
+              </p>
+              <div className="actions">
+                <button
+                  type="submit"
+                  disabled={
+                    busy ||
+                    !session ||
+                    !draftModel.trim() ||
+                    draftModel.trim() === keys.saved.model_id
+                  }
+                >
+                  Change model
+                </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => setEditing('none')}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          ) : keys.can_save && (!keys.saved || editing === 'key') ? (
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -267,7 +345,11 @@ export function ApiKeyCheck({
                 {keys.saved ? 'New key' : 'Key'}
                 <input
                   type="password"
-                  autoComplete="off"
+                  // Review 1 N-2: keep browsers and password managers from offering to save it.
+                  autoComplete="new-password"
+                  data-1p-ignore=""
+                  data-lpignore="true"
+                  data-bwignore="true"
                   spellCheck={false}
                   value={draftKey}
                   onChange={(e) => setDraftKey(e.target.value)}
@@ -300,7 +382,7 @@ export function ApiKeyCheck({
                     type="button"
                     className="secondary"
                     onClick={() => {
-                      setEditing(false);
+                      setEditing('none');
                       setDraftKey('');
                     }}
                   >
@@ -309,8 +391,23 @@ export function ApiKeyCheck({
                 )}
               </div>
             </form>
-          ) : (
+          ) : !keys.saved ? null : (
             <div className="actions">
+              {keys.can_save && (
+                <button
+                  className="secondary"
+                  disabled={busy || !session}
+                  onClick={() => {
+                    setDraftModel(
+                      keys.saved?.model_id ?? DEFAULT_OPENAI_KEY_MODEL,
+                    );
+                    setKeyDone('');
+                    setEditing('key');
+                  }}
+                >
+                  Replace key…
+                </button>
+              )}
               <button
                 className="secondary"
                 disabled={busy || !session}
@@ -319,10 +416,10 @@ export function ApiKeyCheck({
                     keys.saved?.model_id ?? DEFAULT_OPENAI_KEY_MODEL,
                   );
                   setKeyDone('');
-                  setEditing(true);
+                  setEditing('model');
                 }}
               >
-                Replace key…
+                Change model…
               </button>
               {!removing ? (
                 <button

@@ -5174,6 +5174,52 @@ export class ConnectionStore extends WebDiscoveryStore {
     });
   }
 
+  /** Review 1 N-6: re-points the saved key at another model (owner only); the key is kept. */
+  async changeWorkspaceApiKeyModel(
+    ctxIn: CommandContext,
+    ws: string,
+    modelId: string,
+    expectedVersion: number,
+  ): Promise<WorkspaceApiKey> {
+    const ctx = normalize(ctxIn);
+    const w = uuid(ws);
+    return this.tx(async (c) => {
+      await this.requireOwner(
+        c,
+        w,
+        ctx.actorId,
+        'Only the workspace owner, signed in as a person, can change its API key.',
+      );
+      const { rows } = await c.query(
+        `update workspace_api_keys set model_id = $3, version = version + 1,
+           saved_by = $4, saved_at = clock_timestamp()
+         where workspace_id = $1 and provider = 'openai' and version = $2
+         returning model_id, last_four, version, saved_at, saved_by`,
+        [w, expectedVersion, modelId, ctx.actorId],
+      );
+      if (!rows[0])
+        throw fail(
+          'VERSION_CONFLICT',
+          'The saved key changed or was removed since this page was read. Reload and try again.',
+        );
+      const saved = toApiKey(rows[0] as Row);
+      await this.append(c, ctx, {
+        workspaceId: w,
+        action: 'api_key.model_changed',
+        subjectKind: 'api_key',
+        subjectId: w,
+        subjectVersion: saved.version,
+        contentHash: null,
+        payload: {
+          provider: 'openai',
+          model_id: saved.model_id,
+          last_four: saved.last_four,
+        },
+      });
+      return saved;
+    });
+  }
+
   /** Removes the key's record (owner only); returns the vault reference to delete. */
   async removeWorkspaceApiKey(
     ctxIn: CommandContext,

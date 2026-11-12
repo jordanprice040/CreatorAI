@@ -69,6 +69,7 @@ test('the studio’s own key wins over a saved one; a failed unlock is not remem
     }),
     saveWorkspaceApiKey: async () => assert.fail('not called'),
     removeWorkspaceApiKey: async () => assert.fail('not called'),
+    changeWorkspaceApiKeyModel: async () => assert.fail('not called'),
   };
   const ctx = { actorId: randomUUID() };
   const both = new ApiKeyService({ store, vault, environment: env });
@@ -85,8 +86,22 @@ test('the studio’s own key wins over a saved one; a failed unlock is not remem
   // No vault: nothing to read, and saving says why.
   const none = new ApiKeyService({ store, vault: null, environment: null });
   assert.equal(await none.liveFor(ctx, randomUUID()), null);
-  assert.equal((await none.status(ctx, randomUUID())).can_save, false);
-  // A vault that cannot unlock gives no adapter now and is asked again next time.
+  // Review 1 L-1: a saved key this studio cannot open is not reported as in use.
+  const noStore = await none.status(ctx, randomUUID());
+  assert.equal(noStore.can_save, false);
+  assert.equal(noStore.in_use, 'saved_unavailable');
+  assert.match(noStore.note ?? '', /no protected store/);
+  const missing = new ApiKeyService({
+    store,
+    vault: new MemoryVault(),
+    environment: null,
+  });
+  const gone = await missing.status(ctx, randomUUID());
+  assert.equal(gone.in_use, 'saved_unavailable');
+  assert.match(gone.note ?? '', /cannot be opened on this computer/);
+  // A vault that cannot unlock gives no adapter now, logs the reference (never the key) and
+  // is asked again next time.
+  const logged: string[] = [];
   let fail = true;
   const flaky = Object.assign(new MemoryVault(), {
     getApiKey: async () => {
@@ -98,10 +113,110 @@ test('the studio’s own key wins over a saved one; a failed unlock is not remem
     store,
     vault: flaky,
     environment: null,
+    log: (m) => logged.push(m),
   });
   assert.equal(await retry.liveFor(ctx, randomUUID()), null);
+  assert.equal(
+    (await retry.status(ctx, randomUUID())).in_use,
+    'saved_unavailable',
+  );
+  assert.ok(logged.length >= 1 && logged.every((m) => m.includes(ref)));
+  assert.ok(!logged.some((m) => m.includes(KEY_1)));
   fail = false;
   assert.equal((await retry.liveFor(ctx, randomUUID()))?.live, true);
+  assert.equal((await retry.status(ctx, randomUUID())).in_use, 'saved');
+});
+
+test('review 1 L-2, N-5: a failed delete is reported and retried; a key changed elsewhere is forgotten', async () => {
+  const ws = randomUUID();
+  const ctx = { actorId: randomUUID() };
+  let rec: { credential_ref: string; model_id: string } | null = null;
+  let version = 0;
+  const store = {
+    workspaceApiKey: async () =>
+      rec
+        ? {
+            model_id: rec.model_id,
+            last_four: 'WXYZ',
+            version,
+            saved_at: new Date().toISOString(),
+            saved_by: ctx.actorId,
+          }
+        : null,
+    workspaceApiKeyRef: async () => rec,
+    saveWorkspaceApiKey: async (
+      _c: unknown,
+      _w: string,
+      k: { credential_ref: string; model_id: string },
+    ) => {
+      const replaced = rec?.credential_ref ?? null;
+      rec = { credential_ref: k.credential_ref, model_id: k.model_id };
+      version += 1;
+      return {
+        saved: (await store.workspaceApiKey())!,
+        replaced_credential_ref: replaced,
+      };
+    },
+    removeWorkspaceApiKey: async () => {
+      const r = rec!.credential_ref;
+      rec = null;
+      return { credential_ref: r };
+    },
+    changeWorkspaceApiKeyModel: async () => assert.fail('not called'),
+  };
+  const inner = new MemoryVault();
+  let locked = false;
+  const vault = Object.assign(inner, {
+    delete: async (ref: string) => {
+      if (locked) throw new Error('file in use');
+      await MemoryVault.prototype.delete.call(inner, ref);
+    },
+  });
+  const logged: string[] = [];
+  const svc = new ApiKeyService({
+    store: store as never,
+    vault,
+    environment: null,
+    log: (m) => logged.push(m),
+  });
+  const body = (k: string, v: number | null) => ({
+    api_key: k,
+    model_id: 'gpt-6-astra',
+    expected_version: v,
+  });
+  let s = await svc.save(ctx, ws, body(KEY_1, null));
+  assert.equal(s.unused_file_left, false);
+  const first = await svc.liveFor(ctx, ws);
+  assert.ok(first);
+  // Another process replaces the key: the next call reads the new reference and the old
+  // adapter is dropped from memory.
+  const otherRef = newApiKeyRef();
+  await inner.putApiKey(otherRef, KEY_2);
+  const oldRef = rec!.credential_ref;
+  rec = { credential_ref: otherRef, model_id: 'gpt-6-astra' };
+  const second = await svc.liveFor(ctx, ws);
+  assert.ok(second && second !== first);
+  rec = { credential_ref: oldRef, model_id: 'gpt-6-astra' };
+  assert.notEqual(
+    await svc.liveFor(ctx, ws),
+    first,
+    'the old adapter was not kept',
+  );
+  rec = { credential_ref: otherRef, model_id: 'gpt-6-astra' };
+  // Remove while the file is locked: the record goes, the page is told the file stayed.
+  locked = true;
+  s = await svc.remove(ctx, ws, { expected_version: version });
+  assert.equal(s.in_use, 'none');
+  assert.equal(s.unused_file_left, true);
+  assert.match(s.note ?? '', /could not be deleted/);
+  assert.ok(logged.some((m) => m.includes(otherRef)));
+  assert.ok(!logged.some((m) => m.includes(KEY_2)));
+  assert.equal(await inner.getApiKey(otherRef), KEY_2);
+  // The next save retries the leftover delete.
+  locked = false;
+  s = await svc.save(ctx, ws, body(KEY_1, null));
+  assert.equal(s.unused_file_left, false);
+  assert.equal(await inner.getApiKey(otherRef), null);
 });
 
 async function load<T>(file: string) {
@@ -384,19 +499,50 @@ test('API key in Models and connections: save, use, replace, remove; never shown
   assert.equal((await check()).outcome?.kind, 'connected');
   assert.deepEqual(seen, [`Bearer ${KEY_1}`, `Bearer ${KEY_2}`]);
 
+  // Change model (review 1 N-6): the key stays, calls name the new model; an editor is refused.
+  await assert.rejects(
+    memberService.changeModel(editor, ws.id, {
+      model_id: 'gpt-6-astra-mini',
+      expected_version: 2,
+    }),
+    (e: { code?: string }) => e.code === 'ACCESS_DENIED',
+  );
+  status = await caller.post(`${w}/api-keys/openai/model`, {
+    model_id: 'gpt-6-astra-mini',
+    expected_version: 2,
+  });
+  assert.deepEqual(
+    [status.saved.model_id, status.saved.last_four, status.saved.version],
+    ['gpt-6-astra-mini', 'QRST', 3],
+  );
+  assert.equal((await files()).length, 1);
+  const staleModel = await raw(`${w}/api-keys/openai/model`, {
+    model_id: 'gpt-6-astra',
+    expected_version: 2,
+  });
+  assert.equal(staleModel.body.error.code, 'VERSION_CONFLICT');
+  status = await caller.post(`${w}/api-keys/openai/model`, {
+    model_id: 'gpt-6-astra',
+    expected_version: 3,
+  });
+  assert.equal(status.saved.version, 4);
+  assert.equal((await check()).outcome?.kind, 'connected');
+  assert.deepEqual(seen.at(-1), `Bearer ${KEY_2}`);
+
   // Remove: no entry, no record, and calls stop reaching OpenAI.
   const stale2 = await raw(`${w}/api-keys/openai/remove`, {
     expected_version: 1,
   });
   assert.equal(stale2.body.error.code, 'VERSION_CONFLICT');
   status = await caller.post(`${w}/api-keys/openai/remove`, {
-    expected_version: 2,
+    expected_version: 4,
   });
   assert.equal(status.in_use, 'none');
+  assert.equal(status.unused_file_left, false);
   assert.equal(status.saved, null);
   assert.deepEqual(await files(), []);
   assert.notEqual((await check()).outcome?.kind, 'connected');
-  assert.equal(seen.length, 2);
+  assert.equal(seen.length, 3);
 
   // The database and the audit log hold the last four only, and record each change.
   const dump = await db.pool.query(
@@ -413,6 +559,12 @@ test('API key in Models and connections: save, use, replace, remove; never shown
   );
   assert.deepEqual(
     actions.rows.map((r) => `${r.action}:${r.four}`),
-    ['api_key.saved:WXYZ', 'api_key.replaced:QRST', 'api_key.removed:QRST'],
+    [
+      'api_key.saved:WXYZ',
+      'api_key.replaced:QRST',
+      'api_key.model_changed:QRST',
+      'api_key.model_changed:QRST',
+      'api_key.removed:QRST',
+    ],
   );
 });
