@@ -1000,12 +1000,15 @@ export function RangeWhy({
   cand,
   cards,
   canEdit,
+  ownCard,
   onFill,
 }: {
   rubric: 'suitability' | 'opportunity';
   cand: RankedCandidate;
   cards: StoredEntity[];
   canEdit: boolean;
+  /** Whether the person has a card of their own for this option and rubric. */
+  ownCard: boolean;
   /** Opens the scoring form: on that automatic card, or on the person's own card. */
   onFill: (systemId: string | null) => void;
 }) {
@@ -1092,18 +1095,21 @@ export function RangeWhy({
                 (your edit replaces it; the original stays) ·{' '}
               </span>
             ))}
-          {fillable.some((r) => !r.system) && (
-            <>
-              <button
-                type="button"
-                className="text"
-                onClick={() => onFill(null)}
-              >
-                Score this option yourself
-              </button>{' '}
-              ·{' '}
-            </>
-          )}
+          {/* Re-review 2 N-2: with no card of their own, the scoring form opens the current
+              automatic card, which the button before already offers. */}
+          {fillable.some((r) => !r.system) &&
+            (ownCard || !rows.some((r) => r.system && r.counted)) && (
+              <>
+                <button
+                  type="button"
+                  className="text"
+                  onClick={() => onFill(null)}
+                >
+                  Score this option yourself
+                </button>{' '}
+                ·{' '}
+              </>
+            )}
           or link evidence to this option and assess again.
         </p>
       )}

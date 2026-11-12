@@ -70,11 +70,8 @@ export class ProposalStore extends CatalogStore {
   }
 
   private async explain(c: PoolClient, ws: string, problemId: string) {
-    const { problem, candidates, evidence, linked_hash } = await this.gather(
-      c,
-      ws,
-      problemId,
-    );
+    const { problem, candidates, evidence, linked_hash, problem_linked_hash } =
+      await this.gather(c, ws, problemId);
     const report = selectionReport({
       problem: {
         id: problem.id,
@@ -85,6 +82,7 @@ export class ProposalStore extends CatalogStore {
       shortlist_size: 3,
       evidence,
       linked_hash,
+      problem_linked_hash,
     });
     const ids = candidates.map((x) => x.alternative.id);
     const alts = (

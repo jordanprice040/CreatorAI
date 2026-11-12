@@ -58,10 +58,15 @@ export const rubricsForKind = (kind: string): RubricId[] =>
  * are renamed "draft-C3" and a note says what they are.
  */
 // Review L-2: only in citation positions ("Data: C3", "(C3, C12)", "claims C3 and C5"), so
-// "AWS C5 instances" or "Category C3" are left alone.
+// "AWS C5 instances" or "Category C3" are left alone. Re-review 2 L-1: the words may start
+// with a capital ("Claims C3", "See C3"), and the end of a range after a renamed ref
+// ("draft-C3–C5", "draft-C3 to C5") is renamed too, so one citation never mixes both forms.
 const DRAFT_REF =
-  /(?<=(?:[:(,;[]|\b(?:claims?|cites?|cited|see|and|per|from))\s*)C([1-9][0-9]?)\b/g;
-const draftRefs = (s: string) => s.replace(DRAFT_REF, 'draft-C$1');
+  /(?<=(?:[:(,;[]|\b(?:[Cc]laims?|[Cc]ites?|[Cc]ited|[Ss]ee|[Aa]nd|[Pp]er|[Ff]rom))\s*)C([1-9][0-9]?)\b/g;
+const DRAFT_RANGE_END =
+  /(?<=draft-C[0-9]+\s*(?:[–—-]|\bto\b)\s*)C([1-9][0-9]?)\b/g;
+const draftRefs = (s: string) =>
+  s.replace(DRAFT_REF, 'draft-C$1').replace(DRAFT_RANGE_END, 'draft-C$1');
 const clip = (s: string, n: number) =>
   s.length > n ? `${s.slice(0, n - 1)}…` : s;
 

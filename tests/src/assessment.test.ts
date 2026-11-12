@@ -884,6 +884,64 @@ test('P25: the preview sizes requests to the chosen plan connection input cap, a
   assert.ok(!workflows.some((w) => w.run_id === runId));
 });
 
+test('ADR-0091 re-review 2 N-5: a run output cap below the connection cap sizes the start to the smaller one', async (t) => {
+  const s = await setup(t, new FixtureAdapter());
+  if (!s) return;
+  const connections = new ConnectionStore(s.db.pool);
+  const settings = JSON.parse(
+    readFileSync(
+      new URL('../../config/connections/chatgpt-plan.json', import.meta.url),
+      'utf8',
+    ),
+  ) as PlanConnection['settings'];
+  const conn = await connections.createPlanConnection(owner, s.ws.id, {
+    kind: 'chatgpt_plan',
+    label: 'Wide answers',
+    settings: {
+      ...settings,
+      caps: {
+        ...settings.caps,
+        responses: {
+          ...settings.caps.responses,
+          max_input_chars: 200_000,
+          max_output_chars: 16_000,
+        },
+      },
+    },
+  });
+  const preview = await s.store.previewAssessment(
+    owner,
+    s.ws.id,
+    s.problem.id,
+    conn.id,
+  );
+  // One assessment per request at a 5,000-character answer cap: more requests than the
+  // preview sized to the connection's 16,000, so a one-task limit is refused with that count.
+  const runId = await s.run();
+  const refused = await s.store
+    .startAssessment(
+      owner,
+      s.ws.id,
+      runId,
+      s.request(s.problem.version, {
+        resource_setup: {
+          kind: 'subscription',
+          connection_id: conn.id,
+          model_id: 'gpt-test',
+          settings_hash: conn.settings_hash,
+          max_output_chars: 5_000,
+        },
+        limits: { ...s.request().limits, max_children: 1 },
+      }),
+    )
+    .then(
+      () => null,
+      (e: unknown) => (e instanceof ContractError ? e.message : String(e)),
+    );
+  const taken = Number(/takes (\d+) requests/.exec(refused ?? '')?.[1]);
+  assert.ok(taken > preview.requests, `${refused} vs ${preview.requests}`);
+});
+
 test('ADR-0091: a claim linked to an option is read for that option, and linking one marks the assessment stale', async (t) => {
   const s = await setup(t, new FixtureAdapter());
   if (!s) return;
@@ -969,8 +1027,12 @@ test('ADR-0091 review L-4: an option link alone marks the assessment stale, and 
     sys.every(
       (x) =>
         x.stale &&
-        x.stale_reasons!.some((r) =>
-          /linked to the problem or its options changed/.test(r),
+        // Review 2 L-2: only option claims differ, which an upgrade also causes, so the
+        // reason must not claim a link changed.
+        x.stale_reasons!.some(
+          (r) =>
+            /did not read claims now linked to the options/.test(r) &&
+            /studio was upgraded/.test(r),
         ),
     ),
   );

@@ -133,6 +133,8 @@ interface ParseEnv {
   evidence?: EvidenceVersions | undefined;
   /** The current hash of the claims linked to the problem (review M-1). */
   linked_hash?: string | undefined;
+  /** The same set without option claims, as hashed before ADR-0091 (review 2 L-2). */
+  problem_linked_hash?: string | undefined;
 }
 const shortId = (id: string) => id.slice(0, 8);
 /** Why a card no longer rates what is current: option, cited evidence, problem, rubric, packet. */
@@ -178,7 +180,11 @@ function staleReasons(
       out.push('The rubric changed since this assessment.');
     if (env.linked_hash !== undefined && env.linked_hash !== a.linked_hash)
       out.push(
-        'Evidence linked to the problem or its options changed since this assessment (a claim was linked or unlinked).',
+        // Review 2 L-2: only option claims differ. That is either a claim linked to an option
+        // since, or an assessment made before assessments read option claims (an upgrade).
+        env.problem_linked_hash === a.linked_hash
+          ? 'This assessment did not read claims now linked to the options: either a claim was linked to an option since, or it was made before assessments read option-linked claims (the studio was upgraded). Assess again to read them.'
+          : 'Evidence linked to the problem or its options changed since this assessment (a claim was linked or unlinked).',
       );
     if (ev)
       for (const e of a.evidence) {
@@ -589,6 +595,8 @@ export function selectionReport(input: {
   evidence?: EvidenceVersions;
   /** The current hash of the problem's linked claims; without it linking is not checked. */
   linked_hash?: string;
+  /** The problem's linked claims without option claims (review 2 L-2). */
+  problem_linked_hash?: string;
 }): SelectionReport {
   const candidates = [...input.candidates].sort((a, b) =>
     a.alternative.id < b.alternative.id ? -1 : 1,
@@ -600,6 +608,7 @@ export function selectionReport(input: {
         problem: input.problem,
         evidence: input.evidence,
         linked_hash: input.linked_hash,
+        problem_linked_hash: input.problem_linked_hash,
       }),
     ]),
   );

@@ -329,9 +329,16 @@ export function ClaimLinks({
     );
     const linkedIds = [
       ...new Set(
+        // Re-review 2 N-3: only problems and options are named, so only those are fetched.
         [
-          ...detail.outgoing.map((l) => l.to.id),
-          ...detail.incoming.map((l) => l.from.id),
+          ...detail.outgoing
+            .filter(
+              (l) => l.to.kind === 'problem' || l.to.kind === 'alternative',
+            )
+            .map((l) => l.to.id),
+          ...detail.incoming
+            .filter((l) => l.from.kind === 'problem')
+            .map((l) => l.from.id),
         ]
           .map((x) => x.toLowerCase())
           .filter((x) => !listed.has(x)),
@@ -473,7 +480,7 @@ export function ClaimLinks({
                 {/* Review M-1: "drafted from" is the problem's lineage, not an evidence link
                     to undo here, so it has no Unlink. */}
                 {l.relation === 'derived_from'
-                  ? ' (the problem was drafted from it; an assessment always reads it)'
+                  ? ' (the problem was drafted from it; assessments of the problem read it)'
                   : ''}
                 {editor &&
                   l.relation !== 'derived_from' &&

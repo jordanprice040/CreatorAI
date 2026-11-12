@@ -4,7 +4,9 @@
 
 Branch `claude/project-thread-j9fsjp`, no migration. Packet: `ASSESSMENT_CLAIMS_SQL` and `linkedClaimsHash` (`claim:option` keys) in `packages/db/src/selection-store.ts`; `AssessmentInputClaim`, coverage-first claim order and `option_coverage` in `packages/domain/src/assessment.ts`; optional `options` on `AssessmentClaimSchema` and `option_coverage` on `AssessmentPreviewSchema`. Web: `link-claims.tsx` (`LinkClaims`, `ClaimLinks`), `claim-suggest.ts` (pure: `suggestClaims`, `rangeEnds`), `web-search-handoff.ts`; `Coverage` and `RangeWhy` in `assess.tsx`; Compare, Evidence, Catalog and WebDiscover wired. R08 untouched on purpose (qualification check compares the system text). The ethics/access gate thread plans ADR-0090 / migration 56 and an R08 change; expect a small merge in the packet notes area of `assessment.ts`.
 
-Review 1 (`/mnt/project-files/reviews/PR178_REVIEW1.md`: 1 Medium, 4 Low, 7 nits) fixed; see the ADR-0091 review amendment. Merge notes for #179: keep `RangeWhy`, `LinkClaims` and `GateLines` imports in compare.tsx; keep `ASSESSMENT_CLAIMS_SQL` and `extends TeamStore`, and both `outputCap` and `team` in `buildAssessment`; rerun assessment-packing tests after.
+Review 1 (`/mnt/project-files/reviews/PR178_REVIEW1.md`: 1 Medium, 4 Low, 7 nits) fixed; see the ADR-0091 review amendment. Merge notes for #179: keep `RangeWhy`, `LinkClaims` and `GateLines` imports in compare.tsx; keep `ASSESSMENT_CLAIMS_SQL` and `extends TeamStore`, and both `outputCap` and `team` in `buildAssessment`; rerun assessment-packing tests after. Re-review 2 (`PR178_REVIEW2.md`: 2 Low, 5 nits) fixed; see the re-review 2 amendment.
+
+After upgrading, problems with claims already linked to options show their automatic assessments as stale; assess again to read them (the stale reason says this).
 
 Next: Jordan tries Link claims on the CSV problem and assesses again (about 2 plan requests, needs his OK).
 

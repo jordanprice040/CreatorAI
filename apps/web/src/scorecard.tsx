@@ -45,7 +45,11 @@ type Option = { entity: StoredEntity; kind: string };
  * carry the reviewer's label, not an account, so a card is yours when it is a human card
  * under your display name; another member's card is never offered for revision.
  */
-const yours = (
+/** The label a person's own scorecards carry. */
+export const reviewerLabel = (session: { display_name: string }) =>
+  session.display_name.trim().slice(0, 300) || 'Owner';
+
+export const yours = (
   cards: StoredEntity[],
   optionId: string,
   rubric: RubricKey,
@@ -121,7 +125,7 @@ export function ScoreOption({
       .getElementById('score-title')
       ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [pick?.n]);
-  const reviewer = session.display_name.trim().slice(0, 300) || 'Owner';
+  const reviewer = reviewerLabel(session);
   const option = options.find((o) => o.entity.id === optionId);
   const rubrics = option ? rubricsFor(option.kind) : [];
   // A rubric the option does not offer falls back in the same render, never after it.

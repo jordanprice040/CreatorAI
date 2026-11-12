@@ -398,6 +398,8 @@ test('ADR-0091: option texts citing the drafting packet ("C3") are renamed draft
           'Feasibility: Data: C3.',
           'CSV and C99X stay as they are.',
           'Runs on AWS C5 instances; Category C3 users; claims C4 and C5.',
+          'Claims C3 and C5 agree. See C7.',
+          'Exports (C3–C5) and from C2 to C4.',
         ],
       },
       s.alternatives[1]!,
@@ -410,6 +412,8 @@ test('ADR-0091: option texts citing the drafting packet ("C3") are renamed draft
     'Feasibility: Data: draft-C3.',
     'CSV and C99X stay as they are.',
     'Runs on AWS C5 instances; Category C3 users; claims draft-C4 and draft-C5.',
+    'Claims draft-C3 and draft-C5 agree. See draft-C7.',
+    'Exports (draft-C3–draft-C5) and from draft-C2 to draft-C4.',
   ]);
   assert.ok(plan.packet.notes.some((n) => /draft-C/.test(n)));
   const plain = buildAssessmentPacket(small());

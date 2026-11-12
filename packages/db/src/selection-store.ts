@@ -559,7 +559,7 @@ export class SelectionStore extends DiscoveryStore {
       problem,
       candidates,
       evidence: evidence as EvidenceVersions,
-      linked_hash: await this.linkedClaimsHash(c, ws, problemId),
+      ...(await this.linkedHashes(c, ws, problemId)),
     };
   }
 
@@ -574,13 +574,28 @@ export class SelectionStore extends DiscoveryStore {
     ws: string,
     problemId: string,
   ) {
-    const { rows } = await c.query<{ id: string }>(
+    return (await this.linkedHashes(c, ws, problemId)).linked_hash;
+  }
+
+  /**
+   * linked_hash, and problem_linked_hash: the same set without option claims, which is what
+   * assessments made before ADR-0091 hashed. Review 2 L-2: an assessment whose hash equals it
+   * differs only by option claims it did not read, and its stale reason says so.
+   */
+  protected async linkedHashes(c: PoolClient, ws: string, problemId: string) {
+    const { rows } = await c.query<{ id: string; option: boolean }>(
       `select distinct case when x.option_id is null then x.from_id::text
-                            else x.from_id::text || ':' || x.option_id::text end as id
+                            else x.from_id::text || ':' || x.option_id::text end as id,
+              x.option_id is not null as option
          from (${ASSESSMENT_CLAIMS_SQL}) x`,
       [ws, problemId],
     );
-    return supportHash(rows.map((r) => r.id));
+    return {
+      linked_hash: supportHash(rows.map((r) => r.id)),
+      problem_linked_hash: supportHash(
+        rows.filter((r) => !r.option).map((r) => r.id),
+      ),
+    };
   }
 
   /** Each claim's active support rows, hashed (ADR-0074): new or retracted support changes it. */
@@ -615,11 +630,13 @@ export class SelectionStore extends DiscoveryStore {
       throw fail('INVALID_CONTRACT', 'Shortlist size must be 1–10.');
     return this.tx(async (c) => {
       await this.role(c, ws, ctx.actorId, false);
-      const { problem, candidates, evidence, linked_hash } = await this.gather(
-        c,
-        ws,
-        problemId,
-      );
+      const {
+        problem,
+        candidates,
+        evidence,
+        linked_hash,
+        problem_linked_hash,
+      } = await this.gather(c, ws, problemId);
       return selectionReport({
         problem: {
           id: problem.id,
@@ -630,6 +647,7 @@ export class SelectionStore extends DiscoveryStore {
         shortlist_size: shortlistSize,
         evidence,
         linked_hash,
+        problem_linked_hash,
       });
     });
   }
@@ -1048,11 +1066,13 @@ export class SelectionStore extends DiscoveryStore {
         'select 1 from entities where workspace_id = $1 and id = $2 for update',
         [ws, problemId],
       );
-      const { problem, candidates, evidence, linked_hash } = await this.gather(
-        c,
-        ws,
-        problemId,
-      );
+      const {
+        problem,
+        candidates,
+        evidence,
+        linked_hash,
+        problem_linked_hash,
+      } = await this.gather(c, ws, problemId);
       if (problem.version !== req.problem.version)
         throw fail(
           'VERSION_CONFLICT',
@@ -1068,6 +1088,7 @@ export class SelectionStore extends DiscoveryStore {
         shortlist_size: req.shortlist_size,
         evidence,
         linked_hash,
+        problem_linked_hash,
       });
       if (report.report_hash !== req.report_hash)
         throw fail(
@@ -1396,11 +1417,13 @@ export class SelectionStore extends DiscoveryStore {
     if (!alt || alt.version !== body.alternative.version)
       blockers.push('The selected alternative changed after it was selected.');
     else {
-      const { problem, candidates, evidence, linked_hash } = await this.gather(
-        c,
-        ws,
-        selection.problem.id,
-      );
+      const {
+        problem,
+        candidates,
+        evidence,
+        linked_hash,
+        problem_linked_hash,
+      } = await this.gather(c, ws, selection.problem.id);
       const report = selectionReport({
         problem: {
           id: problem.id,
@@ -1411,6 +1434,7 @@ export class SelectionStore extends DiscoveryStore {
         shortlist_size: 3,
         evidence,
         linked_hash,
+        problem_linked_hash,
       });
       const row = report.suitability.candidates.find(
         (x) => x.alternative.id === altId,
