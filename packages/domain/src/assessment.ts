@@ -66,17 +66,21 @@ export const rubricsForKind = (kind: string): RubricId[] =>
 // "draft-C3" is never renamed again.
 const anyCase = (w: string) =>
   w.replace(/[a-z]/g, (c) => `[${c}${c.toUpperCase()}]`);
-const DRAFT_REF_ONE = '(?<!draft-)\\bC[1-9][0-9]?\\b';
+// Re-review 5: an already-prefixed ref (any case, any dash: "Draft–C3") stays a member of
+// its run, so the bare refs beside it are renamed with it, and only it is skipped.
+const DRAFT_PRE = `(?:${anyCase('draft')}[-–—])`;
+const DRAFT_REF_ONE = `(?:${DRAFT_PRE}?\\bC[1-9][0-9]?\\b)`;
 const DRAFT_RUN = new RegExp(
-  `${DRAFT_REF_ONE}(?:\\s*(?:[,/&–—-]|\\b(?:${['and', 'or', 'to', 'through'].map(anyCase).join('|')})\\b)\\s*${DRAFT_REF_ONE})*`,
+  `(?<!${DRAFT_PRE})${DRAFT_REF_ONE}(?:\\s*(?:[,/&–—-]|\\b(?:${['and', 'or', 'to', 'through'].map(anyCase).join('|')})\\b)\\s*${DRAFT_REF_ONE})*`,
   'g',
 );
+const BARE_REF = new RegExp(`(?<!${DRAFT_PRE})\\bC(?=[1-9])`, 'g');
 const CITES_BEFORE =
   /(?:[:(,;[]|\b(?:claims?|cites?|cited|see|and|per|from))\s*$/i;
 const draftRefs = (s: string) =>
   s.replace(DRAFT_RUN, (run: string, at: number) =>
     run.includes('C', 1) || CITES_BEFORE.test(s.slice(0, at))
-      ? run.replace(/\bC(?=[1-9])/g, 'draft-C')
+      ? run.replace(BARE_REF, 'draft-C')
       : run,
   );
 const clip = (s: string, n: number) =>
