@@ -3534,7 +3534,8 @@ html {
   scroll-padding-bottom: 64px;
   /* Review 2 of #192, L-A and O-1 (2.4.11): focus and scrolled-to headings stop below the
      sticky top bar. */
-  scroll-padding-top: 72px;
+  /* Review 3, L-C: the bar's measured height (set from main.tsx), 59 px when unknown. */
+  scroll-padding-top: calc(var(--topbar-h, 59px) + 12px);
 }
 /* Review 1 of #192, N-7: fold rows are 24 px targets too, like text buttons. */
 details > summary {

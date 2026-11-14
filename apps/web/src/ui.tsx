@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { useOnShow } from './page-active.js';
 import {
   ActorSummarySchema,
@@ -320,6 +326,33 @@ export function reveal(from: Element | null, id: string): boolean {
  * Final UX pass (Jordan, November 14): a "Back to top" button once a long page is scrolled
  * past the first screen. It moves focus back to the page's main region as well as the view.
  */
+/**
+ * Review 3 of #192, L-C (WCAG 2.4.11): the sticky top bar's real height, kept in `--topbar-h`
+ * on the root element, so scroll padding keeps focused controls and revealed headings below it
+ * at every width (the bar wraps to two or three rows on narrow windows).
+ */
+export function useTopbarHeight() {
+  const watch = useRef<ResizeObserver | null>(null);
+  // A callback ref, since the bar mounts only once the studio has loaded.
+  return useCallback((bar: HTMLElement | null) => {
+    watch.current?.disconnect();
+    watch.current = null;
+    const root = document.documentElement;
+    if (!bar || typeof ResizeObserver === 'undefined') {
+      root.style.removeProperty('--topbar-h');
+      return;
+    }
+    const set = () =>
+      root.style.setProperty(
+        '--topbar-h',
+        `${Math.ceil(bar.getBoundingClientRect().height)}px`,
+      );
+    set();
+    watch.current = new ResizeObserver(set);
+    watch.current.observe(bar);
+  }, []);
+}
+
 export function BackToTop() {
   const [shown, setShown] = useState(false);
   useEffect(() => {
