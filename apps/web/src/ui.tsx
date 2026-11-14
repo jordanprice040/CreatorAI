@@ -309,6 +309,13 @@ export function StaleNote({ stale }: { stale?: string | undefined }) {
   );
 }
 /**
+ * Asks the Discover page that holds an element to open its panel (P-7, ADR-0103). `reveal`
+ * sends it when its target sits in a closed panel (`[data-panel][hidden]`); it bubbles to the
+ * page's own section only, since kept-alive pages repeat ids.
+ */
+export const SHOW_PANEL = 'creator:show-discover-panel';
+
+/**
  * Scrolls to the element with `id` and moves keyboard focus to it (review 1 of #192, L-1 and
  * L-2). It looks only inside the page that `from` belongs to, since kept-alive pages repeat
  * ids, and jumps without animation when the person asks for reduced motion.
@@ -317,13 +324,29 @@ export function reveal(from: Element | null, id: string): boolean {
   const root: ParentNode = from?.closest('.draft-page') ?? document;
   const target = root.querySelector<HTMLElement>(`#${CSS.escape(id)}`);
   if (!target) return false;
-  const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  target.scrollIntoView({
-    behavior: still ? 'auto' : 'smooth',
-    block: 'start',
-  });
-  if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
-  target.focus({ preventScroll: true });
+  const go = () => {
+    const still = window.matchMedia?.(
+      '(prefers-reduced-motion: reduce)',
+    ).matches;
+    target.scrollIntoView({
+      behavior: still ? 'auto' : 'smooth',
+      block: 'start',
+    });
+    if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+    target.focus({ preventScroll: true });
+  };
+  // P-7: a target inside a closed Discover panel opens that panel first, then is shown once
+  // the page has rendered it.
+  const panel = target.closest<HTMLElement>('[data-panel][hidden]');
+  if (panel) {
+    panel.dispatchEvent(
+      new CustomEvent(SHOW_PANEL, {
+        bubbles: true,
+        detail: panel.dataset.panel,
+      }),
+    );
+    setTimeout(go, 0);
+  } else go();
   return true;
 }
 

@@ -21,7 +21,7 @@ import {
   AUTOPILOT_QUOTE_CHECK_LABEL,
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
-import { Status, useLoad } from './ui.js';
+import { Status, reveal, useLoad } from './ui.js';
 import {
   onWebSearchPrefill,
   type WebSearchPrefill,
@@ -152,15 +152,8 @@ export function WebDiscover({
           setInterests(p.interests);
           setOffered(null);
         }
-        setTimeout(() => {
-          sectionRef.current?.scrollIntoView({
-            behavior: 'smooth',
-            block: 'start',
-          });
-          sectionRef.current
-            ?.querySelector<HTMLElement>('#web-title')
-            ?.focus({ preventScroll: true });
-        }, 50);
+        // P-7: opens the Search the web panel first when another panel is open.
+        setTimeout(() => reveal(sectionRef.current, 'web-title'), 50);
       }),
     [],
   );

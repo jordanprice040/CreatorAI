@@ -2,6 +2,7 @@ import type { Prefill } from './prefill.js';
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
   type ReactNode,
@@ -50,7 +51,23 @@ import { Explore, type ExploredPick } from './explore.js';
 import { Autopilot } from './autopilot.js';
 import { Automation } from './automation.js';
 import { WebDiscover } from './web-discovery.js';
-import { Empty, Status, runNames, useLoad, type View } from './ui.js';
+import {
+  Empty,
+  SHOW_PANEL,
+  Status,
+  reveal,
+  runNames,
+  useLoad,
+  type View,
+} from './ui.js';
+import { DiscoveryProgress } from './discovery-progress.js';
+import {
+  firstPanel,
+  isPanel,
+  panelKey,
+  panelsFor,
+  type DiscoverPanel,
+} from './discover-panels.js';
 import { runLabel } from './labels.js';
 import { preferredRoute } from './model-choice.js';
 import { ChoiceNote, routePlans, useModelChoice } from './model-switch.js';
@@ -302,10 +319,47 @@ export function Submit({
   // or anywhere), so the current state shows without a manual refresh; typed fields are kept.
 
   const [theme, setTheme] = useState('');
+  // ADR-0082 (P19): Discover's Guided/Advanced choice is now the app-wide Standard/Advanced.
+  const { standard: guided, set: setViewMode } = useViewMode();
+  // P-7 (ADR-0103): one start panel open at a time. The others stay mounted, hidden, so what
+  // was typed or picked in them is kept; this browser remembers the last one per workspace.
+  const sectionRef = useRef<HTMLElement>(null);
+  const savedPanelKey = panelKey(session.actor_id, workspace.id);
+  const [panel, setPanel] = useState<DiscoverPanel>(() => {
+    let saved: string | null = null;
+    try {
+      saved = localStorage.getItem(savedPanelKey);
+    } catch {
+      // No storage: start on the first panel.
+    }
+    return firstPanel(saved, guided);
+  });
+  function choose(next: DiscoverPanel) {
+    setPanel(next);
+    try {
+      localStorage.setItem(savedPanelKey, next);
+    } catch {
+      // Only this browser's convenience.
+    }
+  }
+  // `reveal` asks for a closed panel when a link aims inside it (ui.tsx).
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el) return;
+    const show = (e: Event) => {
+      const want = (e as CustomEvent<string>).detail;
+      if (isPanel(want)) choose(want);
+    };
+    el.addEventListener(SHOW_PANEL, show);
+    return () => el.removeEventListener(SHOW_PANEL, show);
+  }, [savedPanelKey]);
+  // P-6: the discovery started here, shown in plain words on this page instead of Runs.
+  const [startedId, setStartedId] = useState('');
   useEffect(() => {
     if (!prefill) return;
     setTheme(prefill.value.slice(0, 300));
     prefill.used();
+    choose('claims');
   }, [prefill?.nonce]);
   const fixture = workspace.record_mode === 'fixture';
   // P04: routine fields start from the studio defaults with this person's saved preset for
@@ -314,8 +368,6 @@ export function Submit({
     readPreset(session.actor_id, workspace.id, fixture),
   );
   const start = startingSettings(fixture, preset);
-  // ADR-0082 (P19): Discover's Guided/Advanced choice is now the app-wide Standard/Advanced.
-  const { standard: guided } = useViewMode();
   const [fieldA, setFieldA] = useState('');
   const [fieldB, setFieldB] = useState('');
   const [users, setUsers] = useState('');
@@ -394,9 +446,7 @@ export function Submit({
     setOpenClaims(new Set(picked.map((x) => x.claim_id)));
     setExplored(pick.brief);
     setTried(false);
-    document
-      .querySelector('#discover')
-      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    reveal(sectionRef.current, 'discover');
   }
 
   const brief = {
@@ -895,7 +945,7 @@ export function Submit({
         }).catch(() => undefined);
       setExplored(null);
       setAgainst(new Set());
-      open('runs', started.workflow.id);
+      setStartedId(started.workflow.id);
     } catch (err) {
       setError(message(err));
       setErrorFixes(
@@ -911,658 +961,715 @@ export function Submit({
   }
   const viewer = workspace.role === 'viewer';
   return (
-    <section className="panel" aria-labelledby="sub-title">
+    <section
+      className="panel short-title"
+      aria-labelledby="sub-title"
+      ref={sectionRef}
+    >
       <h2 id="sub-title">Discover</h2>
       <div className="start-choices" role="group" aria-label="How to start">
-        {(
-          [
-            [
-              'explore-title',
-              'Explore for me',
-              'No theme yet: the studio looks for problems in your recorded evidence.',
-            ],
-            [
-              'web-title',
-              'Search the web',
-              'Find new evidence online: checked quotes from real pages become claims.',
-            ],
-            [
-              'theme-intent-title',
-              'Start with a theme',
-              'A rough idea saved as a draft to plan later.',
-            ],
-            [
-              'discover',
-              'Discover from claims',
-              'You know the problem: write a short brief and start a run now.',
-            ],
-          ] as const
-        ).map(([target, label, text]) => (
+        {panelsFor(guided, panel).map((c) => (
           <button
-            key={target}
+            key={c.key}
             type="button"
             className="start-choice"
-            // The address hash holds the route, so scroll instead of linking.
-            // Kept-alive pages can repeat the id, so look inside this page only.
-            onClick={(e) =>
-              e.currentTarget
-                .closest('section')
-                ?.querySelector(`#${target}`)
-                ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-            }
+            aria-expanded={panel === c.key}
+            aria-controls={`discover-panel-${c.key}`}
+            onClick={() => choose(c.key)}
           >
-            <strong>{label}</strong>
-            <span>{text}</span>
+            <strong>{c.label}</strong>
+            <span>{c.text}</span>
           </button>
         ))}
       </div>
-      <Explore
-        key={`explore-${workspace.id}`}
-        session={session}
-        workspace={workspace}
-        onUse={takePick}
-        open={open}
-      />
-      <WebDiscover
-        key={`web-${workspace.id}`}
-        session={session}
-        workspace={workspace}
-      />
-      <Autopilot
-        key={`autopilot-${workspace.id}`}
-        session={session}
-        workspace={workspace}
-      />
-      <Automation
-        key={`automation-${workspace.id}`}
-        session={session}
-        workspace={workspace}
-      />
-      <ThemeIntent key={workspace.id} session={session} workspace={workspace} />
-      <h3 id="discover">Discover from existing claims</h3>
-      <ViewModeSwitch compact />
-      <p className="small">
-        Write what you know, attach the claims it rests on, and start. Evidence
-        is only the claims you attach; the locator does not search the web.
-        {guided && ' Routine settings use the defaults shown under each fold.'}
-      </p>
-      {explored && (
-        <p className="notice">
-          Filled from an Explore for me pick, with its cited claims attached:
-          supporting ones marked as bearing on the problem, ones cited against
-          it labelled and left for you to mark. Check every field and claim
-          before starting; if you change the brief, it is saved as a new brief
-          and the pick's brief is archived.
-        </p>
-      )}
-      {workspace.record_mode === 'fixture' && (
-        <p className="notice">
-          Fixture workspace: the deterministic adapter answers from rules over
-          the evidence packet. Its proposals are placeholders, not reasoning.
-        </p>
-      )}
-      {viewer && (
-        <p className="error">You can read this workspace but not start runs.</p>
-      )}
-      <Status
-        loading={ctx.loading}
-        error={ctx.error}
-        stale={ctx.stale}
-        retry={ctx.reload}
-      >
-        {c && (
-          <form
-            noValidate
-            onSubmit={(e) => void submit(e)}
-            aria-describedby="sub-issues"
+      {guided && panel !== 'theme' && (
+        // Review N-4 and re-review N-C: the switch's whole effect is in visible text, not a tooltip.
+        <p className="choices-more small">
+          <button
+            type="button"
+            className="text small"
+            aria-describedby="theme-advanced-note"
+            onClick={() => {
+              setViewMode('advanced');
+              choose('theme');
+            }}
           >
-            <fieldset>
-              <legend>The brief</legend>
-              <label htmlFor="b-theme">Theme (specific setting or group)</label>
-              <input
-                id="b-theme"
-                required
-                maxLength={300}
-                value={theme}
-                onChange={(e) => setTheme(e.target.value)}
-              />
-              <div className="two">
-                <div>
-                  <label htmlFor="b-fa">
-                    First subject area (for example nursing)
-                  </label>
-                  <input
-                    id="b-fa"
-                    required
-                    maxLength={300}
-                    value={fieldA}
-                    onChange={(e) => setFieldA(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="b-fb">
-                    Second subject area (for example logistics)
-                  </label>
-                  <input
-                    id="b-fb"
-                    required
-                    maxLength={300}
-                    value={fieldB}
-                    onChange={(e) => setFieldB(e.target.value)}
-                  />
-                </div>
-              </div>
-              <label htmlFor="b-users">Target users</label>
-              <input
-                id="b-users"
-                required
-                maxLength={300}
-                value={users}
-                onChange={(e) => setUsers(e.target.value)}
-              />
-              <label htmlFor="b-prob">Measurable problem</label>
-              <textarea
-                id="b-prob"
-                required
-                rows={3}
-                maxLength={1200}
-                value={problem}
-                onChange={(e) => setProblem(e.target.value)}
-              />
-              <label htmlFor="b-meas">
-                What would be measured to tell it improved
-              </label>
-              <input
-                id="b-meas"
-                required
-                maxLength={300}
-                value={measure}
-                onChange={(e) => setMeasure(e.target.value)}
-              />
-              <Fold
-                guided={guided}
-                summary={`Routine details: ${timeLimit.trim() || 'no time limit'} · ${lines(constraints).length} constraint${lines(constraints).length === 1 ? '' : 's'} · ${sourcesText(
-                  [
-                    ['time limit', sourceText('timeLimit', timeLimit)],
-                    ['budget', sourceText('budgetLimit', budgetLimit)],
-                    ['constraints', sourceText('constraints', constraints)],
-                    ['data and tools', sourceText('dataAndTools', data)],
-                  ],
-                )}`}
-              >
-                <label htmlFor="b-ctx">Context or geography (optional)</label>
-                <input
-                  id="b-ctx"
-                  maxLength={300}
-                  value={context}
-                  onChange={(e) => setContext(e.target.value)}
-                />
-                <label htmlFor="b-data">
-                  Data and tools you may use (one per line)
+            Switch to Advanced to start with a theme
+          </button>{' '}
+          <span id="theme-advanced-note">
+            Advanced lists every tab on all your devices; switch back at the
+            foot of the page list.
+          </span>
+        </p>
+      )}
+      {/* Review N-3: below the start choices, so they stay on a phone's first screen. */}
+      <DiscoveryProgress
+        key={`progress-${workspace.id}`}
+        session={session}
+        workspace={workspace}
+        open={open}
+        where="discover"
+        keep={startedId}
+      />
+      <div
+        id="discover-panel-explore"
+        data-panel="explore"
+        hidden={panel !== 'explore'}
+      >
+        <Explore
+          key={`explore-${workspace.id}`}
+          session={session}
+          workspace={workspace}
+          onUse={takePick}
+          open={open}
+        />
+      </div>
+      <div id="discover-panel-web" data-panel="web" hidden={panel !== 'web'}>
+        <WebDiscover
+          key={`web-${workspace.id}`}
+          session={session}
+          workspace={workspace}
+        />
+      </div>
+      <div
+        id="discover-panel-autopilot"
+        data-panel="autopilot"
+        hidden={panel !== 'autopilot'}
+      >
+        <Autopilot
+          key={`autopilot-${workspace.id}`}
+          session={session}
+          workspace={workspace}
+        />
+      </div>
+      <div
+        id="discover-panel-automation"
+        data-panel="automation"
+        hidden={panel !== 'automation'}
+      >
+        <Automation
+          key={`automation-${workspace.id}`}
+          session={session}
+          workspace={workspace}
+        />
+      </div>
+      <div
+        id="discover-panel-theme"
+        data-panel="theme"
+        hidden={panel !== 'theme'}
+      >
+        <ThemeIntent
+          key={workspace.id}
+          session={session}
+          workspace={workspace}
+        />
+      </div>
+      <div
+        id="discover-panel-claims"
+        data-panel="claims"
+        hidden={panel !== 'claims'}
+      >
+        <h3 id="discover">Discover from existing claims</h3>
+        <ViewModeSwitch compact />
+        <p className="small">
+          Write what you know, attach the claims it rests on, and start.
+          Evidence is only the claims you attach; the locator does not search
+          the web.
+          {guided &&
+            ' Routine settings use the defaults shown under each fold.'}
+        </p>
+        {explored && (
+          <p className="notice">
+            Filled from an Explore for me pick, with its cited claims attached:
+            supporting ones marked as bearing on the problem, ones cited against
+            it labelled and left for you to mark. Check every field and claim
+            before starting; if you change the brief, it is saved as a new brief
+            and the pick's brief is archived.
+          </p>
+        )}
+        {workspace.record_mode === 'fixture' && (
+          <p className="notice">
+            Fixture workspace: the deterministic adapter answers from rules over
+            the evidence packet. Its proposals are placeholders, not reasoning.
+          </p>
+        )}
+        {viewer && (
+          <p className="error">
+            You can read this workspace but not start runs.
+          </p>
+        )}
+        <Status
+          loading={ctx.loading}
+          error={ctx.error}
+          stale={ctx.stale}
+          retry={ctx.reload}
+        >
+          {c && (
+            <form
+              noValidate
+              onSubmit={(e) => void submit(e)}
+              aria-describedby="sub-issues"
+            >
+              <fieldset>
+                <legend>The brief</legend>
+                <label htmlFor="b-theme">
+                  Theme (specific setting or group)
                 </label>
-                <textarea
-                  id="b-data"
-                  rows={2}
-                  value={data}
-                  onChange={(e) => setData(e.target.value)}
+                <input
+                  id="b-theme"
+                  required
+                  maxLength={300}
+                  value={theme}
+                  onChange={(e) => setTheme(e.target.value)}
                 />
                 <div className="two">
                   <div>
-                    <label htmlFor="b-time">Time limit</label>
+                    <label htmlFor="b-fa">
+                      First subject area (for example nursing)
+                    </label>
                     <input
-                      id="b-time"
+                      id="b-fa"
                       required
                       maxLength={300}
-                      value={timeLimit}
-                      onChange={(e) => setTimeLimit(e.target.value)}
+                      value={fieldA}
+                      onChange={(e) => setFieldA(e.target.value)}
                     />
                   </div>
                   <div>
-                    <label htmlFor="b-budget">
-                      Solution budget constraint (separate from run limits)
+                    <label htmlFor="b-fb">
+                      Second subject area (for example logistics)
                     </label>
                     <input
-                      id="b-budget"
+                      id="b-fb"
                       required
                       maxLength={300}
-                      value={budgetLimit}
-                      onChange={(e) => setBudgetLimit(e.target.value)}
+                      value={fieldB}
+                      onChange={(e) => setFieldB(e.target.value)}
                     />
                   </div>
                 </div>
-                <label htmlFor="b-seed">
-                  NAE Grand Challenge seed (optional; inspires, never replaces
-                  the theme)
-                </label>
-                <select
-                  id="b-seed"
-                  value={seed}
-                  onChange={(e) => setSeed(e.target.value)}
-                >
-                  <option value="">None</option>
-                  {NAE_GRAND_CHALLENGES.map((g) => (
-                    <option key={g} value={g}>
-                      {g}
-                    </option>
-                  ))}
-                </select>
-                <label htmlFor="b-cons">Constraints (one per line)</label>
-                <textarea
-                  id="b-cons"
-                  rows={2}
-                  value={constraints}
-                  onChange={(e) => setConstraints(e.target.value)}
+                <label htmlFor="b-users">Target users</label>
+                <input
+                  id="b-users"
+                  required
+                  maxLength={300}
+                  value={users}
+                  onChange={(e) => setUsers(e.target.value)}
                 />
-              </Fold>
-            </fieldset>
-
-            <fieldset>
-              <legend>Evidence: what each claim bears on</legend>
-              <p className="small">
-                Tick the claims this brief rests on, then mark what each one
-                supports.
-              </p>
-              {c.claims.length === 0 ? (
-                <Empty>
-                  No claims in this workspace yet. Record a source and cite its
-                  passages in a claim first, or use Explore for me above once
-                  there are some.{' '}
-                  <button
-                    type="button"
-                    className="text"
-                    onClick={() => open('evidence')}
+                <label htmlFor="b-prob">Measurable problem</label>
+                <textarea
+                  id="b-prob"
+                  required
+                  rows={3}
+                  maxLength={1200}
+                  value={problem}
+                  onChange={(e) => setProblem(e.target.value)}
+                />
+                <label htmlFor="b-meas">
+                  What would be measured to tell it improved
+                </label>
+                <input
+                  id="b-meas"
+                  required
+                  maxLength={300}
+                  value={measure}
+                  onChange={(e) => setMeasure(e.target.value)}
+                />
+                <Fold
+                  guided={guided}
+                  summary={`Routine details: ${timeLimit.trim() || 'no time limit'} · ${lines(constraints).length} constraint${lines(constraints).length === 1 ? '' : 's'} · ${sourcesText(
+                    [
+                      ['time limit', sourceText('timeLimit', timeLimit)],
+                      ['budget', sourceText('budgetLimit', budgetLimit)],
+                      ['constraints', sourceText('constraints', constraints)],
+                      ['data and tools', sourceText('dataAndTools', data)],
+                    ],
+                  )}`}
+                >
+                  <label htmlFor="b-ctx">Context or geography (optional)</label>
+                  <input
+                    id="b-ctx"
+                    maxLength={300}
+                    value={context}
+                    onChange={(e) => setContext(e.target.value)}
+                  />
+                  <label htmlFor="b-data">
+                    Data and tools you may use (one per line)
+                  </label>
+                  <textarea
+                    id="b-data"
+                    rows={2}
+                    value={data}
+                    onChange={(e) => setData(e.target.value)}
+                  />
+                  <div className="two">
+                    <div>
+                      <label htmlFor="b-time">Time limit</label>
+                      <input
+                        id="b-time"
+                        required
+                        maxLength={300}
+                        value={timeLimit}
+                        onChange={(e) => setTimeLimit(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="b-budget">
+                        Solution budget constraint (separate from run limits)
+                      </label>
+                      <input
+                        id="b-budget"
+                        required
+                        maxLength={300}
+                        value={budgetLimit}
+                        onChange={(e) => setBudgetLimit(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <label htmlFor="b-seed">
+                    NAE Grand Challenge seed (optional; inspires, never replaces
+                    the theme)
+                  </label>
+                  <select
+                    id="b-seed"
+                    value={seed}
+                    onChange={(e) => setSeed(e.target.value)}
                   >
-                    Open Sources and claims
-                  </button>
-                </Empty>
-              ) : (
-                <ul className="rows claims-pick">
-                  {c.claims.map((cl) => {
-                    const ev = c.evidence.get(cl.id);
-                    const attached =
-                      openClaims.has(cl.id) || (roles[cl.id]?.length ?? 0) > 0;
-                    return (
-                      <li key={cl.id}>
-                        <label className="claim-attach">
+                    <option value="">None</option>
+                    {NAE_GRAND_CHALLENGES.map((g) => (
+                      <option key={g} value={g}>
+                        {g}
+                      </option>
+                    ))}
+                  </select>
+                  <label htmlFor="b-cons">Constraints (one per line)</label>
+                  <textarea
+                    id="b-cons"
+                    rows={2}
+                    value={constraints}
+                    onChange={(e) => setConstraints(e.target.value)}
+                  />
+                </Fold>
+              </fieldset>
+
+              <fieldset>
+                <legend>Evidence: what each claim bears on</legend>
+                <p className="small">
+                  Tick the claims this brief rests on, then mark what each one
+                  supports.
+                </p>
+                {c.claims.length === 0 ? (
+                  <Empty>
+                    No claims in this workspace yet. Record a source and cite
+                    its passages in a claim first, or use Explore for me once
+                    there are some.{' '}
+                    <button
+                      type="button"
+                      className="text"
+                      onClick={() => open('evidence')}
+                    >
+                      Open Sources and claims
+                    </button>
+                  </Empty>
+                ) : (
+                  <ul className="rows claims-pick">
+                    {c.claims.map((cl) => {
+                      const ev = c.evidence.get(cl.id);
+                      const attached =
+                        openClaims.has(cl.id) ||
+                        (roles[cl.id]?.length ?? 0) > 0;
+                      return (
+                        <li key={cl.id}>
+                          <label className="claim-attach">
+                            <input
+                              type="checkbox"
+                              checked={attached}
+                              onChange={(e) => attach(cl.id, e.target.checked)}
+                            />
+                            <span
+                              className={`kind ev-${ev?.status ?? 'insufficient'}`}
+                            >
+                              {ev ? words(ev.status) : 'unknown'}
+                            </span>{' '}
+                            {String(cl.body?.statement ?? cl.title)}
+                            {against.has(cl.id) && (
+                              <strong className="against">
+                                {' '}
+                                · cited against the pick
+                              </strong>
+                            )}
+                          </label>
+                          {attached && (
+                            <div
+                              className="chips"
+                              role="group"
+                              aria-label={`What “${cl.title.slice(0, 60)}” bears on`}
+                            >
+                              {EvidenceRoleSchema.options.map((r) => (
+                                <label key={r} className="chip">
+                                  <input
+                                    type="checkbox"
+                                    checked={roles[cl.id]?.includes(r) ?? false}
+                                    onChange={() => toggle(cl.id, r)}
+                                  />
+                                  {ROLE_LABEL[r]}
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                <p className="small">
+                  {evidence.length} claim{evidence.length === 1 ? '' : 's'}{' '}
+                  attached (1–30 needed)
+                  {openClaims.size > evidence.length
+                    ? '. A ticked claim counts once you mark what it supports.'
+                    : '.'}
+                </p>
+              </fieldset>
+
+              <fieldset>
+                <legend>Responses to propose</legend>
+                <Fold
+                  guided={guided}
+                  summary={`${perspectives.length} of ${ResponseTypeSchema.options.length} response types · ${revisions} revision round${revisions === 1 ? '' : 's'} · ${sourceText('revisions', revisions)}`}
+                >
+                  <p className="small">
+                    Each type is proposed independently. Leave one out only with
+                    a reason; at least one must not be new software.
+                  </p>
+                  <ul className="rows">
+                    {ResponseTypeSchema.options.map((p) => (
+                      <li key={p}>
+                        <label className="chip">
                           <input
                             type="checkbox"
-                            checked={attached}
-                            onChange={(e) => attach(cl.id, e.target.checked)}
+                            checked={excluded[p] === undefined}
+                            onChange={() =>
+                              setExcluded((x) => {
+                                const n = { ...x };
+                                if (n[p] === undefined) n[p] = '';
+                                else delete n[p];
+                                return n;
+                              })
+                            }
                           />
-                          <span
-                            className={`kind ev-${ev?.status ?? 'insufficient'}`}
-                          >
-                            {ev ? words(ev.status) : 'unknown'}
-                          </span>{' '}
-                          {String(cl.body?.statement ?? cl.title)}
-                          {against.has(cl.id) && (
-                            <strong className="against">
-                              {' '}
-                              · cited against the pick
-                            </strong>
-                          )}
+                          {words(p)}
                         </label>
-                        {attached && (
-                          <div
-                            className="chips"
-                            role="group"
-                            aria-label={`What “${cl.title.slice(0, 60)}” bears on`}
-                          >
-                            {EvidenceRoleSchema.options.map((r) => (
-                              <label key={r} className="chip">
-                                <input
-                                  type="checkbox"
-                                  checked={roles[cl.id]?.includes(r) ?? false}
-                                  onChange={() => toggle(cl.id, r)}
-                                />
-                                {ROLE_LABEL[r]}
-                              </label>
-                            ))}
-                          </div>
+                        {excluded[p] !== undefined && (
+                          <input
+                            id={`b-ex-${p}`}
+                            aria-label={`Why ${words(p)} is left out`}
+                            placeholder="Why it does not apply"
+                            maxLength={300}
+                            value={excluded[p]}
+                            onChange={(e) =>
+                              setExcluded((x) => ({
+                                ...x,
+                                [p]: e.target.value,
+                              }))
+                            }
+                          />
                         )}
                       </li>
-                    );
-                  })}
-                </ul>
-              )}
-              <p className="small">
-                {evidence.length} claim{evidence.length === 1 ? '' : 's'}{' '}
-                attached (1–30 needed)
-                {openClaims.size > evidence.length
-                  ? '. A ticked claim counts once you mark what it supports.'
-                  : '.'}
-              </p>
-            </fieldset>
+                    ))}
+                  </ul>
+                  <label htmlFor="b-rev">Revision rounds after critique</label>
+                  <select
+                    id="b-rev"
+                    value={revisions}
+                    onChange={(e) => setRevisions(Number(e.target.value))}
+                  >
+                    {[0, 1, 2].map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                </Fold>
+              </fieldset>
 
-            <fieldset>
-              <legend>Responses to propose</legend>
-              <Fold
-                guided={guided}
-                summary={`${perspectives.length} of ${ResponseTypeSchema.options.length} response types · ${revisions} revision round${revisions === 1 ? '' : 's'} · ${sourceText('revisions', revisions)}`}
-              >
-                <p className="small">
-                  Each type is proposed independently. Leave one out only with a
-                  reason; at least one must not be new software.
-                </p>
-                <ul className="rows">
-                  {ResponseTypeSchema.options.map((p) => (
-                    <li key={p}>
+              <fieldset>
+                <legend>Run, model and permission</legend>
+                <Fold guided={guided} summary={routeSummary}>
+                  <label htmlFor="b-run">Run</label>
+                  <select
+                    id="b-run"
+                    value={runChoice}
+                    onChange={(e) => setRunChoice(e.target.value)}
+                  >
+                    <option value="new">Register a new run</option>
+                    {c.runs.map((r) => (
+                      <option key={r.run_id} value={r.run_id}>
+                        Existing: {runLabel(r, c.names, 48, !guided)}
+                      </option>
+                    ))}
+                  </select>
+                  {runChoice === 'new' && (
+                    <>
+                      <label htmlFor="b-mode">Oversight</label>
+                      <select
+                        id="b-mode"
+                        value={newMode}
+                        onChange={(e) =>
+                          setNewMode(e.target.value as typeof newMode)
+                        }
+                      >
+                        <option value="human_in_loop">
+                          Human in the loop (asks at stage gates)
+                        </option>
+                        <option value="supervised">
+                          Supervised (asks before every consequential step)
+                        </option>
+                      </select>
                       <label className="chip">
                         <input
                           type="checkbox"
-                          checked={excluded[p] === undefined}
-                          onChange={() =>
-                            setExcluded((x) => {
-                              const n = { ...x };
-                              if (n[p] === undefined) n[p] = '';
-                              else delete n[p];
-                              return n;
-                            })
-                          }
+                          checked={allowCalls}
+                          onChange={(e) => setAllowCalls(e.target.checked)}
                         />
-                        {words(p)}
+                        Let this run make model calls on the selected data class
+                        for 24 hours,{' '}
+                        {resourceKind === 'subscription'
+                          ? 'within the subscription caps shown below; no API spending'
+                          : `up to 2 ${workspace.record_mode === 'fixture' ? 'simulated units' : 'dollars'} per call`}{' '}
+                        (a standing permission you can revoke under Monitor ›
+                        Approvals)
                       </label>
-                      {excluded[p] !== undefined && (
-                        <input
-                          id={`b-ex-${p}`}
-                          aria-label={`Why ${words(p)} is left out`}
-                          placeholder="Why it does not apply"
-                          maxLength={300}
-                          value={excluded[p]}
-                          onChange={(e) =>
-                            setExcluded((x) => ({ ...x, [p]: e.target.value }))
-                          }
-                        />
+                      {!allowCalls && (
+                        <p className="small">
+                          Without it, each model call waits for your approval.
+                        </p>
                       )}
-                    </li>
-                  ))}
-                </ul>
-                <label htmlFor="b-rev">Revision rounds after critique</label>
-                <select
-                  id="b-rev"
-                  value={revisions}
-                  onChange={(e) => setRevisions(Number(e.target.value))}
-                >
-                  {[0, 1, 2].map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-              </Fold>
-            </fieldset>
-
-            <fieldset>
-              <legend>Run, model and permission</legend>
-              <Fold guided={guided} summary={routeSummary}>
-                <label htmlFor="b-run">Run</label>
-                <select
-                  id="b-run"
-                  value={runChoice}
-                  onChange={(e) => setRunChoice(e.target.value)}
-                >
-                  <option value="new">Register a new run</option>
-                  {c.runs.map((r) => (
-                    <option key={r.run_id} value={r.run_id}>
-                      Existing: {runLabel(r, c.names, 48, !guided)}
-                    </option>
-                  ))}
-                </select>
-                {runChoice === 'new' && (
-                  <>
-                    <label htmlFor="b-mode">Oversight</label>
-                    <select
-                      id="b-mode"
-                      value={newMode}
-                      onChange={(e) =>
-                        setNewMode(e.target.value as typeof newMode)
-                      }
-                    >
-                      <option value="human_in_loop">
-                        Human in the loop (asks at stage gates)
-                      </option>
-                      <option value="supervised">
-                        Supervised (asks before every consequential step)
-                      </option>
-                    </select>
-                    <label className="chip">
-                      <input
-                        type="checkbox"
-                        checked={allowCalls}
-                        onChange={(e) => setAllowCalls(e.target.checked)}
+                      <RoutineFields
+                        draft={routine}
+                        onChange={setRoutine}
+                        idPrefix="b-routine"
+                        runDataClass={dataClass}
                       />
-                      Let this run make model calls on the selected data class
-                      for 24 hours,{' '}
-                      {resourceKind === 'subscription'
-                        ? 'within the subscription caps shown below; no API spending'
-                        : `up to 2 ${workspace.record_mode === 'fixture' ? 'simulated units' : 'dollars'} per call`}{' '}
-                      (a standing permission you can revoke under Monitor ›
-                      Approvals)
-                    </label>
-                    {!allowCalls && (
-                      <p className="small">
-                        Without it, each model call waits for your approval.
-                      </p>
-                    )}
-                    <RoutineFields
-                      draft={routine}
-                      onChange={setRoutine}
-                      idPrefix="b-routine"
-                      runDataClass={dataClass}
-                    />
-                  </>
-                )}
-                {runChoice !== 'new' && (
-                  <p className="small">
-                    This run keeps its own routine approvals. To turn them on,
-                    change or revoke them for it, open Monitor › Approvals.
-                  </p>
-                )}
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => ctx.reload()}
-                >
-                  Refresh run setup
-                </button>
-                <label htmlFor="b-route">Model access</label>
-                <select
-                  id="b-route"
-                  value={resourceKind}
-                  onChange={(e) =>
-                    setResourceKind(e.target.value as 'api' | 'subscription')
-                  }
-                >
-                  <option value="subscription">
-                    {plansOffered(c.planDetails.map((p) => p.connection.kind))}{' '}
-                    · subscription quota
-                  </option>
-                  <option value="api">
-                    API / fixture · budget and pricing
-                  </option>
-                </select>
-                <label htmlFor="b-data-class">Evidence sharing class</label>
-                <select
-                  id="b-data-class"
-                  value={dataClass}
-                  onChange={(e) =>
-                    setDataClass(e.target.value as typeof dataClass)
-                  }
-                >
-                  <option value="synthetic">Synthetic</option>
-                  <option value="public">Public</option>
-                  <option value="private_approved">
-                    Private · approved provider sharing required
-                  </option>
-                </select>
-                {resourceKind === 'subscription' ? (
-                  <>
-                    <label htmlFor="b-connection">Connection</label>
-                    <select
-                      id="b-connection"
-                      value={plan?.connection.id ?? ''}
-                      onChange={(e) => {
-                        setConnectionId(e.target.value);
-                        setPlanModel('');
-                      }}
-                    >
-                      {!c.planDetails.length && (
-                        <option value="">No plan connection</option>
-                      )}
-                      {c.planDetails.map((p) => (
-                        <option key={p.connection.id} value={p.connection.id}>
-                          {p.connection.label}
-                        </option>
-                      ))}
-                    </select>
-                    <label htmlFor="b-plan-model">Verified model</label>
-                    <select
-                      id="b-plan-model"
-                      value={model}
-                      onChange={(e) => {
-                        // Picking a model pins its connection, so a later change of the
-                        // default cannot pair it with another connection (review L-1).
-                        setPlanModel(e.target.value);
-                        if (plan) setConnectionId(plan.connection.id);
-                      }}
-                    >
-                      {!model && <option value="">No verified model</option>}
-                      {plan?.model_access
-                        .filter(
-                          (a) =>
-                            a.path === 'responses' && a.access === 'verified',
-                        )
-                        .map((a) => (
-                          <option key={a.model_id} value={a.model_id}>
-                            {a.model_id}
+                    </>
+                  )}
+                  {runChoice !== 'new' && (
+                    <p className="small">
+                      This run keeps its own routine approvals. To turn them on,
+                      change or revoke them for it, open Monitor › Approvals.
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => ctx.reload()}
+                  >
+                    Refresh run setup
+                  </button>
+                  <label htmlFor="b-route">Model access</label>
+                  <select
+                    id="b-route"
+                    value={resourceKind}
+                    onChange={(e) =>
+                      setResourceKind(e.target.value as 'api' | 'subscription')
+                    }
+                  >
+                    <option value="subscription">
+                      {plansOffered(
+                        c.planDetails.map((p) => p.connection.kind),
+                      )}{' '}
+                      · subscription quota
+                    </option>
+                    <option value="api">
+                      API / fixture · budget and pricing
+                    </option>
+                  </select>
+                  <label htmlFor="b-data-class">Evidence sharing class</label>
+                  <select
+                    id="b-data-class"
+                    value={dataClass}
+                    onChange={(e) =>
+                      setDataClass(e.target.value as typeof dataClass)
+                    }
+                  >
+                    <option value="synthetic">Synthetic</option>
+                    <option value="public">Public</option>
+                    <option value="private_approved">
+                      Private · approved provider sharing required
+                    </option>
+                  </select>
+                  {resourceKind === 'subscription' ? (
+                    <>
+                      <label htmlFor="b-connection">Connection</label>
+                      <select
+                        id="b-connection"
+                        value={plan?.connection.id ?? ''}
+                        onChange={(e) => {
+                          setConnectionId(e.target.value);
+                          setPlanModel('');
+                        }}
+                      >
+                        {!c.planDetails.length && (
+                          <option value="">No plan connection</option>
+                        )}
+                        {c.planDetails.map((p) => (
+                          <option key={p.connection.id} value={p.connection.id}>
+                            {p.connection.label}
                           </option>
                         ))}
-                    </select>
-                    <ChoiceNote
-                      route={
-                        !connectionId && !planModel
-                          ? route
-                          : {
-                              ...route,
-                              fromChoice: false,
-                              choiceUnavailable: false,
-                            }
-                      }
-                      choice={choice}
-                      task="Discover"
-                      labelOf={(id) =>
-                        c.planDetails.find((p) => p.connection.id === id)
-                          ?.connection.label ?? id
-                      }
-                      onUse={(conn, m) => {
-                        setConnectionId(conn);
-                        setPlanModel(m);
-                      }}
-                    />
-                    <p className="small">
-                      Subscription quota; no API pricing or money envelope. One
-                      model job, at most {limits.max_calls} requests,{' '}
-                      {limits.max_wall_seconds} seconds per workflow and{' '}
-                      {Math.min(
-                        100000,
-                        plan?.connection.settings.caps.responses
-                          .max_output_chars ?? 16000,
-                      )}{' '}
-                      characters per response. Provider allowance is shared and
-                      may be unavailable. No paid fallback or search is
-                      included.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <label htmlFor="b-env">Budget</label>
-                    <select
-                      id="b-env"
-                      value={envelope}
-                      onChange={(e) => setEnvelopeId(e.target.value)}
-                    >
-                      {usableEnvelopes.length === 0 && (
-                        <option value="">
-                          {c.envelopes.length === 0
-                            ? 'No active budget'
-                            : 'No budget this run can use'}
-                        </option>
-                      )}
-                      {usableEnvelopes.map((e) => (
-                        <option key={e.id} value={e.id}>
-                          {e.name} · {money(e.available, e.fixture)} available
-                        </option>
-                      ))}
-                    </select>
-                    <label htmlFor="b-price">Pricing snapshot</label>
-                    <select
-                      id="b-price"
-                      value={price}
-                      onChange={(e) => setPricingId(e.target.value)}
-                    >
-                      {c.pricing.length === 0 && (
-                        <option value="">No pricing snapshot</option>
-                      )}
-                      {c.pricing.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.body.provider}/{p.body.model_id} · {p.body.basis}
-                        </option>
-                      ))}
-                    </select>
-                  </>
-                )}
-              </Fold>
-            </fieldset>
+                      </select>
+                      <label htmlFor="b-plan-model">Verified model</label>
+                      <select
+                        id="b-plan-model"
+                        value={model}
+                        onChange={(e) => {
+                          // Picking a model pins its connection, so a later change of the
+                          // default cannot pair it with another connection (review L-1).
+                          setPlanModel(e.target.value);
+                          if (plan) setConnectionId(plan.connection.id);
+                        }}
+                      >
+                        {!model && <option value="">No verified model</option>}
+                        {plan?.model_access
+                          .filter(
+                            (a) =>
+                              a.path === 'responses' && a.access === 'verified',
+                          )
+                          .map((a) => (
+                            <option key={a.model_id} value={a.model_id}>
+                              {a.model_id}
+                            </option>
+                          ))}
+                      </select>
+                      <ChoiceNote
+                        route={
+                          !connectionId && !planModel
+                            ? route
+                            : {
+                                ...route,
+                                fromChoice: false,
+                                choiceUnavailable: false,
+                              }
+                        }
+                        choice={choice}
+                        task="Discover"
+                        labelOf={(id) =>
+                          c.planDetails.find((p) => p.connection.id === id)
+                            ?.connection.label ?? id
+                        }
+                        onUse={(conn, m) => {
+                          setConnectionId(conn);
+                          setPlanModel(m);
+                        }}
+                      />
+                      <p className="small">
+                        Subscription quota; no API pricing or money envelope.
+                        One model job, at most {limits.max_calls} requests,{' '}
+                        {limits.max_wall_seconds} seconds per workflow and{' '}
+                        {Math.min(
+                          100000,
+                          plan?.connection.settings.caps.responses
+                            .max_output_chars ?? 16000,
+                        )}{' '}
+                        characters per response. Provider allowance is shared
+                        and may be unavailable. No paid fallback or search is
+                        included.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <label htmlFor="b-env">Budget</label>
+                      <select
+                        id="b-env"
+                        value={envelope}
+                        onChange={(e) => setEnvelopeId(e.target.value)}
+                      >
+                        {usableEnvelopes.length === 0 && (
+                          <option value="">
+                            {c.envelopes.length === 0
+                              ? 'No active budget'
+                              : 'No budget this run can use'}
+                          </option>
+                        )}
+                        {usableEnvelopes.map((e) => (
+                          <option key={e.id} value={e.id}>
+                            {e.name} · {money(e.available, e.fixture)} available
+                          </option>
+                        ))}
+                      </select>
+                      <label htmlFor="b-price">Pricing snapshot</label>
+                      <select
+                        id="b-price"
+                        value={price}
+                        onChange={(e) => setPricingId(e.target.value)}
+                      >
+                        {c.pricing.length === 0 && (
+                          <option value="">No pricing snapshot</option>
+                        )}
+                        {c.pricing.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.body.provider}/{p.body.model_id} · {p.body.basis}
+                          </option>
+                        ))}
+                      </select>
+                    </>
+                  )}
+                </Fold>
+              </fieldset>
 
-            <WhatHappens
-              items={happens}
-              presetSaved={Object.keys(preset).length > 0}
-              onSave={savePreset}
-              onClear={clearPreset}
-              note={presetNote}
-              disabled={viewer}
-            />
-            <Blocked
-              action="start this discovery"
-              reasons={setup}
-              open={(v) => open(v)}
-              fixes={fixes}
-            />
-            <FixOutcome fix={fixes} />
-            <div id="sub-issues" aria-live="polite">
-              {tried && allIssues.length > 0 && (
-                <ul className="small issues">
-                  {allIssues.slice(0, 8).map((i) => (
-                    <li key={i.text}>
-                      {i.field ? (
-                        <button
-                          type="button"
-                          className="text"
-                          onClick={() => focusField(i.field!)}
-                        >
-                          {i.text}
-                        </button>
-                      ) : (
-                        i.text
-                      )}
-                    </li>
-                  ))}
-                </ul>
+              <WhatHappens
+                items={happens}
+                presetSaved={Object.keys(preset).length > 0}
+                onSave={savePreset}
+                onClear={clearPreset}
+                note={presetNote}
+                disabled={viewer}
+              />
+              <Blocked
+                action="start this discovery"
+                reasons={setup}
+                open={(v) => open(v)}
+                fixes={fixes}
+              />
+              <FixOutcome fix={fixes} />
+              <div id="sub-issues" aria-live="polite">
+                {tried && allIssues.length > 0 && (
+                  <ul className="small issues">
+                    {allIssues.slice(0, 8).map((i) => (
+                      <li key={i.text}>
+                        {i.field ? (
+                          <button
+                            type="button"
+                            className="text"
+                            onClick={() => focusField(i.field!)}
+                          >
+                            {i.text}
+                          </button>
+                        ) : (
+                          i.text
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <button
+                className="primary"
+                type="submit"
+                disabled={busy || viewer}
+              >
+                {busy ? 'Starting…' : 'Save brief and start discovery'}
+                <span aria-hidden="true">→</span>
+              </button>
+              {error && (
+                <p className="error" role="alert">
+                  {error}
+                  <FixButtons acts={errorFixes} fix={fixes} />
+                </p>
               )}
-            </div>
-            <button className="primary" type="submit" disabled={busy || viewer}>
-              {busy ? 'Starting…' : 'Save brief and start discovery'}
-              <span aria-hidden="true">→</span>
-            </button>
-            {error && (
-              <p className="error" role="alert">
-                {error}
-                <FixButtons acts={errorFixes} fix={fixes} />
-              </p>
-            )}
-          </form>
-        )}
-      </Status>
+            </form>
+          )}
+        </Status>
+      </div>
     </section>
   );
 }

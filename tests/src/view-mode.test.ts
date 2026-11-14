@@ -185,7 +185,8 @@ test('Standard lists fewer tabs; every route still opens; Advanced lists all', a
     'gallery',
   ]);
   assert.deepEqual(p.hiddenTabs(page('projects'), true), ['Launch']);
-  assert.deepEqual(p.hiddenTabs(page('monitor'), true), ['Workers']);
+  assert.deepEqual(p.hiddenTabs(page('monitor'), true), ['Runs', 'Workers']);
+  assert.deepEqual(p.hiddenTabs(page('sources'), true), ['Library']);
   assert.deepEqual(p.hiddenTabs(page('settings'), true), ['Study']);
   // Every page keeps at least one listed tab.
   for (const pg of p.PAGES)
@@ -196,7 +197,7 @@ test('Standard lists fewer tabs; every route still opens; Advanced lists all', a
       'operations',
     ),
   );
-  assert.deepEqual(p.hiddenTabs(page('monitor'), true, 'operations'), []);
+  assert.deepEqual(p.hiddenTabs(page('monitor'), true, 'operations'), ['Runs']);
   // A group kept in the row by its open section names its hidden sections, not itself.
   const launchOpen = p.hiddenTabs(page('projects'), true, 'payments');
   assert.deepEqual(launchOpen, ['Campaigns', 'Maintain']);
@@ -212,13 +213,17 @@ test('Standard lists fewer tabs; every route still opens; Advanced lists all', a
     ['#/projects/maintain', 'portfolio'],
     ['#/monitor/workers', 'operations'],
     ['#/settings/study', 'studies'],
+    ['#/monitor/runs', 'runs'],
+    ['#/sources/library', 'catalog'],
   ])
     assert.equal(p.parseRoute(hash).view, view, hash);
   assert.deepEqual([...p.ADVANCED_ONLY].sort(), [
+    'catalog',
     'marketing',
     'operations',
     'payments',
     'portfolio',
+    'runs',
     'studies',
   ]);
 });

@@ -293,7 +293,7 @@ export function SignIn({
   );
 }
 
-function Coverage({ d, fixture }: { d: Decision; fixture: boolean }) {
+export function Coverage({ d, fixture }: { d: Decision; fixture: boolean }) {
   // P-8: hashes and record ids are Advanced detail; the server binds them either way.
   const { standard } = useViewMode();
   const b = d.binding;

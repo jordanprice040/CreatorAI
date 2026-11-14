@@ -1,4 +1,6 @@
 import { plainReason } from './plain-words.js';
+import { InlineApproval } from './inline-approval.js';
+import { decisionInReason } from './inline-approval-rules.js';
 import { SpecForm, type SpecFormMode } from './spec-form.js';
 import { useViewMode } from './view-mode.js';
 import { usePoll } from './page-active.js';
@@ -655,6 +657,8 @@ export function BuildView({
                       )}
                       data={d}
                       owner={owner}
+                      workspaceId={workspace.id}
+                      actorId={session.actor_id}
                       fixture={fixture}
                       busy={busy}
                       act={act}
@@ -902,6 +906,8 @@ function Product({
   spec,
   data,
   owner,
+  workspaceId,
+  actorId,
   fixture,
   busy,
   act,
@@ -914,6 +920,9 @@ function Product({
   spec: SpecStatus | undefined;
   data: Data;
   owner: boolean;
+  workspaceId: string;
+  /** The signed-in person (P-3: only their own build's approval is answered in place). */
+  actorId: string;
   fixture: boolean;
   busy: boolean;
   act: (
@@ -1133,7 +1142,23 @@ function Product({
                     )}
                     {b.state === 'checkpoint' &&
                       b === builds[0] &&
-                      /admission/i.test(b.reason ?? '') && (
+                      /admission/i.test(b.reason ?? '') &&
+                      (decisionInReason(b.reason) ? (
+                        <InlineApproval
+                          key={decisionInReason(b.reason)}
+                          workspace={workspaceId}
+                          fixture={fixture}
+                          decisionId={decisionInReason(b.reason)!}
+                          csrf={fixes.csrf}
+                          owner={owner}
+                          actorId={actorId}
+                          approveLabel="Approve once"
+                          afterText="Press Start build above to build again."
+                          openApprovals={() =>
+                            open('decisions', decisionInReason(b.reason)!)
+                          }
+                        />
+                      ) : (
                         <>
                           {' '}
                           <button
@@ -1144,7 +1169,7 @@ function Product({
                             build again
                           </button>
                         </>
-                      )}
+                      ))}
                     {b.package?.state === 'running' && (
                       <small> · packaging…</small>
                     )}

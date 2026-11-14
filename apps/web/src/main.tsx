@@ -1000,11 +1000,12 @@ function App() {
                   const waiting =
                     page.key === 'monitor' && facts ? facts.pending : 0;
                   const ready = page.key === 'projects' && newStep;
-                  // On the page itself its tab row carries the dots instead.
+                  // On the page itself its tab row carries the dots instead. Only listed tabs
+                  // count: a dot for a tab Standard hides (Runs) could never be cleared.
                   const news = here
                     ? ''
                     : dotText(
-                        page.sections.map((x) => x.view),
+                        listed.map((x) => x.view),
                         unseen,
                       );
                   return (
