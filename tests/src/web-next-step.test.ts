@@ -307,7 +307,7 @@ type Defaults = {
       commit: string;
       spec: { id: string; version: number };
     }[],
-    build: { commit: string | null },
+    build: { commit: string | null; state: string },
     spec: { spec_id: string; spec_version: number },
   ) => { id: string } | undefined;
 };
@@ -420,9 +420,62 @@ test('a build counts as packaged when Gallery holds its commit, even after a res
     { id: 'a-v3', commit: 'c3', spec: { id: 's', version: 3 } },
     { id: 'a-v4', commit: 'c4', spec: { id: 's', version: 4 } },
   ];
-  assert.equal(artifactForBuild(artifacts, { commit: 'c4' }, spec)?.id, 'a-v4');
-  assert.equal(artifactForBuild(artifacts, { commit: 'c3' }, spec), undefined);
-  assert.equal(artifactForBuild(artifacts, { commit: null }, spec), undefined);
+  const v = 'verified_candidate';
+  assert.equal(
+    artifactForBuild(artifacts, { commit: 'c4', state: v }, spec)?.id,
+    'a-v4',
+  );
+  assert.equal(
+    artifactForBuild(artifacts, { commit: 'c3', state: v }, spec),
+    undefined,
+  );
+  assert.equal(
+    artifactForBuild(artifacts, { commit: null, state: v }, spec),
+    undefined,
+  );
+  // PR #194 L-2: a stopped build that shares the packaged commit (a build resumed from its
+  // kept candidate verified it) is not the packaged one.
+  assert.equal(
+    artifactForBuild(artifacts, { commit: 'c4', state: 'checkpoint' }, spec),
+    undefined,
+  );
+});
+
+// PR #194 M-1: "blocked" in a stop reason is not a lock, so it never shows the Recover notice.
+test('only interrupted builds, left locks and unresolved test runs ask for Recover', async () => {
+  const { needsRecover } = await load<{
+    needsRecover: (
+      b: { state: string; reason: string | null } | undefined,
+    ) => boolean;
+  }>('build-defaults.ts');
+  const stop = (reason: string) => ({ state: 'checkpoint', reason });
+  assert.equal(needsRecover(undefined), false);
+  assert.equal(needsRecover({ state: 'interrupted', reason: null }), true);
+  assert.equal(needsRecover(stop('Error: Product builds is locked')), true);
+  assert.equal(
+    needsRecover(
+      stop('A worker outcome needs reconciliation before another dispatch'),
+    ),
+    true,
+  );
+  assert.equal(
+    needsRecover(
+      stop(
+        'Error: The worker did not finish check A1 (cleanup_required: x; execution e). The candidate is kept; Recover this product first, then build again.',
+      ),
+    ),
+    true,
+  );
+  assert.equal(
+    needsRecover(
+      stop(
+        'Error: The worker did not finish check A1 (blocked: Error: Isolation unavailable; execution e). The candidate is kept; build again once the worker runs.',
+      ),
+    ),
+    false,
+  );
+  assert.equal(needsRecover(stop('Error: Reviewer blocked candidate')), false);
+  assert.equal(needsRecover(stop('Error: Builder blocked: no patch')), false);
 });
 
 test("the Path tab marks stages done in order and agrees with the what's-next line", async () => {

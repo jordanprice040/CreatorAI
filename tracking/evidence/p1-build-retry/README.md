@@ -18,6 +18,8 @@ With a worker that runs (the test double, standing in for WSL2), main already ve
 - Same file: a build resumed from a kept candidate keeps it when the builder submits the candidate's own content (`NoChangePatchError`), then reviews and tests it afresh. An empty patch is still refused on the first commit and on a candidate this build already judged.
 - `apps/web/src/build-defaults.ts` `buildRunDefault`, used by Build's Start build form: the run defaults to the run the spec version was frozen in (P-10), then the earlier defaults.
 
+Review 1 fixes (`/mnt/project-files/reviews/PR194_REVIEW_2026-11-14.md`): the Recover notice matches whole words (`needsRecover`), so a "blocked" stop no longer reads as "the app closed"; a case run left `cleanup_required` says "Recover this product first, then build again" and shows the Recover notice; "Packaged: open it under Try" shows only on the verified build (`artifactForBuild` needs `verified_candidate`), not on stopped builds sharing its commit; Start build says when the chosen run has no model grant on the plan route; the unfinished case is recorded as `qa-<round>-<case>.json` (`unfinished: true`) and named in the reason; a carried-over candidate's record says `kept: true`.
+
 ## Checks
 
 - `tests/src/build-retry-web.test.ts` (API, Build's own request shape: Prepare task from the first commit, Start build from the products list's task head, StartBuild's plan): start, approve, start again, verified, packaged, in Try; and the worker-blocked path through to Try. Fails on main with "Patch changes nothing".
@@ -26,17 +28,17 @@ With a worker that runs (the test double, standing in for WSL2), main already ve
 
 ## UI walk (cloud container, test-double worker)
 
-`dev-double.mjs` starts a throwaway studio on ports 4330/5183/4340 with the test-double executor (records say "test-double"; Try shows "Not isolation evidence"). `walk.mjs` drives Build with Playwright. Fresh fixture seed, throwaway PostgreSQL database.
+`dev-double.mjs` (its header lists the environment and the `pnpm db:migrate` step) starts a throwaway studio on ports 4330/5183/4340 with the test-double executor (records say "test-double"; Try shows "Not isolation evidence"). `walk.mjs` drives Build with Playwright. Fresh fixture seed, throwaway PostgreSQL database.
 
 1. Sample content, freeze (approved under Monitor › Approvals), sample review, Create product, Prepare task. The run selector opened on the spec's run `fbf5efd0`, not the two newer seed runs (`01-prepared.png`).
 2. Start build: stopped at a checkpoint for approval (`02-stopped-for-approval.png`). Approve it once under Monitor › Approvals, Start build again: verified. Package, then "Packaged: open it under Try": the package is in Try (`06-try.png`).
-3. Same again with `P1_BLOCK_FIRST=1` (the worker blocks the first case): the build after approval stops with the worker's reason (`b1-worker-blocked.png`); Start build asks a new approval; after it, the build verifies the kept candidate, packages and appears in Try.
+3. Same again with `P1_BLOCK_FIRST=1` (the worker blocks the first case): the build after approval stops with the worker's reason and no Recover notice (`b1-worker-blocked.png`, retaken after review 1); Start build asks a new approval; after it, the build verifies the kept candidate, packages and appears in Try. Only the verified row offers "Packaged: open it under Try" (`b3-packaged-rows.png`).
 
 ## 390 px Build check
 
 `scripts/ux-sweep.mjs` from PR #192, limited to Build at 390 px, on four Build states (fresh seed, stopped for approval, verified and packaged, blocked then resumed):
 
-- This branch alone (main base): one serious axe `target-size` on the fresh state only, the "Export a runbook for another model" text button (218×20 px). PR #192's `button.text { min-height: 24px }` is the fix; it is not repeated here to keep `style.css` out of this branch.
+- This branch alone (main base): one serious axe `target-size` rule on the fresh state only. On a seed whose spec is "changed since its last freeze" it covers three `button.text` nodes, "Revise", "Freeze it under Scores and specs" and "Export a runbook for another model" (218×20 px; the review found all three, my first sweep reported only the last). PR #192's `button.text { min-height: 24px }` fixes all three; it is not repeated here to keep `style.css` out of this branch.
 - This branch merged with PR #192 head `1eed3d9`: 0 axe violations, 0 controls under 24 px, no sideways scroll, no console errors, in all four states.
 
 Not covered here: the real WSL2 worker. That is the live walk on Jordan's PC, a separate step with his typed OK.

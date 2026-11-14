@@ -719,7 +719,13 @@ export class BuildSupervisor {
           lastRefusal = null;
           commit = submitted.commit;
           judged.add(commit);
-          await jsonWrite(join(dir, `candidate-${cycle}.json`), submitted);
+          // PR #194 N-2: a carried-over candidate (no files changed) says so in its record.
+          await jsonWrite(
+            join(dir, `candidate-${cycle}.json`),
+            submitted.changed_files.length === 0
+              ? { ...submitted, kept: true }
+              : submitted,
+          );
           // Deliberately excludes builder summaries, prior reviews and QA results.
           const review = checked(
             reviewSchema,
@@ -787,11 +793,29 @@ export class BuildSupervisor {
             // nothing about the code. It stops the build with the worker's reason instead of
             // spending a repair round on a candidate no test has run (as plan qualification does).
             if (!['succeeded', 'failed'].includes(execution.state)) {
+              // PR #194 N-2: the build folder names the execution that did not finish.
+              await jsonWrite(join(dir, `qa-${cycle}-${index}.json`), {
+                command: isBrowserCase(c)
+                  ? ['browser-qa/1', c.page]
+                  : ['/usr/bin/python3', '-I', 'src/main.py', ...c.args],
+                check: heldOut(index)
+                  ? { check_key: c.check_key, held_out: true }
+                  : c,
+                execution,
+                passed: false,
+                unfinished: true,
+              });
               await active();
+              // PR #194 L-1: a run left unresolved holds the worker until Recover settles it;
+              // building again first would spend an approval and two requests on that lock.
               throw new Error(
                 `The worker did not finish check ${c.check_key} (${execution.state}${
                   execution.reason ? `: ${execution.reason}` : ''
-                }). The candidate is kept; build again once the worker runs.`,
+                }; execution ${execution.id}). The candidate is kept; ${
+                  execution.state === 'cleanup_required'
+                    ? 'Recover this product first, then build again.'
+                    : 'build again once the worker runs.'
+                }`,
               );
             }
             const ok = qaPassed(execution, commit, c);

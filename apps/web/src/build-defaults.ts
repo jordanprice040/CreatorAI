@@ -54,8 +54,25 @@ export function envelopeFor<T extends { id: string; run_id: string | null }>(
 }
 
 /**
- * The run a build form opens on (final UX pass P-10): the run the spec was frozen in, when
- * it can still build; otherwise, on the plan route, the newest run a standing grant admits
+ * Whether a product's newest build calls for Recover: it was interrupted, its locks were left
+ * held, or a test run needs reconciliation. Whole words only (PR #194 M-1): "blocked" in a
+ * worker or reviewer reason is not "locked".
+ */
+export function needsRecover(
+  newest: { state: string; reason: string | null } | undefined,
+): boolean {
+  return (
+    newest?.state === 'interrupted' ||
+    /\blocked\b|needs reconciliation|recover this product/i.test(
+      newest?.reason ?? '',
+    )
+  );
+}
+
+/**
+ * The run a build form opens on (final UX pass P-10): the run the spec was frozen in, while
+ * it is active and not human-only (on the plan route it may lack a model grant; the form says
+ * so beside the Run choice); otherwise, on the plan route, the newest run a standing grant admits
  * model requests on; otherwise the newest run that can build. Never another project's run
  * while the spec's own run is there. `newestFirst` holds only active runs.
  */
@@ -89,10 +106,12 @@ export function artifactForBuild<
   T extends { commit: string; spec: { id: string; version: number } },
 >(
   artifacts: readonly T[],
-  build: { commit: string | null },
+  build: { commit: string | null; state: string },
   spec: { spec_id: string; spec_version: number },
 ): T | undefined {
-  if (!build.commit) return undefined;
+  // PR #194 L-2: a stopped build can share its commit with the resumed build that verified
+  // and packaged it; only a verified build is the one a package came from.
+  if (!build.commit || build.state !== 'verified_candidate') return undefined;
   return artifacts.find(
     (a) =>
       a.commit === build.commit &&

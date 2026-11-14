@@ -67,6 +67,7 @@ import {
   buildRunDefault,
   envelopeFor,
   modelGrantCovers,
+  needsRecover,
 } from './build-defaults.js';
 
 // What GET /products returns (apps/api/src/products.ts, ADR-0046).
@@ -945,9 +946,7 @@ function Product({
   const p = entry.product;
   // Only the newest: once a later build ran, an old interruption needs nothing more.
   const newest = entry.builds[0];
-  const interrupted =
-    newest?.state === 'interrupted' ||
-    /locked|needs reconciliation/i.test(newest?.reason ?? '');
+  const interrupted = needsRecover(newest);
   const current =
     spec?.frozen_current && spec.spec.version === p.binding.spec_version;
   /** The Gallery artifact for a build: this run's package job, else the artifact store. */
@@ -1459,8 +1458,11 @@ function StartBuild({
   const sourceOf = (chosenHere: string) =>
     chosenHere ? 'changed here' : 'studio default';
   const runName = data.runs.find((r) => r.run_id === runId);
+  // PR #194 N-1: the spec's own run may lack a model grant on the plan route; said, not hidden.
+  const noGrant =
+    connection?.kind === 'roles' && !!runId && !data.modelRuns.has(runId);
   const recordsSummary = [
-    `Run: ${runName ? runLabel(runName, data.names) : 'none'}`,
+    `Run: ${runName ? runLabel(runName, data.names) : 'none'}${noGrant ? ' (no model grant)' : ''}`,
     `budget: ${data.budgets.find((b) => b.id === budgetId)?.name ?? 'none'}`,
     `review: ${chosen ? recordLabel(chosen) : 'none for this version'}`,
     sourceOf(run || budget || price || review),
@@ -1519,6 +1521,14 @@ function StartBuild({
             </option>
           ))}
         </select>
+        {noGrant && (
+          <p className="small">
+            This run has no standing grant for plan model requests, so the plan
+            builder and reviewer can&apos;t run on it. Choose a run without
+            &quot;no model grant&quot;, or grant model requests on this run
+            under Monitor › Approvals.
+          </p>
+        )}
         <label htmlFor="bp-budget">Budget</label>
         <select
           id="bp-budget"

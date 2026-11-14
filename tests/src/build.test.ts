@@ -1158,7 +1158,7 @@ test('a worker that cannot run a case stops the build with its reason; a resumed
   assert.equal(first.state, 'checkpoint', JSON.stringify(first));
   assert.match(
     first.reason,
-    /The worker did not finish check A1 \(blocked: Error: Isolation unavailable: .*\)\. The candidate is kept; build again once the worker runs\.$/,
+    /The worker did not finish check A1 \(blocked: Error: Isolation unavailable: .*; execution [0-9a-f-]{36}\)\. The candidate is kept; build again once the worker runs\.$/,
   );
   // No repair round was spent on code no test judged: builder and reviewer only.
   assert.equal(first.calls, 2);
@@ -1166,6 +1166,14 @@ test('a worker that cannot run a case stops the build with its reason; a resumed
   assert.notEqual(first.commit, s.product.initial_commit);
   const firstDir = join(s.products.dir(s.product.id), 'builds', first.id);
   assert.ok(!(await readdir(firstDir)).some((f) => f.startsWith('refused-')));
+  // The case that did not finish is recorded, unfinished and not passed (PR #194 N-2).
+  const unfinished = JSON.parse(
+    await readFile(join(firstDir, 'qa-0-0.json'), 'utf8'),
+  );
+  assert.equal(unfinished.passed, false);
+  assert.equal(unfinished.unfinished, true);
+  assert.equal(unfinished.execution.state, 'blocked');
+  assert.ok(first.reason.includes(unfinished.execution.id));
 
   // Built again from the task head (what the web sends): the builder sees the stopped
   // build's candidate, submits its own content, and that candidate is reviewed and tested.
@@ -1188,12 +1196,40 @@ test('a worker that cannot run a case stops the build with its reason; a resumed
   const dir = join(s.products.dir(s.product.id), 'builds', resumed.id);
   assert.deepEqual(
     JSON.parse(await readFile(join(dir, 'candidate-0.json'), 'utf8')),
-    { commit: first.commit, changed_files: [] },
+    { commit: first.commit, changed_files: [], kept: true },
   );
   assert.equal(
     await s.products.taskHead(s.product.id, s.task.id),
     first.commit,
   );
+});
+
+// PR #194 L-1: a run left unresolved holds the worker until Recover settles it, so the stop
+// says to recover first instead of "build again".
+test('a case run left needing cleanup stops the build and says to recover first', async (t) => {
+  const s = await setup(t);
+  const worker = new TestDoubleExecutor(s.products);
+  const run = worker.run.bind(worker);
+  worker.run = async (...a: Parameters<typeof worker.run>) => ({
+    ...(await run(...a)),
+    state: 'cleanup_required',
+    exit_code: null,
+    log: '',
+    reason: 'Worker cleanup unverified',
+  });
+  const result = await new BuildSupervisor(s.products, worker).run(
+    s.product.id,
+    s.task.id,
+    s.product.initial_commit,
+    { ...s.plan, max_repairs: 1, max_calls: 4 },
+    s.ports,
+  );
+  assert.equal(result.state, 'checkpoint', JSON.stringify(result));
+  assert.match(
+    result.reason,
+    /\(cleanup_required: Worker cleanup unverified; execution [0-9a-f-]{36}\)\. The candidate is kept; Recover this product first, then build again\.$/,
+  );
+  assert.equal(result.calls, 2);
 });
 
 test('an empty patch is refused on the first commit and on a candidate this build already judged', async (t) => {
