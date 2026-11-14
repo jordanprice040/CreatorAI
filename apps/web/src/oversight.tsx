@@ -290,7 +290,7 @@ export function SignIn({
   );
 }
 
-function Coverage({ d }: { d: Decision }) {
+export function Coverage({ d }: { d: Decision }) {
   const b = d.binding;
   if (!b)
     return (

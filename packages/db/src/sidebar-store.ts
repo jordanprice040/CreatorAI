@@ -155,11 +155,12 @@ export async function activityNow(
       active: !stale,
       purpose,
       run_id: r.run_id ? String(r.run_id) : null,
+      subject_id: null,
       started_at: iso(r.started_at),
     });
   }
   const flows = await c.query(
-    `select id, role, state, reason, run_id, created_at from workflows
+    `select id, role, state, reason, run_id, subject_id, created_at from workflows
      where workspace_id = $1 and state not in ('succeeded','failed','cancelled')
      order by created_at desc limit $2`,
     [ws, ACTIVITY_NOW_MAX],
@@ -181,8 +182,10 @@ export async function activityNow(
           : String(r.reason ?? '').slice(0, 200),
       state: stateText,
       active,
-      purpose: null,
+      // ADR-0103 (review L-2): the role, so the sidebar can open where that work shows.
+      purpose: role.slice(0, 40),
       run_id: String(r.run_id),
+      subject_id: String(r.subject_id),
       started_at: iso(r.created_at),
     });
   }
@@ -202,6 +205,7 @@ export async function activityNow(
       active: true,
       purpose: null,
       run_id: null,
+      subject_id: null,
       started_at: iso(r.created_at),
     });
   // ADR-0088 (P24): qualifications the studio runs one after another, with how far it got.
@@ -235,6 +239,7 @@ export async function activityNow(
       active: leased,
       purpose: null,
       run_id: null,
+      subject_id: null,
       started_at: iso(r.created_at),
     });
   }

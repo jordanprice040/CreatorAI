@@ -108,3 +108,21 @@ export function revisionReasonSummary(reason: string): string {
     ? `What changed: “${r.length > 60 ? `${r.slice(0, 59)}…` : r}”`
     : 'What changed: “Edited” (default)';
 }
+
+/** UX pass section 6: the folded "Assumptions for this run" line on Decide. */
+export function assumptionsSummary(n: number): string {
+  return n === 0
+    ? 'Assumptions for this run: none recorded'
+    : `Assumptions for this run: ${n} recorded`;
+}
+
+/** UX pass section 6: the folded "Selection history" line on Decide. */
+export function historySummary(
+  selections: readonly { current: boolean; created_at: string }[],
+  when: (iso: string) => string,
+): string {
+  if (!selections.length) return 'Selection history: none recorded yet';
+  const n = selections.length;
+  const cur = selections.find((s) => s.current);
+  return `Selection history: ${n} selection${n === 1 ? '' : 's'}${cur ? `, current from ${when(cur.created_at)}` : ''}`;
+}

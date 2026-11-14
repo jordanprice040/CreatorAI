@@ -534,7 +534,8 @@ export function Autopilot({
                   )}
                 </details>
                 {config && policy && (
-                  <div className="notice">
+                  // N-14: read top to bottom, without the flex row's gaps.
+                  <div className="notice stacked">
                     <p>
                       <strong>What the autopilot does</strong>
                     </p>

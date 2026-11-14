@@ -1,11 +1,27 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
+  ConfirmGatesResultSchema,
+  advanceOutlook,
   GateConfirmationSchema,
   capabilityLabel,
+  type GateKind,
   type RankedCandidate,
+  type SelectionDisposition,
   type SessionInfo,
 } from '@creator/contracts';
 import { ApiError, api, message, when } from './oversight.js';
+import {
+  batchNote,
+  batchOptions,
+  batchRequest,
+  batchSummary,
+  gateConfirmable,
+  gatesConfirmableNow,
+  sharedNeeded,
+  tickedByDefault,
+  type OwnReasons,
+} from './gate-batch.js';
+import { clip } from './ui.js';
 
 type Detail = NonNullable<RankedCandidate['gates']['gate_details']>[number];
 
@@ -122,13 +138,7 @@ export function GateLines({
     <div className="gate-lines">
       {details.map((d) => {
         const guidance = gateGuidance(d);
-        const confirmable =
-          canConfirm &&
-          d.assessed !== false &&
-          (d.state === 'not_assessed' ||
-            d.state === 'auto_cleared' ||
-            (d.state === 'unresolved' &&
-              !d.concerns.some((x) => x.by === 'person')));
+        const confirmable = canConfirm && gateConfirmable(d);
         return (
           <section key={d.gate} className="gate-line">
             <p className="small">
@@ -247,5 +257,278 @@ export function GateLines({
         </p>
       )}
     </div>
+  );
+}
+
+const OUTLOOK_WORD = {
+  now: 'Can advance now',
+  after_gates: 'Can advance once ethics and access are confirmed',
+  never: 'Cannot advance yet, even with ethics and access confirmed',
+} as const;
+
+/**
+ * UX pass P-4: first, which options can advance (build, validate or be recommended) and what
+ * blocks the rest, in text; then, for the owner, one step to confirm ethics and access for the
+ * options they tick, with one shared reason per gate and an optional reason of an option's own.
+ */
+export function AdvanceAndGates({
+  cands,
+  base,
+  problemId,
+  session,
+  canConfirm,
+  choiceLabel,
+  onDone,
+}: {
+  cands: readonly RankedCandidate[];
+  base: string;
+  problemId: string;
+  session: SessionInfo;
+  canConfirm: boolean;
+  choiceLabel: (d: SelectionDisposition) => string;
+  onDone: () => void;
+}) {
+  const options = batchOptions(cands);
+  const key = options
+    .map(
+      (o) =>
+        `${o.cand.alternative.id}@${o.cand.alternative.version}:${o.gates.map((g) => `${g.gate}/${g.concerns.map((x) => x.scorecard).join(',')}`).join(';')}`,
+    )
+    .join('|');
+  const [ticked, setTicked] = useState<Set<string>>(
+    () =>
+      new Set(
+        options.filter(tickedByDefault).map((o) => o.cand.alternative.id),
+      ),
+  );
+  const [shared, setShared] = useState<Partial<Record<GateKind, string>>>({});
+  const [own, setOwn] = useState<Record<string, OwnReasons | undefined>>({});
+  const [ownOpen, setOwnOpen] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [done, setDone] = useState('');
+  // A reloaded report with other options or concerns starts the ticks again from its defaults.
+  useEffect(() => {
+    setTicked(
+      new Set(
+        options.filter(tickedByDefault).map((o) => o.cand.alternative.id),
+      ),
+    );
+    // Review N-2: own reasons typed for options still listed are kept.
+    const still = new Set(options.map((o) => o.cand.alternative.id));
+    setOwn((m) =>
+      Object.fromEntries(Object.entries(m).filter(([id]) => still.has(id))),
+    );
+    setOwnOpen((s) => new Set([...s].filter((id) => still.has(id))));
+  }, [key]);
+  if (!cands.length) return null;
+  const choices = (xs: readonly SelectionDisposition[]) =>
+    xs.map(choiceLabel).join(', ');
+  const built = batchRequest(options, ticked, shared, own);
+  const needed = sharedNeeded(options, ticked, own);
+  async function confirm() {
+    if (!('request' in built)) return;
+    setBusy(true);
+    setError('');
+    setDone('');
+    try {
+      const r = await api(
+        ConfirmGatesResultSchema,
+        `${base}/problems/${problemId}/gate-confirmations/batch`,
+        { csrf: session.csrf_token, body: built.request },
+      );
+      setDone(
+        `Recorded ${r.confirmations.length} gate confirmation${r.confirmations.length === 1 ? '' : 's'}.`,
+      );
+      setShared({});
+      onDone();
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'VERSION_CONFLICT') onDone();
+      setError(message(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+  const toggle = <T,>(set: Set<T>, v: T, on: boolean) => {
+    const next = new Set(set);
+    if (on) next.add(v);
+    else next.delete(v);
+    return next;
+  };
+  return (
+    <section className="advance" aria-labelledby="advance-title">
+      <h3 id="advance-title">Which options can advance</h3>
+      <ul className="rows advance-list">
+        {cands.map((c) => {
+          const o = advanceOutlook(c);
+          return (
+            <li key={c.alternative.id}>
+              <strong>{clip(c.alternative.title, 100)}</strong>{' '}
+              <span className={`outlook outlook-${o.state}`}>
+                {o.state === 'after_gates' && !gatesConfirmableNow(c)
+                  ? 'Can advance once its ethics and access gates are resolved (see the option below)'
+                  : OUTLOOK_WORD[o.state]}
+              </span>
+              {o.choices.length > 0 && <small> · {choices(o.choices)}</small>}
+              {o.blocks.length > 0 && (
+                <ul className="small">
+                  {o.blocks.map((b) => (
+                    <li key={b.reason}>
+                      {b.reason}{' '}
+                      <span className="muted">
+                        Blocks: {choices(b.choices)}.
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {canConfirm && options.length > 0 && (
+        <form
+          className="gate-batch"
+          aria-labelledby="gate-batch-title"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void confirm();
+          }}
+        >
+          <h4 id="gate-batch-title">
+            Confirm ethics and access for the options I choose
+          </h4>
+          <p className="small">
+            Give one reason per gate, read each option’s concerns, and tick the
+            options you confirm. To give one option a different reason, open
+            “Its own reason” under it. Options ticked for you are the ones this
+            lets advance.
+          </p>
+          {needed.map((k) => (
+            <div key={k}>
+              <label htmlFor={`shared-${k}`}>
+                Why is {k} fine for the ticked options? (shared reason)
+              </label>
+              <input
+                id={`shared-${k}`}
+                maxLength={300}
+                value={shared[k] ?? ''}
+                onChange={(e) =>
+                  setShared((m) => ({ ...m, [k]: e.target.value }))
+                }
+              />
+            </div>
+          ))}
+          <ul className="gate-batch-options">
+            {options.map((o) => {
+              const id = o.cand.alternative.id;
+              const on = ticked.has(id);
+              return (
+                <li key={id}>
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      onChange={(e) =>
+                        setTicked((t) => toggle(t, id, e.target.checked))
+                      }
+                    />
+                    <span>
+                      <strong>{clip(o.cand.alternative.title, 100)}</strong>
+                      <small>
+                        {' '}
+                        · {o.gates.map((g) => GATE[g.gate]).join(' and ')}
+                        {batchNote(o) && ` · ${batchNote(o)}`}
+                      </small>
+                    </span>
+                  </label>
+                  {o.gates.some((g) => g.concerns.length > 0) && (
+                    <ul className="small">
+                      {o.gates.flatMap((g) =>
+                        g.concerns.map((x) => (
+                          <li key={`${g.gate}-${x.scorecard}`}>
+                            {GATE[g.gate]} concern from{' '}
+                            {x.by === 'system'
+                              ? 'the automatic assessment'
+                              : x.reviewer}
+                            : {clip(x.note, 240)}
+                          </li>
+                        )),
+                      )}
+                    </ul>
+                  )}
+                  {on && (
+                    <button
+                      type="button"
+                      className="text"
+                      aria-expanded={ownOpen.has(id)}
+                      onClick={() => {
+                        const opening = !ownOpen.has(id);
+                        setOwnOpen((s) => toggle(s, id, opening));
+                        if (!opening)
+                          setOwn((m) => ({ ...m, [id]: undefined }));
+                      }}
+                    >
+                      {ownOpen.has(id)
+                        ? 'Use the shared reasons'
+                        : 'Its own reason'}
+                    </button>
+                  )}
+                  {on && ownOpen.has(id) && (
+                    <div className="own-reasons">
+                      {o.gates.map((g) => (
+                        <div key={g.gate}>
+                          <label htmlFor={`own-${id}-${g.gate}`}>
+                            Own {g.gate} reason for this option (empty uses the
+                            shared one)
+                          </label>
+                          <input
+                            id={`own-${id}-${g.gate}`}
+                            maxLength={300}
+                            value={own[id]?.[g.gate] ?? ''}
+                            onChange={(e) =>
+                              setOwn((m) => ({
+                                ...m,
+                                [id]: { ...m[id], [g.gate]: e.target.value },
+                              }))
+                            }
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          <p className="small" role="status">
+            {'request' in built
+              ? `What will happen: ${batchSummary(built.request)}`
+              : built.missing}
+          </p>
+          <div className="actions">
+            <button
+              className="primary"
+              type="submit"
+              disabled={busy || !('request' in built)}
+            >
+              {busy
+                ? 'Saving…'
+                : 'request' in built
+                  ? `Confirm ${built.request.items.length} gate${built.request.items.length === 1 ? '' : 's'}`
+                  : 'Confirm'}
+            </button>
+          </div>
+        </form>
+      )}
+      <div aria-live="polite">
+        {done && <p className="notice ok">{done}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+      </div>
+    </section>
   );
 }

@@ -42,7 +42,7 @@ import {
   resourceSetupOf,
   routesOf,
 } from './autopilot-routes.js';
-import { Empty, Status, useLoad } from './ui.js';
+import { Empty, Status, reveal, useLoad } from './ui.js';
 import { usePoll } from './page-active.js';
 import { endTimeClose, useEndTime } from './end-time.js';
 import {
@@ -56,7 +56,7 @@ const NEW_RUN = 'new';
 // P33 (ADR-0099): how much of a project is automated. Four levels, each a preset over what
 // already exists: Manual; Automate selection (a standing level on the run that starts a
 // selection-only autopilot whenever an assessment on the run finishes); Automate the rest (an
-// autopilot entering the path at a recorded problem); Whole process (Run it for me, above). The
+// autopilot entering the path at a recorded problem); Whole process (Run it for me). The
 // run's routine approvals are set or widened here as a preset the owner confirms as one summary,
 // through the same routes as Monitor › Approvals; the server checks everything again.
 
@@ -588,15 +588,12 @@ export function Automation({
                       type="button"
                       className="text"
                       onClick={(e) =>
-                        e.currentTarget
-                          .closest('section')
-                          ?.parentElement?.querySelector('#autopilot-title')
-                          ?.scrollIntoView({ behavior: 'smooth' })
+                        reveal(e.currentTarget, 'autopilot-title')
                       }
                     >
                       Run it for me
-                    </button>{' '}
-                    above.
+                    </button>
+                    .
                   </p>
                 ) : (
                   <>
@@ -813,7 +810,7 @@ export function Automation({
                           {p.state === 'running'
                             ? 'choosing now'
                             : (p.outcome ?? '').replaceAll('_', ' ')}{' '}
-                          (see Run it for me above for its steps)
+                          (see Run it for me for its steps)
                         </li>
                       ))}
                     </ul>
