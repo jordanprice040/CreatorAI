@@ -48,6 +48,8 @@ export interface AutopilotWeb {
     id: string,
     body: unknown,
   ): Promise<unknown>;
+  /** P-12: adds the claims a finished search holds that the run's approvals and settings allow. */
+  accept(ctx: CommandContext, ws: string, id: string): Promise<unknown>;
 }
 export function webResearch(
   runner: WebDiscoveryRunner,
@@ -59,6 +61,7 @@ export function webResearch(
     isActive: (id) => runner.isActive(id),
     resume: (ctx, ws, id) => runner.resume(ctx, ws, id),
     cancel: (ctx, ws, id, body) => runner.cancel(ctx, ws, id, body),
+    accept: (ctx, ws, id) => store.admitWebClaimsByPolicy(ctx, ws, id),
   };
 }
 
@@ -921,6 +924,16 @@ export class AutopilotRunner {
     signal: AbortSignal,
   ): Promise<Result> {
     if (!step.request) return { done: { note: 'No web search asked for.' } };
+    const after = await this.#afterHeld(ctx, ws, a);
+    if (after)
+      return after.added || !after.waiting
+        ? {
+            done: {
+              child: { kind: 'web_discovery', id: after.d.id },
+              note: `Went on from the earlier web search: ${after.added} claim${after.added === 1 ? '' : 's'} added${after.waiting ? `, ${after.waiting} still waiting for you` : ''}.`,
+            },
+          }
+        : this.#heldStop(after.d, after.waiting);
     const r = await this.#search(ctx, keyed, ws, a, step, step.request, signal);
     if ('stop' in r) {
       if (r.stop.outcome === 'cancelled' || r.stop.kind === 'end_time')
@@ -956,6 +969,10 @@ export class AutopilotRunner {
     const pending = d.proposals.filter(
       (p) => p.check === 'verified' && p.decision === 'pending',
     ).length;
+    // P-12: with nothing added and quote-checked claims held for a person, stop for them
+    // before exploring without that evidence.
+    const held = this.#held(d);
+    if (!admitted && held) return this.#heldStop(d, held);
     return {
       done: {
         child: { kind: 'web_discovery', id: d.id },
@@ -964,6 +981,63 @@ export class AutopilotRunner {
           1200,
         ),
       },
+    };
+  }
+
+  /**
+   * P-12 (ADR-0100): the quote-checked claims a web search found that wait for a person, because
+   * the owner's setting does not let the autopilot accept them (inferences always wait).
+   */
+  #held(d: WebDiscovery): number {
+    return d.proposals.filter(
+      (p) =>
+        p.check === 'verified' &&
+        p.decision === 'pending' &&
+        p.basis === 'observation',
+    ).length;
+  }
+
+  #heldStop(d: WebDiscovery, n: number, extra = ''): { stop: Stop } {
+    return {
+      stop: {
+        outcome: 'needs_person',
+        kind: 'claims_held',
+        note: `${extra} The web search found ${n} claim${n === 1 ? '' : 's'} whose only check is that the quotes were found word for word; ${n === 1 ? 'it waits' : 'they wait'} for you under Discover › Search the web (search ${d.id}). Add the ones you agree with and continue, or turn on “Accept quote-checked web claims”.`
+          .trim()
+          .slice(0, 1200),
+      },
+    };
+  }
+
+  /**
+   * P-12: when the step before this one stopped because claims waited for a person, this attempt
+   * goes on from that search instead of searching again: it accepts the waiting claims when the
+   * owner's setting now allows it, and counts what was added (by the owner or by the setting).
+   */
+  async #afterHeld(
+    ctx: CommandContext,
+    ws: string,
+    a: Autopilot,
+  ): Promise<{ d: WebDiscovery; added: number; waiting: number } | null> {
+    const prev = a.steps.at(-2);
+    const cur = a.steps.at(-1);
+    if (
+      !this.web ||
+      !prev ||
+      !cur ||
+      prev.stage !== cur.stage ||
+      prev.stop_kind !== 'claims_held' ||
+      prev.child?.kind !== 'web_discovery'
+    )
+      return null;
+    const settings = await this.#settings(ctx, ws);
+    if (settings.values.accept_quote_checked_claims)
+      await this.web.accept(ctx, ws, prev.child.id);
+    const d = await this.web.read(ctx, ws, prev.child.id);
+    return {
+      d,
+      added: d.proposals.filter((p) => p.decision === 'admitted').length,
+      waiting: this.#held(d),
     };
   }
 
@@ -1068,7 +1142,16 @@ export class AutopilotRunner {
         );
     };
     await link();
-    if (req.question) {
+    const after = await this.#afterHeld(ctx, ws, a);
+    let held: { d: WebDiscovery; n: number } | null = null;
+    if (after) {
+      searched = after.added;
+      notes.push(
+        `Went on from the earlier web search: ${after.added} claim${after.added === 1 ? '' : 's'} added${after.waiting ? `, ${after.waiting} still waiting for you` : ''}.`,
+      );
+      if (after.added) await link();
+      else if (after.waiting) held = { d: after.d, n: after.waiting };
+    } else if (req.question) {
       const settings = await this.#settings(ctx, ws);
       const route = this.#searchRoute(
         { ...a, steps: a.steps.slice(0, -1) },
@@ -1114,11 +1197,14 @@ export class AutopilotRunner {
               `Searched the web for “${req.question.slice(0, 160)}”: ${searched} claim${searched === 1 ? '' : 's'} added by the run's routine approvals${pending ? `, ${pending} waiting for you under Discover › Search the web` : ''}.`,
             );
             if (searched) await link();
+            else if (this.#held(r.d)) held = { d: r.d, n: this.#held(r.d) };
           }
         }
       }
     }
     const added = linked + searched;
+    // P-12: nothing added while quote-checked claims wait for a person: stop for them.
+    if (!added && held) return this.#heldStop(held.d, held.n, req.reason);
     if (!added && req.then === 'explore')
       return {
         stop: {

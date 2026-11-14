@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   AUTOPILOT_SETTING_TEXT,
   AutopilotSettingsSchema,
+  NOT_HANDS_OFF,
   handsOff,
   isHandsOff,
   type AutopilotSettingKey,
@@ -14,7 +15,8 @@ import { Status, useLoad } from './ui.js';
 
 // ADR-0100: the owner's autopilot settings. Each switch lets an autopilot (Run it for me, Automate
 // the rest, Automate selection) take a planned fallback instead of stopping for you at one kind
-// of stop. Hands-off turns on every fallback except choosing past model-only ethics.
+// of stop. Hands-off turns on every fallback except choosing past model-only ethics and accepting
+// quote-checked web claims, which the owner turns on one by one.
 
 /** Sent on `window` after the settings change, so a stopped card reads them again. */
 export const AUTOPILOT_SETTINGS_CHANGED = 'creator:autopilot-settings-changed';
@@ -50,6 +52,7 @@ const SWITCHES: AutopilotSettingKey[] = [
   'keep_close_leader',
   'next_candidate',
   'choose_model_ethics',
+  'accept_quote_checked_claims',
 ];
 
 export function AutopilotSettingsPanel({
@@ -155,9 +158,7 @@ export function AutopilotSettingsPanel({
                 />
                 <span>
                   <strong>{AUTOPILOT_SETTING_TEXT[k].label}</strong>
-                  {k === 'choose_model_ethics'
-                    ? ' (not part of Hands-off)'
-                    : ''}
+                  {NOT_HANDS_OFF.includes(k) ? ' (not part of Hands-off)' : ''}
                   <span className="small">
                     {' '}
                     {AUTOPILOT_SETTING_TEXT[k].text}

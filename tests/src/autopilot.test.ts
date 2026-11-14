@@ -1064,6 +1064,7 @@ test('review 2 L-1: the end time stops the step’s workflow on every path; a ch
   const cancelled: string[] = [];
   let stopping: { id: string } | null = null;
   const web: AutopilotWeb = {
+    accept: async () => null,
     start: async () => {
       const cur = await h.store.getAutopilot(owner, h.ws.id, stopping!.id);
       await h.store.cancelAutopilot(owner, h.ws.id, cur.id, {});
@@ -1599,6 +1600,7 @@ test('searching the web first: needs research and evidence covered; its outcome 
   const started: unknown[] = [];
   const outcome = { state: 'done', explanation: 'Read 2 pages.' };
   const web: AutopilotWeb = {
+    accept: async () => null,
     start: async (_ctx, _ws, _run, body) => {
       started.push(body);
       return { id: '00000000-0000-4000-8000-0000000000d1' };
@@ -1784,6 +1786,7 @@ test('review 3: the end time passing while a step waits cancels the web search a
   // Web search: the search never finishes; the end time passes during a wait.
   const cancelled: string[] = [];
   const web: AutopilotWeb = {
+    accept: async () => null,
     start: async () => ({ id: '00000000-0000-4000-8000-0000000000e1' }),
     read: async (_c, _w, id) =>
       ({ id, version: 1, state: 'searching' }) as unknown as WebDiscovery,
@@ -2365,6 +2368,7 @@ test('ADR-0100: thin evidence gathers with the explorer’s questions up to the 
   const started: { scope: { question: string | null } }[] = [];
   let n = 0;
   const web: AutopilotWeb = {
+    accept: async () => null,
     start: async (_ctx, _ws, _run, body) => {
       started.push(body as never);
       return { id: `00000000-0000-4000-8000-0000000000f${++n}` };
@@ -2479,4 +2483,157 @@ test('ADR-0100: linking suggested claims is the autopilot’s, audited, and neve
     [opt.id],
   );
   assert.equal(row.rows[0].asserted_by, AUTOPILOT_ACTOR_ID);
+});
+
+test('P-12: a web search whose claims wait for a person stops the autopilot; Allow accepts them and goes on without searching again', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  const research = {
+    connection_id: '00000000-0000-4000-8000-0000000000c1',
+    model_id: 'gpt-test',
+    scope: WebDiscoveryScopeSchema.parse({ interests: ['volunteers'] }),
+    input_hash: 'c'.repeat(64),
+  };
+  const c = h.config({ research });
+  let accepted = 0;
+  const started: unknown[] = [];
+  const web: AutopilotWeb = {
+    accept: async () => {
+      accepted += 1;
+      return null;
+    },
+    start: async (_ctx, _ws, _run, body) => {
+      started.push(body);
+      return { id: '00000000-0000-4000-8000-0000000000d2' };
+    },
+    read: async () =>
+      ({
+        id: '00000000-0000-4000-8000-0000000000d2',
+        version: 1,
+        state: 'done',
+        explanation: 'Read 2 pages.',
+        proposals: [
+          {
+            decision: accepted ? 'admitted' : 'pending',
+            check: 'verified',
+            basis: 'observation',
+          },
+          { decision: 'pending', check: 'verified', basis: 'inference' },
+        ],
+      }) as unknown as WebDiscovery,
+    isActive: () => true,
+    resume: async () => null,
+    cancel: async () => null,
+  };
+  const runner = new AutopilotRunner(h.store, web, {
+    pollMs: 5,
+    onWait: () => h.worker.settle(),
+  });
+  const runId = await h.run(
+    h.policy(['research', 'evidence', 'model_work', 'selection'], {
+      data_classes: ['public', 'synthetic'],
+    }),
+  );
+  const a = await runner.start(owner, h.ws.id, runId, h.body(c));
+  await runner.settled(a.id);
+  const stopped = runner.with(await h.store.getAutopilot(owner, h.ws.id, a.id));
+  assert.equal(stopped.outcome, 'needs_person', stopped.explanation);
+  assert.equal(stopped.steps.length, 1, 'held before exploring');
+  assert.equal(stopped.steps[0]!.stop_kind, 'claims_held');
+  assert.match(
+    stopped.explanation,
+    /1 claim whose only check is that the quotes were found/,
+  );
+  assert.equal(stopped.next?.[0]?.setting, 'accept_quote_checked_claims');
+  assert.equal(accepted, 0);
+  // Hands-off leaves this switch as it was.
+  assert.equal(handsOff(OFF).accept_quote_checked_claims, false);
+  assert.ok(
+    isHandsOff({ ...handsOff(OFF), accept_quote_checked_claims: true }),
+  );
+
+  await runner.allowAndContinue(owner, h.ws.id, a.id, {
+    expected_version: stopped.version,
+    settings_version: 0,
+    setting: 'accept_quote_checked_claims',
+  });
+  await runner.settled(a.id);
+  const b = await h.store.getAutopilot(owner, h.ws.id, a.id);
+  assert.equal(
+    (await h.store.autopilotSettings(owner, h.ws.id)).values
+      .accept_quote_checked_claims,
+    true,
+  );
+  assert.equal(accepted, 1);
+  assert.equal(started.length, 1, 'no second search');
+  assert.equal(b.steps[1]!.stage, 'research');
+  assert.equal(b.steps[1]!.state, 'done');
+  assert.match(
+    b.steps[1]!.note,
+    /Went on from the earlier web search: 1 claim added/,
+  );
+  assert.equal(b.steps[2]!.stage, 'explore');
+});
+
+test('P-11: approvals made with an autopilot end when it ends, stay while it waits for a person, and approvals the run had keep their terms', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  const p = h.policy();
+  const own = {
+    ...h.body(h.config()),
+    routine_policy: {
+      kind: 'new' as const,
+      policy: { ...p, summary_seen: routinePolicySummary(p) },
+    },
+  };
+  const runId = await h.run(null);
+  const a = await h.runner.start(owner, h.ws.id, runId, own);
+  await h.runner.settled(a.id);
+  const tie = await h.store.getAutopilot(owner, h.ws.id, a.id);
+  assert.equal(tie.outcome, 'needs_person', tie.explanation);
+  assert.ok(tie.routine_policy_id);
+  assert.equal(tie.approvals_ended_at, null, 'kept while it waits for you');
+  const policyOf = async (id: string) =>
+    (await h.store.listRoutinePolicies(owner, h.ws.id)).find(
+      (v) => v.policy.id === id,
+    )!.policy;
+  assert.equal((await policyOf(tie.routine_policy_id!)).status, 'active');
+  // The owner chooses; Continue goes on to a proposal, and its own approvals end with it.
+  const problem = tie.steps.find((x) => x.stage === 'discover')!.problem!;
+  await ownerChooses(h, runId, problem.id);
+  await h.runner.retry(owner, h.ws.id, a.id, { expected_version: tie.version });
+  await h.runner.settled(a.id);
+  const done = await h.store.getAutopilot(owner, h.ws.id, a.id);
+  assert.equal(done.outcome, 'proposal', done.explanation);
+  assert.ok(done.approvals_ended_at);
+  const ended = await policyOf(tie.routine_policy_id!);
+  assert.equal(ended.status, 'revoked');
+  assert.match(
+    String(ended.revoke_reason),
+    /autopilot they were made for ended \(proposal\)/,
+  );
+  // A finished autopilot whose approvals ended cannot continue, and says why.
+  const can = autopilotContinuable({
+    ...tie,
+    approvals_ended_at: new Date().toISOString(),
+  });
+  assert.ok(
+    !can.ok &&
+      /routine approvals made for this autopilot ended/.test(can.reason),
+  );
+
+  // Approvals the run already had are not the autopilot's: they keep their own terms.
+  const runId2 = await h.run();
+  const b = await h.start(
+    runId2,
+    h.config({ start: { stage: 'assess', problem } }),
+  );
+  assert.equal(b.state, 'finished', b.explanation);
+  assert.equal(b.routine_policy_id, null);
+  assert.equal(b.approvals_ended_at, null);
+  const kept = (await h.store.listRoutinePolicies(owner, h.ws.id)).find(
+    (v) => v.policy.run_id === runId2,
+  )!.policy;
+  assert.equal(kept.status, 'active');
 });

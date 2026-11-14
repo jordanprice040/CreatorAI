@@ -15,6 +15,8 @@ What now works (schema 63):
 
 Checked in the cloud container on PostgreSQL 16: `pnpm typecheck`, `pnpm format:check`, `pnpm test` with the database (1178 tests: 1144 pass, 29 skipped, the 5 known PowerShell-wrapper failures) and `pnpm test:dev-safety` (19 pass, 3 skipped). Nine new ADR-0100 tests in `tests/src/autopilot.test.ts`. Browser walk on a throwaway database: [evidence](evidence/autopilot-settings/README.md). No live run and no model call (a live run on the dev studio needs Jordan's typed OK and the dev studio upgraded to schema 63).
 
+P-11 and P-12 (Jordan's UX decisions, added before review): routine approvals made with an autopilot end when it finishes, fails or is cancelled, and stay while it waits for a person; approvals the run already had keep their terms. Quote-checked web claims an autopilot finds wait for a person unless the owner turns on **Accept quote-checked web claims** (off by default, not part of Hands-off); the autopilot stops for them with Allow and continue, and each one it accepts is labelled “Accepted by autopilot · quote check only” in packets, Decide and proposal references. Three new tests (both store rules mutation-checked). Rechecked: `pnpm typecheck`, `pnpm format:check`, `pnpm test` with the database (1181 tests: 1147 pass, 29 skipped, the 5 known PowerShell-wrapper failures).
+
 Limits: web search for evidence runs only on a ChatGPT plan connection; the fixture's identical ratings cannot show a tie broken; Whole process still stops a software option at the spec.
 
 ## November 12 update — full codebase audit and its fixes (L-1, L-2, N-1..N-7)

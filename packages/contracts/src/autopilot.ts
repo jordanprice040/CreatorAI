@@ -83,6 +83,28 @@ export const AutopilotOutcomeSchema = z.enum([
 export type AutopilotOutcome = z.infer<typeof AutopilotOutcomeSchema>;
 
 /** Outcomes a person can continue from (the stopped step is tried again). */
+/**
+ * P-11 (ADR-0100): the stops that wait for a person's input; routine approvals made for the
+ * autopilot stay (within their own scope and end time) only through these. Any other end, a
+ * failed step included, ends them.
+ */
+export const AUTOPILOT_PAUSES: readonly AutopilotOutcome[] = [
+  'needs_person',
+  'needs_authority',
+  'limit_reached',
+];
+/** Whether an autopilot that finished like this ends the routine approvals made for it. */
+export function autopilotEndsApprovals(
+  a: Pick<Autopilot, 'state' | 'outcome' | 'steps'>,
+): boolean {
+  return (
+    a.state === 'finished' &&
+    (!a.outcome ||
+      !AUTOPILOT_PAUSES.includes(a.outcome) ||
+      !autopilotContinuable(a).ok)
+  );
+}
+
 export const AUTOPILOT_RETRYABLE: readonly AutopilotOutcome[] = [
   'needs_person',
   'needs_authority',
@@ -318,6 +340,12 @@ export const AutopilotSchema = z.strictObject({
   active: z.boolean(),
   /** P33 (ADR-0099): the "Automate selection" level that started it, if one did. */
   automation_id: id.nullable(),
+  /**
+   * P-11 (ADR-0100): the routine approvals made for this autopilot when it started (absent when
+   * it used approvals the run already had), and when they ended with it.
+   */
+  routine_policy_id: id.nullable().optional(),
+  approvals_ended_at: timestamp.nullable().optional(),
   /** ADR-0100: what to do next when it stopped (computed when read, never stored). */
   next: z.array(AutopilotNextSchema).max(8).optional(),
 });
@@ -329,9 +357,16 @@ export type Autopilot = z.infer<typeof AutopilotSchema>;
  * at the autopilot's own call limit, or after a cancel or a final result cannot.
  */
 export function autopilotContinuable(
-  a: Pick<Autopilot, 'state' | 'outcome' | 'steps'>,
+  a: Pick<Autopilot, 'state' | 'outcome' | 'steps'> &
+    Partial<Pick<Autopilot, 'approvals_ended_at'>>,
 ): { ok: true } | { ok: false; reason: string } {
   if (a.state !== 'finished') return { ok: false, reason: 'It is running.' };
+  if (a.approvals_ended_at)
+    return {
+      ok: false,
+      reason:
+        'The routine approvals made for this autopilot ended when it stopped; start a new one.',
+    };
   if (!a.outcome || !AUTOPILOT_RETRYABLE.includes(a.outcome))
     return {
       ok: false,
@@ -547,6 +582,19 @@ const NEXT: Record<AutopilotStopKind, Omit<AutopilotNext, 'setting'>[]> = {
       detail: 'Tries the step again as a new attempt.',
     },
   ],
+  claims_held: [
+    {
+      kind: 'search_web',
+      label: 'Review the checked claims',
+      detail:
+        'Discover › Search the web: add the claims you agree with (each shows its quote and page), then continue.',
+    },
+    {
+      kind: 'continue',
+      label: 'Continue',
+      detail: 'Goes on with the claims you added.',
+    },
+  ],
   person_choice: [
     {
       kind: 'decide',
@@ -616,7 +664,8 @@ const NEXT: Record<AutopilotStopKind, Omit<AutopilotNext, 'setting'>[]> = {
  * setting that would have let it go on (when Continue can retry the step), then the manual steps.
  */
 export function autopilotNextSteps(
-  a: Pick<Autopilot, 'state' | 'outcome' | 'steps'>,
+  a: Pick<Autopilot, 'state' | 'outcome' | 'steps'> &
+    Partial<Pick<Autopilot, 'approvals_ended_at'>>,
 ): AutopilotNext[] {
   if (a.state !== 'finished') return [];
   if (a.outcome === 'proposal')

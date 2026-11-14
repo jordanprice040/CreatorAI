@@ -426,18 +426,16 @@ export function Automation({
             autonomy_mode: 'human_in_loop',
             stage_gates: null,
             initial_grants: [],
-            routine_policy: {
-              ...step.input,
-              summary_seen: routinePolicySummary(step.input),
-            },
           },
         });
         newRun = control.run_id;
+        // P-11: the approvals are made with the autopilot, so they end when it ends.
         await api(AutopilotSchema, `${base}/runs/${newRun}/autopilots`, {
           csrf: session.csrf_token,
           body: {
             config: restConfig,
             summary_seen: autopilotSummary(restConfig),
+            routine_policy,
           },
           timeoutMs: 30_000,
         });

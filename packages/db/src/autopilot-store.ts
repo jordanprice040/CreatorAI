@@ -12,6 +12,7 @@ import {
   AUTOPILOT_MAX_STEPS,
   AUTOPILOT_POLICY_VERSION,
   autopilotContinuable,
+  autopilotEndsApprovals,
   AutopilotConfigSchema,
   AutopilotControlRequestSchema,
   AutopilotStepSchema,
@@ -73,6 +74,8 @@ export const toAutopilot = (r: Row): Autopilot => ({
   finished_at: r.finished_at ? iso(r.finished_at) : null,
   active: false,
   automation_id: r.automation_id ? String(r.automation_id) : null,
+  routine_policy_id: r.routine_policy_id ? String(r.routine_policy_id) : null,
+  approvals_ended_at: r.approvals_ended_at ? iso(r.approvals_ended_at) : null,
 });
 
 /** What the runner may change in one guarded step. */
@@ -154,7 +157,8 @@ export class AutopilotStore extends WebDiscoveryStore {
             );
           // P33 (review L-1): the approvals change and the start succeed or fail together; the
           // run is checked first, so a refused run never writes a policy (review 2 N-2).
-          await this.applyRoutinePolicyChange(
+          // P-11: approvals made here are this autopilot's own and end with it.
+          const own = await this.applyRoutinePolicyChange(
             c,
             ctx,
             ws,
@@ -185,8 +189,8 @@ export class AutopilotStore extends WebDiscoveryStore {
           const first = nextAutopilotStage(req.config, [])!;
           await c.query(
             `insert into autopilots (id, workspace_id, run_id, fixture, config, config_hash, summary,
-               policy_version, state, stage, explanation, version, created_by)
-             select $1, w.id, $3, w.fixture, $4, $5, $6, $7, 'running', $8, $9, 1, $10
+               policy_version, state, stage, explanation, version, created_by, routine_policy_id)
+             select $1, w.id, $3, w.fixture, $4, $5, $6, $7, 'running', $8, $9, 1, $10, $11
              from workspaces w where w.id = $2`,
             [
               id,
@@ -199,6 +203,7 @@ export class AutopilotStore extends WebDiscoveryStore {
               first,
               'Starting.',
               ctx.actorId,
+              own,
             ],
           );
           await this.append(c, ctx, {
@@ -241,17 +246,17 @@ export class AutopilotStore extends WebDiscoveryStore {
     runId: string,
     change: RoutinePolicyChange,
   ) {
-    if (!change) return;
-    if (change.kind === 'new') {
-      await this.setRoutinePolicyIn(
-        c,
-        ctx,
-        ws,
-        runId,
-        this.checkRoutineInput(change.policy),
-      );
-      return;
-    }
+    if (!change) return null;
+    if (change.kind === 'new')
+      return (
+        await this.setRoutinePolicyIn(
+          c,
+          ctx,
+          ws,
+          runId,
+          this.checkRoutineInput(change.policy),
+        )
+      ).id;
     const { expected_version, ...rest } = change.policy;
     const input = this.checkRoutineInput(rest);
     const policyId = uuid(change.policy_id);
@@ -291,6 +296,7 @@ export class AutopilotStore extends WebDiscoveryStore {
       expected_version,
       input,
     );
+    return null;
   }
 
   /**
@@ -435,7 +441,8 @@ export class AutopilotStore extends WebDiscoveryStore {
           finished ? new Date().toISOString() : null,
         ],
       );
-      const next = toAutopilot(rows[0] as Row);
+      let next = toAutopilot(rows[0] as Row);
+      if (finished) next = await this.#endOwnApprovals(c, ctx, next);
       if (finished)
         await this.append(c, ctx, {
           workspaceId: ws,
@@ -457,6 +464,37 @@ export class AutopilotStore extends WebDiscoveryStore {
         });
       return next;
     });
+  }
+
+  /**
+   * P-11 (ADR-0100): when an autopilot ends other than by waiting for a person's input, the
+   * routine approvals made for it when it started end too (run, policy, grant, then the audit
+   * log; the autopilot row is already locked). Approvals the run already had keep their terms.
+   */
+  async #endOwnApprovals(
+    c: PoolClient,
+    ctx: CommandContext,
+    a: Autopilot,
+  ): Promise<Autopilot> {
+    if (
+      !a.routine_policy_id ||
+      a.approvals_ended_at ||
+      !autopilotEndsApprovals(a)
+    )
+      return a;
+    await this.endRoutinePolicyIn(
+      c,
+      ctx,
+      a.workspace_id,
+      a.routine_policy_id,
+      `The autopilot they were made for ended (${(a.outcome ?? 'finished').replaceAll('_', ' ')}).`,
+    );
+    const { rows } = await c.query(
+      `update autopilots set approvals_ended_at = clock_timestamp()
+        where workspace_id = $1 and id = $2 returning *`,
+      [a.workspace_id, a.id],
+    );
+    return toAutopilot(rows[0] as Row);
   }
 
   /** The owner stops a running autopilot. What it made so far is kept. */
@@ -506,7 +544,11 @@ export class AutopilotStore extends WebDiscoveryStore {
           ),
         ],
       );
-      const next = toAutopilot(rows[0] as Row);
+      const next = await this.#endOwnApprovals(
+        c,
+        ctx,
+        toAutopilot(rows[0] as Row),
+      );
       await this.append(c, ctx, {
         workspaceId: ws,
         action: 'autopilot.finished',

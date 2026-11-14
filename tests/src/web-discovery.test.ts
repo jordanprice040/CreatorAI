@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import {
+  AUTOPILOT_QUOTE_CHECK_LABEL,
+  AUTOPILOT_SETTINGS_DEFAULT,
   BenchmarkManifestSchema,
   CREDITS_OFF_STATEMENT,
   ContractError,
@@ -1344,6 +1346,69 @@ test('under a routine policy a claim whose quote no longer binds is skipped, and
     [h.ws.id],
   );
   assert.equal(claims.rowCount, 0, 'the skipped claim left nothing behind');
+});
+
+test('P-12: an autopilot adds quote-checked claims only with the owner’s setting on, labelled wherever they are used', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.qualify();
+  const runId = await h.run();
+  const d = await h.start(runId);
+  assert.equal(d.state, 'done');
+  const p: RoutinePolicyInput = {
+    stages: ['research', 'evidence'],
+    data_classes: ['public'],
+    max_actions: 5,
+    max_total_nano_usd: null,
+    stop_on: ['person_rejects'],
+    expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+    rationale: 'Test policy.',
+  };
+  await h.store.setRoutinePolicy(owner, h.ws.id, runId, {
+    ...p,
+    summary_seen: routinePolicySummary(p),
+  });
+  const auto = { ...owner, autopilot: { id: randomUUID() } };
+  // Off by default: the run's approvals would cover it, but the claims wait for a person.
+  const held = await h.store.admitWebClaimsByPolicy(auto, h.ws.id, d.id);
+  assert.equal(held.admitted, 0);
+  assert.match(held.note ?? '', /Accept quote-checked web claims/);
+  const waiting = await h.store.getWebDiscovery(owner, h.ws.id, d.id);
+  assert.ok(waiting.proposals.every((x) => x.decision === 'pending'));
+  assert.match(
+    waiting.explanation,
+    /setting “Accept quote-checked web claims” is off/,
+  );
+  // The owner turns it on: the autopilot accepts the observation (the inference still waits).
+  await h.store.saveAutopilotSettings(owner, h.ws.id, {
+    expected_version: 0,
+    values: {
+      ...AUTOPILOT_SETTINGS_DEFAULT,
+      accept_quote_checked_claims: true,
+    },
+  });
+  const ok = await h.store.admitWebClaimsByPolicy(auto, h.ws.id, d.id);
+  assert.equal(ok.admitted, 1);
+  const after = await h.store.getWebDiscovery(owner, h.ws.id, d.id);
+  const added = after.proposals.find((x) => x.decision === 'admitted')!;
+  assert.equal(added.admitted_via, 'autopilot');
+  assert.ok(
+    after.proposals.some(
+      (x) => x.basis === 'inference' && x.decision === 'pending',
+    ),
+  );
+  const reason = await h.db.pool.query(
+    'select decision_reason from web_discovery_claims where id = $1',
+    [added.id],
+  );
+  assert.match(
+    String(reason.rows[0].decision_reason),
+    /Accepted by autopilot · quote check only: the owner's setting \(version 1\)/,
+  );
+  // The label goes with the claim's evidence (packets, Decide, proposals), with its passages.
+  const ev = await h.store.claimEvidence(owner, h.ws.id, added.claim_id!, 180);
+  assert.equal(ev.labels[0], AUTOPILOT_QUOTE_CHECK_LABEL);
+  assert.ok(ev.rows.some((r) => r.support.quote));
 });
 
 test('ADR-0098 review 1 L-1: a routine claim admission and an archive of its source never deadlock', async (t) => {

@@ -26,6 +26,12 @@ export const AutopilotSettingsValuesSchema = z.strictObject({
    * the record for a person to look at. Off by default and never part of Hands-off.
    */
   choose_model_ethics: z.boolean(),
+  /**
+   * Jordan, November 14 (P-12): let the autopilot use web claims whose only check is that their
+   * quotes were found word for word. Off by default, so they wait for a person; never part of
+   * Hands-off. Each one it uses is labelled `AUTOPILOT_QUOTE_CHECK_LABEL`.
+   */
+  accept_quote_checked_claims: z.boolean(),
 });
 export type AutopilotSettingsValues = z.infer<
   typeof AutopilotSettingsValuesSchema
@@ -40,9 +46,13 @@ export const AUTOPILOT_SETTINGS_DEFAULT: AutopilotSettingsValues = {
   next_candidate: false,
   retry_failed: 0,
   choose_model_ethics: false,
+  accept_quote_checked_claims: false,
 };
 
-/** Hands-off: every fallback except the ethics switch, which keeps the value it had. */
+/**
+ * Hands-off: every fallback except the two switches the owner turns on one by one (choosing past
+ * model-only ethics and accepting quote-checked web claims), which keep the values they had.
+ */
 export function handsOff(v: AutopilotSettingsValues): AutopilotSettingsValues {
   return {
     gather_evidence: true,
@@ -53,12 +63,18 @@ export function handsOff(v: AutopilotSettingsValues): AutopilotSettingsValues {
     next_candidate: true,
     retry_failed: 1,
     choose_model_ethics: v.choose_model_ethics,
+    accept_quote_checked_claims: v.accept_quote_checked_claims,
   };
 }
+/** The switches Hands-off leaves as they are. */
+export const NOT_HANDS_OFF: readonly (keyof AutopilotSettingsValues)[] = [
+  'choose_model_ethics',
+  'accept_quote_checked_claims',
+];
 export function isHandsOff(v: AutopilotSettingsValues): boolean {
   const h = handsOff(v);
   return (Object.keys(h) as (keyof AutopilotSettingsValues)[]).every(
-    (k) => k === 'choose_model_ethics' || v[k] === h[k],
+    (k) => NOT_HANDS_OFF.includes(k) || v[k] === h[k],
   );
 }
 
@@ -91,6 +107,8 @@ export const AutopilotStopKindSchema = z.enum([
   'opportunity',
   'model_ethics',
   'failed_step',
+  /** P-12: a web search found claims checked only by their quotes, which wait for a person. */
+  'claims_held',
   'person_choice',
   'approval',
   'paused',
@@ -116,6 +134,7 @@ export const SETTING_FOR_STOP: Partial<
   opportunity: 'next_candidate',
   model_ethics: 'choose_model_ethics',
   failed_step: 'retry_failed',
+  claims_held: 'accept_quote_checked_claims',
 };
 
 export const AUTOPILOT_SETTING_TEXT: Record<
@@ -153,6 +172,10 @@ export const AUTOPILOT_SETTING_TEXT: Record<
   choose_model_ethics: {
     label: 'Choose when only the model cleared ethics',
     text: 'Chooses an option whose ethics gate only the model cleared; the selection and proposal say “Ethics checked by the model only: look at it”.',
+  },
+  accept_quote_checked_claims: {
+    label: 'Accept quote-checked web claims',
+    text: 'Lets the autopilot use claims from its web searches whose only check is that their quotes were found word for word. Off: they wait for you under Discover › Search the web. Each one used is labelled “Accepted by autopilot · quote check only”, with its source passage.',
   },
 };
 
@@ -218,5 +241,9 @@ export type AutopilotFallback = z.infer<typeof AutopilotFallbackSchema>;
 export type AutopilotSettingKey = keyof AutopilotSettingsValues;
 
 /** ADR-0100: the flag on a selection (and its proposal) an autopilot made past model-only ethics. */
+/** P-12: the label a quote-checked web claim the autopilot accepted carries wherever it is used. */
+export const AUTOPILOT_QUOTE_CHECK_LABEL =
+  'Accepted by autopilot · quote check only' as const;
+
 export const MODEL_ONLY_ETHICS_NOTE =
   'Ethics checked by the model only: look at it.' as const;

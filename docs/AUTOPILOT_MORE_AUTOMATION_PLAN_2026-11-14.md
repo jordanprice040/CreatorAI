@@ -79,3 +79,8 @@ Each stopped step carries `stop_kind` and `next`: a short list of concrete actio
 ## Verification
 
 Unit tests for the new rules: the worst-case choice, the tie order, the close-ranking leader, cap sizing, and the `stop_kind`/`next` mapping. DB tests for the settings (owner only, versioned, audited), allow-and-continue (with a refusal on a version conflict), cited-claim linking, the evidence loop (fixture model and fixture web), and refusal of a whole process that can't fit under the cap. Then `pnpm typecheck`, `format:check`, `test:db`, and a browser walk on a throwaway database. A live run on the dev studio needs Jordan's typed OK.
+
+## Added before review: Jordan's UX decisions P-11 and P-12
+
+- **P-11, run approvals end with the autopilot.** Routine approvals made with an autopilot end when it finishes, fails or is cancelled. While it waits for your input they stay, within their own scope and end time. Approvals the run already had keep their own terms.
+- **P-12, quote-checked web claims.** A new setting, **Accept quote-checked web claims**, off by default and not part of Hands-off. Off: claims an autopilot's web search checked only by their quotes wait for you, and the autopilot stops for them with “Allow … and continue”. On: the autopilot uses them, and each carries “Accepted by autopilot · quote check only” wherever it informs discovery, assessment or a proposal, next to its quotes and pages.

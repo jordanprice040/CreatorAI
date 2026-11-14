@@ -249,16 +249,20 @@ export function Autopilot({
           autonomy_mode: 'human_in_loop',
           stage_gates: null,
           initial_grants: [],
-          routine_policy: {
-            ...policy,
-            summary_seen: routinePolicySummary(policy),
-          },
         },
       });
       runId = control.run_id;
+      // P-11: the approvals are made with the autopilot, so they end when it ends.
       await api(AutopilotSchema, `${base}/runs/${runId}/autopilots`, {
         csrf: session.csrf_token,
-        body: { config: cfg, summary_seen: autopilotSummary(cfg) },
+        body: {
+          config: cfg,
+          summary_seen: autopilotSummary(cfg),
+          routine_policy: {
+            kind: 'new',
+            policy: { ...policy, summary_seen: routinePolicySummary(policy) },
+          },
+        },
         timeoutMs: 30_000,
       });
       setConfirmed(false);
@@ -489,7 +493,8 @@ export function Autopilot({
                     onChange={(e) => setConfirmed(e.target.checked)}
                   />{' '}
                   I have read both summaries; start a new run with these routine
-                  approvals and run the autopilot on it.
+                  approvals and run the autopilot on it. The approvals end when
+                  the autopilot ends, except while it waits for me.
                 </label>
                 {blockers.length > 0 && (
                   <ul className="error">

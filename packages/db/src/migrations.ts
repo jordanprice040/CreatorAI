@@ -3549,6 +3549,17 @@ create table autopilot_settings (
 alter table autopilots drop constraint autopilots_stage_check;
 alter table autopilots add constraint autopilots_stage_check check (stage in ('research','explore',
  'brief','discover','assess','select','proposal','spec','gather'));
+-- P-11: the routine approvals made for this autopilot when it started, which end with it.
+alter table autopilots add column routine_policy_id uuid references routine_policies(id);
+alter table autopilots add column approvals_ended_at timestamptz;
+alter table autopilots add constraint autopilots_approvals_ended_check
+ check (approvals_ended_at is null or routine_policy_id is not null);
+-- P-12: a quote-checked web claim the autopilot accepted under the owner's setting.
+alter table web_discovery_claims drop constraint web_discovery_claims_admitted_via_check;
+alter table web_discovery_claims add constraint web_discovery_claims_admitted_via_check
+ check (admitted_via in ('owner','routine_policy','autopilot'));
+alter table web_discovery_claims add constraint web_discovery_claims_autopilot_admission_check
+ check (admitted_via <> 'autopilot' or admission_id is not null);
 `,
   },
 ];

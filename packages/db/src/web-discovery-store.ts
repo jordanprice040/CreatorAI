@@ -15,6 +15,7 @@ import {
   type WebDiscoverySummary,
   type WebLead,
   type WebSearchCall,
+  AUTOPILOT_QUOTE_CHECK_LABEL,
 } from '@creator/contracts';
 import {
   SCOUT_PROMPT,
@@ -658,10 +659,18 @@ export class WebDiscoveryStore extends PortfolioStore {
           [ws, runId],
         )
       ).rowCount;
+      // P-12 (ADR-0100): a search an autopilot made adds quote-checked claims only when the
+      // owner's setting lets the autopilot accept them; otherwise they wait for a person.
+      const auto = await this.#autopilotSearch(c, ctx, ws, id);
+      const tryAdd = hasPolicy && (!auto || auto.accept) ? observations : [];
+      const held =
+        hasPolicy && auto && !auto.accept && observations.length
+          ? 'Quote-checked claims an autopilot found wait for you: the setting “Accept quote-checked web claims” is off.'
+          : '';
       // ADR-0098 (review 1 L-1): adding a claim's support share-locks the passage's source,
       // which a revision or archive locks before it appends; lock them before the first claim.
-      await this.#lockClaimSources(c, ws, hasPolicy ? observations : []);
-      for (const r of hasPolicy ? observations : []) {
+      await this.#lockClaimSources(c, ws, tryAdd);
+      for (const r of tryAdd) {
         const action = {
           action_type: 'claim.admit' as const,
           task_id: null,
@@ -701,9 +710,11 @@ export class WebDiscoveryStore extends PortfolioStore {
             ctx,
             ws,
             r,
-            'routine_policy',
+            auto ? 'autopilot' : 'routine_policy',
             admission.id,
-            'Added by the routine approval policy (evidence stage).',
+            auto
+              ? `${AUTOPILOT_QUOTE_CHECK_LABEL}: the owner's setting (version ${auto.version}) lets the autopilot use it; the run's routine approvals admitted it.`
+              : 'Added by the routine approval policy (evidence stage).',
           );
           await c.query('release savepoint web_claim');
           admitted += 1;
@@ -718,9 +729,10 @@ export class WebDiscoveryStore extends PortfolioStore {
       if (pending.length) {
         const summary = [
           admitted
-            ? `Your routine policy added ${admitted} checked claim${admitted === 1 ? '' : 's'}; ${waiting} wait${waiting === 1 ? 's' : ''} for you.`
+            ? `${auto ? 'The autopilot accepted' : 'Your routine policy added'} ${admitted} checked claim${admitted === 1 ? '' : 's'}${auto ? ` (${AUTOPILOT_QUOTE_CHECK_LABEL})` : ''}; ${waiting} wait${waiting === 1 ? 's' : ''} for you.`
             : `${waiting} checked claim${waiting === 1 ? '' : 's'} wait${waiting === 1 ? 's' : ''} for you to add or dismiss.`,
           hasPolicy && inferences ? 'Inferences always wait for you.' : '',
+          held,
           note ? `No routine policy added the rest: ${note}` : '',
           skipped.length ? `Not added: ${skipped.join('; ')}` : '',
         ]
@@ -732,8 +744,45 @@ export class WebDiscoveryStore extends PortfolioStore {
           [id, summary.slice(0, 600)],
         );
       }
-      return { admitted, waiting, note: note ?? (skipped[0] || null) };
+      return {
+        admitted,
+        waiting,
+        note: note ?? (held || skipped[0] || null),
+      };
     });
+  }
+
+  /**
+   * P-12: whether an autopilot made this search (its step context, or a step that records it),
+   * and the owner's setting on accepting quote-checked claims, read when the claims are added.
+   */
+  async #autopilotSearch(
+    c: PoolClient,
+    ctx: CommandContext,
+    ws: string,
+    id: string,
+  ): Promise<{ accept: boolean; version: number } | null> {
+    const made =
+      !!ctx.autopilot ||
+      !!(
+        await c.query(
+          `select 1 from autopilots where workspace_id = $1
+              and steps @> $2::jsonb limit 1`,
+          [ws, JSON.stringify([{ child: { kind: 'web_discovery', id } }])],
+        )
+      ).rowCount;
+    if (!made) return null;
+    const s = (
+      await c.query(
+        'select settings, version from autopilot_settings where workspace_id = $1',
+        [ws],
+      )
+    ).rows[0] as Row | undefined;
+    return {
+      accept:
+        (s?.settings as Row | undefined)?.accept_quote_checked_claims === true,
+      version: s ? Number(s.version) : 0,
+    };
   }
 
   async #lockProposals(
@@ -795,7 +844,7 @@ export class WebDiscoveryStore extends PortfolioStore {
     ctx: CommandContext,
     ws: string,
     r: Row,
-    via: 'owner' | 'routine_policy',
+    via: 'owner' | 'routine_policy' | 'autopilot',
     admissionId: string | null,
     reason: string,
   ) {
