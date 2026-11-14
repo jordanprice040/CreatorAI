@@ -2,8 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import {
+  ADVANCING_DISPOSITIONS,
   AssessmentPacketSchema,
+  ConfirmGatesResultSchema,
   ContractError,
+  GateConfirmationSchema,
+  advanceOutlook,
+  kindAllows,
   routinePolicySummary,
   type RoutineStage,
   type SelectRequest,
@@ -29,6 +34,9 @@ import {
 } from '@creator/broker';
 import { studioMachine } from '@creator/db';
 import { discoverySetup, owner } from './discovery-harness.js';
+import { LOGIN_CODE, login } from './pg-harness.js';
+import { createApi } from '@creator/api';
+import { once } from 'node:events';
 
 // ADR-0090: the team profile goes with every assessment and is the owner's alone; the owner
 // confirms a gate seen exactly as it is now; a later concern or option version makes the
@@ -639,4 +647,232 @@ test('the owner confirms a gate as it is now; a newer concern makes it stale; th
     }),
     /already how gates clear/,
   );
+});
+
+// UX pass P-4 (as Jordan revised it): one step confirms ethics and access for the options the
+// owner ticks, one shared reason per gate, any option with its own reason instead; all or none.
+test('the owner confirms several options’ gates in one step, with shared or own reasons recorded per option and gate', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  s.adapter.access =
+    'Nothing in the packet shows the team can install Python tools (csvkit needs Python and pip).';
+  await s.assess();
+  const report = await s.report();
+  const [first, second] = report.suitability.candidates;
+  assert.ok(first && second, 'the scenario has at least two options');
+  // The gate's reason comes first in every advancing choice the kind allows, so the page can
+  // tell "only the gate blocks it" from "something else does too" (advanceOutlook).
+  for (const c of report.suitability.candidates) {
+    assert.notEqual(c.gates.ethics_access, 'clear');
+    for (const d of ADVANCING_DISPOSITIONS.filter((x) =>
+      kindAllows(c.alternative.kind, x),
+    ))
+      assert.match(
+        c.gates.blocked[d]![0]!,
+        /^(An ethics or access question is unresolved|Only the automatic assessment looked at ethics or access|Ethics and access have not been assessed|Your gate checklist did not clear)/,
+      );
+    assert.notEqual(advanceOutlook(c).state, 'now');
+  }
+  const item = (
+    c: RankedCandidate,
+    g: 'ethics' | 'access',
+    reason: string | null = null,
+  ) => ({
+    alternative: { id: c.alternative.id, version: c.alternative.version },
+    gate: g,
+    concerns_seen: gate(c, g).concerns.map((x) => x.scorecard),
+    reason,
+  });
+  const shared = {
+    ethics: 'Public data only; no people are affected.',
+    access: 'The team installs Python packages on lab PCs.',
+  };
+  const all = [
+    item(first, 'ethics'),
+    item(first, 'access'),
+    item(second, 'ethics'),
+    item(
+      second,
+      'access',
+      'This one runs on the shared server, where pip is allowed.',
+    ),
+  ];
+  await rejects(
+    'ACCESS_DENIED',
+    s.store.confirmGates(s.editor, s.ws.id, s.problem.id, {
+      shared,
+      items: all,
+    }),
+  );
+  // A request must say which reason applies to every item, and names each option and gate once.
+  await rejects(
+    'INVALID_CONTRACT',
+    s.store.confirmGates(owner, s.ws.id, s.problem.id, {
+      shared: { ...shared, ethics: null },
+      items: all,
+    }),
+  );
+  await rejects(
+    'INVALID_CONTRACT',
+    s.store.confirmGates(owner, s.ws.id, s.problem.id, {
+      shared,
+      items: [...all, item(first, 'ethics')],
+    }),
+  );
+  // One item that cannot be confirmed (a concern the page did not show) refuses the whole step,
+  // naming the option; nothing is written.
+  await rejects(
+    'VERSION_CONFLICT',
+    s.store.confirmGates(owner, s.ws.id, s.problem.id, {
+      shared,
+      items: [...all.slice(0, 3), { ...all[3]!, concerns_seen: [] }],
+    }),
+    new RegExp(
+      `${second.alternative.title.slice(0, 20).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}.*access.*Nothing was confirmed`,
+    ),
+  );
+  const untouched = await s.report();
+  assert.ok(
+    untouched.suitability.candidates.every((c) =>
+      c.gates.gate_details!.every((d) => d.state !== 'confirmed'),
+    ),
+  );
+  const done = await s.store.confirmGates(owner, s.ws.id, s.problem.id, {
+    shared,
+    items: all,
+  });
+  assert.equal(done.confirmations.length, 4);
+  assert.deepEqual(
+    done.confirmations.map((x) => [
+      x.confirmation.alternative_id,
+      x.confirmation.gate,
+      x.reason_from,
+      x.confirmation.reason,
+    ]),
+    [
+      [first.alternative.id, 'ethics', 'shared', shared.ethics],
+      [first.alternative.id, 'access', 'shared', shared.access],
+      [second.alternative.id, 'ethics', 'shared', shared.ethics],
+      [
+        second.alternative.id,
+        'access',
+        'own',
+        'This one runs on the shared server, where pip is allowed.',
+      ],
+    ],
+  );
+  // The audit log ties the four to one step and says whose reason applied to each.
+  const ev = await s.db.pool.query(
+    `select subject_id, payload from audit_events where action = 'gate.confirmed'
+      and workspace_id = $1 order by sequence`,
+    [s.ws.id],
+  );
+  assert.equal(ev.rows.length, 4);
+  assert.ok(ev.rows.every((r) => r.payload.batch_id === done.batch_id));
+  assert.deepEqual(
+    ev.rows.map((r) => [r.payload.gate, r.payload.reason_from]),
+    [
+      ['ethics', 'shared'],
+      ['access', 'shared'],
+      ['ethics', 'shared'],
+      ['access', 'own'],
+    ],
+  );
+  const after = await s.report();
+  for (const id of [first.alternative.id, second.alternative.id]) {
+    const c = after.suitability.candidates.find(
+      (x) => x.alternative.id === id,
+    )!;
+    assert.equal(c.gates.ethics_access, 'clear');
+    assert.equal(gate(c, 'access').confirmation?.by, 'owner');
+    assert.notEqual(advanceOutlook(c).state, 'after_gates');
+  }
+  // Confirmed gates are not confirmed twice, in one step or alone.
+  await rejects(
+    'INVALID_TRANSITION',
+    s.store.confirmGates(owner, s.ws.id, s.problem.id, {
+      shared,
+      items: [item(first, 'ethics')],
+    }),
+    /already confirmed/,
+  );
+});
+
+// Review L-4: the one-step route over HTTP: `/batch` reaches the one-step confirmation, writes
+// need the CSRF token, and the single route still confirms one gate.
+test('the one-step and single gate confirmation routes over HTTP', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  s.adapter.access =
+    'Nothing in the packet shows the team can install Python tools (csvkit needs Python and pip).';
+  await s.assess();
+  const [first, second] = (await s.report()).suitability.candidates;
+  assert.ok(first && second);
+  const api = createApi({
+    CREATOR_DATABASE_URL: s.db.url,
+    CREATOR_DEV_LOGIN_CODE: LOGIN_CODE,
+    CREATOR_WORKER: 'off',
+  });
+  api.server.listen(0, '127.0.0.1');
+  await once(api.server, 'listening');
+  t.after(api.close);
+  await api.ready();
+  const base = `http://127.0.0.1:${(api.server.address() as { port: number }).port}/api`;
+  const auth = await login(base);
+  const me = (await (
+    await fetch(`${base}/auth/session`, { headers: auth.read })
+  ).json()) as { actor_id: string };
+  await s.store.addMember(owner, s.ws.id, me.actor_id, 'owner');
+  const root = `${base}/workspaces/${s.ws.id}/problems/${s.problem.id}/gate-confirmations`;
+  const send = (
+    path: string,
+    body: unknown,
+    headers: Record<string, string> = auth.write,
+  ) =>
+    fetch(`${root}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify(body),
+    });
+  const item = (c: RankedCandidate, g: 'ethics' | 'access') => ({
+    alternative: { id: c.alternative.id, version: c.alternative.version },
+    gate: g,
+    concerns_seen: gate(c, g).concerns.map((x) => x.scorecard),
+  });
+  const batch = {
+    shared: {
+      ethics: 'Public data only; no people are affected.',
+      access: null,
+    },
+    items: [{ ...item(first, 'ethics'), reason: null }],
+  };
+  assert.equal((await send('/batch', batch, auth.read)).status, 403);
+  assert.equal(
+    (await fetch(`${root}/batch`, { headers: auth.read })).status,
+    404,
+  );
+  const done = await send('/batch', batch);
+  assert.equal(done.status, 201);
+  const result = ConfirmGatesResultSchema.parse(await done.json());
+  assert.deepEqual(
+    result.confirmations.map((x) => [x.confirmation.gate, x.reason_from]),
+    [['ethics', 'shared']],
+  );
+  // A body for the single route is not a one-step request, and the other way round.
+  assert.equal(
+    (
+      await send('/batch', {
+        ...item(second, 'ethics'),
+        reason: 'Fine for this option.',
+      })
+    ).status,
+    400,
+  );
+  const one = await send('', {
+    ...item(second, 'ethics'),
+    reason: 'Fine for this option.',
+  });
+  assert.equal(one.status, 201);
+  assert.equal(GateConfirmationSchema.parse(await one.json()).gate, 'ethics');
+  assert.equal((await send('', batch)).status, 400);
 });

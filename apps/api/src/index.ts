@@ -724,7 +724,7 @@ export function createApi(
   // ADR-0097: the owner's gate checklist.
   const GATE_CHECKLIST_ROUTE = /^\/api\/workspaces\/([^/]+)\/(gate-checklist)$/;
   const GATE_CONFIRM_ROUTE =
-    /^\/api\/workspaces\/([^/]+)\/(problems)\/([^/]+)\/(gate-confirmations)$/;
+    /^\/api\/workspaces\/([^/]+)\/(problems)\/([^/]+)\/(gate-confirmations(?:\/batch)?)$/;
   async function records(req: IncomingMessage, res: ServerResponse, url: URL) {
     const match =
       RECORD_ROUTE.exec(url.pathname) ??
@@ -1097,6 +1097,13 @@ export function createApi(
       throw new ContractError('NOT_FOUND', 'Unknown gate checklist route.');
     }
     if (ws && item && GATE_CONFIRM_ROUTE.test(url.pathname)) {
+      // UX pass P-4: `/batch` confirms several options' gates in one step.
+      if (method === 'POST' && action === 'gate-confirmations/batch')
+        return send(
+          201,
+          await store.confirmGates(ctx, ws, item, await readJson(req)),
+          true,
+        );
       if (method === 'POST')
         return send(
           201,
