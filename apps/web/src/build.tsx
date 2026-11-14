@@ -12,7 +12,6 @@ import {
   ArtifactSummarySchema,
   buildDeadlineMs,
   EnvelopeSchema,
-  GrantSchema,
   PlanConnectionSchema,
   PlanModelAccessSchema,
   PlanQualificationSchema,
@@ -64,8 +63,9 @@ import { useModelChoice } from './model-switch.js';
 import {
   artifactForBuild,
   builderSummary,
+  buildRunDefault,
   envelopeFor,
-  modelGrantCovers,
+  needsRecover,
 } from './build-defaults.js';
 
 // What GET /products returns (apps/api/src/products.ts, ADR-0046).
@@ -150,28 +150,21 @@ export function BuildView({
   // The product the last failed action was about, so a lock notice shows only there.
   const [failed, setFailed] = useState('');
   const data = useLoad(async () => {
-    const [
-      specs,
-      products,
-      reviews,
-      runs,
-      budgets,
-      pricing,
-      grants,
-      artifacts,
-      names,
-    ] = await Promise.all([
-      api(z.array(StoredEntitySchema), `${base}/entities?kind=specification`),
-      api(z.array(ProductEntrySchema), `${base}/products`),
-      api(z.array(StoredEntitySchema), `${base}/entities?kind=humility_review`),
-      api(z.array(RunControlSchema), `${base}/runs`),
-      api(z.array(EnvelopeSchema), `${base}/budgets`),
-      api(z.array(PricingSnapshotSchema), `${base}/pricing`),
-      api(z.array(GrantSchema), `${base}/grants`),
-      // The record of what is packaged: the products route forgets package jobs on restart.
-      api(z.array(ArtifactSummarySchema), `${base}/artifacts`),
-      runNames(base),
-    ]);
+    const [specs, products, reviews, runs, budgets, pricing, artifacts, names] =
+      await Promise.all([
+        api(z.array(StoredEntitySchema), `${base}/entities?kind=specification`),
+        api(z.array(ProductEntrySchema), `${base}/products`),
+        api(
+          z.array(StoredEntitySchema),
+          `${base}/entities?kind=humility_review`,
+        ),
+        api(z.array(RunControlSchema), `${base}/runs`),
+        api(z.array(EnvelopeSchema), `${base}/budgets`),
+        api(z.array(PricingSnapshotSchema), `${base}/pricing`),
+        // The record of what is packaged: the products route forgets package jobs on restart.
+        api(z.array(ArtifactSummarySchema), `${base}/artifacts`),
+        runNames(base),
+      ]);
     // The spec changed most recently first: that is the one being worked on.
     const recent = [...specs].sort(
       (a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at),
@@ -248,7 +241,6 @@ export function BuildView({
             : [],
       })),
     );
-    const now = Date.now();
     return {
       specs: status,
       specEntities: specs,
@@ -276,16 +268,6 @@ export function BuildView({
         ...builders.filter((b) => b.kind === 'roles'),
         ...builders.filter((b) => b.kind !== 'roles'),
       ],
-      // Runs a standing grant admits plan-role model requests on: plan builds need one.
-      modelRuns: new Set(
-        runs
-          .filter((r) =>
-            grants.some((g) =>
-              modelGrantCovers(g, r, fixture ? 'synthetic' : 'public', now),
-            ),
-          )
-          .map((r) => r.run_id),
-      ),
       artifacts,
     };
   }, [workspace.id]);
@@ -905,8 +887,6 @@ type Data = {
   }[];
   /** ADR-0081: the owner's current model from the top bar, if any. */
   choice: Choice | null;
-  /** Run ids whose standing grants admit plan-role model requests. */
-  modelRuns: ReadonlySet<string>;
   artifacts: z.infer<typeof ArtifactSummarySchema>[];
 };
 
@@ -944,9 +924,7 @@ function Product({
   const p = entry.product;
   // Only the newest: once a later build ran, an old interruption needs nothing more.
   const newest = entry.builds[0];
-  const interrupted =
-    newest?.state === 'interrupted' ||
-    /locked|needs reconciliation/i.test(newest?.reason ?? '');
+  const interrupted = needsRecover(newest);
   const current =
     spec?.frozen_current && spec.spec.version === p.binding.spec_version;
   /** The Gallery artifact for a build: this run's package job, else the artifact store. */
@@ -1097,6 +1075,11 @@ function Product({
                 taskKey={key}
                 specId={p.binding.spec_id}
                 specVersion={p.binding.spec_version}
+                specRun={
+                  spec?.latest_freeze?.spec.version === p.binding.spec_version
+                    ? spec.latest_freeze.run_id
+                    : null
+                }
                 data={data}
                 fixture={fixture}
                 open={open}
@@ -1265,6 +1248,7 @@ function StartBuild({
   taskKey,
   specId,
   specVersion,
+  specRun,
   data,
   fixture,
   busy,
@@ -1275,6 +1259,8 @@ function StartBuild({
   taskKey: string;
   specId: string;
   specVersion: number;
+  /** The run the spec version was frozen in: the build's default run (P-10). */
+  specRun: string | null;
   data: Data;
   fixture: boolean;
   busy: boolean;
@@ -1337,15 +1323,10 @@ function StartBuild({
   /** A plan builder that was chosen and is no longer verified: nothing is sent until re-chosen. */
   const lostBuilder =
     builder !== '' && builder !== 'broker' && !connection ? builder : '';
-  // The newest run that can build; on the plan route, preferably one whose standing grant
-  // admits the role requests, so the default is a run the build can actually use.
-  const usable = data.runs.filter((r) => r.autonomy_mode !== 'human_only');
-  const granted = usable.find((r) => data.modelRuns.has(r.run_id));
+  // P-10: the spec's own run first, else the newest run that can build.
   const runId = data.runs.some((r) => r.run_id === run)
     ? run
-    : ((connection?.kind === 'roles' ? granted : undefined)?.run_id ??
-      usable[0]?.run_id ??
-      '');
+    : buildRunDefault(data.runs, specRun);
   // A run or task budget belongs to its own run; the default is one this run may use.
   const budgetId = data.budgets.some(
     (b) => b.id === budget && (b.run_id === null || b.run_id === runId),
@@ -1502,11 +1483,7 @@ function StartBuild({
           {data.runs.length === 0 && <option value="">No active run</option>}
           {data.runs.map((r) => (
             <option key={r.run_id} value={r.run_id}>
-              {`${runLabel(r, data.names)}${
-                connection?.kind === 'roles' && !data.modelRuns.has(r.run_id)
-                  ? ' · no model grant'
-                  : ''
-              }`}
+              {runLabel(r, data.names)}
             </option>
           ))}
         </select>

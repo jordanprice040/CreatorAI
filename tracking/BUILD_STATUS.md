@@ -1,5 +1,13 @@
 # Build status — November 10, 2026
 
+## November 14 update — final UX pass P-1 (build after approval) and P-10 (build run default)
+
+What now works (no migration or ADR): a build whose acceptance cases the worker could not run (no WSL2, a lost run, cleanup pending) stops at once with the worker's reason and keeps its candidate, instead of spending its repair rounds on the same patch and stopping with "Patch changes nothing". Building again (after a new approval) carries on from that kept candidate: when the builder submits the candidate's own content, the candidate is reviewed and tested afresh. Build's Start build form opens on the run the spec was frozen in. The P-1 finding's guess (retrying from `task.head`) was not the cause; see `tracking/evidence/p1-build-retry/README.md`.
+
+Checked: the UI walk through Build on a throwaway studio with the test-double worker (start, approve, start again, Package, Try; and the worker-blocked path to Try), the 390 px Build check (one serious target-size on the fresh state on this branch alone, fixed by PR #192's text-button size; 0 with #192 merged), `pnpm typecheck`, `pnpm format:check`, `pnpm test:db` on PostgreSQL 16 (1173 tests: 1139 pass, 29 skipped, the 5 known PowerShell-wrapper failures). Not covered: the real WSL2 worker (the live walk on Jordan's PC).
+
+Review 1 fixes: a worker-blocked stop no longer shows the "app closed… Recover" notice (whole-word match); a run left needing cleanup says to Recover first and shows Recover; only the verified build offers "Packaged: open it under Try"; Start build no longer labels runs "no model grant" or prefers a granted run (outdated since ADR-0054: the build's one approval admits its plan requests; re-review L-1); the unfinished case is recorded in the build folder. Rechecked: `pnpm typecheck`, `pnpm format:check`, `pnpm test:db` (1174 tests: 1140 pass, 29 skipped, the 5 known PowerShell-wrapper failures), and the blocked-worker UI walk to Try.
+
 ## November 14 update — final UX pass, fixture part (PR #192)
 
 Web-only polish from the pass (see `docs/FINAL_UX_PASS_FINDINGS_2026-11-14.md`): autopilot stop guidance, banner wording, Back to top, accessibility sizes and alignment, wording nits. `scripts/ux-sweep.mjs` added (axe-core dev dependency). Not changed: server, contracts, migrations. Open: proposals P-1..P-15 for Jordan, including the P-1 build-retry bug.

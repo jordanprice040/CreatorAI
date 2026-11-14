@@ -2,46 +2,6 @@
 // they can be tested without a browser. They only choose what is shown first; every gate
 // stays on the server.
 
-type GrantLike = {
-  id: string;
-  version: number;
-  scope: string;
-  status: string;
-  run_id: string | null;
-  action_types: readonly string[];
-  data_classes: readonly string[];
-  expires_at: string;
-};
-type RunLike = {
-  run_id: string;
-  autonomy_mode: string;
-  initial_grants: readonly { id: string; version: number }[];
-};
-
-/**
- * Whether a standing grant would admit plan-role model requests on this run: the parts of
- * the server's grantCovers that apply to a model.generate request with no amount or target.
- */
-export function modelGrantCovers(
-  g: GrantLike,
-  run: RunLike,
-  dataClass: string,
-  now: number,
-) {
-  return (
-    g.scope === 'standing' &&
-    g.status === 'active' &&
-    Date.parse(g.expires_at) > now &&
-    (g.run_id === null || g.run_id === run.run_id) &&
-    (run.autonomy_mode !== 'autonomous_within_scope' ||
-      run.initial_grants.some(
-        (i) => i.id === g.id && i.version === g.version,
-      )) &&
-    g.action_types.includes('model.generate') &&
-    g.data_classes.includes(dataClass)
-  );
-}
-
 /**
  * The budget to offer for a run: the newest one that is not bound to another run. A run or
  * task budget belongs to its own run, and the server refuses it for any other.
@@ -51,6 +11,39 @@ export function envelopeFor<T extends { id: string; run_id: string | null }>(
   runId: string,
 ): T | undefined {
   return newestFirst.find((e) => e.run_id === null || e.run_id === runId);
+}
+
+/**
+ * Whether a product's newest build calls for Recover: it was interrupted, its locks were left
+ * held, or a test run needs reconciliation. Whole words only (PR #194 M-1): "blocked" in a
+ * worker or reviewer reason is not "locked".
+ */
+export function needsRecover(
+  newest: { state: string; reason: string | null } | undefined,
+): boolean {
+  return (
+    newest?.state === 'interrupted' ||
+    /\blocked\b|needs reconciliation|recover this product/i.test(
+      newest?.reason ?? '',
+    )
+  );
+}
+
+/**
+ * The run a build form opens on (final UX pass P-10): the run the spec was frozen in, while
+ * it is active and not human-only; otherwise the newest run that can build. Never another
+ * project's run while the spec's own run is there. `newestFirst` holds only active runs. A
+ * plan-role build needs no model grant on its run: its one approval admits its requests
+ * (ADR-0054), so grants play no part in the default.
+ */
+export function buildRunDefault(
+  newestFirst: readonly { run_id: string; autonomy_mode: string }[],
+  specRun: string | null,
+): string {
+  const usable = newestFirst.filter((r) => r.autonomy_mode !== 'human_only');
+  return (
+    usable.find((r) => r.run_id === specRun)?.run_id ?? usable[0]?.run_id ?? ''
+  );
 }
 
 /** Every budget a run may draw on, in the given order: shared ones and the run's own. */
@@ -69,10 +62,12 @@ export function artifactForBuild<
   T extends { commit: string; spec: { id: string; version: number } },
 >(
   artifacts: readonly T[],
-  build: { commit: string | null },
+  build: { commit: string | null; state: string },
   spec: { spec_id: string; spec_version: number },
 ): T | undefined {
-  if (!build.commit) return undefined;
+  // PR #194 L-2: a stopped build can share its commit with the resumed build that verified
+  // and packaged it; only a verified build is the one a package came from.
+  if (!build.commit || build.state !== 'verified_candidate') return undefined;
   return artifacts.find(
     (a) =>
       a.commit === build.commit &&
