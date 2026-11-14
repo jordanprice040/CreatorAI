@@ -4,7 +4,7 @@
 
 What now works (no migration): the Standard view shows amounts in cents with the exact value on click, tap or keyboard (`<0.01` for a charge below a cent), and the exact maximum wherever spending is authorized; Advanced shows every amount exactly, and storage and enforcement stay exact. Standard reads history lines, action types and stored codes in page words and leaves out ids, hashes, event numbers and first versions; Advanced keeps them. A discovered problem whose brief repeats it is titled once (N-2), and the autopilot's tie stop names at most three options (N-3). Sources with no run puts "register a run" before Fetch, says why Fetch is off and links to Search the web (P-14). Every page shows guidance in the Next banner (P-15). Budgets folds pricing snapshots (once pricing exists) and the fixture call in Standard. Details: `tracking/evidence/ux-shell-wording/README.md`.
 
-Checked: CHECKS_PLACEHOLDER
+Checked in the cloud container on a throwaway studio and database: `pnpm typecheck`, `pnpm format:check`, `pnpm test:db` on PostgreSQL 16 before merging main (1181 tests: 1147 pass, 29 skipped, the 5 known PowerShell-wrapper failures), and after merging #193 the web and autopilot tests (all pass); the walk (`tracking/evidence/ux-shell-wording/walk.mjs`, 21 checks pass); `scripts/ux-sweep.mjs` over all 156 shots (0 axe violations, 0 console errors, 0 failed requests, no sideways scroll; the only small targets were the inline amount buttons, which 2.5.8 exempts as targets in a sentence, and the sweep now skips them like inline links: 0 in a re-run at 1440 px). Not covered: real (non-fixture) amounts and API-cost lines, which need a live connection.
 
 ## November 14 update — more automation for the autopilot (ADR-0100, migration 63)
 
