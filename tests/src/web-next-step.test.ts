@@ -291,12 +291,6 @@ test('the review step is decided for the newest frozen spec, not any frozen spec
 });
 
 type Defaults = {
-  modelGrantCovers: (
-    g: Record<string, unknown>,
-    run: Record<string, unknown>,
-    dataClass: string,
-    now: number,
-  ) => boolean;
   envelopeFor: (
     list: { id: string; run_id: string | null }[],
     runId: string,
@@ -311,51 +305,6 @@ type Defaults = {
     spec: { spec_id: string; spec_version: number },
   ) => { id: string } | undefined;
 };
-
-test('the model-grant default follows the server: run, data class and autonomous initial grants', async () => {
-  const { modelGrantCovers } = await load<Defaults>('build-defaults.ts');
-  const now = Date.parse('2026-10-31T12:00:00Z');
-  const g = {
-    id: 'g1',
-    version: 1,
-    scope: 'standing',
-    status: 'active',
-    run_id: null,
-    action_types: ['model.generate'],
-    data_classes: ['public'],
-    expires_at: '2026-11-01T00:00:00Z',
-  };
-  const run = {
-    run_id: 'r1',
-    autonomy_mode: 'human_in_loop',
-    initial_grants: [],
-  };
-  assert.equal(modelGrantCovers(g, run, 'public', now), true);
-  assert.equal(modelGrantCovers(g, run, 'synthetic', now), false);
-  assert.equal(
-    modelGrantCovers({ ...g, run_id: 'r2' }, run, 'public', now),
-    false,
-  );
-  assert.equal(
-    modelGrantCovers({ ...g, scope: 'once' }, run, 'public', now),
-    false,
-  );
-  const auto = { ...run, autonomy_mode: 'autonomous_within_scope' };
-  assert.equal(modelGrantCovers(g, auto, 'public', now), false);
-  assert.equal(
-    modelGrantCovers(
-      g,
-      { ...auto, initial_grants: [{ id: 'g1', version: 1 }] },
-      'public',
-      now,
-    ),
-    true,
-  );
-  assert.equal(
-    modelGrantCovers(g, run, 'public', Date.parse('2026-11-02T00:00:00Z')),
-    false,
-  );
-});
 
 test('the default budget is never one bound to another run', async () => {
   const { envelopeFor } = await load<Defaults>('build-defaults.ts');
@@ -387,30 +336,25 @@ test("the build form's run defaults to the spec's own run", async () => {
     buildRunDefault: (
       newestFirst: { run_id: string; autonomy_mode: string }[],
       specRun: string | null,
-      granted: ((runId: string) => boolean) | null,
     ) => string;
   }>('build-defaults.ts');
   const runs = [
     { run_id: 'other-project', autonomy_mode: 'supervised' },
-    { run_id: 'granted', autonomy_mode: 'supervised' },
     { run_id: 'spec-run', autonomy_mode: 'supervised' },
   ];
-  const grantedOnly = (id: string) => id === 'granted';
-  // The spec's run wins over a newer run, on the broker and on the plan route.
-  assert.equal(buildRunDefault(runs, 'spec-run', null), 'spec-run');
-  assert.equal(buildRunDefault(runs, 'spec-run', grantedOnly), 'spec-run');
-  // Without it (ended, human-only, or unknown) the earlier defaults stand.
-  assert.equal(buildRunDefault(runs, null, null), 'other-project');
-  assert.equal(buildRunDefault(runs, 'ended', grantedOnly), 'granted');
+  // The spec's run wins over a newer run.
+  assert.equal(buildRunDefault(runs, 'spec-run'), 'spec-run');
+  // Without it (ended, human-only, or unknown) the newest run that can build.
+  assert.equal(buildRunDefault(runs, null), 'other-project');
+  assert.equal(buildRunDefault(runs, 'ended'), 'other-project');
   assert.equal(
     buildRunDefault(
       [runs[0]!, { run_id: 'spec-run', autonomy_mode: 'human_only' }],
       'spec-run',
-      null,
     ),
     'other-project',
   );
-  assert.equal(buildRunDefault([], 'spec-run', null), '');
+  assert.equal(buildRunDefault([], 'spec-run'), '');
 });
 
 test('a build counts as packaged when Gallery holds its commit, even after a restart', async () => {
