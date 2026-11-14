@@ -783,8 +783,8 @@ function ProposalEditor({
           </legend>
           {s.state === 'written' && s.draft && (
             <p className="small model-draft-mark">
-              Started as a model draft by {s.draft.model_id}, which you chose to
-              use. Saving keeps that label
+              Started as a model draft by {s.draft.model_id}, which a person
+              chose to use. Saving keeps that label
               {draftEdited(k, s, drafts.data ?? [])
                 ? ' (marked as edited)'
                 : ''}

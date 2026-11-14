@@ -2686,15 +2686,6 @@ export class ConnectionStore extends AutomationStore {
   }
 
   /**
-   * ADR-0101 (UX pass P-5): records one "Draft the missing sections" press on a saved
-   * proposal and works out exactly what will be sent. Owner only, on the owner's chat model
-   * (Chat answers on, and studio records allowed to go, since the proposal is a studio
-   * record); the chat admission rules and daily limit apply when it is sent. Only sections a
-   * model may draft (`PROPOSAL_DRAFTABLE_SECTIONS`) that are unknown in the version read may be
-   * asked for. A retried press (same `client_id`) or a draft still on its way returns that
-   * draft. Nothing is sent here, and nothing in the proposal changes.
-   */
-  /**
    * ADR-0101: a draft left pending by a studio that stopped mid-request is closed as failed
    * once past the chat answers' stale point (review 1 M-1: on every read too, so the page's
    * button is not held by it). If its proposal was redacted meanwhile, its words go as well
@@ -2729,6 +2720,15 @@ export class ConnectionStore extends AutomationStore {
     return super.listProposalSectionDrafts(ctx, ws, proposalId);
   }
 
+  /**
+   * ADR-0101 (UX pass P-5): records one "Draft the missing sections" press on a saved
+   * proposal and works out exactly what will be sent. Owner only, on the owner's chat model
+   * (Chat answers on, and studio records allowed to go, since the proposal is a studio
+   * record); the chat admission rules and daily limit apply when it is sent. Only sections a
+   * model may draft (`PROPOSAL_DRAFTABLE_SECTIONS`) that are unknown in the version read may be
+   * asked for. A retried press (same `client_id`) or a draft still on its way returns that
+   * draft. Nothing is sent here, and nothing in the proposal changes.
+   */
   async beginProposalSectionDraft(
     ctxIn: CommandContext,
     ws: string,
