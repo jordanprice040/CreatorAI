@@ -1,5 +1,11 @@
 # Build status — November 10, 2026
 
+## November 14 update — autopilot fixes from the live rerun on schema 63
+
+What now works (no migration): a discovery packet gives its catalog of recorded problems, ideas and options only the room the brief and claims leave (newest first) and counts what it left out (`catalog_beyond_limit`), so a used workspace no longer refuses a two-claim brief as "too large for one model message". After a web search's claims wait for a person, Continue with none added stops again without setting calls aside and keeps the search on the step, and a later Allow accepts that search's claims instead of searching again. A step refused before it sent anything gives back the calls it set aside. A claims_held stop points to Discover › Search the web, and Continue says it stops again with none added. Evidence of the live run: `tracking/evidence/p13-autopilot-rerun-schema63-2026-11-14/` on the dev studio (not committed).
+
+Checked: `pnpm build:code`, the web typecheck, Prettier on the changed files, and the discovery, exploration, web-discovery, workflow, routing and autopilot tests on PostgreSQL (throwaway database); the three new or changed tests fail on the code before the fix. Not checked: a full `pnpm test:db` and a new live run.
+
 ## November 14 update — UX pass P-2 (Path branches) and P-5 (draft the missing sections) (ADR-0101, migration 64)
 
 What now works: after a selection, Projects › Path follows the choice. A non-code choice goes to Proposal and Review and finishes when the proposal's current version is complete and reviewed as ready; a selection that advanced nothing ends at Selection; software goes on to Spec, Freeze, Humility review, Build, Package and Try. The overview reports selections and the newest route, shown on Monitor › Overview. On Proposals, the owner can press **Draft the missing sections** on a saved proposal: the chat model drafts the unknown plan sections, each draft shows under its section as a model draft, and a person uses or dismisses each one; a saved section that came from a draft carries the model's name in the page, preview and export. Unsupported facts stay "Unknown yet".

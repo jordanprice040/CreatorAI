@@ -171,6 +171,8 @@ export const EvidencePacketSchema = z.strictObject({
   }),
   claims: z.array(PacketClaimSchema).min(1).max(30),
   catalog: z.array(CatalogEntrySchema).max(40),
+  /** Older catalog entries left out so the packet fits one model message. */
+  catalog_beyond_limit: counter.optional(),
   sufficiency: SufficiencySchema,
   max_age_days: counter,
   assessed_at: timestamp,

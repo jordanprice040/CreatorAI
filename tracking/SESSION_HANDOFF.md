@@ -1,5 +1,9 @@
 # Session handoff — November 10, 2026
 
+## November 14 handoff — autopilot fixes from the live rerun (branch `claude/project-thread-wvhnhi`)
+
+From main 9f162d1, no migration. `packages/domain/src/discovery.ts` `buildPacket` fits the catalog to the room left (optional `limit`), `EvidencePacketSchema.catalog_beyond_limit` (optional). `apps/api/src/autopilot.ts`: exported `heldSearch(steps, stage)` finds the held web search past repeated claims_held stops; `#afterHeld` uses it; `#plan` reserves 0 calls for research or gather going on from a held search; `Stop.child` keeps the search on a re-stop; `Stop.unsent`/`Fallback.unsent` (set in `#run`'s refusal catch when the step recorded no child, not for the proposal step) make `#finish` and `#redo` give the step's calls back. Web: claims_held next text in `autopilot.tsx`; contracts Continue detail. Tests: P-12 test now does Continue then Allow; new tests for the refused-step release (`autopilot.test.ts`) and the catalog budget (`discovery-domain.test.ts`). Left: the routine policy summary still says the Evidence stage admits quote-checked claims while the owner setting holds them; an unscoped web search can drift off topic. Next: full `pnpm test:db`, review, then a live rerun with Jordan's typed OK.
+
 ## November 14 handoff — UX pass P-2 (Path branches) and P-5 (draft the missing sections) (ADR-0101, migration 64)
 
 Branch `claude/project-thread-ta0ygk` from main 7edcd3e. Migration 64 `proposal_section_drafts` (one pending row per proposal, `(proposal_id, client_id)` replay, settle-once trigger that only allows a redaction after settling); ADR-0101 in `tracking/DECISIONS.md`. Decide holds 65/0102, Discover 66/0103, Shell 67/0104.

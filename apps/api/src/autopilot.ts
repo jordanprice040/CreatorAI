@@ -146,6 +146,13 @@ type Stop = {
   asked?: string;
   /** ADR-0100: what kind of stop, for the matching setting and next steps. */
   kind?: AutopilotStopKind;
+  /** The record the stopped step was about (a held web search), kept on the step. */
+  child?: AutopilotStep['child'];
+  /**
+   * The step was refused before it made anything, so it sent no request: the calls it set aside
+   * go back to the autopilot's limit (live run 2026-11-14: 32 calls were held by two refusals).
+   */
+  unsent?: boolean;
 };
 /**
  * ADR-0100: a planned fallback the owner's settings allow instead of a stop. `retry` tries the
@@ -159,7 +166,27 @@ type Fallback = {
     | { kind: 'skip' }
     | { kind: 'gather'; request: GatherRequest };
   child?: AutopilotStep['child'];
+  /** As on Stop: the retried attempt sent nothing, so its calls go back. */
+  unsent?: boolean;
 };
+
+/**
+ * P-12: the web search whose quote-checked claims a person was asked about, when the steps just
+ * before this attempt of `stage` stopped for them. It looks past repeated stops (a Continue with
+ * nothing added stops again without a search of its own), so a later Allow still goes on from
+ * that search instead of searching again (live run 2026-11-14).
+ */
+export function heldSearch(
+  steps: readonly AutopilotStep[],
+  stage: AutopilotStage,
+): string | null {
+  for (let i = steps.length - 1; i >= 0; i -= 1) {
+    const s = steps[i]!;
+    if (s.stage !== stage || s.stop_kind !== 'claims_held') return null;
+    if (s.child?.kind === 'web_discovery') return s.child.id;
+  }
+  return null;
+}
 type GatherRequest = {
   then: 'explore' | 'brief' | 'assess' | 'select';
   reason: string;
@@ -724,6 +751,15 @@ export class AutopilotRunner {
     switch (stage) {
       case 'research': {
         if (!c.research) return { request: null, calls: 0 };
+        const request = {
+          connection_id: c.research.connection_id,
+          model_id: c.research.model_id,
+          scope: c.research.scope,
+          input_hash: c.research.input_hash,
+        };
+        // P-12: going on from a search whose claims waited for a person sends nothing new.
+        if (this.web && heldSearch(a.steps, 'research'))
+          return { calls: 0, request };
         if (remaining < 2)
           return {
             outcome: 'limit_reached',
@@ -739,15 +775,7 @@ export class AutopilotRunner {
           c.research.connection_id,
         );
         if (capped) return capped;
-        return {
-          calls: 2,
-          request: {
-            connection_id: c.research.connection_id,
-            model_id: c.research.model_id,
-            scope: c.research.scope,
-            input_hash: c.research.input_hash,
-          },
-        };
+        return { calls: 2, request };
       }
       case 'explore': {
         const l = await limitsFor('explore', 1);
@@ -849,7 +877,11 @@ export class AutopilotRunner {
         const { added: _, ...again } = request;
         return {
           request: again,
-          calls: again.question ? Math.min(2, Math.max(0, remaining)) : 0,
+          // P-12: going on from a held search sends no new one.
+          calls:
+            again.question && !(this.web && heldSearch(a.steps, 'gather'))
+              ? Math.min(2, Math.max(0, remaining))
+              : 0,
         };
       }
       case 'proposal': {
@@ -941,6 +973,7 @@ export class AutopilotRunner {
           `${stop.note} Trying the step again (the owner's setting “retry a failed step”).`,
         ),
         then: { kind: 'retry' },
+        ...(stop.unsent ? { unsent: true } : {}),
       },
     };
   }
@@ -1028,10 +1061,18 @@ export class AutopilotRunner {
         }
       }
     } catch (e) {
+      // A step that never recorded what it started sent nothing: its start was refused. The
+      // proposal step asks the chat model itself, so its calls are kept.
+      const cur =
+        step.stage === 'proposal'
+          ? null
+          : await this.store.getAutopilot(ctx, ws, a.id).catch(() => null);
+      const unsent = !!cur && cur.steps.at(-1)?.child == null;
       const stop: Stop = {
         outcome: refusalOutcome(codeOf(e)),
         kind: refusalKind(e),
         note: `${AUTOPILOT_STAGE_LABEL[step.stage]} was refused: ${said(e)}`,
+        ...(unsent ? { unsent: true } : {}),
       };
       return this.#retryOr(ctx, ws, a, step, stop).catch(() => ({ stop }));
     }
@@ -1139,6 +1180,7 @@ export class AutopilotRunner {
       stop: {
         outcome: 'needs_person',
         kind: 'claims_held',
+        child: { kind: 'web_discovery', id: d.id },
         note: `${extra} The web search found ${n} claim${n === 1 ? '' : 's'} whose only check is that the quotes were found word for word; ${n === 1 ? 'it waits' : 'they wait'} for you under Discover › Search the web (search ${d.id}). Add the ones you agree with and continue, or turn on “Accept quote-checked web claims”.`
           .trim()
           .slice(0, 1200),
@@ -1156,21 +1198,13 @@ export class AutopilotRunner {
     ws: string,
     a: Autopilot,
   ): Promise<{ d: WebDiscovery; added: number; waiting: number } | null> {
-    const prev = a.steps.at(-2);
     const cur = a.steps.at(-1);
-    if (
-      !this.web ||
-      !prev ||
-      !cur ||
-      prev.stage !== cur.stage ||
-      prev.stop_kind !== 'claims_held' ||
-      prev.child?.kind !== 'web_discovery'
-    )
-      return null;
+    const id = cur ? heldSearch(a.steps.slice(0, -1), cur.stage) : null;
+    if (!this.web || !id) return null;
     const settings = await this.#settings(ctx, ws);
     if (settings.values.accept_quote_checked_claims)
-      await this.web.accept(ctx, ws, prev.child.id);
-    const d = await this.web.read(ctx, ws, prev.child.id);
+      await this.web.accept(ctx, ws, id);
+    const d = await this.web.read(ctx, ws, id);
     return {
       d,
       added: d.proposals.filter((p) => p.decision === 'admitted').length,
@@ -2058,23 +2092,24 @@ export class AutopilotRunner {
    */
   async #redo(ctx: CommandContext, ws: string, a: Autopilot, r: Fallback) {
     const now = new Date().toISOString();
-    const steps: AutopilotStep[] = a.steps.map((s, i) =>
-      i === a.steps.length - 1 && s.state === 'running'
-        ? {
-            ...s,
-            state:
-              r.then.kind === 'skip'
-                ? ('skipped' as const)
-                : ('stopped' as const),
-            child: r.child ?? s.child,
-            note: r.fallback.note.slice(0, 1200),
-            fallback: r.fallback,
-            stop_kind: r.fallback.instead_of,
-            finished_at: now,
-          }
-        : s,
-    );
     let reserved = a.calls_reserved;
+    const steps: AutopilotStep[] = a.steps.map((s, i) => {
+      if (i !== a.steps.length - 1 || s.state !== 'running') return s;
+      // A refused attempt sent nothing: give back what it set aside.
+      const release = r.unsent && (r.child ?? s.child) == null ? s.calls : 0;
+      reserved -= release;
+      return {
+        ...s,
+        state:
+          r.then.kind === 'skip' ? ('skipped' as const) : ('stopped' as const),
+        child: r.child ?? s.child,
+        calls: s.calls - release,
+        note: r.fallback.note.slice(0, 1200),
+        fallback: r.fallback,
+        stop_kind: r.fallback.instead_of,
+        finished_at: now,
+      };
+    });
     if (r.then.kind === 'gather') {
       const attempt = steps.filter((s) => s.stage === 'gather').length + 1;
       const calls = r.then.request.question
@@ -2116,23 +2151,30 @@ export class AutopilotRunner {
   async #finish(ctx: CommandContext, ws: string, a: Autopilot, stopIn: Stop) {
     const stop = await this.#settle(ctx, ws, stopIn);
     const now = new Date().toISOString();
-    const steps = a.steps.map((s, i) =>
-      i === a.steps.length - 1 && s.state === 'running'
-        ? {
-            ...s,
-            state: 'stopped' as const,
-            note: stop.note.slice(0, 1200),
-            no_retry: stop.final ?? null,
-            stop_kind: stop.kind ?? 'other',
-            ...(stop.asked ? { asked: stop.asked } : {}),
-            finished_at: now,
-          }
-        : s,
-    );
+    let reserved = a.calls_reserved;
+    const steps = a.steps.map((s, i) => {
+      if (i !== a.steps.length - 1 || s.state !== 'running') return s;
+      const child = stop.child ?? s.child;
+      // A refused step sent nothing: give back what it set aside.
+      const release = stop.unsent && child == null ? s.calls : 0;
+      reserved -= release;
+      return {
+        ...s,
+        state: 'stopped' as const,
+        child,
+        calls: s.calls - release,
+        note: stop.note.slice(0, 1200),
+        no_retry: stop.final ?? null,
+        stop_kind: stop.kind ?? 'other',
+        ...(stop.asked ? { asked: stop.asked } : {}),
+        finished_at: now,
+      };
+    });
     return this.store.advanceAutopilot(ctx, ws, a.id, a.version, {
       steps,
       explanation: stop.note,
       outcome: stop.outcome,
+      ...(reserved !== a.calls_reserved ? { calls_reserved: reserved } : {}),
     });
   }
 }

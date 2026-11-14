@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import {
   PLAN_REQUEST_TIMEOUT_MAX_MS,
+  EvidencePacketSchema,
   SearchBriefBodySchema,
   StartDiscoveryRequestSchema,
   WORKFLOW_WALL_MAX_SECONDS,
@@ -14,7 +15,9 @@ import {
 } from '@creator/contracts';
 import {
   DISCOVERY_SCENARIOS,
+  MAX_PACKET_CHARS,
   assessSufficiency,
+  buildPacket,
   canonicalHash,
   catalogMatches,
   checkDiscoveryOutput,
@@ -613,4 +616,71 @@ test('independence problems are reported when a first proposal could read anothe
   );
   // Without a skeptic pass nothing becomes a candidate.
   assert.ok(result.proposals.every((x) => x.disposition !== 'candidate'));
+});
+
+test('live run 2026-11-14: a large catalog gets only the room the brief and claims leave, and what is left out is counted', () => {
+  const evidence = [1, 2].map((n) => ({
+    claim: {
+      claim: {
+        id: randomUUID(),
+        version: 1,
+        title: `Claim ${n}`,
+        statement:
+          `Practice staff spend hours on prior authorization ${n}. `.repeat(20),
+        basis: 'observation' as const,
+      },
+      status: 'supported' as const,
+      labels: [],
+      explanation: '',
+      independent_origins: 1,
+      contrary_origins: 0,
+      max_age_days: 180,
+      rows: [],
+    },
+    bears_on: ['problem' as const],
+  }));
+  // 40 records with full-length summaries, as in a workspace that has been used for a while.
+  const catalog = Array.from({ length: 40 }, (_, i) => ({
+    id: randomUUID(),
+    kind: 'alternative' as const,
+    version: 1,
+    title: `Recorded option ${i + 1} for a problem the studio already has`,
+    summary: 'A rationale that fills the summary to its cap. '
+      .repeat(9)
+      .slice(0, 400),
+  }));
+  const p = buildPacket({
+    brief: {
+      id: randomUUID(),
+      version: 1,
+      content_hash: 'a'.repeat(64),
+      title: 'Prior authorization',
+      body: brief,
+    },
+    evidence,
+    catalog,
+    max_age_days: 180,
+    now: new Date('2026-11-14T00:00:00Z'),
+  });
+  assert.ok(JSON.stringify(p).length <= MAX_PACKET_CHARS);
+  assert.equal(p.claims.length, 2, 'every claim is kept');
+  assert.ok(p.catalog.length > 0 && p.catalog.length < 40);
+  assert.equal(p.catalog_beyond_limit, 40 - p.catalog.length);
+  // Newest first, refs numbered as kept, and the packet still passes its contract.
+  assert.equal(p.catalog[0]!.id, catalog[0]!.id);
+  assert.deepEqual(
+    p.catalog.map((c) => c.ref),
+    p.catalog.map((_, i) => `K${i + 1}`),
+  );
+  EvidencePacketSchema.parse(p);
+  // A small catalog fits whole and says nothing about leaving entries out.
+  const small = buildPacket({
+    brief: p.brief,
+    evidence,
+    catalog: catalog.slice(0, 3),
+    max_age_days: 180,
+    now: new Date('2026-11-14T00:00:00Z'),
+  });
+  assert.equal(small.catalog.length, 3);
+  assert.equal('catalog_beyond_limit' in small, false);
 });

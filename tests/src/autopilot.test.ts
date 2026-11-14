@@ -2792,9 +2792,33 @@ test('P-12: a web search whose claims wait for a person stops the autopilot; All
   assert.ok(
     isHandsOff({ ...handsOff(OFF), accept_quote_checked_claims: true }),
   );
+  assert.equal(stopped.calls_reserved, 2, 'the search set aside its 2 calls');
 
-  await runner.allowAndContinue(owner, h.ws.id, a.id, {
+  // Live run 2026-11-14: Continue with nothing added stops again without a search of its own,
+  // sets nothing aside and keeps the search it is about.
+  await runner.retry(owner, h.ws.id, a.id, {
     expected_version: stopped.version,
+  });
+  await runner.settled(a.id);
+  const again = runner.with(await h.store.getAutopilot(owner, h.ws.id, a.id));
+  assert.equal(again.outcome, 'needs_person');
+  assert.equal(again.steps.length, 2);
+  assert.equal(again.steps[1]!.stop_kind, 'claims_held');
+  assert.deepEqual(again.steps[1]!.child, {
+    kind: 'web_discovery',
+    id: '00000000-0000-4000-8000-0000000000d2',
+  });
+  assert.equal(again.steps[1]!.calls, 0);
+  assert.equal(again.calls_reserved, 2);
+  assert.equal(started.length, 1, 'Continue did not search again');
+  assert.match(
+    again.next?.find((n) => n.kind === 'continue')?.detail ?? '',
+    /with none added it stops here again/,
+  );
+
+  // A later Allow still goes on from that first search instead of searching again.
+  await runner.allowAndContinue(owner, h.ws.id, a.id, {
+    expected_version: again.version,
     settings_version: 0,
     setting: 'accept_quote_checked_claims',
   });
@@ -2807,13 +2831,14 @@ test('P-12: a web search whose claims wait for a person stops the autopilot; All
   );
   assert.equal(accepted, 1);
   assert.equal(started.length, 1, 'no second search');
-  assert.equal(b.steps[1]!.stage, 'research');
-  assert.equal(b.steps[1]!.state, 'done');
+  assert.equal(b.steps[2]!.stage, 'research');
+  assert.equal(b.steps[2]!.state, 'done');
+  assert.equal(b.steps[2]!.calls, 0);
   assert.match(
-    b.steps[1]!.note,
+    b.steps[2]!.note,
     /Went on from the earlier web search: 1 claim added/,
   );
-  assert.equal(b.steps[2]!.stage, 'explore');
+  assert.equal(b.steps[3]!.stage, 'explore');
 });
 
 test('P-11: approvals made with an autopilot end when it ends, stay while it waits for a person, and approvals the run had keep their terms', async (t) => {
@@ -3260,4 +3285,57 @@ test('review 1 L-4: a discovery a person runs gets no cited-claim links, even wi
     [h.ws.id],
   );
   assert.equal(cited.rowCount, 0);
+});
+
+test('live run 2026-11-14: a step refused before it sent anything gives back the calls it set aside', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  const research = {
+    connection_id: '00000000-0000-4000-8000-0000000000c1',
+    model_id: 'gpt-test',
+    scope: WebDiscoveryScopeSchema.parse({ interests: ['volunteers'] }),
+    input_hash: 'c'.repeat(64),
+  };
+  let starts = 0;
+  const web: AutopilotWeb = {
+    accept: async () => null,
+    start: async () => {
+      starts += 1;
+      throw new ContractError(
+        'INVALID_CONTRACT',
+        'Refused before any request (test).',
+      );
+    },
+    read: async () => {
+      throw new Error('never read');
+    },
+    isActive: () => true,
+    resume: async () => null,
+    cancel: async () => null,
+  };
+  const runner = new AutopilotRunner(h.store, web, {
+    pollMs: 5,
+    onWait: () => h.worker.settle(),
+  });
+  const runId = await h.run(
+    h.policy(['research', 'evidence', 'model_work', 'selection'], {
+      data_classes: ['public', 'synthetic'],
+    }),
+  );
+  const a = await runner.start(
+    owner,
+    h.ws.id,
+    runId,
+    h.body(h.config({ research })),
+  );
+  await runner.settled(a.id);
+  const b = await h.store.getAutopilot(owner, h.ws.id, a.id);
+  assert.equal(b.outcome, 'failed', b.explanation);
+  assert.match(b.explanation, /Refused before any request/);
+  assert.ok(starts >= 1);
+  assert.ok(
+    b.steps.every((s) => s.child === null && s.calls === 0),
+    JSON.stringify(b.steps),
+  );
+  assert.equal(b.calls_reserved, 0, 'nothing stays set aside for a refusal');
 });

@@ -108,6 +108,8 @@ export function buildPacket(input: {
   catalog: Omit<CatalogEntry, 'ref'>[];
   max_age_days: number;
   now: Date;
+  /** Total character limit for the packet (the JSON text); MAX_PACKET_CHARS by default. */
+  limit?: number;
 }): EvidencePacket {
   const claims: PacketClaim[] = input.evidence.map(
     ({ claim, bears_on }, i) => ({
@@ -137,18 +139,40 @@ export function buildPacket(input: {
         })),
     }),
   );
-  return {
+  const base: EvidencePacket = {
     packet_version: 'discovery-packet/1',
     kind: 'untrusted_evidence/1',
     authority: 'none',
     brief: input.brief,
     claims,
-    catalog: input.catalog
-      .slice(0, 40)
-      .map((c, i) => ({ ...c, ref: `K${i + 1}` })),
+    catalog: [],
     sufficiency: assessSufficiency(claims),
     max_age_days: input.max_age_days,
     assessed_at: input.now.toISOString(),
+  };
+  // The catalog gets the room the brief and claims leave, newest entries first, so a workspace
+  // with many records can still start a discovery (live run 2026-11-14: 40 entries filled about
+  // 16,000 of the 19,000 characters and a two-claim brief was refused). Entries left out are
+  // counted in the packet.
+  let room =
+    (input.limit ?? MAX_PACKET_CHARS) -
+    JSON.stringify({ ...base, catalog_beyond_limit: 999 }).length;
+  const catalog: CatalogEntry[] = [];
+  let beyond = 0;
+  for (const c of input.catalog) {
+    const entry: CatalogEntry = { ...c, ref: `K${catalog.length + 1}` };
+    const size = JSON.stringify(entry).length + 1;
+    if (catalog.length >= 40 || size > room) {
+      beyond += 1;
+      continue;
+    }
+    catalog.push(entry);
+    room -= size;
+  }
+  return {
+    ...base,
+    catalog,
+    ...(beyond ? { catalog_beyond_limit: beyond } : {}),
   };
 }
 

@@ -787,6 +787,18 @@ function NextAfterStop({
       );
       break;
     case 'needs_person':
+      // Live run 2026-11-14: a web search's waiting claims are reviewed under Search the web,
+      // not Decide; Continue with none added stops here again.
+      if (last?.stop_kind === 'claims_held') {
+        text =
+          'Next: review the checked claims under Discover › Search the web and add the ones you agree with, then press Continue. With none added it stops here again. Or allow quote-checked claims below.';
+        actions = (
+          <button type="button" className="secondary" onClick={go('web-title')}>
+            Search the web
+          </button>
+        );
+        break;
+      }
       text = `Next: this step is yours. Make the choice under Projects › Decide (or write the proposal under Proposals)${then} How much is automated sets which steps stop for you.`;
       actions = (
         <>
