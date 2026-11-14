@@ -14,6 +14,7 @@ import {
   SpecStatusSchema,
   WorkspaceSchema,
   parse,
+  recipePasses,
   z,
   type SpecBody,
 } from '@creator/contracts';
@@ -750,7 +751,20 @@ export class StudioBuilds {
       );
     void (async () => {
       try {
-        const packaged = await this.artifacts.package(p.id, build_id, ports);
+        const packaged = await this.artifacts.package(
+          p.id,
+          build_id,
+          ports,
+          undefined,
+          undefined,
+          // ADR-0105: the connection's build qualification records decide the trial label.
+          async (roles) =>
+            recipePasses(
+              await this.store
+                .listRecipeQualifications(bare(ctx), ws, roles.connection_id)
+                .catch(() => []),
+            ),
+        );
         // As the register route does: re-read and re-hash what is on disk before listing it.
         const { manifest, manifest_sha256 } = await this.artifacts.manifest(
           p.id,

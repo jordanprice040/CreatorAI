@@ -1,0 +1,85 @@
+{
+  "format": "recipe-benchmark-expectations/1",
+  "benchmark_id": "p14-small-wordtally-v5",
+  "copied_from": "p14-small-wordtally-v2",
+  "copy_note": "Same task as p14-small-wordtally-v2: spec content, studio cases, extended cases and reference are unchanged; only benchmark_id, these expectations and how the pass bars are checked differ. Owner decision 2026-11-14 (ADR-0105): in-app qualification uses its own frozen version because the p14-small-wordtally-v2 pass bars name a Linux-only script, and frozen pass bars are never reworded.",
+  "scale": "small",
+  "recipe": "python-build/1",
+  "declared_scale": "One module (src/main.py), one builder task, 4 automated checks, 10 frozen studio cases of which 6 are held out, plus 8 extended held-out cases run after the build",
+  "build_plan_caps": {
+    "max_repairs": 1,
+    "max_calls": 4,
+    "max_output_tokens": 4000,
+    "timeout_ms": 120000,
+    "data_class": "synthetic"
+  },
+  "expected_requests": {
+    "typical": 2,
+    "maximum": 4,
+    "note": "Each round is one builder and one reviewer request; one repair round adds two"
+  },
+  "expected_cost_usd": "0.00 on a plan-backed route (plan_roles). Any metered route is out of this packet",
+  "attempts": 3,
+  "one_build_per_attempt": "Each attempt is its own product and build in the studio qualification harness, from this spec.json content exactly (no catalog run, selection or spec is created)",
+  "qualified_at_declared_scale_when": "All 3 attempts meet every pass bar. Fewer is recorded as k of 3 and is not qualified; nothing is re-run to replace a failure",
+  "invalid_attempt_when": "An infrastructure fault outside the roles (a role request that got no answer, a worker that did not finish a case, a studio restart) stops the attempt before a verdict. It is recorded with its cause, and each attempt may be replaced at most once",
+  "pass_bar_per_attempt": [
+    "Studio build reaches verified_candidate: QA passes every frozen studio case, held-out ones included, in the isolation worker, and the reviewer approves with no findings (the studio's own rule)",
+    "Requests used are at most the plan's max_calls (4)",
+    "The exported package is verified by the studio: every frozen case re-run on the extracted archive in the isolation worker",
+    "All 8 extended cases pass on the exported package, run by the studio in the isolation worker with the studio case rule (exact output and exit status)"
+  ],
+  "measure_and_record": [
+    "requests used and repair rounds used",
+    "wall time from start to verdict",
+    "reviewer verdict and the build reason",
+    "package manifest SHA-256 and archive SHA-256",
+    "extended case results"
+  ],
+  "known_failure_cases": [
+    {
+      "id": "unicode-words",
+      "description": "Unicode letters treated as word characters (spec says ASCII only)",
+      "caught_by": [
+        "E1"
+      ]
+    },
+    {
+      "id": "tie-order",
+      "description": "Ties ordered by first appearance instead of word order",
+      "caught_by": [
+        "A1.1",
+        "E8"
+      ]
+    },
+    {
+      "id": "top-zero",
+      "description": "--top 0 accepted",
+      "caught_by": [
+        "A4.2"
+      ]
+    },
+    {
+      "id": "top-repeated",
+      "description": "Repeated --top accepted",
+      "caught_by": [
+        "E2"
+      ]
+    },
+    {
+      "id": "top-above-50",
+      "description": "--top above 50 accepted",
+      "caught_by": [
+        "E3"
+      ]
+    },
+    {
+      "id": "no-words-newline",
+      "description": "Missing newline after no words",
+      "caught_by": [
+        "A3.1",
+        "A3.2"
+      ]
+    }
+  ]
+}

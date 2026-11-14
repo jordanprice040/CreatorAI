@@ -302,12 +302,16 @@ export type BuildRoles = {
   reviewer_prompt_sha256: string;
 };
 /**
- * Review L-10: the benchmark version that currently qualifies each non-Python recipe. A version is
+ * Review L-10: the benchmark versions that currently qualify each non-Python recipe. A version is
  * replaced whenever its cases or checker change, so a pass on an older version never qualifies a
- * build. scripts/p15-web-benchmark.mjs verify checks it names a benchmark it publishes.
+ * build. ADR-0105: p15-small-signup-v5 is the in-app copy of v4 (same spec, cases, reference and
+ * checker; only who checks the pass bars differs), so a pass on either counts.
+ * scripts/p15-web-benchmark.mjs verify checks v4 is one it publishes; the recipe benchmark test
+ * checks v5 against v4.
  */
-export const RECIPE_BENCHMARKS: Readonly<Partial<Record<BuildRecipe, string>>> =
-  { 'static-web/1': 'p15-small-signup-v4' };
+export const RECIPE_BENCHMARKS: Readonly<
+  Partial<Record<BuildRecipe, readonly string[]>>
+> = { 'static-web/1': ['p15-small-signup-v4', 'p15-small-signup-v5'] };
 /** A recorded live pass of a recipe's frozen benchmark by one set of roles. */
 export type RecipeQualification = BuildRoles & {
   recipe: BuildRecipe;
@@ -317,7 +321,7 @@ export type RecipeQualification = BuildRoles & {
  * Whether a build is an unqualified trial. Python builds are admitted only on qualified roles
  * (ADR-0048/0049), so they never are. Any other recipe is a trial unless a recorded benchmark pass
  * matches this build's own connection, model and both role prompts it used, on the recipe's
- * current benchmark version; a pass on another connection, model, prompt or benchmark version
+ * current benchmark versions; a pass on another connection, model, prompt or benchmark version
  * never lifts the label.
  */
 export function unqualifiedTrial(
@@ -331,7 +335,7 @@ export function unqualifiedTrial(
     qualifications.some(
       (q) =>
         q.recipe === recipe &&
-        q.benchmark_id === RECIPE_BENCHMARKS[recipe] &&
+        (RECIPE_BENCHMARKS[recipe] ?? []).includes(q.benchmark_id) &&
         q.connection_id === roles.connection_id &&
         q.model_id === roles.model_id &&
         q.builder_prompt_sha256 === roles.builder_prompt_sha256 &&

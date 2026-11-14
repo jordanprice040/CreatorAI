@@ -92,6 +92,8 @@ import {
   type WorkflowDetail,
   z,
   parse,
+  RecipeQualificationListSchema,
+  recipePasses,
 } from '@creator/contracts';
 import {
   DISCOVERY_SCENARIOS,
@@ -847,6 +849,14 @@ export async function runCli(
           },
           (artifact_id) =>
             write(JSON.stringify({ artifact_id, state: 'verifying' })),
+          // ADR-0105: the connection's build qualification records decide the trial label.
+          async (roles) =>
+            recipePasses(
+              await call(
+                RecipeQualificationListSchema,
+                `${ws(p.binding.workspace_id)}/plan-connections/${encodeURIComponent(roles.connection_id)}/recipe-qualifications`,
+              ).catch(() => []),
+            ),
         );
         const registered = await call(
           ArtifactSummarySchema,

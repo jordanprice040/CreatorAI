@@ -1,0 +1,85 @@
+{
+  "format": "p14-extended-suite/1",
+  "benchmark_id": "p14-small-wordtally-v5",
+  "note": "Held out from the studio entirely. Run after the build on the exported package, by the studio in its isolation worker, with the studio case rule (exact output and exit status).",
+  "cases": [
+    {
+      "id": "E1",
+      "args": [],
+      "stdin": "café café cafe\n",
+      "stdout": "caf 2\ncafe 1\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E2",
+      "args": [
+        "--top",
+        "1",
+        "--top",
+        "2"
+      ],
+      "stdin": "a\n",
+      "stdout": "invalid input\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E3",
+      "args": [
+        "--top",
+        "51"
+      ],
+      "stdin": "a\n",
+      "stdout": "invalid input\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E4",
+      "args": [
+        "--top",
+        "50"
+      ],
+      "stdin": "a\n",
+      "stdout": "a 1\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E5",
+      "args": [
+        "--top",
+        "x"
+      ],
+      "stdin": "a\n",
+      "stdout": "invalid input\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E6",
+      "args": [
+        "--top",
+        "-1"
+      ],
+      "stdin": "a\n",
+      "stdout": "invalid input\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E7",
+      "args": [
+        "--top=2"
+      ],
+      "stdin": "a\n",
+      "stdout": "invalid input\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E8",
+      "args": [
+        "--top",
+        "2"
+      ],
+      "stdin": "Zeta zeta alpha ALPHA beta\n",
+      "stdout": "alpha 2\nzeta 2\n",
+      "exit_code": 0
+    }
+  ]
+}

@@ -165,8 +165,9 @@ the web recipe is **not qualified** until this benchmark passes live.
   `toolchain.role_qualification: 'unqualified_trial'` and a limitation saying so, and the build and Try
   pages show it. There is no global switch (review L-9): `unqualifiedTrial` in
   `packages/contracts/src/web-recipe.ts` lifts the label only for a build whose own connection, model
-  and both role-prompt hashes match a recorded pass (`RECIPE_QUALIFICATIONS` in
-  `packages/executor/src/artifacts.ts`; it holds one pass since November 6, see the live result below). A pass on one connection, model or prompt version
+  and both role-prompt hashes match a recorded pass. Since ADR-0105 (November 14) the passes are
+  database records (`recipe_qualifications`, earned under Models › Qualify building on the in-app
+  `p15-small-signup-v5`, or imported: the November 6 pass below). A pass on one connection, model or prompt version
   never qualifies another. The prompt hashes come from the prompts the build recorded in its
   `intent.json` when it started, not from the code at packaging time, and only a pass on the recipe's
   current benchmark version (`RECIPE_BENCHMARKS`, checked by `verify`) counts (third review L-10). The
@@ -281,7 +282,8 @@ Run on Jordan's PC under his typed OKs (11:28 and 20:24 UTC). Raw summary:
   its frame ("it showed up!", with screenshots). Only that product was opened, as section 7 asks; the
   desktop app (WebView2) was not observed because the installed app shares the dev studio's ports.
 - Result: **3 of 3, qualified at the declared scale** for that connection, model and prompt pair. The
-  pass is recorded in `RECIPE_QUALIFICATIONS` (`packages/executor/src/artifacts.ts`) with
+  pass was recorded in `RECIPE_QUALIFICATIONS` (`packages/executor/src/artifacts.ts`; since ADR-0105 an
+  imported database record, migration 65) with
   `benchmark_id` `p15-small-signup-v4`; a test checks the record against the results file, the current
   role prompts, `RECIPE_BENCHMARKS` and the freeze hash. The three packages made during the run were
   labelled unqualified trials when packaged, and keep that label: a manifest is not rewritten.

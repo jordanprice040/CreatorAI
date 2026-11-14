@@ -24,6 +24,8 @@ export interface FakePlanOptions {
   nonce_override?: string;
   /** Awaited before each Responses answer, so a test can hold a request in flight. */
   beforeResponse?: () => Promise<void>;
+  /** When set, answers each Responses request from its body instead of `responses`. */
+  respond?: (body: Record<string, unknown>) => string;
 }
 
 export interface FakePlan {
@@ -153,7 +155,10 @@ export async function fakePlan(o: FakePlanOptions = {}): Promise<FakePlan> {
         });
         await o.beforeResponse?.();
         const list = o.responses ?? [{ kind: 'text', text: 'ok' }];
-        const step = list[Math.min(calls++, list.length - 1)]!;
+        const step = o.respond
+          ? { kind: 'text' as const, text: o.respond(body) }
+          : list[Math.min(calls++, list.length - 1)]!;
+        if (o.respond) calls++;
         if (step.kind === 'error')
           return json(step.status, {
             error: { code: step.code, param: step.param ?? null, message: 'x' },
