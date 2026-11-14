@@ -503,6 +503,7 @@ test('P-12 (review 1 of #199, L-1): the held-claims Next text offers the setting
     heldClaimsSetting: (
       a: { next?: { kind: string }[] | null },
       canContinue: boolean,
+      settingOn?: boolean,
     ) => string;
   };
   new Function('exports', code)(m);
@@ -521,13 +522,21 @@ test('P-12 (review 1 of #199, L-1): the held-claims Next text offers the setting
   );
   assert.match(ended, /under How much is automated/);
   assert.doesNotMatch(ended, /below/);
+  // It cannot continue and the setting is already on: never ask to turn it on again.
+  const endedOn = m.heldClaimsSetting(
+    { next: [{ kind: 'new_autopilot' }] },
+    false,
+    true,
+  );
+  assert.match(endedOn, /is on now, so later autopilots accept them/);
+  assert.doesNotMatch(endedOn, /turn on|below/);
   // The page shows the settings button beside Search the web in this branch.
   const page = await readFile('apps/web/src/autopilot.tsx', 'utf8');
   const branch = page.slice(
     page.indexOf("last?.stop_kind === 'claims_held'"),
     page.indexOf('text = `Next: this step is yours.'),
   );
-  assert.match(branch, /heldClaimsSetting\(a, canContinue\)/);
+  assert.match(branch, /heldClaimsSetting\(a, canContinue, acceptsHeld\)/);
   assert.match(branch, /go\('web-title'\)/);
   assert.match(branch, /go\('automation-title'\)/);
 });

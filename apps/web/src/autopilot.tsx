@@ -647,7 +647,11 @@ export function Autopilot({
                     ))}
                   </ol>
                   {owner && a.state === 'finished' && a.outcome && (
-                    <NextAfterStop autopilot={a} workspace={workspace} />
+                    <NextAfterStop
+                      autopilot={a}
+                      workspace={workspace}
+                      acceptsHeld={!!settings?.accept_quote_checked_claims}
+                    />
                   )}
                   {owner && a.state === 'running' && (
                     <button
@@ -702,9 +706,11 @@ export function Autopilot({
 function NextAfterStop({
   autopilot: a,
   workspace,
+  acceptsHeld,
 }: {
   autopilot: AutopilotRecord;
   workspace: Workspace;
+  acceptsHeld: boolean;
 }) {
   const href = (
     view: 'evidence' | 'compare' | 'decisions' | 'proposals',
@@ -790,7 +796,7 @@ function NextAfterStop({
     case 'needs_person':
       // P-12: quote-checked web claims wait under Search the web, not Decide.
       if (last?.stop_kind === 'claims_held') {
-        text = `Next: read the claims its web search found and add the ones you agree with under Discover › Search the web${then} ${heldClaimsSetting(a, canContinue)}`;
+        text = `Next: read the claims its web search found and add the ones you agree with under Discover › Search the web${then} ${heldClaimsSetting(a, canContinue, acceptsHeld)}`;
         actions = (
           <>
             <button
