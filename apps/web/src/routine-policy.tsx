@@ -13,7 +13,7 @@ import {
   type RoutineStage,
   type SessionInfo,
 } from '@creator/contracts';
-import { cents, usdToNano } from './amounts.js';
+import { cents, money, usdToNano } from './amounts.js';
 import { endAfter } from './end-time.js';
 import { api, message, when, words } from './oversight.js';
 import { Fold, FoldAll, useFolds, type Folds } from './fold.js';
@@ -419,7 +419,7 @@ function PolicyCard({
               {v.used_actions} of {p.max_actions} steps used
               {p.max_total_nano_usd === null
                 ? ''
-                : ` · ${standard ? cents(v.used_nano_usd, false) : `$${nanoToUsd(v.used_nano_usd)}`} of $${nanoToUsd(p.max_total_nano_usd)} admitted`}{' '}
+                : ` · ${standard ? cents(v.used_nano_usd, false) : money(v.used_nano_usd, false)} of ${money(p.max_total_nano_usd, false)} admitted`}{' '}
               · {v.state === 'expired' ? 'ended' : 'ends'} {when(p.expires_at)}
             </span>
           </>
@@ -430,8 +430,8 @@ function PolicyCard({
           {p.max_total_nano_usd !== null && (
             <>
               {' '}
-              · <Money nano={v.used_nano_usd} fixture={false} /> of $
-              {nanoToUsd(p.max_total_nano_usd)} in stated amounts admitted
+              · <Money nano={v.used_nano_usd} fixture={false} /> of{' '}
+              {money(p.max_total_nano_usd, false)} in stated amounts admitted
             </>
           )}
         </p>

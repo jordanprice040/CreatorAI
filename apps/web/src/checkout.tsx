@@ -1,3 +1,4 @@
+import { useViewMode } from './view-mode.js';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import {
   CheckoutSchema,
@@ -94,6 +95,7 @@ export function Checkout({
   replaced: ReadonlySet<string>;
   changed: () => void;
 }) {
+  const { standard } = useViewMode();
   const owner = workspace.role === 'owner';
   const base = `workspaces/${workspace.id}`;
   const fixture = workspace.record_mode === 'fixture';
@@ -191,7 +193,12 @@ export function Checkout({
               const o = offerById.get(c.offer_id);
               return (
                 <li key={c.id} className={c.id === picked ? 'focused' : ''}>
-                  <strong>{o?.label ?? `offer ${shortId(c.offer_id)}`}</strong>{' '}
+                  <strong>
+                    {o?.label ??
+                      (standard
+                        ? 'An offer no longer listed'
+                        : `offer ${shortId(c.offer_id)}`)}
+                  </strong>{' '}
                   <span
                     className={`badge ${c.state === 'open' ? 'ok' : 'bad'}`}
                   >

@@ -20,7 +20,7 @@ import {
 import { api, ApiError, message, when, words } from './oversight.js';
 import { newestFirst } from './versions.js';
 import { ShowOlder, useOlder } from './older.js';
-import { runLabel } from './labels.js';
+import { runLabel, runRef } from './labels.js';
 import { runNames } from './ui.js';
 // The same file `pnpm cli pricing-add` takes; bundled so a fixture studio needs no CLI.
 import fixturePricing from '../../../config/pricing/fixture-model-v1.json';
@@ -35,6 +35,7 @@ import {
 import { RecordCharge } from './charge.js';
 import { money } from './amounts.js';
 import { Money } from './money.js';
+import { actionLabel, codeLabel } from './plain-words.js';
 
 /** Exact amounts; kept here for the pages that already import it from Budgets. */
 export { money };
@@ -90,7 +91,7 @@ function Bar({ e }: { e: Envelope }) {
           <dt>Available</dt>
           <dd>
             <strong>
-              <Money nano={e.available} fixture={e.fixture} />
+              <Money nano={e.available} fixture={e.fixture} down />
             </strong>{' '}
             of <Money nano={e.cap} fixture={e.fixture} />
           </dd>
@@ -145,6 +146,9 @@ export function Budgets({
   );
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [pricing, setPricing] = useState<PricingSnapshot[]>([]);
+  // Review 1 of #197, L-1: the fold opens for "no pricing yet" only once the list has
+  // loaded, so it does not open on the empty first render and stay open.
+  const [pricingLoaded, setPricingLoaded] = useState(false);
   const [runs, setRuns] = useState<RunControl[]>([]);
   const [names, setNames] = useState<Map<string, string>>(new Map());
   const [status, setStatus] = useState('');
@@ -192,6 +196,7 @@ export function Budgets({
       }
       setReservations(r);
       setPricing(p);
+      setPricingLoaded(true);
       setRuns(rr.filter((x) => x.state === 'active'));
       setNames(n);
       setEnvelopeId((c) =>
@@ -385,7 +390,7 @@ export function Budgets({
                 <p className="small">
                   {e.in_flight} in flight now · at most {e.max_in_flight} at
                   once
-                  {e.run_id ? ` · run ${e.run_id.slice(0, 8)}` : ''}
+                  {e.run_id ? ` · ${runRef(e.run_id, names, !standard)}` : ''}
                   {e.ends_at
                     ? ` · ${when(e.starts_at!)} – ${when(e.ends_at)}`
                     : ''}
@@ -502,7 +507,7 @@ export function Budgets({
                 ? 'Pricing snapshots: none yet'
                 : `Pricing snapshots: ${pricing.length} recorded`
             }
-            open={pricing.length === 0}
+            open={pricingLoaded && pricing.length === 0}
           >
             <h3>Pricing snapshots</h3>
             {pricing.length === 0 ? (
@@ -590,7 +595,10 @@ export function Budgets({
                   {last && (
                     <p className="small" role="status">
                       <strong>{words(last.status)}</strong> (
-                      {words(last.reason_code)}): {last.explanation}
+                      {standard
+                        ? codeLabel(last.reason_code)
+                        : words(last.reason_code)}
+                      ): {last.explanation}
                       {last.output?.text
                         ? ` Output: “${last.output.text}”`
                         : ''}
@@ -611,13 +619,13 @@ export function Budgets({
                   <span className={`kind res-${r.status}`}>
                     {STATUS_NOTE[r.status]}
                   </span>{' '}
-                  {words(r.action_type)} · {r.provider}/{r.model_id} · attempt{' '}
-                  {r.attempt}
+                  {standard ? actionLabel(r.action_type) : words(r.action_type)}{' '}
+                  · {r.provider}/{r.model_id} · attempt {r.attempt}
                   <br />
                   <small>
-                    {words(r.reason_code)} · reserved{' '}
-                    <Money nano={r.reserved} fixture={r.fixture} /> · charged{' '}
-                    <Money nano={r.incurred} fixture={r.fixture} />
+                    {standard ? codeLabel(r.reason_code) : words(r.reason_code)}{' '}
+                    · reserved <Money nano={r.reserved} fixture={r.fixture} /> ·
+                    charged <Money nano={r.incurred} fixture={r.fixture} />
                     {r.usage
                       ? ` · ${r.usage.uncached_input_tokens + r.usage.cached_input_tokens + r.usage.cache_write_tokens} in / ${r.usage.output_tokens} out tokens`
                       : ''}{' '}

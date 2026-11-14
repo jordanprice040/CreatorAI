@@ -63,6 +63,12 @@ const CODE_LABEL: Record<string, string> = {
   source_assertion: 'the source says so',
   derived_from: 'from',
   part_of: 'part of',
+  // A model or tool call's state, on Budgets › Recent calls (review 1 of #197, L-3).
+  reserved: 'amount held',
+  settled: 'cost recorded',
+  settled_late: 'cost recorded late',
+  reconciled_no_charge: 'confirmed no charge',
+  worker_lost: 'the worker stopped',
 };
 
 const spaced = (code: string) => code.replace(/[._]+/g, ' ').trim();
@@ -77,6 +83,25 @@ export const actionLabel = (action: string) =>
 /** Any stored code in plain words ("outside_grant" → "no approval covers it"). */
 export const codeLabel = (code: string) =>
   CODE_LABEL[code] ?? ACTION_LABEL[code] ?? spaced(code);
+
+/**
+ * Stored prose with action types and codes in it, in the pages' words: "Allow
+ * tool.search_public on this run?" reads "Allow search the web on this run?". For approval
+ * questions and the work they block (P-8; seen while checking review 1 of #197).
+ */
+export const plainText = (text: string) =>
+  text
+    .replace(/\b[a-z]+\.[a-z_]+\b/g, (a) =>
+      ACTION_LABEL[a] ? lowerFirst(ACTION_LABEL[a]!) : a,
+    )
+    .replace(/\b[a-z]+(?:_[a-z]+)+\b/g, (code) => codeLabel(code));
+
+const lowerFirst = (s: string) =>
+  s ? `${s[0]!.toLowerCase()}${s.slice(1)}` : s;
+
+/** "a human-in-the-loop", "an autonomous within scope" (review 1 of #197, N-1). */
+export const withArticle = (phrase: string) =>
+  `${/^[aeiou]/i.test(phrase) ? 'an' : 'a'} ${phrase}`;
 
 function upperFirst(s: string) {
   return s ? `${s[0]!.toUpperCase()}${s.slice(1)}` : s;
@@ -138,7 +163,7 @@ export function plainEvent(summary: string): EventPart[] {
   if ((m = /^Closed decision as ([a-z_]+)$/.exec(s)))
     return [`Closed an approval request as ${codeLabel(m[1]!)}`];
   if ((m = /^Registered ([a-z_]+) run$/.exec(s)))
-    return [`Registered a ${codeLabel(m[1]!)} run`];
+    return [`Registered ${withArticle(codeLabel(m[1]!))} run`];
   if (/^Fetch fetched \(new_version\); new source version$/.test(s))
     return ['Fetched a new version of a source'];
   if ((m = /^Fetch ([a-z_]+) \(([a-z_]+)\)(; new source version)?$/.exec(s)))
@@ -197,7 +222,14 @@ export function plainEvent(summary: string): EventPart[] {
       `Did not send: ${actionLabel(m[1]!).toLowerCase()} (${codeLabel(m[2]!)})`,
     ];
   if ((m = /^Registered ([a-z_]+) package for spec v\d+$/.exec(s)))
-    return [`Registered a ${codeLabel(m[1]!)} package`];
+    return [`Registered ${withArticle(codeLabel(m[1]!))} package`];
+  // A worker's lease names the worker's id; Standard leaves it out (review 1 of #197, L-2).
+  if (/^Leased task to \S+ \(delivery \d+\)$/.test(s))
+    return ['Gave a task to a worker'];
+  if ((m = /^Lease expired on \S+; task ([a-z_]+)$/.exec(s)))
+    return [
+      `A worker's time on a task ran out; the task is ${codeLabel(m[1]!)}`,
+    ];
   // Anything else: the stored wording, with codes in it as words.
   return [s.replace(/\b[a-z]+(?:_[a-z]+)+\b/g, (code) => codeLabel(code))];
 }

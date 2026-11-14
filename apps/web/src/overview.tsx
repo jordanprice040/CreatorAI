@@ -11,6 +11,7 @@ import {
 } from '@creator/contracts';
 import { useViewMode } from './view-mode.js';
 import { EventLine } from './event-line.js';
+import { plainText } from './plain-words.js';
 import { Money } from './money.js';
 import { useState } from 'react';
 import { api, message, when, words } from './oversight.js';
@@ -35,6 +36,16 @@ const LIVE = [
 ];
 
 /** Run monitor: what is running, what waits for a person, what it costs, what just happened. */
+/** A workflow's role as the pages name it. */
+const roleName = (role: string) =>
+  role === 'r02_discovery'
+    ? 'Discovery'
+    : role === 'r01_exploration'
+      ? 'Exploration'
+      : role === 'r08_assessment'
+        ? 'Assessment'
+        : 'Skeptic review';
+
 export function Overview({
   session,
   workspace,
@@ -156,11 +167,12 @@ export function Overview({
                       className="text"
                       onClick={() => open('decisions', x.id)}
                     >
-                      {x.question}
+                      {standard ? plainText(x.question) : x.question}
                     </button>
                     <small>
                       {' '}
-                      · run {shortId(x.run_id)} · expires {when(x.expires_at)}
+                      {!standard && `· run ${shortId(x.run_id)} `}· expires{' '}
+                      {when(x.expires_at)}
                     </small>
                   </li>
                 ))}
@@ -176,14 +188,7 @@ export function Overview({
                   <li key={w.id}>
                     <StateBadge state={w.state} />{' '}
                     <button className="text" onClick={() => open('runs', w.id)}>
-                      {w.role === 'r02_discovery'
-                        ? 'Discovery'
-                        : w.role === 'r01_exploration'
-                          ? 'Exploration'
-                          : w.role === 'r08_assessment'
-                            ? 'Assessment'
-                            : 'Skeptic review'}{' '}
-                      {!standard && shortId(w.id)}
+                      {roleName(w.role)} {!standard && shortId(w.id)}
                     </button>
                     <small>
                       {' '}
@@ -228,7 +233,10 @@ export function Overview({
                 Failed recently:{' '}
                 {o.attention
                   .filter((a) => a.state === 'failed')
-                  .map((a) => `${shortId(a.workflow_id)} (${words(a.reason)})`)
+                  .map(
+                    (a) =>
+                      `${standard ? roleName(a.role) : shortId(a.workflow_id)} (${words(a.reason)})`,
+                  )
                   .join(', ')}
               </p>
             )}
@@ -338,7 +346,7 @@ export function Overview({
                   <ol className="rows history">
                     {d.activity.entries.map((e) => (
                       <li key={e.event_id}>
-                        <EventLine summary={e.summary} />
+                        <EventLine summary={e.summary} fixture={fixture} />
                         <small>
                           {' '}
                           · {e.actor.display_name}

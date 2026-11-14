@@ -231,6 +231,7 @@ export function Portfolio({
               <Money
                 nano={view.state.reserve_available}
                 fixture={workspace.record_mode === 'fixture'}
+                down
               />
             </dd>
             <dt>Due maintenance / review backlog / active capacity</dt>

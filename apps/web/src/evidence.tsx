@@ -1,3 +1,4 @@
+import { requestWebSearch } from './web-search-handoff.js';
 import type { Prefill } from './prefill.js';
 import { versionTag } from './plain-words.js';
 import { useViewMode } from './view-mode.js';
@@ -319,7 +320,11 @@ export function Evidence({
               <button
                 type="button"
                 className="text"
-                onClick={() => open('submit')}
+                onClick={() => {
+                  // Review 1 of #197, L-5: open Discover at Search the web, not its top.
+                  requestWebSearch();
+                  open('submit');
+                }}
               >
                 Or let the studio find pages: Discover › Search the web
               </button>

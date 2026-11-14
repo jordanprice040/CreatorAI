@@ -133,7 +133,10 @@ export function Activity({
                   {e.actor.display_name}
                   {e.actor.kind === 'human' ? '' : ` (${e.actor.kind})`}
                 </strong>{' '}
-                <EventLine summary={e.summary} />{' '}
+                <EventLine
+                  summary={e.summary}
+                  fixture={workspace.record_mode === 'fixture'}
+                />{' '}
                 <Subject
                   kind={e.subject_kind}
                   id={e.subject_id}

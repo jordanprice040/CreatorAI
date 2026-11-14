@@ -1,3 +1,4 @@
+import { useViewMode } from './view-mode.js';
 import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Money } from './money.js';
 import {
@@ -185,12 +186,15 @@ export function Funding({
   changed: () => void;
   open: (view: View, id?: string) => void;
 }) {
+  const { standard } = useViewMode();
   const base = `workspaces/${workspace.id}`;
   const owner = workspace.role === 'owner';
   const fixture = workspace.record_mode === 'fixture';
   // `usd` is exact, for sentences and confirmations; `show` is the display amount (P-9).
   const usd = (n: string) => money(n, fixture);
-  const show = (n: string) => <Money nano={n} fixture={fixture} />;
+  const show = (n: string, down = false) => (
+    <Money nano={n} fixture={fixture} down={down} />
+  );
   const data = useLoad(async () => {
     const [capacity, policy, rails, commitments, allocations, tranches] =
       await Promise.all([
@@ -342,8 +346,10 @@ export function Funding({
                     </span>
                     <small>
                       {' '}
-                      · policy v{a.policy_version} · budget{' '}
-                      {shortId(a.envelope_id)} · {when(a.created_at)}
+                      ·{' '}
+                      {!standard &&
+                        `policy v${a.policy_version} · budget ${shortId(a.envelope_id)} · `}
+                      {when(a.created_at)}
                     </small>
                   </li>
                 ))}
@@ -445,7 +451,7 @@ type Forms = {
   act: Act;
   usd: (n: string) => string;
   /** The display amount: cents in Standard, exact on request (P-9). */
-  show: (n: string) => ReactNode;
+  show: (n: string, down?: boolean) => ReactNode;
 };
 
 function CapacityFacts({
@@ -453,13 +459,13 @@ function CapacityFacts({
   usd,
 }: {
   capacity: Capacity;
-  usd: (n: string) => ReactNode;
+  usd: (n: string, down?: boolean) => ReactNode;
 }) {
   return (
     <dl className="facts">
       <dt>Could become budget now</dt>
       <dd>
-        <strong>{usd(c.capacity_nano)}</strong>{' '}
+        <strong>{usd(c.capacity_nano, true)}</strong>{' '}
         <small>limited by {BINDING_LABEL[c.binding] ?? words(c.binding)}</small>
       </dd>
       <dt>Earnings past their waiting period</dt>
@@ -468,10 +474,10 @@ function CapacityFacts({
       <dd>{usd(c.surplus_nano)}</dd>
       <dt>Usable cash</dt>
       <dd>
-        {usd(c.usable_liquidity_nano)}{' '}
+        {usd(c.usable_liquidity_nano, true)}{' '}
         <small>
-          {usd(c.parts.rails_available_nano)} in fresh funding sources, less{' '}
-          {usd(c.parts.min_reserve_nano)} reserve,{' '}
+          {usd(c.parts.rails_available_nano, true)} in fresh funding sources,
+          less {usd(c.parts.min_reserve_nano)} reserve,{' '}
           {usd(c.parts.commitments_nano)} owed or set aside and{' '}
           {usd(c.parts.unspent_reinvested_nano)} reinvested budget not yet spent
         </small>
@@ -479,7 +485,7 @@ function CapacityFacts({
       {c.policy_version !== null && (
         <>
           <dt>Left this period</dt>
-          <dd>{usd(c.period_remaining_nano)}</dd>
+          <dd>{usd(c.period_remaining_nano, true)}</dd>
         </>
       )}
       {BigInt(c.outstanding_losses_nano) > 0n && (
@@ -1023,8 +1029,10 @@ function RailRow({
           {r.kind === 'owner_attested'
             ? 'balance you record'
             : 'processor balance'}
-          {r.available_nano !== null && <> · last {show(r.available_nano)}</>} ·{' '}
-          {state.note}
+          {r.available_nano !== null && (
+            <> · last {show(r.available_nano, true)}</>
+          )}{' '}
+          · {state.note}
         </small>
       </div>
       {owner && mode === '' && (

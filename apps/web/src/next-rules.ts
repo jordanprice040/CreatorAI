@@ -715,7 +715,7 @@ export function pathBanner(f: StudioFacts): {
     return step.tone === 'next'
       ? {
           tone: 'next',
-          text: 'Revise this product from your feedback, on the main path.',
+          text: 'Revise this product from your feedback on the main path.',
           view: step.action?.view ?? 'gallery',
         }
       : {
@@ -735,7 +735,7 @@ export function pathBanner(f: StudioFacts): {
     text:
       s.state === 'running'
         ? `${s.label} is in progress on the main path.`
-        : `${s.label}, on the main path.`,
+        : `Go to the ${s.label} step on the main path.`,
     view: s.view,
   };
 }

@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { actionLabel, codeLabel } from './plain-words.js';
+import { actionLabel, codeLabel, kindLabel, plainText } from './plain-words.js';
 import { money } from './amounts.js';
 import { useViewMode } from './view-mode.js';
 import { useOnShow, usePageActive } from './page-drafts.js';
 import { RoutinePolicies } from './routine-policy.js';
-import { runLabel } from './labels.js';
+import { runLabel, runRef } from './labels.js';
 import { Fold, FoldAll, useFolds, type Folds } from './fold.js';
 import { clearOtherTransfers, resetTransfers } from './transfers.js';
 import {
@@ -315,7 +315,7 @@ function Coverage({ d, fixture }: { d: Decision; fixture: boolean }) {
         <dd>
           {b.target
             ? standard
-              ? words(b.target.kind)
+              ? kindLabel(b.target.kind)
               : `${b.target.kind} ${b.target.id.slice(0, 8)} · v${b.target.version}`
             : 'none'}
         </dd>
@@ -362,6 +362,7 @@ function DecisionCard({
   focused,
   folds,
   names,
+  runText,
   csrf,
   workspace,
   fixture,
@@ -371,6 +372,8 @@ function DecisionCard({
   focused: boolean;
   folds: Folds;
   names: (id: string) => string;
+  /** The run the approval is for, in a sentence: its name in Standard, its id in Advanced. */
+  runText: (runId: string) => string;
   csrf: string;
   workspace: string;
   /** Fixture workspaces count simulated units, not dollars. */
@@ -438,7 +441,7 @@ function DecisionCard({
                 closed card still has a heading. */}
             <h3 className="question fold-title">
               {d.status === 'pending' ? 'Decision needed' : 'Decision'}:{' '}
-              {d.question}
+              {standard ? plainText(d.question) : d.question}
             </h3>
             <span className="fold-line small">
               {said(d.reason)} · {d.status}
@@ -458,18 +461,20 @@ function DecisionCard({
         }
       >
         <p className="small">
-          Asked by {names(d.requested_by)} on {when(d.created_at)} for run{' '}
-          {d.run_id.slice(0, 8)}
+          Asked by {names(d.requested_by)} on {when(d.created_at)} for{' '}
+          {runText(d.run_id)}
         </p>
         <dl>
           <div>
             <dt>Evidence</dt>
             <dd>
-              {d.evidence_refs.length
-                ? d.evidence_refs
-                    .map((r) => `${r.id.slice(0, 8)} v${r.version}`)
-                    .join(', ')
-                : 'none cited'}
+              {d.evidence_refs.length === 0
+                ? 'none cited'
+                : standard
+                  ? `${d.evidence_refs.length} record${d.evidence_refs.length === 1 ? '' : 's'} cited`
+                  : d.evidence_refs
+                      .map((r) => `${r.id.slice(0, 8)} v${r.version}`)
+                      .join(', ')}
             </dd>
           </div>
           <div>
@@ -482,11 +487,20 @@ function DecisionCard({
           </div>
           <div>
             <dt>Blocks</dt>
-            <dd>{d.blocked_work.join('; ') || '—'}</dd>
+            <dd>
+              {(standard ? d.blocked_work.map(plainText) : d.blocked_work).join(
+                '; ',
+              ) || '—'}
+            </dd>
           </div>
           <div>
             <dt>Can continue</dt>
-            <dd>{d.unblocked_work.join('; ') || '—'}</dd>
+            <dd>
+              {(standard
+                ? d.unblocked_work.map(plainText)
+                : d.unblocked_work
+              ).join('; ') || '—'}
+            </dd>
           </div>
           {d.recommendation && (
             <div>
@@ -826,7 +840,7 @@ export function Oversight({
     const r = runs.find((x) => x.run_id === runId);
     return r
       ? runLabel(r, runNames, 48, !standard)
-      : `run ${runId.slice(0, 8)}`;
+      : runRef(runId, runNames, !standard);
   };
   return (
     <section className="panel records" aria-labelledby="oversight-title">
@@ -880,6 +894,7 @@ export function Oversight({
                 focused={d.id === focus}
                 folds={decisionFolds}
                 names={names}
+                runText={(id) => runRef(id, runNames, !standard)}
                 csrf={session.csrf_token}
                 workspace={workspace}
                 fixture={current.record_mode === 'fixture'}
@@ -899,7 +914,11 @@ export function Oversight({
             <ul>
               {runs.map((r) => (
                 <li key={r.run_id}>
-                  <span className="kind">{words(r.autonomy_mode)}</span>{' '}
+                  <span className="kind">
+                    {standard
+                      ? codeLabel(r.autonomy_mode)
+                      : words(r.autonomy_mode)}
+                  </span>{' '}
                   {runLabel(r, runNames, 48, !standard)} · {r.state}
                   <small>
                     {' '}

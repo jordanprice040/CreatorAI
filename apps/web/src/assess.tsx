@@ -1,3 +1,4 @@
+import { useViewMode } from './view-mode.js';
 import { usePoll } from './page-active.js';
 import { useEffect, useState } from 'react';
 import {
@@ -1236,12 +1237,14 @@ function SystemExplanation({
   card: StoredEntity;
   claims: { id: string; title: string }[];
 }) {
+  const { standard } = useViewMode();
   const b = card.body as unknown as ScorecardBody | undefined;
   const a = b?.assessment;
   if (!b || !a) return null;
   const criteria = RUBRICS[b.rubric].criteria;
   const claimName = (id: string, version: number) => {
     const c = claims.find((x) => x.id.toLowerCase() === id.toLowerCase());
+    if (standard) return c ? c.title : 'a claim no longer listed';
     return `${c ? c.title : `claim ${id.slice(0, 8)}`} (v${version})`;
   };
   return (

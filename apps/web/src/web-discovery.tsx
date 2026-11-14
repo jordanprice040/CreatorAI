@@ -143,21 +143,24 @@ export function WebDiscover({
       onWebSearchPrefill((p) => {
         // Review N-7: a question or interests the person already typed are kept; the
         // suggestion is offered beside them instead.
-        if (typedRef.current.question || typedRef.current.interests)
+        if (!p) {
+          // Only show the section (no prefill).
+        } else if (typedRef.current.question || typedRef.current.interests)
           setOffered(p);
         else {
           setQuestion(p.question);
           setInterests(p.interests);
           setOffered(null);
         }
-        setTimeout(
-          () =>
-            sectionRef.current?.scrollIntoView({
-              behavior: 'smooth',
-              block: 'start',
-            }),
-          50,
-        );
+        setTimeout(() => {
+          sectionRef.current?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start',
+          });
+          sectionRef.current
+            ?.querySelector<HTMLElement>('#web-title')
+            ?.focus({ preventScroll: true });
+        }, 50);
       }),
     [],
   );
@@ -326,7 +329,9 @@ export function WebDiscover({
   const shown = openId || c?.discoveries[0]?.id || '';
   return (
     <section className="explore" aria-labelledby="web-title" ref={sectionRef}>
-      <h3 id="web-title">Search the web</h3>
+      <h3 id="web-title" tabIndex={-1}>
+        Search the web
+      </h3>
       <p>
         One request on your ChatGPT plan searches the web with the provider's
         own search; the studio keeps the search calls and the pages they

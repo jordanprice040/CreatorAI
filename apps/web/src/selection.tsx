@@ -203,6 +203,7 @@ function FreezeSpec({
   open: (view: View, id?: string) => void;
   frozen: () => void;
 }) {
+  const { standard } = useViewMode();
   const runId = selectionRun;
   const [justification, setJustification] = useState('');
   const [outcome, setOutcome] = useState<FreezeOutcome | null>(null);
@@ -243,8 +244,9 @@ function FreezeSpec({
         to. Later edits make a new version and show which tasks changed.
       </p>
       <p className="small">
-        Recorded under run {selectionRun.slice(0, 8)}, the run that made this
-        spec&apos;s selection.
+        {standard
+          ? 'Recorded under the run that made this spec’s selection.'
+          : `Recorded under run ${selectionRun.slice(0, 8)}, the run that made this spec’s selection.`}
       </p>
       <label htmlFor="frz-why">Why this version is ready</label>
       <textarea

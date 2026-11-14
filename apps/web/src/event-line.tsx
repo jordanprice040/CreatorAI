@@ -9,9 +9,15 @@ import { useViewMode } from './view-mode.js';
  */
 export function EventLine({
   summary,
+  fixture,
   inButton = false,
 }: {
   summary: string;
+  /**
+   * The workspace's mode, so amounts carry "$" or "sim" like the rest of the page (review 1
+   * of #197, N-8). Left out, amounts are bare numbers.
+   */
+  fixture?: boolean;
   /** The line sits inside a button, so its amounts are plain text (see `Money`). */
   inButton?: boolean;
 }) {
@@ -26,8 +32,8 @@ export function EventLine({
           <Money
             key={i}
             nano={p.nano}
-            fixture={false}
-            bare
+            fixture={fixture ?? false}
+            bare={fixture === undefined}
             inButton={inButton}
           />
         ),

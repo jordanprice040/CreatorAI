@@ -168,6 +168,7 @@ export function Settings({
                 <Money
                   nano={(left < 0n ? 0n : left).toString()}
                   fixture={false}
+                  down
                 />
               </dd>
             </dl>

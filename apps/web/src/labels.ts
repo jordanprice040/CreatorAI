@@ -92,6 +92,21 @@ export function runLabel(
 }
 
 /**
+ * A run named inside a sentence (P-8). Advanced keeps "run 3fa2b1c0"; Standard gives the
+ * run's name in quotes, or "a run with no name", and never the id (review 1 of #197, L-2).
+ */
+export function runRef(
+  runId: string,
+  names: ReadonlyMap<string, string>,
+  id = true,
+  max = 48,
+) {
+  if (id) return `run ${runId.slice(0, 8)}`;
+  const name = runName(runId, names);
+  return name ? `run “${clipText(name, max)}”` : 'a run with no name';
+}
+
+/**
  * Final UX pass: a discovery's stored uncertainty text, easier to scan. The run's full id
  * becomes its short id (P-8: left out when `ids` is false, as in the Standard view), and the run of "No claim in the packet addresses X." sentences
  * becomes one "Not covered by any claim: X, Y and Z." The stored text is unchanged.

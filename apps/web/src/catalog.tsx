@@ -645,7 +645,10 @@ export function Catalog({
                 <ol className="history">
                   {activity.map((h) => (
                     <li key={h.event_id}>
-                      <EventLine summary={h.summary} />{' '}
+                      <EventLine
+                        summary={h.summary}
+                        fixture={workspace.record_mode === 'fixture'}
+                      />{' '}
                       <Stamp
                         actor={`${h.actor.display_name}${h.actor.kind === 'human' ? '' : ` (${h.actor.kind})`}`}
                         at={h.occurred_at}

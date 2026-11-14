@@ -11,6 +11,7 @@ type Words = {
   actionLabel: (action: string) => string;
   codeLabel: (code: string) => string;
   kindLabel: (kind: string) => string;
+  plainText: (text: string) => string;
   versionTag: (version: number, standard: boolean) => string;
   ACTION_LABEL: Record<string, string>;
 };
@@ -56,6 +57,12 @@ test('history lines from the walk read as words, without versions or codes', asy
     ],
     ['Answered decision: approve_once', 'Answered an approval: approved once'],
     ['Registered human_in_loop run', 'Registered a human-in-the-loop run'],
+    ['Leased task to worker-87e9d53a (delivery 1)', 'Gave a task to a worker'],
+    // Review 1 of #197, N-1: the article follows the phrase.
+    [
+      'Registered autonomous_within_scope run',
+      'Registered an autonomous within scope run',
+    ],
     [
       'Fetch fetched (new_version); new source version',
       'Fetched a new version of a source',
@@ -113,7 +120,8 @@ test('history amounts become exact nano parts, so they show in cents with the ex
 });
 
 test('every action type has a label, and codes and kinds read as words', async () => {
-  const { ACTION_LABEL, actionLabel, codeLabel, kindLabel } = await words();
+  const { ACTION_LABEL, actionLabel, codeLabel, kindLabel, plainText } =
+    await words();
   const { ActionTypeSchema } = await import('@creator/contracts');
   for (const a of ActionTypeSchema.options)
     assert.ok(ACTION_LABEL[a], `no label for ${a}`);
@@ -121,6 +129,14 @@ test('every action type has a label, and codes and kinds read as words', async (
   assert.equal(actionLabel('study.new_thing'), 'Study new thing');
   assert.equal(codeLabel('use_existing'), 'use an existing tool');
   assert.equal(codeLabel('some_new_code'), 'some new code');
+  assert.equal(
+    plainText('Allow tool.search_public on this run?'),
+    'Allow search the web on this run?',
+  );
+  assert.equal(plainText('Version 2.5 stays'), 'Version 2.5 stays');
+  // Review 1 of #197, L-3: Budgets › Recent calls reads a call's state as words.
+  assert.equal(codeLabel('settled'), 'cost recorded');
+  assert.equal(codeLabel('reconciled_no_charge'), 'confirmed no charge');
   assert.equal(kindLabel('alternative'), 'option');
   assert.equal(kindLabel('context_pack'), 'context pack');
 });

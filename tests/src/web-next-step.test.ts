@@ -666,12 +666,12 @@ test('the full line shows on Projects and on pages it is about; elsewhere a shor
   // P-15: the summary is a Next banner naming the current stage, or that the path is finished.
   assert.deepEqual(pathBanner(done), {
     tone: 'next',
-    text: 'Try, on the main path.',
+    text: 'Go to the Try step on the main path.',
     view: 'gallery',
   });
   assert.deepEqual(pathBanner({ ...done, frozenSpecs: 0 }), {
     tone: 'next',
-    text: 'Freeze, on the main path.',
+    text: 'Go to the Freeze step on the main path.',
     view: 'scores',
   });
   assert.deepEqual(
@@ -692,7 +692,7 @@ test('the full line shows on Projects and on pages it is about; elsewhere a shor
   });
   assert.equal(
     pathBanner(tried({ total: 1, accepted: 1, undecided: 0 })).text,
-    'Revise this product from your feedback, on the main path.',
+    'Revise this product from your feedback on the main path.',
   );
 });
 

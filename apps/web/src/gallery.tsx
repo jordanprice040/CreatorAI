@@ -1,3 +1,4 @@
+import { useViewMode } from './view-mode.js';
 import { Money } from './money.js';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { usePoll } from './page-active.js';
@@ -401,6 +402,7 @@ function ArtifactPanel({
 }
 
 function Facts({ d }: { d: ArtifactDetail }) {
+  const { standard } = useViewMode();
   const m = d.manifest;
   return (
     <details open>
@@ -421,8 +423,8 @@ function Facts({ d }: { d: ArtifactDetail }) {
         </dd>
         <dt>Spec</dt>
         <dd>
-          v{m.spec.version} · task {m.task.key} · freeze{' '}
-          {shortId(m.spec.freeze_id)}
+          v{m.spec.version} · task {m.task.key}
+          {!standard && ` · freeze ${shortId(m.spec.freeze_id)}`}
         </dd>
         <dt>Toolchain</dt>
         <dd>
@@ -461,8 +463,10 @@ function Facts({ d }: { d: ArtifactDetail }) {
           <>
             <dt>Revision of</dt>
             <dd>
-              {shortId(m.lineage.previous.artifact_id)} after{' '}
-              {m.lineage.feedback_ids.length} feedback item(s)
+              {standard
+                ? 'the earlier version'
+                : shortId(m.lineage.previous.artifact_id)}{' '}
+              after {m.lineage.feedback_ids.length} feedback item(s)
             </dd>
           </>
         )}
@@ -753,6 +757,7 @@ function TerminalPanel({
   summary: ArtifactSummary;
   csrf: string;
 }) {
+  const { standard } = useViewMode();
   const path = `${base}/artifacts/${summary.id}/terminals`;
   const sessions = useLoad(
     () => api(z.array(TerminalSessionSchema), path),
@@ -856,8 +861,9 @@ function TerminalPanel({
             <code>{terminalCommand(args)}</code>
           </pre>
           <p className="small">
-            Package {summary.archive_sha256.slice(0, 12)}… · the window opens on
-            this computer.
+            {standard
+              ? 'The window opens on this computer.'
+              : `Package ${summary.archive_sha256.slice(0, 12)}… · the window opens on this computer.`}
           </p>
           <div className="actions">
             <button

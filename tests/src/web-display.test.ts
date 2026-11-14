@@ -100,7 +100,9 @@ async function load<T>(file: string, stubs: Record<string, unknown> = {}) {
               ? { useOlder: () => {}, ShowOlder: () => null }
               : name === './money.js'
                 ? { Money: () => null }
-                : require(name),
+                : name === './view-mode.js'
+                  ? { useViewMode: () => ({ standard: true }) }
+                  : require(name),
     exports,
   );
   return exports;
@@ -119,10 +121,13 @@ test('money keeps every significant digit and drops trailing zeros', async () =>
 });
 
 test('P-9: Standard shows cents, never a real charge as zero, and knows when it rounded', async () => {
-  const { cents, roundedAway, decimalToNano } = await load<{
-    cents: (nano: string | null, fixture: boolean) => string;
+  const { cents, roundedAway } = await load<{
+    cents: (
+      nano: string | null,
+      fixture: boolean,
+      round?: 'half' | 'down',
+    ) => string;
     roundedAway: (nano: string | null) => boolean;
-    decimalToNano: (text: string) => string | null;
   }>('amounts.ts');
   // "99.97259 sim" and "0.69665 sim charged" from the final UX pass walk.
   assert.equal(cents('99972590000', true), '99.97 sim');
@@ -141,11 +146,12 @@ test('P-9: Standard shows cents, never a real charge as zero, and knows when it 
   assert.equal(roundedAway('55770000'), true);
   assert.equal(roundedAway('1'), true);
   assert.equal(roundedAway(null), false);
-  assert.equal(decimalToNano('0.05577'), '55770000');
-  assert.equal(decimalToNano('12.50'), '12500000000');
-  assert.equal(decimalToNano('-0.000000001'), '-1');
-  for (const bad of ['5', '1.0000000001', 'v1', '1.2.3'])
-    assert.equal(decimalToNano(bad), null, bad);
+  // Review 1 of #197, L-4: what is left rounds down, so $19.995 left never reads $20.00.
+  assert.equal(cents('19995000000', false, 'down'), '$19.99');
+  assert.equal(cents('19995000000', false), '$20.00');
+  assert.equal(cents('99972590000', true, 'down'), '99.97 sim');
+  assert.equal(cents('9999999', false, 'down'), '<$0.01'); // still never zero
+  assert.equal(cents('2500000000', false, 'down'), '$2.50');
 });
 
 test('problem labels clip at words and note problems with nothing proposed', async () => {

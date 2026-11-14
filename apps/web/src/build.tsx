@@ -699,6 +699,7 @@ function ProductVersions({
   versions: ProductEntry[];
   render: (entry: ProductEntry) => ReactNode;
 }) {
+  const { standard } = useViewMode();
   const [pick, setPick] = useState('');
   const shown =
     versions.find((v) => v.product.id === pick) ?? versions[0] ?? null;
@@ -718,7 +719,7 @@ function ProductVersions({
           >
             {versions.map((v, i) => (
               <option key={v.product.id} value={v.product.id}>
-                {`v${v.product.binding.spec_version} · product ${shortId(v.product.id)}${
+                {`v${v.product.binding.spec_version}${standard ? '' : ` · product ${shortId(v.product.id)}`}${
                   v.builds[0] ? ` · ${STATE_LABEL[v.builds[0].state]}` : ''
                 }${i === 0 ? ' (latest)' : ''}`}
               </option>
@@ -922,6 +923,7 @@ function Product({
   /** ADR-0087: where the owner presses fixes for a refused build start. */
   fixes: FixContext;
 }) {
+  const { standard } = useViewMode();
   const p = entry.product;
   // Only the newest: once a later build ran, an old interruption needs nothing more.
   const newest = entry.builds[0];
@@ -942,8 +944,8 @@ function Product({
   return (
     <article className="artifact">
       <h4>
-        {spec?.spec.title ?? 'Spec'} v{p.binding.spec_version} · product{' '}
-        {shortId(p.id)}
+        {spec?.spec.title ?? 'Spec'} v{p.binding.spec_version}
+        {!standard && ` · product ${shortId(p.id)}`}
       </h4>
       {p.recipe === 'static-web/1' && (
         <p className="notice">
@@ -1108,8 +1110,9 @@ function Product({
               <ul className="rows">
                 {builds.map((b) => (
                   <li key={b.id}>
-                    <span className="badge">{STATE_LABEL[b.state]}</span> build{' '}
-                    {shortId(b.id)} · started {when(b.started_at)}
+                    <span className="badge">{STATE_LABEL[b.state]}</span> build
+                    {!standard && ` ${shortId(b.id)}`} · started{' '}
+                    {when(b.started_at)}
                     {b.fixture && ' · fixture'}
                     {b.reason && (
                       <small> · {b.reason.replace(/^Error: /, '')}</small>

@@ -34,7 +34,7 @@ import {
 } from '@creator/contracts';
 import { api, message, when } from './oversight.js';
 import { newestFirst } from './versions.js';
-import { runLabel } from './labels.js';
+import { runLabel, runRef } from './labels.js';
 import {
   AUTOPILOTS_CHANGED,
   loadRoutes,
@@ -488,7 +488,7 @@ export function Automation({
     const r = c?.runs.find((x) => x.run_id === id);
     return r && c
       ? runLabel(r, c.names, 48, !standard)
-      : `run ${id.slice(0, 8)}`;
+      : runRef(id, c?.names ?? new Map(), !standard);
   };
 
   return (

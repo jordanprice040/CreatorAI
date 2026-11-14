@@ -6,19 +6,21 @@ import { useViewMode } from './view-mode.js';
  * An amount as people read it (P-9, Jordan, November 14). Standard shows cents, with "<0.01"
  * for a charge smaller than a cent; when that leaves digits out, the amount is a small button
  * that shows the exact value on click, tap or keyboard (and on hover, as its title). Advanced
- * always shows the exact value, and so does `exact`, which pages use wherever the owner
- * authorizes spending. Display only: nothing stored, compared or enforced is rounded.
+ * always shows the exact value. Places where the owner authorizes spending call `money`
+ * directly, so they are exact in both views. Display only: nothing stored, compared or
+ * enforced is rounded.
  */
 export function Money({
   nano,
   fixture,
-  exact = false,
+  down = false,
   bare = false,
   inButton = false,
 }: {
   nano: string | null;
   fixture: boolean;
-  exact?: boolean;
+  /** What is left or available: rounded down, never up (review 1 of #197, L-4). */
+  down?: boolean;
   /** No "$" or "sim": for history lines, which don't record the budget's mode. */
   bare?: boolean;
   /**
@@ -32,8 +34,8 @@ export function Money({
   const unit = (text: string) =>
     bare ? text.replace(/^(-?<?)\$/, '$1').replace(/ sim$/, '') : text;
   const full = unit(money(nano, fixture));
-  if (exact || !standard || !roundedAway(nano)) return <>{full}</>;
-  const short = unit(cents(nano, fixture));
+  if (!standard || !roundedAway(nano)) return <>{full}</>;
+  const short = unit(cents(nano, fixture, down ? 'down' : 'half'));
   if (inButton) return <span title={`Exact amount: ${full}`}>{short}</span>;
   return (
     <button
