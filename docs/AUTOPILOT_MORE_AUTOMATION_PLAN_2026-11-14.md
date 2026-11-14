@@ -14,21 +14,57 @@ A new versioned record (`autopilot_settings`, migration 63) holds the owner's ch
 | **Choose with unknown ratings** | It ranks by the worst case (each unknown at 1, the range's lower end) and chooses the option whose worst case is best, if exactly one is | Never counts an unknown as neutral; the reason names each unknown |
 | **Break ties** | It applies a fixed order: opportunity rank, then fewer unknowns, then the better worst case | It stops if the tie still holds |
 | **Keep the leader of a close ranking** | It keeps the option first under the owner's weights when a weight check changes the leader | The reason lists the checks that changed it |
-| **Choose when only the model cleared ethics** | **Waiting for Jordan's decision** (see below) | — |
+| **Choose when only the model cleared ethics** | It chooses the option and flags the selection and proposal with "Ethics checked by the model only: look at it" | Its own switch, off by default, and **not** part of Hands-off (Jordan, November 14 01:31 UTC) |
+| **Retry a failed step** | It tries a step whose answer failed or was malformed once more, as a new attempt | 0–2 retries per step |
+| **Try the next candidate** | It moves on to the exploration's next candidate problem when discovery finds the evidence insufficient or proposes no options, and to the next choosable option when the first one can't be advanced | Never past a person's own choice |
+
+**Hands-off** is a single switch that turns on every row above except the ethics one, with 3 searches and 1 retry. The rows can still be changed one by one.
 
 Not included: a gate that blocks the choice outright (an unresolved ethics or access gate, a missing humility review). The selection rules refuse those for everyone, so the autopilot gathers evidence and assesses again (when that setting is on), or stops. Writing a spec also stays with the owner.
 
 **Quick to change.** Every stop that a setting could have handled records its kind (`stop_kind`, for example `unknown_ratings`). The stopped card shows **Allow this from now on and continue** (owner only). One request turns that setting on and continues the autopilot, and the server refuses it if the autopilot changed since the card was read. The full settings sit in Discover › How much is automated, beside the levels, and apply to Run it for me, Automate the rest and Automate selection alike.
 
-### Owner decision needed: the November 12 ethics rule
+### Owner decision (made November 14, 01:31 UTC): the November 12 ethics rule
 
-On November 12 Jordan decided "for now" that a selection only the model cleared on ethics stops for a person, and the autopilot counts as a non-person (ADR-0090, ADR-0092). The proposal is to make this an owner setting that is **off by default**. When it is on, the autopilot may choose such an option, the selection records that only the model cleared ethics, and the proposal and Decide show "Ethics checked by the model only: look at it". This part is built only after Jordan confirms. Until then, that stop stays as it is.
+On November 12 Jordan decided "for now" that a selection only the model cleared on ethics stops for a person, and the autopilot counts as a non-person (ADR-0090, ADR-0092). The proposal is to make this an owner setting that is **off by default**. When it is on, the autopilot may choose such an option, the selection records that only the model cleared ethics, and the proposal and Decide show "Ethics checked by the model only: look at it". Jordan chose this option on the decision card: an owner setting, off by default.
 
 ## 2. Automatic evidence and claim linking
 
 * **Discovery-to-assessment handoff (the gap from run 2).** When discovery records options, the claims each option cites from discovery's own packet (`C3`, later shown to the assessor as `draft-C3`) are known exactly. With the evidence setting on, the autopilot links each cited claim to its option as `supports` (audited as the Autopilot's, with the reason "cited by discovery"), so the assessor reads them.
 * **Suggested links.** The web app's claim suggestion (`claim-suggest.ts`) moves to the domain package so the server can use it. With the setting on, the autopilot links strong matches (the same pre-ticked set a person sees) to options that have no claims read. ADR-0091 rejected auto-linking without a person's tick. This reverses that rejection only when the owner opts in, and every link can be undone with Unlink.
 * **Search when still thin.** If explore finds no candidate, or options still have no claims, or selection stops on unknown ratings or open gates, and searches remain, it runs one web search. The question comes from the explorer's research ideas or the option's title. It then explores again, or links the new claims and assesses again.
+
+## Every stop and its planned fallback (Jordan, November 14 01:33 UTC: "recover itself from most or all stopping points")
+
+This list comes from the stops in `apps/api/src/autopilot.ts` and `packages/domain/src/autopilot.ts`. "Hard" means no setting can get past the stop: it involves money, capacity the owner sets, a safety gate, or a person's own act. Each hard stop gets a specific next step on the card instead.
+
+| # | Where | Stop today | Fallback (with the setting on) | Hard? |
+|---|---|---|---|---|
+| 1 | Search the web | Web search isn't running in this studio | Skip the search and explore the recorded claims | No |
+| 2 | Search the web | The search failed or was cancelled by the studio | Retry once, then skip to explore | No |
+| 3 | Search the web | The run's approvals don't cover evidence or research | — (next step: widen approvals) | **Hard** (authority) |
+| 4 | Explore | No candidate problem (thin evidence; live run 1) | Link claims, search the web using the explorer's own research questions, then explore again | No |
+| 5 | Explore, discover, assess, proposal | A step's answer failed or was malformed | Retry the step once more | No |
+| 6 | Any model step | It's waiting for an approval, or a person paused it | — (next step: Approvals, or Resume) | **Hard** (a person's act) |
+| 7 | Discover | The evidence is insufficient | Try the next candidate; otherwise gather evidence and explore again | No |
+| 8 | Discover | No option was proposed | Try the next candidate; otherwise gather and explore again | No |
+| 9 | Assess | The problem changed after it was found | Assess the current version | No |
+| 10 | Assess | An option has no claims read (live run 2's gap) | Link the claims discovery cited (always, as a bug fix) and suggested claims, then search for that option | No |
+| 11 | Choose | Options are not fully scored (live run 3) | Gather evidence for those options and assess again, then choose by worst case | No |
+| 12 | Choose | A tie for first | Break the tie with the fixed order | No |
+| 13 | Choose | The ranking changes when the weights change | Keep the leader under the owner's weights | No |
+| 14 | Choose | The first-ranked option isn't an advanceable kind, or discovery didn't keep it | Choose the best option the rule can advance; if a defer or decline outcome ranks first, record that as the result | No |
+| 15 | Choose | A gate blocks the first option (an open ethics or access gate) | Gather evidence and assess again; if still blocked, choose the next option whose gates are clear | Partly: the gate itself is never overridden |
+| 16 | Choose | A software option doesn't lead on opportunity | Choose the best non-software option that is clear | No |
+| 17 | Choose | Only the model cleared ethics | Choose it, flagged for review (its own switch) | No |
+| 18 | Choose | A person's choice under Decide is stale, advances nothing, or advances several | — (the person's choice is respected) | **Hard** (a person's act) |
+| 19 | Choose | Not admitted for other reasons (the approvals' steps or money are used up, a person rejected something) | — (next step: Approvals) | **Hard** (authority) |
+| 20 | Spec | A software option was selected | — (next step: Build › Spec) | **Hard** (owner's spec; a later slice) |
+| 21 | Any | The autopilot's call limit or end time is reached | — (next step: a new autopilot with a higher limit) | **Hard** (budget) |
+| 22 | Any | The plan connection's per-run cap or daily cap is reached | — (next step: raise the per-run cap, or Add 20 requests) | **Hard** (capacity the owner sets) |
+| 23 | Any | The studio restarted | Already recovered by `watch` | No |
+
+All of the evidence fallbacks count against one shared budget: the extra searches (0–3) and the autopilot's call limit. When the budget runs out, the autopilot stops with stop kind `thin_evidence` and says what it tried.
 
 ## 3. A clear next step at every stop
 
