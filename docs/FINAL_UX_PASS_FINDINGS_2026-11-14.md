@@ -183,3 +183,37 @@ Today, Advanced-only covers Sell, Campaigns, Maintain, Workers and Study. I reco
 4. The live walk on Jordan's PC: dev studio, Testing workspace, live plan connection, with his typed OK.
 5. The audit L-3 docs refresh, last.
 6. Jordan's own walk on the upgraded installed app.
+
+## 9. Jordan's decisions (November 14, 02:14 UTC)
+
+Accepted as proposed: P-1, P-2, P-3, P-5, P-6, P-7, P-8, P-10, P-14, P-15, and the Standard/Advanced table in section 6. Monitor › Runs moves to Advanced once Discover and Decide show discovery progress and what to do next (P-6).
+
+Revised or chosen:
+
+- **P-4 (ethics and access):**
+  - Keep the eligibility display, the visible block reasons, the per-option checkboxes and one shared reason per gate.
+  - A single option can also be given its own reason in the same form. For example, the same ethics reason but different data-access permissions.
+  - Record which reason applied to each option and gate.
+- **P-9 (money display):**
+  - Standard rounds routine amounts to cents.
+  - A positive amount below one cent shows as `<0.01` with its unit, so a real charge never reads as zero.
+  - The exact value is available by click, tap and keyboard.
+  - Wherever Jordan authorizes spending, the exact maximum is shown before he confirms.
+  - Storage, comparisons and enforcement stay exact.
+- **P-11 (run approvals): automatic expiry.**
+  - Routine approvals created for an autopilot run end when the run finishes, fails or is cancelled.
+  - A temporary pause that waits for input keeps them, within their original scope and expiry.
+  - Separately granted workspace approvals keep their own terms.
+- **P-12 (quote-checked web claims):** an automation setting with an explicit default.
+  - With automatic acceptance off, quote-only claims are held for human review before discovery uses them.
+  - When Jordan turns it on, the autopilot may use them.
+  - The label "Accepted by autopilot · quote check only" is carried wherever the claim informs discovery, assessment or a proposal, with the source passage available to inspect.
+- **P-13:** stays in the existing automation work, with the ethics setting already decided there.
+- **P-5:** opt-in drafting with section-by-section acceptance, as proposed. Suggested methods and future tests are welcome. Unsupported factual claims stay "Unknown yet".
+
+Order:
+
+1. **P-1 and P-10 first.** P-1 is verified through the same UI path that failed: start the fixture build, approve it, resume it, and confirm the sample reaches Package and Try. Keep the regression test using the web request shape.
+2. Before the accessibility finding is closed, rerun the 390 px Build check on the fixed candidate.
+
+The live walk on Jordan's PC stays a separate step, with his typed OK.
