@@ -1,5 +1,9 @@
 # Session handoff — November 10, 2026
 
+## November 14 handoff — final UX pass plan (draft for Jordan)
+
+Docs only, no code, migration or ADR. `docs/FINAL_UX_PASS_PLAN_2026-11-14.md`: the pass's fix-small/propose-big rule, severity scale, references (Nielsen, WCAG 2.2 AA, Fluent/Material, Laws of UX), where it runs (cloud fixture, dev studio Testing workspace, installed app Testing workspace), checks by area, the Standard/Advanced method, the full project walkthrough, and known items K-1..K-8 (first live autopilot notes, November 10 UX notes, audit L-3). Next: Jordan approves or revises the plan; the pass starts only after that.
+
 ## November 12 handoff — full codebase audit fixes
 
 Branch `claude/project-thread-2jhwqe`, no migration or ADR. Report `docs/FULL_AUDIT_2026-11-12.md` (also `/mnt/project-files/reviews/FULL_AUDIT_2026-11-12.md`), with a Fixes section. New: `usePoll` in `apps/web/src/page-active.ts`; `useLoad` returns `stale` and `Status` takes `stale`; `apps/web/src/end-time.ts` (`endAfter`, `useEndTime`); `dueAutomations` ignores failed or cancelled newer assessments. Tests: `tests/src/web-load-poll.test.ts` (8, a small hook harness, no DOM), `automation.test.ts` audit N-7, `codex-host.test.ts` pin check. Review 1 (2 L, 5 nits) fixed: `StaleNote` in `ui.tsx`, `stale` on every `useLoad` view (scan test in `web-load-poll.test.ts`), `usePoll` in `assess.tsx` `Run`, `explore.tsx` and `overview.tsx`, `endTimeClose` in `end-time.ts`, `useLoad` tracks the dependencies its data was read for. Open: L-3 docs refresh at the final UX pass. Re-review nits N-1..N-4 fixed (`useEndTime` takes `keep`, the confirmation; `useLoad` shows Loading on a full load; one end time in the automation widen test). Next: merge.
