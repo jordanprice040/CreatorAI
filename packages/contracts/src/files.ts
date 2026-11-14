@@ -14,12 +14,19 @@ export const FileKindSchema = z.enum([
   'code',
   'image',
   'pdf',
+  // ADR-0106: Office files and ZIP archives, recognised from the archive's own entries.
+  'document',
+  'spreadsheet',
+  'presentation',
+  'archive',
   'other',
 ]);
 export type FileKind = z.infer<typeof FileKindSchema>;
 
 /** Longest text kept for viewing and search, in characters. Longer text is cut and says so. */
 export const FILE_TEXT_MAX = 2_000_000;
+/** The per-file limit when the deployment sets none (CREATOR_FILE_MAX_BYTES). */
+export const FILE_MAX_BYTES_DEFAULT = 25 * 1024 * 1024;
 /** Longest display name. */
 export const FILE_NAME_MAX = 200;
 
@@ -266,41 +273,158 @@ export function sniffImage(b: Uint8Array): string | null {
   return null;
 }
 
+/** One entry of a ZIP archive's central directory. Sizes are null when stored as ZIP64. */
+export type ZipEntry = {
+  name: string;
+  size: number | null;
+  compressed: number | null;
+  dir: boolean;
+};
+/** Entries listed beyond this are not read; the listing says it stopped. */
+export const ZIP_ENTRY_MAX = 5000;
+
+/**
+ * ADR-0106: the names and sizes in a ZIP archive's central directory, without inflating
+ * anything (so a ZIP bomb costs nothing to list). Null when the bytes are not a readable ZIP.
+ * `more` is true when the archive holds more than ZIP_ENTRY_MAX entries.
+ */
+export function zipEntries(
+  b: Uint8Array,
+): { entries: ZipEntry[]; total: number; more: boolean } | null {
+  if (
+    !startsWith(b, [0x50, 0x4b, 0x03, 0x04]) &&
+    !startsWith(b, [0x50, 0x4b, 0x05, 0x06])
+  )
+    return null;
+  const view = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  // The end-of-central-directory record is in the last 22 + 65535 bytes.
+  let eocd = -1;
+  for (let i = b.length - 22; i >= Math.max(0, b.length - 22 - 0xffff); i--)
+    if (view.getUint32(i, true) === 0x06054b50) {
+      eocd = i;
+      break;
+    }
+  if (eocd < 0) return null;
+  const total = view.getUint16(eocd + 10, true);
+  let at = view.getUint32(eocd + 16, true);
+  if (at === 0xffffffff || at >= b.length) return null;
+  const entries: ZipEntry[] = [];
+  const utf8 = new TextDecoder('utf-8');
+  const latin = new TextDecoder('latin1');
+  for (let n = 0; n < total && n < ZIP_ENTRY_MAX; n++) {
+    if (at + 46 > b.length || view.getUint32(at, true) !== 0x02014b50)
+      return null;
+    const flags = view.getUint16(at + 8, true);
+    const compressed = view.getUint32(at + 20, true);
+    const size = view.getUint32(at + 24, true);
+    const nameLen = view.getUint16(at + 28, true);
+    const extraLen = view.getUint16(at + 30, true);
+    const commentLen = view.getUint16(at + 32, true);
+    if (at + 46 + nameLen > b.length) return null;
+    const raw = b.subarray(at + 46, at + 46 + nameLen);
+    const name = (flags & 0x800 ? utf8 : latin).decode(raw);
+    entries.push({
+      name,
+      size: size === 0xffffffff ? null : size,
+      compressed: compressed === 0xffffffff ? null : compressed,
+      dir: name.endsWith('/'),
+    });
+    at += 46 + nameLen + extraLen + commentLen;
+  }
+  return { entries, total, more: total > ZIP_ENTRY_MAX };
+}
+
+const OOXML: readonly [string, FileKind, string][] = [
+  [
+    'word/document.xml',
+    'document',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ],
+  [
+    'xl/workbook.xml',
+    'spreadsheet',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ],
+  [
+    'ppt/presentation.xml',
+    'presentation',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  ],
+];
+/** What a name's extension promises, for the kinds the studio sniffs from bytes. */
+const PROMISED: Record<string, FileKind> = {
+  pdf: 'pdf',
+  docx: 'document',
+  docm: 'document',
+  xlsx: 'spreadsheet',
+  xlsm: 'spreadsheet',
+  xls: 'spreadsheet',
+  pptx: 'presentation',
+  pptm: 'presentation',
+  zip: 'archive',
+};
+/** The old binary Office container (OLE compound file). */
+const CFB = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1];
+
+/** Text in UTF-8 (BOM optional, no NUL bytes) or UTF-16 with a byte-order mark; else null. */
+export function decodeText(bytes: Uint8Array): string | null {
+  const utf16 = startsWith(bytes, [0xff, 0xfe])
+    ? 'utf-16le'
+    : startsWith(bytes, [0xfe, 0xff])
+      ? 'utf-16be'
+      : null;
+  try {
+    if (utf16) {
+      if (bytes.length % 2 !== 0) return null;
+      const text = new TextDecoder(utf16, { fatal: true }).decode(bytes);
+      // A UTF-16 file of text has no NUL characters; binary that starts FF FE usually does.
+      return text.includes('\u0000') ? null : text;
+    }
+    if (bytes.includes(0)) return null;
+    return new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(
+      bytes,
+    );
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Decides what a file is from its bytes, using the name's extension only to choose among
- * text kinds. Valid UTF-8 without NUL bytes is text; HTML and SVG stay inert code. A name whose
- * extension promises an image or PDF the bytes are not is marked as a mismatch.
+ * text kinds. Text is valid UTF-8 without NUL bytes, or UTF-16 with a byte-order mark; HTML and
+ * SVG stay inert code. ZIP archives are told apart by their entries (Word, Excel, PowerPoint or
+ * a plain archive). A name whose extension promises something the bytes are not is marked as
+ * a mismatch (ADR-0106 adds Office files, invalid JSON, and .svg or .html text that is not).
  */
 export function inspectFile(name: string, bytes: Uint8Array): FileInspection {
   const dot = name.lastIndexOf('.');
   const ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : '';
   const image = sniffImage(bytes);
-  const pdf = startsWith(bytes, [0x25, 0x50, 0x44, 0x46, 0x2d]);
-  const promised = ext in IMAGE_EXT ? 'image' : ext === 'pdf' ? 'pdf' : null;
-  if (image)
-    return {
-      kind: 'image',
-      media_type: image,
-      type_mismatch: promised !== 'image',
-      text: null,
-    };
-  if (pdf)
-    return {
-      kind: 'pdf',
-      media_type: 'application/pdf',
-      type_mismatch: promised !== 'pdf',
-      text: null,
-    };
-  let text: string | null = null;
-  if (!bytes.includes(0)) {
-    try {
-      text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(
-        bytes,
-      );
-    } catch {
-      text = null;
-    }
+  const promised: FileKind | null =
+    ext in IMAGE_EXT ? 'image' : (PROMISED[ext] ?? null);
+  const binary = (kind: FileKind, media_type: string): FileInspection => ({
+    kind,
+    media_type,
+    type_mismatch: promised !== kind,
+    text: null,
+  });
+  if (image) return binary('image', image);
+  if (startsWith(bytes, [0x25, 0x50, 0x44, 0x46, 0x2d]))
+    return binary('pdf', 'application/pdf');
+  const zip = zipEntries(bytes);
+  if (zip) {
+    const names = new Set(zip.entries.map((e) => e.name));
+    const office = names.has('[Content_Types].xml')
+      ? OOXML.find(([part]) => names.has(part))
+      : undefined;
+    return office
+      ? binary(office[1], office[2])
+      : binary('archive', 'application/zip');
   }
+  // Only .xls is opened from the old binary format; .doc and .ppt stay download-only.
+  if (startsWith(bytes, CFB) && ext === 'xls')
+    return binary('spreadsheet', 'application/vnd.ms-excel');
+  const text = decodeText(bytes);
   if (text === null)
     return {
       kind: 'other',
@@ -309,26 +433,32 @@ export function inspectFile(name: string, bytes: Uint8Array): FileInspection {
       text: null,
     };
   let kind: FileKind = EXT_KIND[ext] ?? (CODE_EXT.has(ext) ? 'code' : 'text');
+  let mismatch = promised !== null;
   if (kind === 'json') {
     try {
       JSON.parse(text);
     } catch {
       kind = 'text';
+      mismatch = true;
     }
   }
-  return {
-    kind,
-    media_type:
-      kind === 'json'
-        ? 'application/json'
-        : kind === 'csv'
-          ? 'text/csv'
-          : kind === 'markdown'
-            ? 'text/markdown'
-            : 'text/plain',
-    type_mismatch: promised !== null,
-    text,
-  };
+  let media_type =
+    kind === 'json'
+      ? 'application/json'
+      : kind === 'csv'
+        ? 'text/csv'
+        : kind === 'markdown'
+          ? 'text/markdown'
+          : 'text/plain';
+  if (ext === 'svg') {
+    if (/<svg[\s>]/i.test(text)) media_type = 'image/svg+xml';
+    else mismatch = true;
+  }
+  if (ext === 'html' || ext === 'htm') {
+    if (/<[a-z!][^>]*>/i.test(text)) media_type = 'text/html';
+    else mismatch = true;
+  }
+  return { kind, media_type, type_mismatch: mismatch, text };
 }
 
 /** A byte count in words: "512 bytes", "3.2 KiB", "25 MiB", "2 GiB". */

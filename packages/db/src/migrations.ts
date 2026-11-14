@@ -3650,6 +3650,19 @@ create trigger proposal_section_drafts_settle_once before update or delete
  on proposal_section_drafts for each row execute function proposal_section_drafts_settle_once();
 `,
   },
+  {
+    // ADR-0106: Word, Excel and PowerPoint files and ZIP archives get kinds of their own, so the
+    // studio can open them in its inert viewers. Only the allowed values change; stored versions
+    // stay exactly as they were (they never change), and older uploads keep the kind they had.
+    version: 66,
+    name: 'file_kinds_office',
+    sql: `
+alter table workspace_file_versions drop constraint workspace_file_versions_kind_check;
+alter table workspace_file_versions add constraint workspace_file_versions_kind_check
+ check (kind in ('text','markdown','json','csv','code','image','pdf','document','spreadsheet',
+   'presentation','archive','other'));
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {
