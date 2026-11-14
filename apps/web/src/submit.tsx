@@ -983,19 +983,23 @@ export function Submit({
         ))}
       </div>
       {guided && panel !== 'theme' && (
-        // Review N-4: the same quiet pointer the tab rows use ("Launch in Advanced").
-        <p className="choices-more">
+        // Review N-4 and re-review N-C: the switch's whole effect is in visible text, not a tooltip.
+        <p className="choices-more small">
           <button
             type="button"
             className="text small"
-            title="Advanced lists every tab and opens every setting. Change it any time at the foot of the page list."
+            aria-describedby="theme-advanced-note"
             onClick={() => {
               setViewMode('advanced');
               choose('theme');
             }}
           >
-            Start with a theme in Advanced
-          </button>
+            Switch to Advanced to start with a theme
+          </button>{' '}
+          <span id="theme-advanced-note">
+            Advanced lists every tab on all your devices; switch back at the
+            foot of the page list.
+          </span>
         </p>
       )}
       {/* Review N-3: below the start choices, so they stay on a phone's first screen. */}

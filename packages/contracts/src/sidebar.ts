@@ -103,6 +103,8 @@ export const ActivityNowItemSchema = z.strictObject({
    */
   purpose: z.string().max(40).nullable(),
   run_id: id.nullable(),
+  /** For a workflow, what it works on (an assessment's problem, ADR-0103); otherwise null. */
+  subject_id: id.nullable(),
   started_at: timestamp,
 });
 export type ActivityNowItem = z.infer<typeof ActivityNowItemSchema>;

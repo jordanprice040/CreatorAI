@@ -216,10 +216,13 @@ function nowTarget(
   if (item.kind === 'workflow') {
     // ADR-0103 (review L-2): Standard opens where the work shows (the third value is the
     // Discover panel heading to show); Runs is an Advanced tab.
-    if (standard && item.purpose === 'r02_discovery') return ['submit'];
+    if (standard && item.purpose === 'r02_discovery')
+      return ['submit', '', `dp-${item.id}`];
     if (standard && item.purpose === 'r01_exploration')
       return ['submit', '', 'explore-title'];
-    if (standard && item.purpose === 'r08_assessment') return ['compare'];
+    // Re-review L-A: Decide opens on the problem being assessed, not the last one viewed.
+    if (standard && item.purpose === 'r08_assessment')
+      return item.subject_id ? ['compare', item.subject_id] : ['compare'];
     return ['runs', item.id];
   }
   if (item.kind === 'desktop_job') return ['desktop'];

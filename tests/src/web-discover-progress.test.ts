@@ -128,7 +128,7 @@ test('a live discovery says what it is doing in plain words', async () => {
   const pausing = r.discoveryLine(wf({ control: 'pause' }), [
     task('propose', 'leased'),
   ]);
-  assert.equal(pausing.tone, 'waiting');
+  assert.equal(pausing.tone, 'running');
   assert.match(pausing.text, /^Pausing: it stops after the current step/);
   assert.match(r.discoveryLine(wf({ control: 'cancel' }), []).text, /Stopping/);
   assert.equal(r.discoveryLine(wf(), null).text, 'Running.');

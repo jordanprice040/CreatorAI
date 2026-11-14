@@ -69,7 +69,7 @@ export function discoveryLine(
       return line('waiting', 'Paused. Resume it to carry on.', 'resume');
     // Review L-3: a pause asked for while a step is still running takes effect after it.
     if (wf.control === 'pause')
-      return line('waiting', 'Pausing: it stops after the current step.');
+      return line('running', 'Pausing: it stops after the current step.');
     if (wf.state === 'queued') return line('running', 'Waiting to start.');
     if (wf.state === 'reconciling')
       return line(

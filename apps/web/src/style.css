@@ -3042,8 +3042,12 @@ table.usage-options th[scope='row'] {
 }
 .choices-more {
   display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
   justify-content: flex-end;
+  gap: 2px 8px;
   margin: -4px 0 8px;
+  color: var(--muted);
 }
 .start-choice span {
   font-size: 13px;
