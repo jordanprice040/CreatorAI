@@ -5,12 +5,16 @@ import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import {
   AUTOPILOT_SETTINGS_DEFAULT,
+  PROPOSAL_DRAFTABLE_SECTIONS,
+  type ProposalSectionDraft,
   MODEL_ONLY_ETHICS_NOTE,
   autopilotMaySearch,
   autopilotNextSteps,
   autopilotRoutinePolicy,
   handsOff,
   isHandsOff,
+  handsOffMissing,
+  AUTOPILOT_SETTING_TEXT,
   settingIsOn,
   settingOn,
   AUTOPILOT_MIN_CALLS,
@@ -666,9 +670,28 @@ async function setup(t: test.TestContext) {
   const store = new ConnectionStore(s.db.pool);
   const envelope = (await s.store.listEnvelopes(owner, s.ws.id))[0]!;
   const pricing = (await s.store.listPricing(owner, s.ws.id))[0]!;
+  // ADR-0101: a stand-in for the chat model's section drafts, recording what was asked.
+  const drafted: { proposalId: string; body: Record<string, unknown> }[] = [];
+  let draftReply: (
+    body: Record<string, unknown>,
+  ) => Promise<ProposalSectionDraft> = async (body) =>
+    ({
+      id: randomUUID(),
+      state: 'completed',
+      model_id: 'chat-test-model',
+      values: {
+        objectives: { state: 'written', text: 'Suggested: fewer no-shows.' },
+      },
+      sections: body.sections,
+      reason: null,
+    }) as unknown as ProposalSectionDraft;
   const runner = new AutopilotRunner(store, null, {
     pollMs: 5,
     onWait: () => s.worker.settle(),
+    drafts: async (_ctx, _ws, proposalId, body) => {
+      drafted.push({ proposalId, body: body as Record<string, unknown> });
+      return draftReply(body as Record<string, unknown>);
+    },
   });
   const policy = (
     stages: RoutinePolicyInput['stages'] = ['model_work', 'selection'],
@@ -744,7 +767,21 @@ async function setup(t: test.TestContext) {
       DISCOVERY_SCENARIOS.find((x) => x.key === 'existing_tool')!,
       await run(null),
     );
-  return { ...s, store, runner, run, policy, config, body, start, seed };
+  return {
+    ...s,
+    store,
+    runner,
+    run,
+    policy,
+    config,
+    body,
+    start,
+    seed,
+    drafted,
+    replyWith: (f: typeof draftReply) => {
+      draftReply = f;
+    },
+  };
 }
 
 test('an autopilot runs explore → brief → discover → assess, stops at a tie for a person, and finishes with a proposal after Continue', async (t) => {
@@ -836,6 +873,12 @@ test('an autopilot runs explore → brief → discover → assess, stops at a ti
     'VERSION_CONFLICT',
     h.runner.retry(owner, h.ws.id, a.id, { expected_version: a.version - 1 }),
   );
+  // ADR-0101 (P-5): with the owner's setting on, the autopilot asks for drafts of the saved
+  // proposal's unknown plan sections.
+  await h.store.saveAutopilotSettings(owner, h.ws.id, {
+    expected_version: 0,
+    values: { ...AUTOPILOT_SETTINGS_DEFAULT, draft_proposal_sections: true },
+  });
   const cont = await h.runner.retry(owner, h.ws.id, a.id, {
     expected_version: a.version,
   });
@@ -886,6 +929,26 @@ test('an autopilot runs explore → brief → discover → assess, stops at a ti
   assert.equal(proposal.kind, 'proposal');
   const detail = await h.store.proposalDetail(owner, h.ws.id, proposal.id);
   assert.equal(detail.proposal.body.alternative.id, target.alternative.id);
+  // It asked once, for exactly the draftable sections still unknown in version 1, and only
+  // reports the drafts: the proposal is unchanged until a person uses them.
+  assert.equal(h.drafted.length, 1);
+  assert.equal(h.drafted[0]!.proposalId, proposal.id);
+  assert.equal(h.drafted[0]!.body.version, 1);
+  // Review 1 L-2: the request was one call of the autopilot's own limit.
+  assert.equal(b.steps[6]!.calls, 1);
+  assert.match(String(h.drafted[0]!.body.client_id), /^[0-9a-f-]{36}$/);
+  assert.deepEqual(
+    h.drafted[0]!.body.sections,
+    PROPOSAL_DRAFTABLE_SECTIONS.filter(
+      (k) => detail.proposal.body.sections[k].state === 'unknown',
+    ),
+  );
+  assert.ok((h.drafted[0]!.body.sections as string[]).length > 0);
+  assert.equal(detail.proposal.version, 1);
+  assert.match(
+    b.steps[6]!.note,
+    /chat-test-model drafted Objectives; each draft waits under its section until a person uses it/,
+  );
   // A finished autopilot cannot be continued again.
   await rejects(
     'INVALID_TRANSITION',
@@ -1213,6 +1276,9 @@ test('review M-1: after a tie, a choice recorded under Decide is the one Continu
   // The autopilot recorded no selection of its own.
   const sels = await h.store.listSelections(owner, h.ws.id, problem.id);
   assert.equal(sels.length, 1);
+  // ADR-0101: with the drafting setting off, the chat model is not asked.
+  assert.equal(h.drafted.length, 0);
+  assert.doesNotMatch(b.steps.at(-1)!.note, /chat model|drafted [A-Z]/);
 });
 
 test('review H-1: with gates cleared on the model’s word, the autopilot’s choice stops and asks a person', async (t) => {
@@ -1289,6 +1355,15 @@ test('review H-1: with gates cleared on the model’s word, the autopilot’s ch
     data_class: 'synthetic',
   });
   assert.equal(mine.status, 'recorded', mine.admission.explanation);
+  // ADR-0101: a refused draft request never stops the autopilot; the proposal is saved and the
+  // step says why nothing was drafted.
+  await h.store.saveAutopilotSettings(owner, h.ws.id, {
+    expected_version: 0,
+    values: { ...AUTOPILOT_SETTINGS_DEFAULT, draft_proposal_sections: true },
+  });
+  h.replyWith(async () => {
+    throw new ContractError('ACCESS_DENIED', 'Chat answers are turned off.');
+  });
   await h.runner.retry(owner, h.ws.id, a.id, { expected_version: b.version });
   await h.runner.settled(a.id);
   const c = await h.store.getAutopilot(owner, h.ws.id, a.id);
@@ -1305,6 +1380,11 @@ test('review H-1: with gates cleared on the model’s word, the autopilot’s ch
     decisions[0]!.id,
   );
   assert.match(carriedOn.note, /leave it to expire/);
+  assert.equal(h.drafted.length, 1);
+  assert.match(
+    c.steps.at(-1)!.note,
+    /The chat model was not asked to draft its missing sections: Chat answers are turned off/,
+  );
 });
 
 test('review L-8: an autopilot can start at the choice of a recorded problem, under selection approvals only', async (t) => {
@@ -1950,6 +2030,46 @@ test('review 4 N-1: a choice made at another shortlist size is checked at that s
   assert.equal(later.steps[0]!.option!.id, target.alternative.id);
 });
 
+test('ADR-0101 review 1 L-2: Stop does not wait for the chat model’s section drafts', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  const runId = await h.run();
+  const first = await h.start(runId);
+  const problem = first.steps[2]!.problem!;
+  await ownerChooses(h, runId, problem.id, 'use_existing');
+  await h.store.saveAutopilotSettings(owner, h.ws.id, {
+    expected_version: 0,
+    values: { ...AUTOPILOT_SETTINGS_DEFAULT, draft_proposal_sections: true },
+  });
+  // The chat model never answers while the autopilot waits.
+  let answer: (d: ProposalSectionDraft) => void = () => undefined;
+  h.replyWith(
+    () =>
+      new Promise<ProposalSectionDraft>((resolve) => {
+        answer = resolve;
+      }),
+  );
+  const a = await h.runner.start(
+    owner,
+    h.ws.id,
+    await h.run(h.policy(['selection'])),
+    h.body(h.config({ start: { stage: 'select', problem } })),
+  );
+  await until(async () => h.drafted.length === 1);
+  await h.runner.cancel(owner, h.ws.id, a.id, { reason: 'Test stop.' });
+  const done = await Promise.race([
+    h.runner.settled(a.id).then(() => true),
+    new Promise<false>((r) => setTimeout(() => r(false), 5000)),
+  ]);
+  assert.ok(done, 'Stop waited for the draft reply');
+  assert.equal(
+    (await h.store.getAutopilot(owner, h.ws.id, a.id)).state,
+    'finished',
+  );
+  answer({ state: 'failed' } as ProposalSectionDraft);
+});
+
 // ---- ADR-0100: the owner's autopilot settings and planned fallbacks ----------------------------
 
 const OFF = AUTOPILOT_SETTINGS_DEFAULT;
@@ -2070,6 +2190,8 @@ test('ADR-0100: settings let the choice rule go past a stop, and the request it 
   // Hands-off turns on every fallback except the ethics switch.
   const h = handsOff(OFF);
   assert.equal(h.choose_model_ethics, false);
+  // ADR-0101: asking the chat model for proposal drafts is part of Hands-off.
+  assert.equal(h.draft_proposal_sections, true);
   assert.ok(isHandsOff(h));
   assert.equal(
     handsOff({ ...OFF, choose_model_ethics: true }).choose_model_ethics,
@@ -2207,6 +2329,31 @@ test('ADR-0100: the server copy of the claim suggestion rule matches the web’s
   );
 });
 
+test('ADR-0101 review 1 L-3: Hands-off saved before drafting joined it reads as off, naming only drafting', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  // A row saved by the November 14 build with #193: Hands-off, without the drafting switch.
+  const { draft_proposal_sections: _, ...before } = handsOff(OFF);
+  await h.db.pool.query(
+    `insert into autopilot_settings (workspace_id, settings, version, updated_by)
+     values ($1, $2, 1, $3)`,
+    [h.ws.id, JSON.stringify(before), owner.actorId],
+  );
+  const s = await h.store.autopilotSettings(owner, h.ws.id);
+  assert.equal(s.values.draft_proposal_sections, false);
+  assert.ok(!isHandsOff(s.values));
+  assert.deepEqual(handsOffMissing(s.values), ['draft_proposal_sections']);
+  assert.match(
+    AUTOPILOT_SETTING_TEXT.draft_proposal_sections.text,
+    /Part of Hands-off since November 14, 2026/,
+  );
+  // Nothing else of the saved Hands-off changed.
+  assert.deepEqual(handsOff(s.values), {
+    ...s.values,
+    draft_proposal_sections: true,
+  });
+});
+
 test('ADR-0100: only the owner saves the settings, by named version, audited; an autopilot never does', async (t) => {
   const h = await setup(t);
   if (!h) return;
@@ -2334,12 +2481,35 @@ test('ADR-0100: with the owner’s ethics setting on, the autopilot chooses past
   );
   await h.store.saveAutopilotSettings(owner, h.ws.id, {
     expected_version: 0,
-    values: { ...OFF, choose_model_ethics: true },
+    values: {
+      ...OFF,
+      choose_model_ethics: true,
+      draft_proposal_sections: true,
+    },
   });
+  // ADR-0101 review 1 L-4: a person's draft already on its way comes back in place of a new
+  // one, and the note says so instead of calling it a failure.
+  h.replyWith(
+    async (body) =>
+      ({
+        id: randomUUID(),
+        state: 'pending',
+        model_id: 'chat-test-model',
+        values: {},
+        sections: body.sections,
+        reason: null,
+      }) as unknown as ProposalSectionDraft,
+  );
   await h.runner.retry(owner, h.ws.id, a.id, { expected_version: a.version });
   await h.runner.settled(a.id);
   const b = await h.store.getAutopilot(owner, h.ws.id, a.id);
   assert.equal(b.outcome, 'proposal', b.explanation);
+  assert.equal(h.drafted.length, 1);
+  assert.match(
+    b.steps.at(-1)!.note,
+    /A draft of its missing sections was already on its way; it will appear under the sections/,
+  );
+  assert.doesNotMatch(b.steps.at(-1)!.note, /failed/);
   const sel = (await h.store.listSelections(owner, h.ws.id, problem.id)).find(
     (x) => x.current,
   )!;
@@ -2673,10 +2843,27 @@ test('P-11: approvals made with an autopilot end when it ends, stay while it wai
   // The owner chooses; Continue goes on to a proposal, and its own approvals end with it.
   const problem = tie.steps.find((x) => x.stage === 'discover')!.problem!;
   await ownerChooses(h, runId, problem.id);
+  // ADR-0101 review 1 L-2: the draft request is a call of the autopilot's own limit; with
+  // none left, the proposal is saved and the chat model is not asked.
+  await h.store.saveAutopilotSettings(owner, h.ws.id, {
+    expected_version: 0,
+    values: { ...AUTOPILOT_SETTINGS_DEFAULT, draft_proposal_sections: true },
+  });
+  await h.db.pool.query(
+    `update autopilots set calls_reserved = (config #>> '{limits,max_calls}')::int
+      where id = $1`,
+    [a.id],
+  );
   await h.runner.retry(owner, h.ws.id, a.id, { expected_version: tie.version });
   await h.runner.settled(a.id);
   const done = await h.store.getAutopilot(owner, h.ws.id, a.id);
   assert.equal(done.outcome, 'proposal', done.explanation);
+  assert.equal(h.drafted.length, 0);
+  assert.match(
+    done.steps.at(-1)!.note,
+    /not asked to draft its missing sections: the autopilot’s call limit is used up/,
+  );
+  assert.equal(done.steps.at(-1)!.calls, 0);
   assert.ok(done.approvals_ended_at);
   const ended = await policyOf(tie.routine_policy_id!);
   assert.equal(ended.status, 'revoked');

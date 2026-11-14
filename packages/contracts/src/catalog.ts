@@ -245,6 +245,38 @@ export const OverviewSchema = z.strictObject({
     count: counter,
     last_fetched_at: timestamp.nullable(),
   }),
+  /**
+   * UX pass P-2: where the most recent selection sends the main path. `count` is how many
+   * active problems have a recorded selection. `latest` is the newest of them: `software` when
+   * it selected an option for build, `non_code` when it advanced a non-code option (existing
+   * tool, process change, human-led, hybrid, investigate) toward a proposal, `none` when it
+   * advanced neither. For `non_code`, `proposal` is the most recently changed active proposal
+   * for one of those options (null when none is saved yet).
+   */
+  selections: z.strictObject({
+    count: counter,
+    latest: z
+      .strictObject({
+        id,
+        problem_id: id,
+        created_at: timestamp,
+        route: z.enum(['software', 'non_code', 'none']),
+        proposal: z
+          .strictObject({
+            id,
+            version,
+            title: z.string().max(500),
+            /** Required sections that are not written yet ("Unknown yet"). */
+            unknown_core: counter,
+            /** The newest review of the current version says ready. */
+            reviewed: z.boolean(),
+            /** The newest review of the current version asks for changes. */
+            revise: z.boolean(),
+          })
+          .nullable(),
+      })
+      .nullable(),
+  }),
   generated_at: timestamp,
 });
 export type Overview = z.infer<typeof OverviewSchema>;

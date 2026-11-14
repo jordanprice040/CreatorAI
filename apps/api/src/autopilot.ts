@@ -24,6 +24,9 @@ import {
   AUTOPILOT_SETTING_TEXT,
   settingIsOn,
   type AutopilotSettingsValues,
+  PROPOSAL_DRAFTABLE_SECTIONS,
+  PROPOSAL_SECTION_LABELS,
+  type ProposalSectionDraft,
 } from '@creator/contracts';
 import {
   autopilotChildLimits,
@@ -194,7 +197,25 @@ const stopOf = (l: {
   ...(l.kind ? { kind: l.kind } : {}),
 });
 
+/** ADR-0101 (P-5): asks the chat model to draft a proposal's unknown sections (the plan service). */
+export type ProposalDrafter = (
+  ctx: CommandContext,
+  ws: string,
+  proposalId: string,
+  body: unknown,
+) => Promise<ProposalSectionDraft>;
+
+/** A stable press id for the autopilot's one draft request per proposal step attempt. */
+function draftClientId(key: string) {
+  const h = createHash('sha256')
+    .update(`autopilot-section-draft:${key}`)
+    .digest('hex');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`;
+}
+
 export interface AutopilotRunnerOptions {
+  /** ADR-0101: the chat model's section drafts, used when the owner's setting allows. */
+  drafts?: ProposalDrafter;
   /** How often a running workflow is read again. */
   pollMs?: number;
   /** Called on every wait (tests use it to run the workflow worker). */
@@ -211,6 +232,7 @@ export class AutopilotRunner {
   readonly #pollMs: number;
   readonly #onWait: (() => Promise<unknown>) | null;
   readonly #recoverMs: number;
+  readonly #drafts: ProposalDrafter | null;
   #watch: ReturnType<typeof setInterval> | null = null;
 
   constructor(
@@ -221,6 +243,7 @@ export class AutopilotRunner {
     this.#pollMs = options.pollMs ?? 2000;
     this.#onWait = options.onWait ?? null;
     this.#recoverMs = options.recoverMs ?? 60_000;
+    this.#drafts = options.drafts ?? null;
   }
 
   isActive(id: string) {
@@ -829,6 +852,18 @@ export class AutopilotRunner {
           calls: again.question ? Math.min(2, Math.max(0, remaining)) : 0,
         };
       }
+      case 'proposal': {
+        // ADR-0101 (review 1 L-2): asking the chat model for section drafts is one call of the
+        // autopilot's own limit, decided (and reserved) when the step is planned.
+        const s = await this.#settings(ctx, ws).catch(() => null);
+        if (!s?.values.draft_proposal_sections)
+          return { request: null, calls: 0 };
+        if (!this.#drafts)
+          return { request: { draft_sections: 'no_service' }, calls: 0 };
+        return remaining >= 1
+          ? { request: { draft_sections: 'ask' }, calls: 1 }
+          : { request: { draft_sections: 'no_calls' }, calls: 0 };
+      }
       default:
         return { request: null, calls: 0 };
     }
@@ -978,7 +1013,7 @@ export class AutopilotRunner {
         case 'gather':
           return await this.#gather(ctx, keyed, ws, a, step, signal);
         case 'proposal':
-          return await this.#proposal(ctx, keyed, ws, a);
+          return await this.#proposal(ctx, keyed, ws, a, step, signal);
         case 'spec': {
           const sel = carried(a.steps, 'select');
           return {
@@ -1865,6 +1900,8 @@ export class AutopilotRunner {
     keyed: CommandContext,
     ws: string,
     a: Autopilot,
+    step: AutopilotStep,
+    signal: AbortSignal,
   ): Promise<Result> {
     const sel = carried(a.steps, 'select');
     if (!sel?.option)
@@ -1886,16 +1923,83 @@ export class AutopilotRunner {
           }
         : draft.body,
     });
+    const drafted = await this.#draftSections(
+      ctx,
+      ws,
+      made.proposal,
+      step,
+      step.key ?? `${a.id}:${step.attempt}`,
+      signal,
+    );
     return {
       done: {
         child: { kind: 'proposal', id: made.proposal.id },
         outcome: 'proposal',
-        note: `Saved the proposal “${draft.title}” for “${sel.option.title}”, drafted from the records; sections the records cannot fill say so. Review it under Proposals.`.slice(
+        note: `Saved the proposal “${draft.title}” for “${sel.option.title}”, drafted from the records; sections the records cannot fill say so.${drafted ? ` ${drafted}` : ''} Review it under Proposals.`.slice(
           0,
           1200,
         ),
       },
     };
+  }
+
+  /**
+   * ADR-0101 (P-5): with the owner's setting on, asks the chat model to draft the proposal's
+   * unknown plan sections. The drafts only wait under their sections; a person uses each one.
+   * A refusal or failure never stops the autopilot: the proposal is saved either way, and the
+   * note says what happened. Null when the setting was off when the step was planned or nothing
+   * is left to draft. Stop does not wait for the reply: the request carries on and its drafts
+   * still appear under the sections (review 1 L-2).
+   */
+  async #draftSections(
+    ctx: CommandContext,
+    ws: string,
+    p: {
+      id: string;
+      version: number;
+      body: { sections: Record<string, { state: string }> };
+    },
+    step: AutopilotStep,
+    key: string,
+    signal: AbortSignal,
+  ): Promise<string | null> {
+    const plan = step.request?.draft_sections;
+    if (!plan) return null;
+    const sections = PROPOSAL_DRAFTABLE_SECTIONS.filter(
+      (k) => p.body.sections[k]?.state === 'unknown',
+    );
+    if (!sections.length) return null;
+    if (plan === 'no_service' || !this.#drafts)
+      return 'The chat model was not asked to draft its missing sections: this studio has no plan connections.';
+    if (plan === 'no_calls')
+      return 'The chat model was not asked to draft its missing sections: the autopilot’s call limit is used up.';
+    const stopped = new Promise<null>((resolve) => {
+      if (signal.aborted) resolve(null);
+      signal.addEventListener('abort', () => resolve(null), { once: true });
+    });
+    try {
+      const d = await Promise.race([
+        this.#drafts(ctx, ws, p.id, {
+          client_id: draftClientId(key),
+          version: p.version,
+          sections,
+        }),
+        stopped,
+      ]);
+      if (!d)
+        return 'The autopilot stopped before the chat model’s drafts came back; any it finishes will still appear under their sections.';
+      const written = sections.filter((k) => d.values[k]?.state === 'written');
+      // Review 1 L-4: a person's draft already on its way is returned in place of a new one.
+      if (d.state === 'pending')
+        return 'A draft of its missing sections was already on its way; it will appear under the sections on Proposals.';
+      if (d.state !== 'completed')
+        return `The chat model's draft of its missing sections ${d.state === 'refused' ? 'was not sent' : 'failed'}${d.reason ? `: ${d.reason}` : '.'}`;
+      return written.length
+        ? `${d.model_id} drafted ${written.map((k) => PROPOSAL_SECTION_LABELS[k]).join(', ')}; each draft waits under its section until a person uses it.`
+        : `${d.model_id} could not draft its missing sections from the records; they stay Unknown yet.`;
+    } catch (e) {
+      return `The chat model was not asked to draft its missing sections: ${said(e)}`;
+    }
   }
 
   /** Waits one poll; false when the autopilot's end time passed or it was stopped. */
