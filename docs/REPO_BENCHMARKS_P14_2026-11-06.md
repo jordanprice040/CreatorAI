@@ -256,3 +256,16 @@ grader `e0eb5fbd…bd1` and the frozen spec `4834ddfb…a5eb`. No patch was refu
 repair path was not exercised live (tests cover it). The recipe and plan roles are now qualified
 for the larger multi-module Python CLI at this declared scale, on a connection whose input cap is
 at least 60,000 characters.
+
+## Repair benchmark p14-repair-v1 (B3, November 14, 2026)
+
+Set `repair-v1` (`config/repo-benchmarks/repair-v1/`, its own copy of the v4 grader with only the
+benchmark list changed; `FREEZE.json` SHA-256 `a6d18687…0eb47eea`). Purpose: observe a live repair
+round on a fair task (owner decision D: if no attempt needs a repair, that is the result). A score
+sheet CLI with rules that are all stated but easy to miss: half-up rounding, line numbers that count
+blank and comment lines, a trailing `\r`, first-record spelling, lowercased tie order, `+5` invalid.
+10 studio cases (6 held out), 22 extended cases, 11 listed known mistakes each caught by the cases
+named for it. Caps: 2 repairs, 6 requests, 6,000 output tokens, 120 s, synthetic. Pass bar and records
+in its `expectations.json`; how the Build page shows a repair round, and its test-double run, in
+`tracking/evidence/b3-build-page/README.md`. Not run live yet: 3 attempts need Jordan's typed OK
+(at most 18 plan requests, $0).

@@ -1,0 +1,181 @@
+{
+  "format": "p14-extended-suite/1",
+  "benchmark_id": "p14-repair-v1",
+  "note": "Held out from the studio entirely. Scored only after the build, on the exported package, by the frozen grader.",
+  "cases": [
+    {
+      "id": "E1",
+      "args": [],
+      "stdin": "Eve,100\nEve,0\nEve,1\nEve,0\n",
+      "stdout": "Eve 25.3 (4)\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E2",
+      "args": [],
+      "stdin": "X,82\nX,82\nX,82\nX,82\nX,82\nX,82\nX,82\nX,82\nX,82\nX,82\nX,82\nX,82\nX,82\nX,82\nX,82\nX,82\nX,82\nX,82\nX,82\nX,83\n",
+      "stdout": "X 82.1 (20)\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E3",
+      "args": [],
+      "stdin": "",
+      "stdout": "no scores\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E4",
+      "args": [],
+      "stdin": "# only a comment\n\n \t\n",
+      "stdout": "no scores\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E5",
+      "args": [
+        "--min",
+        "2",
+        "--min",
+        "3"
+      ],
+      "stdin": "Ann,80\n",
+      "stdout": "invalid input\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E6",
+      "args": [
+        "--min"
+      ],
+      "stdin": "Ann,80\n",
+      "stdout": "invalid input\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E7",
+      "args": [
+        "--bogus"
+      ],
+      "stdin": "Ann,80\n",
+      "stdout": "invalid input\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E8",
+      "args": [],
+      "stdin": "Ann,100\nAnn,99\nAnn,100\n",
+      "stdout": "Ann 99.7 (3)\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E9",
+      "args": [],
+      "stdin": ",50\n",
+      "stdout": "line 1: invalid\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E10",
+      "args": [],
+      "stdin": "Ann,5.0\n",
+      "stdout": "line 1: invalid\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E11",
+      "args": [],
+      "stdin": "Ann,\n",
+      "stdout": "line 1: invalid\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E12",
+      "args": [],
+      "stdin": "Ann,1000\n",
+      "stdout": "line 1: invalid\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E13",
+      "args": [],
+      "stdin": "Ann Lee,90\nann lee,80\n",
+      "stdout": "Ann Lee 85.0 (2)\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E14",
+      "args": [],
+      "stdin": "Ann,90\nAnn,90\nBo,x\n",
+      "stdout": "line 3: invalid\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E15",
+      "args": [
+        "--min",
+        "05"
+      ],
+      "stdin": "A,1\nA,1\nA,1\nA,1\nA,1\nB,9\n",
+      "stdout": "A 1.0 (5)\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E16",
+      "args": [],
+      "stdin": "Ann,90",
+      "stdout": "Ann 90.0 (1)\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E17",
+      "args": [],
+      "stdin": "Z,0\n",
+      "stdout": "Z 0.0 (1)\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E18",
+      "args": [
+        "--min",
+        "2"
+      ],
+      "stdin": "Ann,80\nBo,70\nAnn,90\nBo,72\nCy,1\n",
+      "stdout": "Ann 85.0 (2)\nBo 71.0 (2)\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E19",
+      "args": [
+        "--min",
+        "100"
+      ],
+      "stdin": "Ann,80\n",
+      "stdout": "invalid input\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E20",
+      "args": [
+        "--bogus"
+      ],
+      "stdin": "Ann,x\n",
+      "stdout": "invalid input\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E21",
+      "args": [],
+      "stdin": "Ann,-5\n",
+      "stdout": "line 1: invalid\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E22",
+      "args": [],
+      "stdin": "Ann,80\nBo,80\nBo,81\nAnn,81\nAnn,81\nBo,81\nAnn,83\nBo,83\n",
+      "stdout": "Ann 81.3 (4)\nBo 81.3 (4)\n",
+      "exit_code": 0
+    }
+  ]
+}

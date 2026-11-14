@@ -39,6 +39,7 @@ import {
 import { ExecutionSupervisor } from './execution.js';
 import { canonical, fileAt, jsonWrite, readJson, withLock } from './files.js';
 import { git, head, clean, safeTree } from './git.js';
+import { readBuildProgress, type BuildProgress } from './build-progress.js';
 
 export const buildPlanSchema = z.strictObject({
   format: z.literal('build-plan/1'),
@@ -890,6 +891,34 @@ export class BuildSupervisor {
         await jsonWrite(join(dir, 'outcome.json'), result);
         return result;
       }
+    });
+  }
+  /**
+   * B3: the build folder as the Build page shows it. Held-out flags come from the frozen spec in
+   * the build's own intent, so a failed held-out case is never shown in full.
+   */
+  async progress(
+    product: string,
+    build: string,
+    running: boolean,
+  ): Promise<BuildProgress> {
+    const dir = this.dir(product, build);
+    const intent = (await readJson(join(dir, 'intent.json'))) as {
+      task_id: string;
+      spec: SpecBody;
+    };
+    const p = await this.products.product(product);
+    const task = await this.products.task(product, intent.task_id);
+    const spec = checked(SpecBodySchema, intent.spec);
+    const keys = spec.tasks.find((t) => t.key === task.key)?.acceptance ?? [];
+    const frozen: { held_out: boolean }[] =
+      p.recipe === 'static-web/1'
+        ? frozenBrowserCases(spec, keys)
+        : frozenCases(spec, keys);
+    return readBuildProgress({
+      dir,
+      heldOut: frozen.map((c) => c.held_out),
+      running,
     });
   }
   async list(product: string): Promise<string[]> {
