@@ -947,12 +947,15 @@ export class AutopilotStore extends WebDiscoveryStore {
       const made: { claim_id: string; to_id: string; to_title: string }[] = [];
       for (const t of targets) {
         const to = String(t.id);
+        // Ranked over every claim (linked ones included), so a repeated call adds only a new
+        // strong match, never the next-weakest claim left over.
+        const already = linkedTo(to);
         const picks = suggestClaims(
-          { title: String(t.title) },
+          { title: t.title },
           claims,
-          linkedTo(to),
+          new Set(),
           3,
-        );
+        ).filter((c) => !already.has(c.id));
         for (const claim of picks) {
           const linkId = randomUUID();
           const ins = await c.query(

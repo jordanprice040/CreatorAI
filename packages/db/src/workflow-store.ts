@@ -1696,6 +1696,16 @@ export class WorkflowStore extends BudgetStore {
           `Packet ${claim.ref}, evidence ${claim.status} when the run started.`,
         );
     const alternatives: DiscoveryResult['catalog_records']['alternatives'] = [];
+    // ADR-0100: with the owner's "Gather evidence when it is thin" on, each option is linked to
+    // the packet claims its proposal cited, so an assessment reads them.
+    const linkCited =
+      (
+        await c.query(
+          `select 1 from autopilot_settings
+            where workspace_id = $1 and (settings->>'gather_evidence')::boolean`,
+          [ws],
+        )
+      ).rowCount === 1;
     for (const p of result.proposals) {
       const t = tasks.find((x) => x.id === p.task_id);
       const o = t?.output as ProposalOutput | undefined;
@@ -1724,7 +1734,8 @@ export class WorkflowStore extends BudgetStore {
       );
       // ADR-0100 (live run 2's gap): the claims this proposal cited from the packet support the
       // option, so an assessment reads them (it cannot resolve discovery's own "C3" refs).
-      for (const r of new Set(o.claim_refs)) {
+      // Asserted by the orchestrator, as the problem's own links are.
+      for (const r of linkCited ? new Set(o.claim_refs) : []) {
         const claim = d.packet.claims.find((x) => x.ref === r);
         if (
           claim &&

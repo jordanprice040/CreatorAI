@@ -567,7 +567,11 @@ export class AutopilotRunner {
     a: Autopilot,
     connectionId: string,
   ): Promise<Stop | null> {
-    const room = await this.store.planRunRoom(ctx, ws, connectionId, a.run_id);
+    // A connection that cannot be read is refused by the search's own admission instead.
+    const room = await this.store
+      .planRunRoom(ctx, ws, connectionId, a.run_id)
+      .catch(() => null);
+    if (!room) return null;
     if (room.per_run - room.used < 2)
       return {
         outcome: 'limit_reached',
@@ -1351,7 +1355,14 @@ export class AutopilotRunner {
     ]
       .map((q) => q.trim())
       .find((q) => q && !asked.has(q.toLowerCase()));
-    if (!question) return stop;
+    if (!question) {
+      (stop as { stop: Stop }).stop.note =
+        `${reason} It has already searched the web for every question it had (${asked.size}); add claims or search the web with another question, then start again.`.slice(
+          0,
+          1200,
+        );
+      return stop;
+    }
     return {
       redo: {
         child,
@@ -1660,7 +1671,13 @@ export class AutopilotRunner {
       title: draft.title,
       // ADR-0100: a choice past model-only ethics says so at the top of its proposal.
       body: flagged
-        ? `> ${MODEL_ONLY_ETHICS_NOTE}\n\n${draft.body}`
+        ? {
+            ...draft.body,
+            summary: `${MODEL_ONLY_ETHICS_NOTE} ${draft.body.summary}`.slice(
+              0,
+              1200,
+            ),
+          }
         : draft.body,
     });
     return {
