@@ -19,7 +19,6 @@ import {
   type Workflow,
   type WorkflowDetail,
   type Workspace,
-  type WorkflowRole,
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
 import { newestFirst } from './versions.js';
@@ -29,6 +28,7 @@ import {
   clipText,
   distinctLabels,
   recordLabel,
+  ROLE_NAME,
   runLabel,
   runName,
 } from './labels.js';
@@ -42,17 +42,6 @@ const KIND_GROUP: Record<string, string> = {
   idea: 'Ideas',
   alternative: 'Options',
   specification: 'Specifications',
-};
-
-/**
- * Each workflow role as the pages name it. A record, so a new role fails typecheck instead
- * of reading as another role (review 3 of #197, N-2).
- */
-const ROLE_NAME: Record<WorkflowRole, string> = {
-  r02_discovery: 'Discovery',
-  r01_exploration: 'Explore for me',
-  r08_assessment: 'Automatic assessment',
-  r05_skeptic: 'Skeptic review',
 };
 
 /**

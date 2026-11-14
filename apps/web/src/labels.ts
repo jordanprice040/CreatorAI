@@ -1,3 +1,5 @@
+import type { WorkflowRole } from '@creator/contracts';
+
 // Pure label helpers for record and run pickers: short, distinct labels that put the part
 // of a title that differs first, then when it was made, so a dropdown of look-alike records
 // can be told apart at a glance. No imports, so they can be tested without a browser.
@@ -181,3 +183,18 @@ export function distinctLabels<T extends { id: string }>(
     ]),
   );
 }
+
+/**
+ * Each workflow role as the pages name it, shared by Overview and Monitor › Runs. A record,
+ * so a new role fails typecheck instead of reading as another role (reviews 3 and 4 of #197).
+ */
+export const ROLE_NAME: Record<WorkflowRole, string> = {
+  r02_discovery: 'Discovery',
+  r01_exploration: 'Explore for me',
+  r08_assessment: 'Automatic assessment',
+  r05_skeptic: 'Skeptic review',
+};
+
+/** A role carried as text (Overview's attention list), named from `ROLE_NAME`. */
+export const roleName = (role: string) =>
+  ROLE_NAME[role as WorkflowRole] ?? role.replace(/_/g, ' ');

@@ -8,11 +8,11 @@ import {
   type SessionInfo,
   type Workflow,
   type Workspace,
-  type WorkflowRole,
 } from '@creator/contracts';
 import { useViewMode } from './view-mode.js';
 import { EventLine } from './event-line.js';
 import { plainText } from './plain-words.js';
+import { roleName } from './labels.js';
 import { Money } from './money.js';
 import { useState } from 'react';
 import { api, message, when, words } from './oversight.js';
@@ -35,17 +35,6 @@ const LIVE = [
   'paused_operator',
   'reconciling',
 ];
-
-/** Each workflow role as the pages name it (a record, so a new role fails typecheck). */
-const ROLE_NAME: Record<WorkflowRole, string> = {
-  r02_discovery: 'Discovery',
-  r01_exploration: 'Exploration',
-  r08_assessment: 'Assessment',
-  r05_skeptic: 'Skeptic review',
-};
-/** A role from the overview's list, which carries it as text. */
-const roleName = (role: string) =>
-  ROLE_NAME[role as WorkflowRole] ?? role.replace(/_/g, ' ');
 
 /** Run monitor: what is running, what waits for a person, what it costs, what just happened. */
 export function Overview({

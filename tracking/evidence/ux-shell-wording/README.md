@@ -44,6 +44,11 @@ Third review: `/mnt/project-files/reviews/PR197_SHELL_WORDING_REVIEW3_2026-11-14
 - **N-2.** Workflow role names are a `Record<WorkflowRole, string>` on Monitor › Runs and Overview, so a new role fails typecheck.
 - **N-3.** Assess › "Show what was sent to the model" keeps rubric hashes and option references in Standard on purpose: it is an opt-in audit view of the exact packet, and opening it is the request to see that detail.
 
+## Review 4 nits (November 14)
+
+- Overview and Monitor › Runs share one role-name table (`ROLE_NAME` and `roleName` in `labels.ts`), so both say "Explore for me" and "Automatic assessment".
+- A routine approval's folded title shows its used amount with `Money inButton`, so the exact amount is its title like other folded titles.
+
 ## Checks
 
 - `walk.mjs` on a throwaway studio (ports 5183/4330/4340, throwaway PostgreSQL 16 database, fixture seeds, the test-double executor from `tracking/evidence/p1-build-retry/dev-double.mjs`): 21 checks pass (24 after review 1, adding the closed fold, Recent calls in words and the Search the web landing). Screenshots `01`..`09` here.

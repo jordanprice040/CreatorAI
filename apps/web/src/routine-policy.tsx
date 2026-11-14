@@ -13,7 +13,7 @@ import {
   type RoutineStage,
   type SessionInfo,
 } from '@creator/contracts';
-import { cents, money, usdToNano } from './amounts.js';
+import { money, usdToNano } from './amounts.js';
 import { endAfter } from './end-time.js';
 import { api, message, when, words } from './oversight.js';
 import { Fold, FoldAll, useFolds, type Folds } from './fold.js';
@@ -417,9 +417,16 @@ function PolicyCard({
               : ''}
             <span className="fold-line small">
               {v.used_actions} of {p.max_actions} steps used
-              {p.max_total_nano_usd === null
-                ? ''
-                : ` · ${standard ? cents(v.used_nano_usd, false) : money(v.used_nano_usd, false)} of ${money(p.max_total_nano_usd, false)} admitted`}{' '}
+              {p.max_total_nano_usd !== null && (
+                <>
+                  {' '}
+                  · <Money
+                    nano={v.used_nano_usd}
+                    fixture={false}
+                    inButton
+                  /> of {money(p.max_total_nano_usd, false)} admitted
+                </>
+              )}{' '}
               · {v.state === 'expired' ? 'ended' : 'ends'} {when(p.expires_at)}
             </span>
           </>
