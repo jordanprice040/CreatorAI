@@ -347,6 +347,10 @@ export function Catalog({
           Refresh
         </button>
       </div>
+      <p className="small">
+        Times are in your browser’s time zone (
+        {Intl.DateTimeFormat().resolvedOptions().timeZone}).
+      </p>
       <div className="records-grid">
         <div>
           <Status
@@ -666,10 +670,6 @@ export function Catalog({
           )}
         </div>
       </div>
-      <p className="small">
-        Times are in your browser’s time zone (
-        {Intl.DateTimeFormat().resolvedOptions().timeZone}).
-      </p>
     </section>
   );
 }

@@ -84,6 +84,13 @@ export class PatchRefusedError extends Error {
     this.name = 'PatchRefusedError';
   }
 }
+/** A patch equal to the candidate's files: nothing to commit. */
+export class NoChangePatchError extends PatchRefusedError {
+  constructor() {
+    super('Patch changes nothing: every file already has this content');
+    this.name = 'NoChangePatchError';
+  }
+}
 /** Local owner-facing store. Never available to generated code or remote callers. */
 export class ProductSupervisor {
   readonly root: string;
@@ -406,10 +413,7 @@ export class ProductSupervisor {
           `Change byte limit exceeded: ${bytes} bytes > ${512 * 1024}`,
         );
       // A patch equal to the current files would only fail at git commit after its intent.
-      if (!changed)
-        throw new PatchRefusedError(
-          'Patch changes nothing: every file already has this content',
-        );
+      if (!changed) throw new NoChangePatchError();
       // An intent without an outcome is inspectable after a crash. Never reset it.
       const operation = randomUUID();
       await event(this.dir(productId), 'task.patch.intent', {

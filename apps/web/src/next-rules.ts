@@ -165,7 +165,7 @@ export function pipelineStep(f: StudioFacts): Step {
   if (f.specs === 0)
     return {
       tone: 'next',
-      text: 'Record a selection under Projects › Decide, then write its spec under Projects › Build (Write a spec).',
+      text: 'Record a selection under Projects › Decide. A software choice then gets a spec under Projects › Build (Write a spec); a non-code choice is written up under Projects › Proposals.',
       action: { view: 'compare' },
     };
   if (f.frozenSpecs === 0)
@@ -395,10 +395,15 @@ export function nextStep(view: StepView, f: StudioFacts): Step {
           text: 'There is nothing to compare until a discovery records problems and options.',
           action: { view: 'submit' },
         };
+      if (f.alternatives > 0 && f.scorecards === 0)
+        return {
+          tone: 'next',
+          text: 'Score the options below: assess them automatically, or score one yourself.',
+        };
       if (f.specs === 0 && f.scorecards > 0)
         return {
           tone: 'next',
-          text: 'Record a selection below, then write its spec under Projects › Build (Write a spec).',
+          text: 'Record a selection below. A software choice then gets a spec under Projects › Build (Write a spec); a non-code choice is written up under Projects › Proposals.',
         };
       return pipelineStep(f);
     case 'scores':

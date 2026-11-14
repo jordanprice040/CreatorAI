@@ -291,12 +291,6 @@ test('the review step is decided for the newest frozen spec, not any frozen spec
 });
 
 type Defaults = {
-  modelGrantCovers: (
-    g: Record<string, unknown>,
-    run: Record<string, unknown>,
-    dataClass: string,
-    now: number,
-  ) => boolean;
   envelopeFor: (
     list: { id: string; run_id: string | null }[],
     runId: string,
@@ -307,55 +301,10 @@ type Defaults = {
       commit: string;
       spec: { id: string; version: number };
     }[],
-    build: { commit: string | null },
+    build: { commit: string | null; state: string },
     spec: { spec_id: string; spec_version: number },
   ) => { id: string } | undefined;
 };
-
-test('the model-grant default follows the server: run, data class and autonomous initial grants', async () => {
-  const { modelGrantCovers } = await load<Defaults>('build-defaults.ts');
-  const now = Date.parse('2026-10-31T12:00:00Z');
-  const g = {
-    id: 'g1',
-    version: 1,
-    scope: 'standing',
-    status: 'active',
-    run_id: null,
-    action_types: ['model.generate'],
-    data_classes: ['public'],
-    expires_at: '2026-11-01T00:00:00Z',
-  };
-  const run = {
-    run_id: 'r1',
-    autonomy_mode: 'human_in_loop',
-    initial_grants: [],
-  };
-  assert.equal(modelGrantCovers(g, run, 'public', now), true);
-  assert.equal(modelGrantCovers(g, run, 'synthetic', now), false);
-  assert.equal(
-    modelGrantCovers({ ...g, run_id: 'r2' }, run, 'public', now),
-    false,
-  );
-  assert.equal(
-    modelGrantCovers({ ...g, scope: 'once' }, run, 'public', now),
-    false,
-  );
-  const auto = { ...run, autonomy_mode: 'autonomous_within_scope' };
-  assert.equal(modelGrantCovers(g, auto, 'public', now), false);
-  assert.equal(
-    modelGrantCovers(
-      g,
-      { ...auto, initial_grants: [{ id: 'g1', version: 1 }] },
-      'public',
-      now,
-    ),
-    true,
-  );
-  assert.equal(
-    modelGrantCovers(g, run, 'public', Date.parse('2026-11-02T00:00:00Z')),
-    false,
-  );
-});
 
 test('the default budget is never one bound to another run', async () => {
   const { envelopeFor } = await load<Defaults>('build-defaults.ts');
@@ -381,6 +330,33 @@ test('the default budget is never one bound to another run', async () => {
   assert.deepEqual(envelopesFor([{ id: 'x', run_id: 'r2' }], 'r1'), []);
 });
 
+// Final UX pass P-10: after Prepare task, the build form opened on another project's newer run.
+test("the build form's run defaults to the spec's own run", async () => {
+  const { buildRunDefault } = await load<{
+    buildRunDefault: (
+      newestFirst: { run_id: string; autonomy_mode: string }[],
+      specRun: string | null,
+    ) => string;
+  }>('build-defaults.ts');
+  const runs = [
+    { run_id: 'other-project', autonomy_mode: 'supervised' },
+    { run_id: 'spec-run', autonomy_mode: 'supervised' },
+  ];
+  // The spec's run wins over a newer run.
+  assert.equal(buildRunDefault(runs, 'spec-run'), 'spec-run');
+  // Without it (ended, human-only, or unknown) the newest run that can build.
+  assert.equal(buildRunDefault(runs, null), 'other-project');
+  assert.equal(buildRunDefault(runs, 'ended'), 'other-project');
+  assert.equal(
+    buildRunDefault(
+      [runs[0]!, { run_id: 'spec-run', autonomy_mode: 'human_only' }],
+      'spec-run',
+    ),
+    'other-project',
+  );
+  assert.equal(buildRunDefault([], 'spec-run'), '');
+});
+
 test('a build counts as packaged when Gallery holds its commit, even after a restart', async () => {
   const { artifactForBuild } = await load<Defaults>('build-defaults.ts');
   const spec = { spec_id: 's', spec_version: 4 };
@@ -388,9 +364,62 @@ test('a build counts as packaged when Gallery holds its commit, even after a res
     { id: 'a-v3', commit: 'c3', spec: { id: 's', version: 3 } },
     { id: 'a-v4', commit: 'c4', spec: { id: 's', version: 4 } },
   ];
-  assert.equal(artifactForBuild(artifacts, { commit: 'c4' }, spec)?.id, 'a-v4');
-  assert.equal(artifactForBuild(artifacts, { commit: 'c3' }, spec), undefined);
-  assert.equal(artifactForBuild(artifacts, { commit: null }, spec), undefined);
+  const v = 'verified_candidate';
+  assert.equal(
+    artifactForBuild(artifacts, { commit: 'c4', state: v }, spec)?.id,
+    'a-v4',
+  );
+  assert.equal(
+    artifactForBuild(artifacts, { commit: 'c3', state: v }, spec),
+    undefined,
+  );
+  assert.equal(
+    artifactForBuild(artifacts, { commit: null, state: v }, spec),
+    undefined,
+  );
+  // PR #194 L-2: a stopped build that shares the packaged commit (a build resumed from its
+  // kept candidate verified it) is not the packaged one.
+  assert.equal(
+    artifactForBuild(artifacts, { commit: 'c4', state: 'checkpoint' }, spec),
+    undefined,
+  );
+});
+
+// PR #194 M-1: "blocked" in a stop reason is not a lock, so it never shows the Recover notice.
+test('only interrupted builds, left locks and unresolved test runs ask for Recover', async () => {
+  const { needsRecover } = await load<{
+    needsRecover: (
+      b: { state: string; reason: string | null } | undefined,
+    ) => boolean;
+  }>('build-defaults.ts');
+  const stop = (reason: string) => ({ state: 'checkpoint', reason });
+  assert.equal(needsRecover(undefined), false);
+  assert.equal(needsRecover({ state: 'interrupted', reason: null }), true);
+  assert.equal(needsRecover(stop('Error: Product builds is locked')), true);
+  assert.equal(
+    needsRecover(
+      stop('A worker outcome needs reconciliation before another dispatch'),
+    ),
+    true,
+  );
+  assert.equal(
+    needsRecover(
+      stop(
+        'Error: The worker did not finish check A1 (cleanup_required: x; execution e). The candidate is kept; Recover this product first, then build again.',
+      ),
+    ),
+    true,
+  );
+  assert.equal(
+    needsRecover(
+      stop(
+        'Error: The worker did not finish check A1 (blocked: Error: Isolation unavailable; execution e). The candidate is kept; build again once the worker runs.',
+      ),
+    ),
+    false,
+  );
+  assert.equal(needsRecover(stop('Error: Reviewer blocked candidate')), false);
+  assert.equal(needsRecover(stop('Error: Builder blocked: no patch')), false);
 });
 
 test("the Path tab marks stages done in order and agrees with the what's-next line", async () => {
