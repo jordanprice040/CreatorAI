@@ -81,7 +81,11 @@ export function runLabel(
     : `${upper(run.autonomy_mode.replace(/_/g, ' '))} run`;
   // A title that already carries its start time ("Autopilot · Nov 14, 2026, 1:07 AM") does not
   // repeat it (final UX pass).
-  const dated = /\b\d{4}\b.*\b\d{1,2}:\d{2}\b/.test(head);
+  // Only the stamp the studio itself writes ("Nov 14, 2026, 1:07 AM"), not any year and time
+  // in a theme (review 1 of #192, N-5).
+  const dated = /\b[A-Z][a-z]{2} \d{1,2}, \d{4}, \d{1,2}:\d{2}\s?[AP]M\b/.test(
+    head,
+  );
   return `${head}${dated ? '' : ` · ${shortWhen(run.created_at)}`} · ${run.run_id.slice(0, 8)}`;
 }
 
@@ -97,10 +101,15 @@ export function plainUncertainty(text: string): string {
       /\b([0-9a-f]{8})-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/g,
       '$1',
     )
-    .replace(/\s*No claim in the packet addresses ([^.]+)\./g, (_, what) => {
-      missing.push(what.trim());
-      return '';
-    })
+    // An item ends at the period that ends its sentence, not at one inside it such as "e.g."
+    // (review 1 of #192, N-6).
+    .replace(
+      /\s*No claim in the packet addresses (.+?)\.(?=\s+[A-Z]|\s*$)/g,
+      (_, what: string) => {
+        missing.push(what.trim());
+        return '';
+      },
+    )
     .trim();
   if (missing.length === 0) return rest;
   const list =

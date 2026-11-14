@@ -157,6 +157,14 @@ test('runs are named by their discovery theme, with date and short id', async ()
     l.runLabel(run('18ee7451-0000-4000-8000-000000000004'), stamped),
     'Autopilot · Nov 14, 2026, 1:07 AM · 18ee7451',
   );
+  // A theme that merely contains a year and a time keeps the run's date (N-5).
+  const themed = new Map([
+    ['77777777-0000-4000-8000-000000000005', '2026 rota for 9:30 standups'],
+  ]);
+  assert.match(
+    l.runLabel(run('77777777-0000-4000-8000-000000000005'), themed),
+    /^2026 rota for 9:30 standups · .+ · 77777777$/,
+  );
 });
 
 test('uncertainty text lists what no claim covers once, with a short run id', async () => {
@@ -174,6 +182,13 @@ test('uncertainty text lists what no claim covers once, with a short run id', as
     'Not covered by any claim: urgency or frequency.',
   );
   assert.equal(l.plainUncertainty('Synthetic fixture.'), 'Synthetic fixture.');
+  // An item keeps a period inside it ("e.g.") (review 1 of #192, N-6).
+  assert.equal(
+    l.plainUncertainty(
+      'No claim in the packet addresses existing tools, e.g. booking apps. Evidence is thin.',
+    ),
+    'Evidence is thin. Not covered by any claim: existing tools, e.g. booking apps.',
+  );
 });
 
 test('record pickers no longer default to the problem with the most options', async () => {

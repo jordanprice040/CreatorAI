@@ -298,6 +298,25 @@ export function StaleNote({ stale }: { stale?: string | undefined }) {
   );
 }
 /**
+ * Scrolls to the element with `id` and moves keyboard focus to it (review 1 of #192, L-1 and
+ * L-2). It looks only inside the page that `from` belongs to, since kept-alive pages repeat
+ * ids, and jumps without animation when the person asks for reduced motion.
+ */
+export function reveal(from: Element | null, id: string): boolean {
+  const root: ParentNode = from?.closest('.draft-page') ?? document;
+  const target = root.querySelector<HTMLElement>(`#${CSS.escape(id)}`);
+  if (!target) return false;
+  const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  target.scrollIntoView({
+    behavior: still ? 'auto' : 'smooth',
+    block: 'start',
+  });
+  if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+  target.focus({ preventScroll: true });
+  return true;
+}
+
+/**
  * Final UX pass (Jordan, November 14): a "Back to top" button once a long page is scrolled
  * past the first screen. It moves focus back to the page's main region as well as the view.
  */

@@ -3526,6 +3526,15 @@ fieldset.gate-checklist li input {
   gap: 8px;
   margin-top: 8px;
 }
+/* Review 1 of #192, L-3 (WCAG 2.4.11): a control focused by keyboard stops above the sticky
+   Back to top button instead of behind it. */
+html {
+  scroll-padding-bottom: 64px;
+}
+/* Review 1 of #192, N-7: fold rows are 24 px targets too, like text buttons. */
+details > summary {
+  min-height: 24px;
+}
 /* Final UX pass: Back to top, shown once a long page is scrolled past the first screen. Sticky
    at the foot of the main column, so it never covers the right-hand sidebar. */
 .back-to-top {

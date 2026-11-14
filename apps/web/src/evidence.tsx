@@ -294,7 +294,7 @@ export function Evidence({
           </datalist>
         )}
         <label htmlFor="evrun" className="inline">
-          under
+          under run
         </label>
         <select
           id="evrun"

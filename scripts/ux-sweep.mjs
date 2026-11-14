@@ -148,6 +148,15 @@ for (const s of shots) {
       if (!r.width || !r.height) continue;
       const style = getComputedStyle(el);
       if (style.visibility === 'hidden') continue;
+      // A checkbox or radio with a clickable label passes 2.5.8 through its label.
+      if (
+        el.tagName === 'INPUT' &&
+        (el.type === 'checkbox' || el.type === 'radio') &&
+        (el.closest('label') ||
+          (el.id &&
+            document.querySelector(`label[for="${CSS.escape(el.id)}"]`)))
+      )
+        continue;
       // Inline links inside running text are exempt from 2.5.8.
       if (el.tagName === 'A' && style.display === 'inline') continue;
       if (r.width < 24 || r.height < 24)

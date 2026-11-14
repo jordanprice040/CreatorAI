@@ -3,6 +3,7 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type MouseEvent,
   type ReactNode,
 } from 'react';
 import {
@@ -37,7 +38,7 @@ import {
   resourceSetupOf,
   routesOf,
 } from './autopilot-routes.js';
-import { Empty, Status, useLoad } from './ui.js';
+import { Empty, Status, reveal, useLoad } from './ui.js';
 import { usePoll } from './page-active.js';
 import { useEndTime } from './end-time.js';
 import { routeHash } from './pages.js';
@@ -528,33 +529,33 @@ export function Autopilot({
                       {autopilotSummary(config).map((l) => (
                         <li key={l}>{l}</li>
                       ))}
-                      {passages && (
-                        <li>
-                          {passages.read === 0
-                            ? 'No claim in this scope has a passage to read yet'
-                            : `The explorer can read ${passages.read} claim${passages.read === 1 ? '' : 's'} in this scope`}
-                          {passages.without > 0
-                            ? `; ${passages.without} without a passage ${passages.without === 1 ? 'is' : 'are'} not read`
-                            : ''}
-                          {researchOn
-                            ? ', before the web search adds more'
-                            : ''}
-                          .{' '}
-                          {passages.without > 0 && (
-                            <a
-                              href={routeHash({
-                                view: 'evidence',
-                                ws: workspace.id,
-                                id: '',
-                                q: '',
-                              })}
-                            >
-                              Cite passages in Sources and claims
-                            </a>
-                          )}
-                        </li>
-                      )}
                     </ul>
+                    {passages && (
+                      // Not part of the summary the owner confirms, so kept outside its list
+                      // (review 1 of #192, N-2 and N-3).
+                      <p className="small">
+                        {passages.read === 0
+                          ? 'No claim in this scope has a passage to read yet'
+                          : `The explorer can read ${passages.read} claim${passages.read === 1 ? '' : 's'} in this scope`}
+                        {researchOn ? ' before the web search adds more' : ''}
+                        {passages.without > 0
+                          ? `; ${passages.without} without a passage ${passages.without === 1 ? 'is' : 'are'} not read`
+                          : ''}
+                        .{' '}
+                        {passages.without > 0 && (
+                          <a
+                            href={routeHash({
+                              view: 'evidence',
+                              ws: workspace.id,
+                              id: '',
+                              q: '',
+                            })}
+                          >
+                            Cite passages in Sources and claims
+                          </a>
+                        )}
+                      </p>
+                    )}
                     <p>
                       <strong>Routine approvals for its new run</strong>
                     </p>
@@ -669,14 +670,10 @@ export function Autopilot({
   );
 }
 
-const scrollTo = (id: string) =>
-  document
-    .getElementById(id)
-    ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
 /**
  * Final UX pass K-1: what the person can do after an autopilot stops, as links to the place
- * where they do it. Continue (below it) picks the work up again once that is done.
+ * where they do it. Continue (below it) is mentioned only when it is offered (review 1 of
+ * #192, M-1).
  */
 function NextAfterStop({
   autopilot: a,
@@ -685,8 +682,14 @@ function NextAfterStop({
   autopilot: AutopilotRecord;
   workspace: Workspace;
 }) {
-  const href = (view: 'evidence' | 'compare' | 'decisions' | 'proposals') =>
-    routeHash({ view, ws: workspace.id, id: '', q: '' });
+  const href = (
+    view: 'evidence' | 'compare' | 'decisions' | 'proposals',
+    id = '',
+  ) => routeHash({ view, ws: workspace.id, id, q: '' });
+  const go = (id: string) => (e: MouseEvent<HTMLButtonElement>) =>
+    reveal(e.currentTarget, id);
+  const canContinue = autopilotContinuable(a).ok;
+  const last = a.steps.at(-1);
   const exploration = [...a.steps]
     .reverse()
     .find((s) => s.stage === 'explore' && s.child?.kind === 'workflow')?.child;
@@ -703,11 +706,35 @@ function NextAfterStop({
       Open the exploration
     </button>
   );
+  const decide = (
+    <a className="button secondary" href={href('compare')}>
+      Open Decide
+    </a>
+  );
+  const then = canContinue
+    ? ', then press Continue here.'
+    : ', then start a new autopilot.';
+  // Every candidate the explorer found is already a recorded problem (review 1 of #192, L-6).
+  const allDuplicates =
+    a.outcome === 'insufficient_evidence' &&
+    /\bduplicate\b/.test(last?.note ?? '') &&
+    !/\b(new|novel)\b/i.test(last?.note ?? '');
   let text = '';
   let actions: ReactNode = null;
   switch (a.outcome) {
     case 'insufficient_evidence':
     case 'no_eligible_option':
+      if (allDuplicates) {
+        text =
+          'Next: what it found is already recorded as problems. Work on those under Projects › Decide, or leave out their topics (Narrow it and set limits) and start again.';
+        actions = (
+          <>
+            {decide}
+            {openExploration}
+          </>
+        );
+        break;
+      }
       text =
         a.outcome === 'insufficient_evidence'
           ? 'Next: give it more to read. Cite a passage for claims that have none, or search the web for new claims, then start the autopilot again.'
@@ -715,11 +742,7 @@ function NextAfterStop({
       actions = (
         <>
           {openExploration}
-          <button
-            type="button"
-            className="secondary"
-            onClick={() => scrollTo('web-title')}
-          >
+          <button type="button" className="secondary" onClick={go('web-title')}>
             Search the web
           </button>
           <a className="button secondary" href={href('evidence')}>
@@ -729,17 +752,14 @@ function NextAfterStop({
       );
       break;
     case 'needs_person':
-      text =
-        'Next: this step is yours. Make the choice under Projects › Decide (or write the proposal under Proposals), then press Continue here. How much is automated sets which steps stop for you.';
+      text = `Next: this step is yours. Make the choice under Projects › Decide (or write the proposal under Proposals)${then} How much is automated sets which steps stop for you.`;
       actions = (
         <>
-          <a className="button secondary" href={href('compare')}>
-            Open Decide
-          </a>
+          {decide}
           <button
             type="button"
             className="secondary"
-            onClick={() => scrollTo('automation-title')}
+            onClick={go('automation-title')}
           >
             How much is automated
           </button>
@@ -747,21 +767,25 @@ function NextAfterStop({
       );
       break;
     case 'needs_authority':
-      text =
-        'Next: approve the waiting action under Monitor › Approvals, then press Continue here.';
+      text = `Next: approve the waiting action under Monitor › Approvals${then}`;
       actions = (
-        <a className="button secondary" href={href('decisions')}>
+        <a
+          className="button secondary"
+          href={href('decisions', last?.asked ?? '')}
+        >
           Open Approvals
         </a>
       );
       break;
     case 'limit_reached':
-      text =
-        'Next: press Continue to carry on with what is left, or start a new autopilot with more calls or hours.';
+      text = canContinue
+        ? 'Next: press Continue to carry on with what is left, or start a new autopilot with more calls or hours.'
+        : 'Next: start a new autopilot with more calls or hours (Narrow it and set limits). What this one made is kept.';
       break;
     case 'failed':
-      text =
-        'Next: read the last step’s note above. Continue tries that step again.';
+      text = canContinue
+        ? 'Next: read the last step’s note above. Continue tries that step again.'
+        : 'Next: read the last step’s note above, then start a new autopilot.';
       break;
     case 'proposal':
       text = 'Next: read and finish the proposal under Projects › Proposals.';

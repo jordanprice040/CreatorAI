@@ -360,7 +360,7 @@ function DecisionCard({
   names: (id: string) => string;
   csrf: string;
   workspace: string;
-  onDone: () => void;
+  onDone: (choice: string) => void;
 }) {
   const opened = useRef(Date.now());
   const [rationale, setRationale] = useState('');
@@ -395,7 +395,7 @@ function DecisionCard({
           },
         },
       );
-      onDone();
+      onDone(choice);
     } catch (e) {
       setError(message(e));
     } finally {
@@ -494,13 +494,6 @@ function DecisionCard({
             <strong>{words(d.response.choice)}</strong>
             {d.response.option_id ? ` (${d.response.option_id})` : ''} ·{' '}
             {d.response.rationale}
-          </p>
-        )}
-        {d.response?.choice.startsWith('approve') && (
-          <p className="notice ok">
-            <strong>Next:</strong> go back to the page that asked (for example
-            Decide, Scores and specs or Build) and press the same button again,
-            or its “I approved it” button where one shows. It goes through now.
           </p>
         )}
         {pending && (
@@ -657,6 +650,9 @@ export function Oversight({
   const [policies, setPolicies] = useState<RoutinePolicyView[]>([]);
   const [runNames, setRunNames] = useState<Map<string, string>>(new Map());
   const [showAll, setShowAll] = useState(false);
+  // Review 1 of #192, L-5: the "press it again" hint follows the approval just made here,
+  // not every approved decision in the list.
+  const [justApproved, setJustApproved] = useState(false);
   const [error, setError] = useState('');
   // Each load gets a number; only the latest may write, so a slow poll that started before a
   // toggle cannot replace the list the toggle asked for.
@@ -833,6 +829,17 @@ export function Oversight({
               label="decisions"
             />
           </div>
+          {justApproved && (
+            <p className="notice ok" role="status">
+              <span>
+                <strong>Approved.</strong> Next: go back to the page that asked
+                (for example Decide, Scores and specs or Build) and press the
+                same button again, or its “I approved it” button where one
+                shows. If an autopilot asked, press Continue on its card under
+                Projects › Discover.
+              </span>
+            </p>
+          )}
           {decisions.length === 0 ? (
             <p className="small">
               {showAll ? 'No decisions yet.' : 'Nothing needs you right now.'}
@@ -847,7 +854,10 @@ export function Oversight({
                 names={names}
                 csrf={session.csrf_token}
                 workspace={workspace}
-                onDone={() => void load()}
+                onDone={(choice) => {
+                  setJustApproved(choice.startsWith('approve'));
+                  void load();
+                }}
               />
             ))
           )}
