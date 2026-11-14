@@ -492,8 +492,8 @@ export function Automation({
         Choose how much of a project the studio does for you. Every level uses
         routine approvals made for that run only, which you confirm here as one
         summary; the studio never approves its own steps. Publishing, messages,
-        payments, value questions and an ethics gate only the model cleared
-        always stop for you.
+        payments and value questions always stop for you, and an ethics gate
+        only the model cleared does too unless you allow it below.
       </p>
       <ul className="small">
         {(['manual', 'selection', 'rest', 'whole'] as const).map((l) => (

@@ -136,7 +136,7 @@ export function AutopilotSettingsPanel({
               </button>
             )}
             {SWITCHES.map((k) => (
-              <label key={k} className="check">
+              <label key={k} className="routine-choice">
                 <input
                   type="checkbox"
                   disabled={!s.can_change || busy}
@@ -152,10 +152,17 @@ export function AutopilotSettingsPanel({
                         : {}),
                     })
                   }
-                />{' '}
-                <strong>{AUTOPILOT_SETTING_TEXT[k].label}</strong>
-                {k === 'choose_model_ethics' ? ' (not part of Hands-off)' : ''}
-                <span className="small"> {AUTOPILOT_SETTING_TEXT[k].text}</span>
+                />
+                <span>
+                  <strong>{AUTOPILOT_SETTING_TEXT[k].label}</strong>
+                  {k === 'choose_model_ethics'
+                    ? ' (not part of Hands-off)'
+                    : ''}
+                  <span className="small">
+                    {' '}
+                    {AUTOPILOT_SETTING_TEXT[k].text}
+                  </span>
+                </span>
               </label>
             ))}
             <div className="two">
