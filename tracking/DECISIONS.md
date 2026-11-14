@@ -46,6 +46,7 @@ Limits: the gather loop's evidence comes only from recorded claims and P12's che
 - **N-3.** Migration 63 stamps `workflows.autopilot_id` (workspace-scoped foreign key); cited-claim links read the stamp, or a step that records the workflow.
 - **N-4, N-5.** New tests: the real web-search start path stamps the autopilot; on public data a claim backed by fetched sources is linked.
 - **N-6.** The P-11 bullet above now says which settled stops end the approvals.
+- **Round 3 nit.** The start check reads the connection's room on the start's own transaction (`ConnectionStore.planRunRoomIn`, inside a savepoint) instead of opening a second connection while it holds one.
 
 ## ADR-0099 — Automation levels for a project: presets over routine approvals and the autopilot (November 12, 2026)
 

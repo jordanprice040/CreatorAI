@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import type { PoolClient } from 'pg';
 import {
   AUTOPILOT_STAGE_LABEL,
   ContractError,
@@ -263,8 +264,8 @@ export class AutopilotRunner {
   }
 
   async start(ctx: CommandContext, ws: string, runId: string, body: unknown) {
-    const a = await this.store.startAutopilot(ctx, ws, runId, body, () =>
-      this.#fitsRunCap(ctx, ws, runId, body),
+    const a = await this.store.startAutopilot(ctx, ws, runId, body, (c) =>
+      this.#fitsRunCap(c, ctx, ws, runId, body),
     );
     this.#launch(a.created_by, ws, a.id);
     return this.withNext(ctx, ws, a);
@@ -277,6 +278,8 @@ export class AutopilotRunner {
    * connection). A repeated start the store has already recorded returns that autopilot.
    */
   async #fitsRunCap(
+    /** The start's own transaction (round 3 nit: no second connection while it is held). */
+    client: PoolClient,
     ctx: CommandContext,
     ws: string,
     runId: string,
@@ -287,9 +290,15 @@ export class AutopilotRunner {
     const c = req.data.config;
     const r = c.resource_setup;
     if (c.start || r.kind !== 'subscription') return;
+    // A savepoint keeps the start's transaction usable if the read fails.
+    await client.query('savepoint autopilot_room');
     const room = await this.store
-      .planRunRoom(ctx, ws, r.connection_id, runId)
-      .catch(() => null);
+      .planRunRoomIn(client, ctx, ws, r.connection_id, runId)
+      .catch(async () => {
+        await client.query('rollback to savepoint autopilot_room');
+        return null;
+      });
+    await client.query('release savepoint autopilot_room');
     if (!room) return; // A connection that cannot be read is refused by admission instead.
     // Re-review 2 L-2: each step's own floor (autopilotChildLimits): explore 2, discovery its
     // response types + 2, assessment at least 2, and the research search's 2 on this connection.

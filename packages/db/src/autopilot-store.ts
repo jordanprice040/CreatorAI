@@ -104,7 +104,7 @@ export class AutopilotStore extends WebDiscoveryStore {
      * Re-review 2 N-2: a check the caller runs only for a new start (not for a repeated one the
      * idempotency key already recorded), after the owner check and the run lock.
      */
-    beforeNew?: () => Promise<void>,
+    beforeNew?: (c: PoolClient) => Promise<void>,
   ): Promise<Autopilot> {
     const ctx = normalize(ctxIn);
     const ws = uuid(wsIn);
@@ -134,7 +134,7 @@ export class AutopilotStore extends WebDiscoveryStore {
             'Only the workspace owner, signed in as a person, can start an autopilot.',
           );
           await this.lockRun(c, ws, runId);
-          await beforeNew?.();
+          await beforeNew?.(c);
           const run = (
             await c.query(
               'select * from run_controls where workspace_id = $1 and run_id = $2',

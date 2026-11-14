@@ -2946,7 +2946,7 @@ test('review 1 L-3: a whole process that cannot fit under what is left of the pe
   const h = await setup(t);
   if (!h) return;
   class Room extends ConnectionStore {
-    override async planRunRoom() {
+    override async planRunRoomIn() {
       return { per_run: 10, used: 4, daily_left: 50 };
     }
   }
@@ -2973,7 +2973,7 @@ test('re-review 2 L-2: the start check counts what each step needs from the conf
   if (!h) return;
   let checked = 0;
   class Fresh extends ConnectionStore {
-    override async planRunRoom() {
+    override async planRunRoomIn() {
       checked += 1;
       return { per_run: 10, used: 0, daily_left: 50 };
     }
