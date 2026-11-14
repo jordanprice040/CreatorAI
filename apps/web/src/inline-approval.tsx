@@ -28,8 +28,11 @@ export function InlineApproval({
   retryLabel,
   afterText,
   openApprovals,
+  fixture = false,
 }: {
   workspace: string;
+  /** Fixture workspaces count simulated units, not dollars (the maximum's unit). */
+  fixture?: boolean;
   decisionId: string;
   csrf: string;
   owner: boolean;
@@ -175,7 +178,7 @@ export function InlineApproval({
           <dd>{d.consequence_if_wrong}</dd>
         </div>
       </dl>
-      <Coverage d={d} />
+      <Coverage d={d} fixture={fixture} />
       <label htmlFor={`inline-why-${d.id}`}>
         Your reason for approving (required, brief)
       </label>

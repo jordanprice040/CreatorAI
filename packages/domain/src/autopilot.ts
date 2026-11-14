@@ -277,6 +277,19 @@ const cmpScore = (a: ExactScore, b: ExactScore) => {
 };
 
 /**
+ * Final UX pass N-3: the tied options in one short list, each title clipped and at most three
+ * named ("“A”, “B”, “C” and 2 more"), instead of one run-on sentence naming every option.
+ */
+export function tiedNames(titles: readonly string[]): string {
+  const named = titles.slice(0, 3).map((t) => `“${clip(t.trim(), 60)}”`);
+  const more = titles.length - named.length;
+  if (more > 0) return `${named.join(', ')} and ${more} more`;
+  return named.length > 1
+    ? `${named.slice(0, -1).join(', ')} and ${named.at(-1)}`
+    : (named[0] ?? '');
+}
+
+/**
  * The autopilot's selection rule (no blind "highest number wins"): the option ranked first on
  * suitability is advanced only when it is fully scored, no other option shares its rank, the
  * first place holds when each criterion is removed or doubled, and no gate blocks its choice;
@@ -383,7 +396,7 @@ export function autopilotChoice(
         outcome: 'needs_person',
         kind: 'tie',
         reason: clip(
-          `${firstTie.map((c) => `“${c.alternative.title}”`).join(' and ')} tie for first${worst ? ' by the worst case' : ' on suitability'}, and the fixed order (opportunity rank, fewer unknowns, the better worst case) does not separate them. Choose one under Decide and continue.`,
+          `${firstTie.length} options tie for first${worst ? ' by the worst case' : ' on suitability'}: ${tiedNames(firstTie.map((c) => c.alternative.title))}. The fixed order (opportunity rank, fewer unknowns, the better worst case) does not separate them. Choose one under Decide and continue.`,
         ),
       };
     fallbacks.push({
@@ -397,7 +410,7 @@ export function autopilotChoice(
       outcome: 'needs_person',
       kind: 'tie',
       reason: clip(
-        `${firstTie.map((c) => `“${c.alternative.title}”`).join(' and ')} tie for first${worst ? ' by the worst case' : ' on suitability'}; the autopilot breaks ties only when you allow it (Break ties). Choose one under Decide and continue: the autopilot goes on with your choice.`,
+        `${firstTie.length} options tie for first${worst ? ' by the worst case' : ' on suitability'}: ${tiedNames(firstTie.map((c) => c.alternative.title))}. The autopilot breaks ties only when you allow it (Break ties). Choose one under Decide and continue: the autopilot goes on with your choice.`,
       ),
     };
   const leader = order[0]!;

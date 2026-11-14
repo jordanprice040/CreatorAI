@@ -1,11 +1,14 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { kindLabel } from './plain-words.js';
+import { useViewMode } from './view-mode.js';
+import { EventLine } from './event-line.js';
 import {
   ActivityPageSchema,
   type ActivityEntry,
   type Workspace,
 } from '@creator/contracts';
 import { api, message, when } from './oversight.js';
-import { Empty, Status, eventText, shortId, type View } from './ui.js';
+import { Empty, Status, shortId, type View } from './ui.js';
 import { useOnShow } from './page-active.js';
 import { canOpen, useOpenSubject } from './destinations.js';
 
@@ -40,6 +43,7 @@ export function Activity({
   focus: string;
   open: (view: View, id?: string, q?: string) => void;
 }) {
+  const { standard } = useViewMode();
   const [draft, setDraft] = useState(q);
   const [entries, setEntries] = useState<ActivityEntry[]>([]);
   const [next, setNext] = useState<string | null>(null);
@@ -80,8 +84,8 @@ export function Activity({
     <section className="panel" aria-labelledby="act-title">
       <h2 id="act-title">Activity</h2>
       <p>
-        Every change is an audit event with the person or service that made it.
-        Summaries name kinds, versions and relations, never record text.
+        Every change you or the studio made, newest first. Lines name the kind
+        of record and what happened to it, never the record&apos;s own text.
       </p>
       <form className="searchbar" role="search" onSubmit={submit}>
         <label htmlFor="aq" className="inline">
@@ -129,14 +133,17 @@ export function Activity({
                   {e.actor.display_name}
                   {e.actor.kind === 'human' ? '' : ` (${e.actor.kind})`}
                 </strong>{' '}
-                {eventText(e.summary)}{' '}
+                <EventLine
+                  summary={e.summary}
+                  fixture={workspace.record_mode === 'fixture'}
+                />{' '}
                 <Subject
                   kind={e.subject_kind}
                   id={e.subject_id}
                   opener={opener}
                   eventKey={e.event_id}
                 />
-                <small> · event #{e.sequence}</small>
+                {!standard && <small> · event #{e.sequence}</small>}
                 {opener.notice?.key === e.event_id && (
                   <p className="small" role="status">
                     {opener.notice.text}
@@ -175,17 +182,21 @@ function Subject({
   opener: ReturnType<typeof useOpenSubject>;
   eventKey: string;
 }) {
+  // P-8: the line already names the kind, so Standard offers only "Open" (and nothing for a
+  // kind no page shows); Advanced names the kind with the record's short id.
+  const { standard } = useViewMode();
   const label = `${kind.replace(/_/g, ' ')} ${shortId(id)}`;
-  return canOpen(kind) ? (
+  if (!canOpen(kind)) return standard ? null : <span>{label}</span>;
+  const button = (
     <button
       className="text"
       aria-busy={opener.busy === eventKey}
-      title={`Open this ${kind.replace(/_/g, ' ')}`}
+      title={`Open this ${kindLabel(kind)}`}
+      aria-label={standard ? `Open this ${kindLabel(kind)}` : undefined}
       onClick={() => void opener.openSubject(kind, id, eventKey)}
     >
-      {label}
+      {standard ? 'Open' : label}
     </button>
-  ) : (
-    <span>{label}</span>
   );
+  return standard ? <>· {button}</> : button;
 }

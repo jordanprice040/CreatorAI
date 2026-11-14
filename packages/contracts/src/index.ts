@@ -38,6 +38,7 @@ export * from './team.js';
 export * from './selection.js';
 export * from './assessment.js';
 export * from './proposal.js';
+export * from './proposal-draft.js';
 export * from './runbook.js';
 export * from './catalog.js';
 

@@ -1,3 +1,4 @@
+import { useViewMode } from './view-mode.js';
 import { useId, useMemo, useState } from 'react';
 import {
   EntityDetailSchema,
@@ -311,6 +312,7 @@ export function ClaimLinks({
   /** The page's own copy of the claim's links is read again. */
   onChanged?: () => void;
 }) {
+  const { standard } = useViewMode();
   const base = `workspaces/${workspace.id}`;
   const data = useLoad(async () => {
     const [detail, problems, options] = await Promise.all([
@@ -480,7 +482,11 @@ export function ClaimLinks({
             return (
               <li key={l.id}>
                 {kind === 'problem' ? 'Problem' : 'Option'}:{' '}
-                {e ? clip(e.title, 100) : `${kind} ${id.slice(0, 8)}`}
+                {e
+                  ? clip(e.title, 100)
+                  : standard
+                    ? 'one no longer listed'
+                    : `${kind} ${id.slice(0, 8)}`}
                 {/* Review M-1: "drafted from" is the problem's lineage, not an evidence link
                     to undo here, so it has no Unlink. */}
                 {l.relation === 'derived_from'

@@ -1228,6 +1228,7 @@ button.text[aria-current='true'] {
 .art-verified,
 .preview-ready,
 .fb-revised,
+.dp-done,
 .wf-succeeded {
   color: var(--ok);
 }
@@ -1236,6 +1237,8 @@ button.text[aria-current='true'] {
 .res-unknown,
 .wf-outcome,
 .wf-waiting_human,
+.dp-waiting,
+.dp-stopped,
 .wf-reconciling,
 .wf-paused_operator,
 .wf-paused_budget,
@@ -1294,11 +1297,13 @@ button.text[aria-current='true'] {
   color: var(--muted);
 }
 .wf-running,
+.dp-running,
 .wf-queued,
 .wf-waiting_dependency {
   color: var(--info);
 }
-.badge[class*='wf-'] {
+.badge[class*='wf-'],
+.badge[class*='dp-'] {
   border-color: color-mix(in srgb, currentColor 35%, transparent);
   background: color-mix(in srgb, currentColor 9%, transparent);
 }
@@ -3030,6 +3035,22 @@ table.usage-options th[scope='row'] {
   background: var(--surface-hover);
   border-color: var(--border-strong);
 }
+.start-choice[aria-expanded='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.choices-more {
+  /* Re-review N-E: button and note wrap on the same (right) side at any width. */
+  text-align: right;
+  margin: -4px 0 8px;
+  color: var(--muted);
+}
+.choices-more span {
+  display: block;
+  font-size: 12px;
+  line-height: 1.55;
+}
 .start-choice span {
   font-size: 13px;
   color: var(--text-2);
@@ -3089,6 +3110,20 @@ details.routine > summary {
 }
 .notice.blocked {
   display: block;
+}
+/* N-14: a notice of headed lists (the autopilot's two summaries) reads top to bottom. */
+.notice.stacked {
+  display: block;
+}
+.notice.stacked > p {
+  margin: 0 0 4px;
+}
+.notice.stacked > ul {
+  margin: 0 0 10px;
+  padding-left: 18px;
+}
+.notice.stacked > :last-child {
+  margin-bottom: 0;
 }
 .notice.blocked p {
   margin: 0 0 4px;
@@ -3576,6 +3611,79 @@ details > summary {
   }
 }
 
+/* P-9: a rounded amount opens to its exact value. It sits inside running text, so it is
+   styled as text with a dotted underline rather than as a button. */
+button.money {
+  display: inline;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-height: 0;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+button.money:hover {
+  color: var(--accent-strong);
+}
+
+/* P-6: discoveries in plain words on Discover and Decide. */
+.discovery-progress {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  padding: 4px 16px 8px;
+  margin: 12px 0 16px;
+}
+.discovery-progress ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.discovery-progress li {
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+.discovery-progress li:first-child {
+  border-top: none;
+}
+.discovery-progress li p {
+  margin: 4px 0;
+}
+.discovery-progress .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+/* N-15 (P-7): Discover's short heading leaves room for Reset fields beside it at every width. */
+@media (max-width: 760px) {
+  .draft-content > .panel.short-title:first-child {
+    padding-top: 18px;
+  }
+  .draft-content > .panel.short-title:first-child > h2:first-child {
+    padding-right: 110px;
+    min-height: 34px;
+  }
+}
+/* P-7: on a phone the start choices are a compact two-column row of names. */
+@media (max-width: 600px) {
+  .start-choices {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .start-choice {
+    padding: 10px 12px;
+  }
+  .start-choice span {
+    display: none;
+  }
+}
+
 /* UX pass P-4: which options can advance, and the one-step gate confirmation. */
 .advance {
   margin: 8px 0 16px;
@@ -3632,4 +3740,44 @@ details > summary {
   margin-top: 6px;
   display: grid;
   gap: 4px;
+}
+
+/* ADR-0101 (UX pass P-5): model drafts of a proposal's missing sections. */
+.proposal-drafts {
+  margin: 1rem 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.proposal-drafts h3 {
+  margin-top: 0.25rem;
+}
+.draft-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  border: 0;
+  padding: 0;
+  margin: 0.5rem 0;
+}
+.model-draft {
+  margin: 0.5rem 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px dashed var(--border-strong);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent-soft);
+}
+.model-draft-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.model-draft-mark {
+  margin: 0.25rem 0;
+}
+.sent-input {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 16rem;
+  overflow: auto;
 }

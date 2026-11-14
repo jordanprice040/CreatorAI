@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { useViewMode } from './view-mode.js';
 import {
   EntityDetailSchema,
   ProblemComparisonSchema,
@@ -49,6 +50,7 @@ import { AdvanceAndGates, GateLines } from './gates.js';
 import { InlineApproval } from './inline-approval.js';
 import { LinkClaims } from './link-claims.js';
 import { Routine, WhatWillHappen } from './routine.js';
+import { DiscoveryProgress } from './discovery-progress.js';
 import {
   assumptionsSummary,
   decideRoutineSummary,
@@ -258,6 +260,8 @@ export function Compare({
   open: (view: View, id?: string) => void;
 }) {
   const base = `workspaces/${workspace.id}`;
+  // P-6: the discovery run link is internal detail, shown in Advanced (Runs is Advanced too).
+  const { standard } = useViewMode();
   const problems = useLoad(async () => {
     const list = newestFirst(
       await api(
@@ -512,7 +516,11 @@ export function Compare({
   // also named in the summary and in the line above Record.
   const altIds = alts.map((a) => a.entity.id);
   const optionName = (id: string) =>
-    clip(alts.find((a) => a.entity.id === id)?.entity.title ?? shortId(id), 60);
+    clip(
+      alts.find((a) => a.entity.id === id)?.entity.title ??
+        (standard ? 'an option no longer listed' : shortId(id)),
+      60,
+    );
   const incomplete = altIds.filter((id) => {
     const r = row(id);
     return !(r.disposition && r.reasons.trim() && r.reverse_if.trim());
@@ -549,7 +557,7 @@ export function Compare({
   const chosenRun = d?.runs.find((r) => r.run_id === runId);
   const source = runSource(runId, d?.cmp.run_id ?? null);
   const routineSummary = decideRoutineSummary({
-    label: chosenRun && d ? runLabel(chosenRun, d.names) : '',
+    label: chosenRun && d ? runLabel(chosenRun, d.names, 48, !standard) : '',
     source,
   });
   const blockedCount = (id: string) => clearable(id).length;
@@ -589,6 +597,16 @@ export function Compare({
           Refresh
         </button>
       </div>
+      {/* P-6 (ADR-0103): discoveries in plain words, so their progress shows here. */}
+      <DiscoveryProgress
+        key={`progress-${workspace.id}`}
+        session={session}
+        workspace={workspace}
+        open={open}
+        where="decide"
+        skipProblem={d?.cmp.problem.id ?? focus}
+        onFinished={problems.refresh}
+      />
       <Status
         loading={problems.loading}
         error={problems.error}
@@ -620,6 +638,7 @@ export function Compare({
                 Uncertainty:{' '}
                 {plainUncertainty(
                   String(d.cmp.problem.body?.uncertainty ?? '—'),
+                  !standard,
                 )}
               </p>
               {d.cmp.brief && (
@@ -631,12 +650,15 @@ export function Compare({
                   .
                 </p>
               )}
-              {d.cmp.workflow_id && (
+              {d.cmp.workflow_id && !standard && (
                 <button
                   className="text"
                   onClick={() => open('runs', d.cmp.workflow_id!)}
                 >
-                  Discovery run {shortId(d.cmp.workflow_id)} →
+                  {standard
+                    ? 'Open the discovery run'
+                    : `Discovery run ${shortId(d.cmp.workflow_id)}`}{' '}
+                  →
                 </button>
               )}
             </article>
@@ -986,6 +1008,7 @@ export function Compare({
                           Uncertainty:{' '}
                           {plainUncertainty(
                             String(a.entity.body?.uncertainty ?? '—'),
+                            !standard,
                           )}
                         </p>
                         {hr && (
@@ -1114,8 +1137,10 @@ export function Compare({
                 <p className="small">
                   Give every option a disposition, a reason and what would
                   reverse it. Blocked choices are disabled; what blocks them is
-                  written under each option. This decision binds report{' '}
-                  {d.report.report_hash.slice(0, 12)}.
+                  written under each option.{' '}
+                  {standard
+                    ? 'The decision is tied to this exact report, so it never applies to a changed one.'
+                    : `This decision binds report ${d.report.report_hash.slice(0, 12)}.`}
                 </p>
                 {carried?.from && latest && (
                   <p
@@ -1441,7 +1466,7 @@ export function Compare({
                     )}
                     {d.runs.map((r) => (
                       <option key={r.run_id} value={r.run_id}>
-                        {runLabel(r, d.names)}
+                        {runLabel(r, d.names, 48, !standard)}
                         {r.run_id === d.cmp.run_id
                           ? ' (found this problem)'
                           : ''}
@@ -1472,12 +1497,12 @@ export function Compare({
                           alts.map((a) => row(a.entity.id).disposition),
                           DISPOSITION_NOTE,
                         ) || 'no dispositions yet'
-                      } for ${alts.length} option${alts.length === 1 ? '' : 's'}, bound to report ${d.report.report_hash.slice(0, 12)}`,
+                      } for ${alts.length} option${alts.length === 1 ? '' : 's'}${standard ? '' : `, bound to report ${d.report.report_hash.slice(0, 12)}`}`,
                     },
                     {
                       label: 'Run',
                       value: chosenRun
-                        ? runLabel(chosenRun, d.names)
+                        ? runLabel(chosenRun, d.names, 48, !standard)
                         : 'No active run: start or resume one first',
                       ...(source !== 'none' && {
                         source:
@@ -1552,6 +1577,7 @@ export function Compare({
                       <InlineApproval
                         key={outcome.admission.decision_id}
                         workspace={workspace.id}
+                        fixture={workspace.record_mode === 'fixture'}
                         decisionId={outcome.admission.decision_id}
                         csrf={session.csrf_token}
                         owner={workspace.role === 'owner'}
@@ -1639,7 +1665,10 @@ export function Compare({
                               {clip(
                                 alts.find(
                                   (a) => a.entity.id === x.alternative.id,
-                                )?.entity.title ?? shortId(x.alternative.id),
+                                )?.entity.title ??
+                                  (standard
+                                    ? 'An option no longer listed'
+                                    : shortId(x.alternative.id)),
                                 80,
                               )}
                               <small>

@@ -232,7 +232,7 @@ test('proposal Markdown: every section in order, unknowns labelled, references a
   );
   assert.match(
     md,
-    /\*\*Unknown\.\*\*\n\n```proposal-text\nLicence price not known\.\n```/,
+    /\*\*Unknown yet\.\*\*\n\n```proposal-text\nLicence price not known\.\n```/,
   );
   assert.match(
     md,

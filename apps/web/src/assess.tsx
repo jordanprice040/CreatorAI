@@ -1,3 +1,5 @@
+import { versionTag } from './plain-words.js';
+import { useViewMode } from './view-mode.js';
 import { usePoll } from './page-active.js';
 import { useEffect, useState } from 'react';
 import {
@@ -834,6 +836,8 @@ function Run({
     () => api(WorkflowDetailSchema, `${base}/workflows/${id}`),
     [id],
   );
+  // P-6 (ADR-0103): Runs is Advanced, so its link is too; the line above says the state.
+  const { standard } = useViewMode();
   const wf = d.data?.workflow;
   const live = wf ? LIVE.has(wf.state) : false;
   // PR #191 review R-L1: polled while shown, and a failed read keeps polling (it shows stale).
@@ -882,9 +886,11 @@ function Run({
         Started {when(wf.created_at)}
         {wf.fixture ? ' · fixture rules, not a model' : ''}.{' '}
         {wf.result?.explanation ?? (live ? 'Waiting for the assessor…' : '')}{' '}
-        <button className="text" onClick={() => open('runs', wf.id)}>
-          Run details →
-        </button>
+        {!standard && (
+          <button className="text" onClick={() => open('runs', wf.id)}>
+            Run details →
+          </button>
+        )}
         {live && owner && (
           <>
             {' '}
@@ -1236,12 +1242,14 @@ function SystemExplanation({
   card: StoredEntity;
   claims: { id: string; title: string }[];
 }) {
+  const { standard } = useViewMode();
   const b = card.body as unknown as ScorecardBody | undefined;
   const a = b?.assessment;
   if (!b || !a) return null;
   const criteria = RUBRICS[b.rubric].criteria;
   const claimName = (id: string, version: number) => {
     const c = claims.find((x) => x.id.toLowerCase() === id.toLowerCase());
+    if (standard) return c ? c.title : 'a claim no longer listed';
     return `${c ? c.title : `claim ${id.slice(0, 8)}`} (v${version})`;
   };
   return (
@@ -1301,10 +1309,12 @@ function SystemExplanation({
         {a.route === 'fixture'
           ? 'Fixture rules'
           : `${a.model_id}${a.provider ? ` via ${a.provider}` : ''} (${a.route})`}{' '}
-        · assessed {new Date(card.created_at).toLocaleString()} · problem v
-        {a.problem.version} · {a.role_version} · prompt{' '}
-        {a.prompt_hash.slice(0, 8)} · rubric {b.rubric_version} · workflow{' '}
-        {a.workflow_id.slice(0, 8)}
+        · assessed {new Date(card.created_at).toLocaleString()}
+        {/* Review 3 of #197, L-2: role, prompt, rubric and workflow ids are Advanced. */}
+        {standard
+          ? versionTag(a.problem.version, true) &&
+            ` · problem ${versionTag(a.problem.version, true)}`
+          : ` · problem v${a.problem.version} · ${a.role_version} · prompt ${a.prompt_hash.slice(0, 8)} · rubric ${b.rubric_version} · workflow ${a.workflow_id.slice(0, 8)}`}
       </p>
     </details>
   );

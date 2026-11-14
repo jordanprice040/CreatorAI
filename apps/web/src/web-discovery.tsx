@@ -21,7 +21,7 @@ import {
   AUTOPILOT_QUOTE_CHECK_LABEL,
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
-import { Status, useLoad } from './ui.js';
+import { Status, reveal, useLoad } from './ui.js';
 import {
   onWebSearchPrefill,
   type WebSearchPrefill,
@@ -143,21 +143,17 @@ export function WebDiscover({
       onWebSearchPrefill((p) => {
         // Review N-7: a question or interests the person already typed are kept; the
         // suggestion is offered beside them instead.
-        if (typedRef.current.question || typedRef.current.interests)
+        if (!p) {
+          // Only show the section (no prefill).
+        } else if (typedRef.current.question || typedRef.current.interests)
           setOffered(p);
         else {
           setQuestion(p.question);
           setInterests(p.interests);
           setOffered(null);
         }
-        setTimeout(
-          () =>
-            sectionRef.current?.scrollIntoView({
-              behavior: 'smooth',
-              block: 'start',
-            }),
-          50,
-        );
+        // P-7: opens the Search the web panel first when another panel is open.
+        setTimeout(() => reveal(sectionRef.current, 'web-title'), 50);
       }),
     [],
   );
@@ -326,7 +322,9 @@ export function WebDiscover({
   const shown = openId || c?.discoveries[0]?.id || '';
   return (
     <section className="explore" aria-labelledby="web-title" ref={sectionRef}>
-      <h3 id="web-title">Search the web</h3>
+      <h3 id="web-title" tabIndex={-1}>
+        Search the web
+      </h3>
       <p>
         One request on your ChatGPT plan searches the web with the provider's
         own search; the studio keeps the search calls and the pages they

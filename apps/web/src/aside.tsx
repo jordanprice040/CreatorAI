@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { EventLine } from './event-line.js';
 import {
   ActivityNowSchema,
   ActivityPageSchema,
@@ -13,7 +14,7 @@ import {
   type WorkspaceNote,
 } from '@creator/contracts';
 import { api, ApiError, message, when } from './oversight.js';
-import { Icon, eventText, type View } from './ui.js';
+import { Icon, type View } from './ui.js';
 import { canOpen, useOpenSubject } from './destinations.js';
 import './aside.css';
 import {
@@ -26,6 +27,8 @@ import {
   type NoteDraft,
 } from './note-drafts.js';
 import { Markdown } from './markdown-view.js';
+import { useViewMode } from './view-mode.js';
+import { revealWhenShown } from './discovery-progress.js';
 
 // ADR-0060: the right-hand sidebar. Two tabs, Activity (what is running now and the latest
 // audit events) and Notes (the person's own named notes for this workspace, saved as they
@@ -207,8 +210,22 @@ function elapsed(iso: string, at: number) {
   return `${Math.floor(h / 24)} days`;
 }
 
-function nowTarget(item: ActivityNowItem): [View, string?] {
-  if (item.kind === 'workflow') return ['runs', item.id];
+function nowTarget(
+  item: ActivityNowItem,
+  standard: boolean,
+): [View, string?, string?] {
+  if (item.kind === 'workflow') {
+    // ADR-0103 (review L-2): Standard opens where the work shows (the third value is the
+    // Discover panel heading to show); Runs is an Advanced tab.
+    if (standard && item.purpose === 'r02_discovery')
+      return ['submit', '', `dp-discover-${item.id}`];
+    if (standard && item.purpose === 'r01_exploration')
+      return ['submit', '', 'explore-title'];
+    // Re-review L-A: Decide opens on the problem being assessed, not the last one viewed.
+    if (standard && item.purpose === 'r08_assessment')
+      return item.subject_id ? ['compare', item.subject_id] : ['compare'];
+    return ['runs', item.id];
+  }
   if (item.kind === 'desktop_job') return ['desktop'];
   if (item.kind === 'qualification_queue') return ['models'];
   if (item.purpose === 'chat') return ['chat'];
@@ -349,7 +366,13 @@ export function RightSidebar({
         hidden={aside.tab !== 'activity'}
         className="aside-body"
       >
-        <ActivityTab feed={feed} isNew={isNew} go={go} opener={opener} />
+        <ActivityTab
+          feed={feed}
+          isNew={isNew}
+          go={go}
+          opener={opener}
+          fixture={workspace.record_mode === 'fixture'}
+        />
       </div>
       <div
         id="aside-notes"
@@ -416,12 +439,16 @@ function ActivityTab({
   isNew,
   go,
   opener,
+  fixture,
 }: {
+  /** The workspace's mode, for history amounts ("sim" or "$"). */
+  fixture: boolean;
   feed: ReturnType<typeof useActivityFeed>;
   isNew: (e: ActivityEntry) => boolean;
   go: (view: View, id?: string) => void;
   opener: ReturnType<typeof useOpenSubject>;
 }) {
+  const { standard } = useViewMode();
   const [at, setAt] = useState(() => Date.now());
   useEffect(() => {
     const t = window.setInterval(() => setAt(Date.now()), 30_000);
@@ -445,10 +472,16 @@ function ActivityTab({
       ) : (
         <ul className="aside-list">
           {feed.now.map((item) => {
-            const [view, id] = nowTarget(item);
+            const [view, id, heading] = nowTarget(item, standard);
             return (
               <li key={`${item.kind}:${item.id}`}>
-                <button className="aside-row" onClick={() => go(view, id)}>
+                <button
+                  className="aside-row"
+                  onClick={() => {
+                    go(view, id);
+                    if (heading) revealWhenShown(heading);
+                  }}
+                >
                   <span className="aside-row-top">
                     <span
                       className={item.active ? 'spinner-dot' : 'idle-dot'}
@@ -486,7 +519,11 @@ function ActivityTab({
                       {e.actor.display_name}
                       {e.actor.kind === 'human' ? '' : ` (${e.actor.kind})`}
                     </strong>{' '}
-                    {eventText(e.summary)}
+                    <EventLine
+                      summary={e.summary}
+                      fixture={fixture}
+                      inButton={linked}
+                    />
                   </span>
                 </span>
                 <time className="aside-row-sub" dateTime={e.occurred_at}>

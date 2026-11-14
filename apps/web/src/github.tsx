@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { useViewMode } from './view-mode.js';
 import {
   GitHubConnectionSchema,
   GitHubDeliverySchema,
@@ -803,6 +804,7 @@ function NewOperation({
   act: Act;
   open: (view: View, id?: string) => void;
 }) {
+  const { standard } = useViewMode();
   // Lists change under a mounted form (a repository created, a connection revoked), so each
   // choice falls back to the first valid option rather than keeping a stale or empty id.
   const [connPick, setConnectionId] = useState('');
@@ -964,7 +966,7 @@ function NewOperation({
             {runs.length === 0 && <option value="">No active runs</option>}
             {runs.map((r) => (
               <option key={r.run_id} value={r.run_id}>
-                {runLabel(r, names)}
+                {runLabel(r, names, 48, !standard)}
               </option>
             ))}
           </select>

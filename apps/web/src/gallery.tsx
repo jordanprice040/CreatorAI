@@ -1,3 +1,5 @@
+import { useViewMode } from './view-mode.js';
+import { Money } from './money.js';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { usePoll } from './page-active.js';
 import {
@@ -37,8 +39,6 @@ const LABELS = {
   runnable_demo: 'Runnable demo',
   native_installer: 'Native installer',
 } as const;
-const nano = (n: string) =>
-  n === '0' ? '$0' : `$${(Number(n) / 1e9).toFixed(6)}`;
 
 /**
  * Verified artifacts from the local product store. Every download, preview start and
@@ -56,6 +56,7 @@ export function Gallery({
   focus?: string | undefined;
   open: (view: View, id?: string) => void;
 }) {
+  const { standard } = useViewMode();
   const base = `workspaces/${workspace.id}`;
   // Newest first: the latest package is listed on top and opens by default.
   const list = useLoad(
@@ -113,7 +114,10 @@ export function Gallery({
                     aria-current={a.id === selected?.id ? 'true' : undefined}
                     onClick={() => open('gallery', a.id)}
                   >
-                    Spec v{a.spec.version} · {a.commit.slice(0, 10)}
+                    Spec v{a.spec.version} ·{' '}
+                    {standard
+                      ? `built ${when(a.created_at)}`
+                      : a.commit.slice(0, 10)}
                   </button>{' '}
                   <span className={`badge art-${a.state}`}>{a.state}</span>{' '}
                   <small>
@@ -159,6 +163,7 @@ function ArtifactPanel({
   open: (view: View, id?: string) => void;
   reloadList: () => void;
 }) {
+  const { standard } = useViewMode();
   const detail = useLoad(
     () => api(ArtifactDetailSchema, `${base}/artifacts/${summary.id}`),
     [summary.id],
@@ -195,8 +200,9 @@ function ArtifactPanel({
         {d && (
           <>
             <h3 id="art-title">
-              Package {d.manifest.repository.commit.slice(0, 10)} · spec v
-              {d.manifest.spec.version}
+              {standard
+                ? `Package · spec v${d.manifest.spec.version}`
+                : `Package ${d.manifest.repository.commit.slice(0, 10)} · spec v${d.manifest.spec.version}`}
             </h3>
             <p
               className={`integrity ${d.integrity.ok ? 'ok' : 'error'}`}
@@ -402,28 +408,41 @@ function ArtifactPanel({
 }
 
 function Facts({ d }: { d: ArtifactDetail }) {
+  const { standard } = useViewMode();
   const m = d.manifest;
   return (
     <details open>
       <summary>Manifest</summary>
       <dl className="facts">
-        <dt>Manifest sha256</dt>
-        <dd>
-          <code>{d.artifact.manifest_sha256}</code>
-        </dd>
-        <dt>Archive sha256</dt>
-        <dd>
-          <code>{m.package.sha256}</code> ({m.package.bytes} bytes,{' '}
-          {m.package.files.length} files)
-        </dd>
-        <dt>Commit</dt>
-        <dd>
-          <code>{m.repository.commit}</code>
-        </dd>
+        {/* P-8: hashes and the commit are for audit, so Advanced (review 2 of #197). */}
+        {standard ? (
+          <>
+            <dt>Package</dt>
+            <dd>
+              {m.package.bytes} bytes, {m.package.files.length} files
+            </dd>
+          </>
+        ) : (
+          <>
+            <dt>Manifest sha256</dt>
+            <dd>
+              <code>{d.artifact.manifest_sha256}</code>
+            </dd>
+            <dt>Archive sha256</dt>
+            <dd>
+              <code>{m.package.sha256}</code> ({m.package.bytes} bytes,{' '}
+              {m.package.files.length} files)
+            </dd>
+            <dt>Commit</dt>
+            <dd>
+              <code>{m.repository.commit}</code>
+            </dd>
+          </>
+        )}
         <dt>Spec</dt>
         <dd>
-          v{m.spec.version} · task {m.task.key} · freeze{' '}
-          {shortId(m.spec.freeze_id)}
+          v{m.spec.version} · task {m.task.key}
+          {!standard && ` · freeze ${shortId(m.spec.freeze_id)}`}
         </dd>
         <dt>Toolchain</dt>
         <dd>
@@ -450,8 +469,8 @@ function Facts({ d }: { d: ArtifactDetail }) {
           {m.costs.plan_requests
             ? `${m.costs.plan_requests.request_ids.length} ChatGPT-plan requests (${m.costs.plan_requests.model_id}, plan quota), `
             : ''}
-          {m.costs.broker_calls} broker calls, {nano(m.costs.settled_nano_usd)}{' '}
-          settled
+          {m.costs.broker_calls} broker calls,{' '}
+          <Money nano={m.costs.settled_nano_usd} fixture={false} /> settled
           {m.costs.unsettled_attempts
             ? `, ${m.costs.unsettled_attempts} unsettled`
             : ''}
@@ -462,8 +481,10 @@ function Facts({ d }: { d: ArtifactDetail }) {
           <>
             <dt>Revision of</dt>
             <dd>
-              {shortId(m.lineage.previous.artifact_id)} after{' '}
-              {m.lineage.feedback_ids.length} feedback item(s)
+              {standard
+                ? 'the earlier version'
+                : shortId(m.lineage.previous.artifact_id)}{' '}
+              after {m.lineage.feedback_ids.length} feedback item(s)
             </dd>
           </>
         )}
@@ -754,6 +775,7 @@ function TerminalPanel({
   summary: ArtifactSummary;
   csrf: string;
 }) {
+  const { standard } = useViewMode();
   const path = `${base}/artifacts/${summary.id}/terminals`;
   const sessions = useLoad(
     () => api(z.array(TerminalSessionSchema), path),
@@ -857,8 +879,9 @@ function TerminalPanel({
             <code>{terminalCommand(args)}</code>
           </pre>
           <p className="small">
-            Package {summary.archive_sha256.slice(0, 12)}… · the window opens on
-            this computer.
+            {standard
+              ? 'The window opens on this computer.'
+              : `Package ${summary.archive_sha256.slice(0, 12)}… · the window opens on this computer.`}
           </p>
           <div className="actions">
             <button
@@ -1326,6 +1349,7 @@ function Compare({
   open: (view: View, id?: string) => void;
   reloadList: () => void;
 }) {
+  const { standard } = useViewMode();
   const others = all.filter((a) => a.id !== summary.id);
   const [other, setOther] = useState(
     summary.previous_id ?? others[0]?.id ?? '',
@@ -1350,7 +1374,8 @@ function Compare({
         <select value={other} onChange={(e) => setOther(e.target.value)}>
           {others.map((a) => (
             <option key={a.id} value={a.id}>
-              spec v{a.spec.version} · {a.commit.slice(0, 10)}
+              spec v{a.spec.version} ·{' '}
+              {standard ? `built ${when(a.created_at)}` : a.commit.slice(0, 10)}
             </option>
           ))}
         </select>
@@ -1364,8 +1389,9 @@ function Compare({
               : 'Not a direct revision of that version.'}{' '}
             Spec v{result.spec_versions[0]} → v{result.spec_versions[1]};
             changed tasks: {result.changed_tasks.join(', ') || 'none'}; cost{' '}
-            {nano(result.costs.base_nano_usd)} ({result.costs.base_calls} calls)
-            → {nano(result.costs.candidate_nano_usd)} (
+            <Money nano={result.costs.base_nano_usd} fixture={false} /> (
+            {result.costs.base_calls} calls) →{' '}
+            <Money nano={result.costs.candidate_nano_usd} fixture={false} /> (
             {result.costs.candidate_calls} calls).
           </p>
           <table className="tests">

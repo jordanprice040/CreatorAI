@@ -210,7 +210,7 @@ function FixtureDemo() {
               </div>
               <div>
                 <dt>Provider cost</dt>
-                <dd>0 nano-USD · fixture only</dd>
+                <dd>None · fixture only</dd>
               </div>
             </dl>
             <details>
@@ -547,7 +547,7 @@ function App() {
       void loadWorkspaces();
     } else go({ ws: startingWorkspace(workspaces), id: '' }, true);
   }, [workspaces, route.ws]);
-  const names = useActors(workspace?.id ?? '');
+  const names = useActors(workspace?.id ?? '', !viewMode.standard);
   const studio = Boolean(persistent && auth.session && workspace);
   const facts = useStudioFacts(
     studio ? workspace : null,
@@ -825,6 +825,7 @@ function App() {
             focus={pageRoute.id}
             onFocus={focus}
             prefill={prefillFor('evidence', workspace.id)}
+            open={open}
           />
         );
       case 'decisions':
@@ -999,11 +1000,12 @@ function App() {
                   const waiting =
                     page.key === 'monitor' && facts ? facts.pending : 0;
                   const ready = page.key === 'projects' && newStep;
-                  // On the page itself its tab row carries the dots instead.
+                  // On the page itself its tab row carries the dots instead. Only listed tabs
+                  // count: a dot for a tab Standard hides (Runs) could never be cleared.
                   const news = here
                     ? ''
                     : dotText(
-                        page.sections.map((x) => x.view),
+                        listed.map((x) => x.view),
                         unseen,
                       );
                   return (

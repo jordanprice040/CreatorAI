@@ -71,13 +71,15 @@ Files, Search), **Monitor** (Overview, Approvals, Runs, Activity, Budgets, Worke
 **Models and connections** (Models, GitHub, Devices) and **Settings**. Projects ›
 Path shows which step of the main path is next or blocked, and why. Discover uses
 claims already recorded in the workspace. Configure the run, pricing, envelope and
-scoped authority before starting bounded discovery. Watch Monitor › Runs, answer
+scoped authority before starting bounded discovery. Discover shows one way to start at a
+time and lists each discovery's progress and next step (Decide shows it too); answer
 covered questions under Monitor › Approvals, and use Decide and Scores and specs to
 record a choice and freeze a plan. Addresses from before the page map (`#/runs?ws=…`)
 still open the same screen. Each person chooses Standard (the default) or Advanced at the
 foot of the page list or on Settings, and the choice is saved for them on the server
 (ADR-0082). Standard folds routine fields behind their defaults, shows "What will happen"
-before each start, and leaves Launch, Workers and Study out of the tab rows (their addresses
+before each start, and leaves Launch, Runs, Library, Workers and Study (and Discover's theme
+draft) out of the tab rows (their addresses
 still open); Advanced opens every field and lists every tab. A new workspace shows a
 "Getting started" path on Chat and Path.
 

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useViewMode } from './view-mode.js';
+import { codeLabel, versionTag } from './plain-words.js';
 import {
   RUBRICS,
   StoredEntitySchema,
@@ -117,6 +119,7 @@ export function ScoreOption({
     n: number;
   } | null;
 }) {
+  const { standard } = useViewMode();
   const [optionId, setOptionId] = useState('');
   const [picked, setRubric] = useState<RubricKey>('suitability');
   /** The owner's edits, bound to the option, rubric and card they were made for. */
@@ -408,7 +411,12 @@ export function ScoreOption({
           <option value="">Choose an option to score</option>
           {options.map((o) => (
             <option key={o.entity.id} value={o.entity.id}>
-              {clip(o.entity.title, 90)} ({words(o.kind)}, v{o.entity.version})
+              {`${clip(o.entity.title, 90)} (${[
+                codeLabel(o.kind),
+                versionTag(o.entity.version, standard),
+              ]
+                .filter(Boolean)
+                .join(', ')})`}
             </option>
           ))}
         </select>
