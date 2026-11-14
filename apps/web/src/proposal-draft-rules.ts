@@ -46,6 +46,22 @@ export function draftOffers(
   return out;
 }
 
+/**
+ * Review 1 N-1: whether a section's text in the page differs from the draft it came from, the
+ * same check the studio makes on save; the saved mark's own flag when the draft is not listed.
+ */
+export function draftEdited(
+  key: string,
+  section: SectionNow & {
+    draft?: { id: string; edited?: boolean } | undefined;
+  },
+  drafts: readonly DraftRecord[],
+): boolean {
+  const from = drafts.find((d) => d.id === section.draft?.id)?.values[key];
+  if (from?.state !== 'written') return !!section.draft?.edited;
+  return section.text.trim() !== from.text.trim();
+}
+
 /** Sections whose text in the page newly comes from a model draft, for "What changed". */
 export function newlyDrafted(
   before: Readonly<Record<string, SectionNow>>,

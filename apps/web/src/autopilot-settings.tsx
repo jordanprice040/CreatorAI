@@ -5,6 +5,7 @@ import {
   NOT_HANDS_OFF,
   handsOff,
   isHandsOff,
+  handsOffMissing,
   type AutopilotSettingKey,
   type AutopilotSettingsValues,
   type SessionInfo,
@@ -127,7 +128,15 @@ export function AutopilotSettingsPanel({
             <p className="small" aria-live="polite">
               {isHandsOff(s.values)
                 ? 'Hands-off is on: the autopilot recovers by itself wherever a setting allows.'
-                : 'Hands-off is off.'}
+                : `Hands-off is off.${
+                    // Only when part of it is on, e.g. Hands-off saved before a switch joined it.
+                    handsOffMissing(s.values).length <
+                    Object.keys(s.values).length - NOT_HANDS_OFF.length
+                      ? ` Not on yet: ${handsOffMissing(s.values)
+                          .map((k) => AUTOPILOT_SETTING_TEXT[k].label)
+                          .join(', ')}.`
+                      : ''
+                  }`}
               {s.updated_at ? ` Last changed ${when(s.updated_at)}.` : ''}
             </p>
             {s.can_change && !isHandsOff(draft) && (

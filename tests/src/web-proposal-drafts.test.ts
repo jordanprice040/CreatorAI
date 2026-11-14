@@ -30,6 +30,11 @@ type Rules = {
     now: Record<string, Section>,
   ) => string[];
   draftReason: (labels: string[]) => string;
+  draftEdited: (
+    key: string,
+    section: Section & { draft?: { id: string; edited?: boolean } },
+    drafts: unknown[],
+  ) => boolean;
 };
 
 const record = (
@@ -111,5 +116,29 @@ test('the default "What changed" names the sections that newly use a draft', asy
   );
   assert.ok(
     draftReason(Array(80).fill('Methods and step-by-step')).length <= 300,
+  );
+});
+
+test('review 1 N-1: the page says "edited" as soon as a used draft’s text changes, as the studio will on save', async () => {
+  const { draftEdited } = await load<Rules>('proposal-draft-rules.ts');
+  const drafts = [
+    record('d1', { methods: { state: 'written', text: 'Step one.' } }),
+  ];
+  assert.equal(
+    draftEdited('methods', written(' Step one. ', 'd1'), drafts),
+    false,
+  );
+  assert.equal(
+    draftEdited('methods', written('Step one, then two.', 'd1'), drafts),
+    true,
+  );
+  // A draft no longer listed keeps the saved mark's own flag.
+  assert.equal(
+    draftEdited(
+      'methods',
+      { ...written('x'), draft: { id: 'gone', edited: true } },
+      drafts,
+    ),
+    true,
   );
 });

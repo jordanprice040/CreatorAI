@@ -852,6 +852,18 @@ export class AutopilotRunner {
           calls: again.question ? Math.min(2, Math.max(0, remaining)) : 0,
         };
       }
+      case 'proposal': {
+        // ADR-0101 (review 1 L-2): asking the chat model for section drafts is one call of the
+        // autopilot's own limit, decided (and reserved) when the step is planned.
+        const s = await this.#settings(ctx, ws).catch(() => null);
+        if (!s?.values.draft_proposal_sections)
+          return { request: null, calls: 0 };
+        if (!this.#drafts)
+          return { request: { draft_sections: 'no_service' }, calls: 0 };
+        return remaining >= 1
+          ? { request: { draft_sections: 'ask' }, calls: 1 }
+          : { request: { draft_sections: 'no_calls' }, calls: 0 };
+      }
       default:
         return { request: null, calls: 0 };
     }
@@ -1001,7 +1013,7 @@ export class AutopilotRunner {
         case 'gather':
           return await this.#gather(ctx, keyed, ws, a, step, signal);
         case 'proposal':
-          return await this.#proposal(ctx, keyed, ws, a, step);
+          return await this.#proposal(ctx, keyed, ws, a, step, signal);
         case 'spec': {
           const sel = carried(a.steps, 'select');
           return {
@@ -1889,6 +1901,7 @@ export class AutopilotRunner {
     ws: string,
     a: Autopilot,
     step: AutopilotStep,
+    signal: AbortSignal,
   ): Promise<Result> {
     const sel = carried(a.steps, 'select');
     if (!sel?.option)
@@ -1914,7 +1927,9 @@ export class AutopilotRunner {
       ctx,
       ws,
       made.proposal,
+      step,
       step.key ?? `${a.id}:${step.attempt}`,
+      signal,
     );
     return {
       done: {
@@ -1932,7 +1947,9 @@ export class AutopilotRunner {
    * ADR-0101 (P-5): with the owner's setting on, asks the chat model to draft the proposal's
    * unknown plan sections. The drafts only wait under their sections; a person uses each one.
    * A refusal or failure never stops the autopilot: the proposal is saved either way, and the
-   * note says what happened. Null when the setting is off or nothing is left to draft.
+   * note says what happened. Null when the setting was off when the step was planned or nothing
+   * is left to draft. Stop does not wait for the reply: the request carries on and its drafts
+   * still appear under the sections (review 1 L-2).
    */
   async #draftSections(
     ctx: CommandContext,
@@ -1942,23 +1959,39 @@ export class AutopilotRunner {
       version: number;
       body: { sections: Record<string, { state: string }> };
     },
+    step: AutopilotStep,
     key: string,
+    signal: AbortSignal,
   ): Promise<string | null> {
-    const settings = await this.#settings(ctx, ws).catch(() => null);
-    if (!settings?.values.draft_proposal_sections) return null;
+    const plan = step.request?.draft_sections;
+    if (!plan) return null;
     const sections = PROPOSAL_DRAFTABLE_SECTIONS.filter(
       (k) => p.body.sections[k]?.state === 'unknown',
     );
     if (!sections.length) return null;
-    if (!this.#drafts)
+    if (plan === 'no_service' || !this.#drafts)
       return 'The chat model was not asked to draft its missing sections: this studio has no plan connections.';
+    if (plan === 'no_calls')
+      return 'The chat model was not asked to draft its missing sections: the autopilot’s call limit is used up.';
+    const stopped = new Promise<null>((resolve) => {
+      if (signal.aborted) resolve(null);
+      signal.addEventListener('abort', () => resolve(null), { once: true });
+    });
     try {
-      const d = await this.#drafts(ctx, ws, p.id, {
-        client_id: draftClientId(key),
-        version: p.version,
-        sections,
-      });
+      const d = await Promise.race([
+        this.#drafts(ctx, ws, p.id, {
+          client_id: draftClientId(key),
+          version: p.version,
+          sections,
+        }),
+        stopped,
+      ]);
+      if (!d)
+        return 'The autopilot stopped before the chat model’s drafts came back; any it finishes will still appear under their sections.';
       const written = sections.filter((k) => d.values[k]?.state === 'written');
+      // Review 1 L-4: a person's draft already on its way is returned in place of a new one.
+      if (d.state === 'pending')
+        return 'A draft of its missing sections was already on its way; it will appear under the sections on Proposals.';
       if (d.state !== 'completed')
         return `The chat model's draft of its missing sections ${d.state === 'refused' ? 'was not sent' : 'failed'}${d.reason ? `: ${d.reason}` : '.'}`;
       return written.length

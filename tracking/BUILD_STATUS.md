@@ -8,7 +8,9 @@ Checked: `pnpm typecheck`, `pnpm format:check`, `pnpm test:db` on PostgreSQL 16 
 
 After #193 merged: an owner autopilot setting, **Draft a proposal's missing sections** (off by default, part of Hands-off), makes an autopilot's proposal step ask for the drafts too; they wait for a person, and a refusal only shows in the step's note (tests in `autopilot.test.ts`).
 
-Open: independent review in a separate thread.
+Review 1 (1 M, 4 L, 6 nits; `/mnt/project-files/reviews/PR198_PATH_PROPOSALS_REVIEW_1_2026-11-14.md`) fixed: a draft a stopped studio left pending is closed on read, so the button is never held (and loses its words if the proposal was redacted); the autopilot's draft request is one of its own calls and Stop does not wait for it; a draft already on its way is not reported as failed; the settings card names the Hands-off switch that is not on yet; the page shows "and edited" as you type; one shared helper settles chat fills and drafts. Rechecked: `pnpm typecheck`, `pnpm format:check`, `pnpm test:db` on PostgreSQL 16 (1208 tests: 1174 pass, 29 skipped, the 5 known PowerShell-wrapper failures) and the browser walk.
+
+Open: re-review in a separate thread.
 ## November 14 update — more automation for the autopilot (ADR-0100, migration 63)
 
 Jordan's November 14 asks: an opt-in way for the autopilot to go on by itself at stops, automatic evidence gathering and claim linking when evidence is thin, a hands-off mode that recovers from most stops, and a clear next step whenever automation waits. Plan with the full stop map (23 stops, 6 that stay hard stops): `docs/AUTOPILOT_MORE_AUTOMATION_PLAN_2026-11-14.md`.

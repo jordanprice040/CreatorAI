@@ -34,7 +34,6 @@ const LIVE = [
   'reconciling',
 ];
 
-/** Run monitor: what is running, what waits for a person, what it costs, what just happened. */
 /** UX pass P-2: where the newest selection sends the path, for the Monitor tile. */
 const ROUTE_TEXT = {
   software: 'software, to a spec',
@@ -47,6 +46,7 @@ const proposalCount = (o: Overview) => {
   return `${n} ${n === 1 ? 'proposal' : 'proposals'}`;
 };
 
+/** Run monitor: what is running, what waits for a person, what it costs, what just happened. */
 export function Overview({
   session,
   workspace,

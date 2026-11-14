@@ -2694,6 +2694,41 @@ export class ConnectionStore extends AutomationStore {
    * asked for. A retried press (same `client_id`) or a draft still on its way returns that
    * draft. Nothing is sent here, and nothing in the proposal changes.
    */
+  /**
+   * ADR-0101: a draft left pending by a studio that stopped mid-request is closed as failed
+   * once past the chat answers' stale point (review 1 M-1: on every read too, so the page's
+   * button is not held by it). If its proposal was redacted meanwhile, its words go as well
+   * (review 1 L-1).
+   */
+  async #closeStaleSectionDrafts(c: PoolClient, ws: string, pid: string) {
+    await c.query(
+      `update proposal_section_drafts ca set state = 'failed', finished_at = clock_timestamp(),
+         reason = 'The studio stopped before this draft was recorded. Nothing more is known about it.',
+         input = case when e.status = 'redacted' then '' else ca.input end,
+         redacted_at = case when e.status = 'redacted' then clock_timestamp() else null end
+         from entities e
+       where e.workspace_id = ca.workspace_id and e.id = ca.proposal_id
+         and ca.workspace_id = $1 and ca.proposal_id = $2 and ca.state = 'pending'
+         and ca.created_at < ${CHAT_ANSWER_STALE_POINT}
+         and not (ca.id = any($3::uuid[]))`,
+      [ws, pid, [...this.#liveSectionDrafts]],
+    );
+  }
+
+  /** The proposal's drafts, newest first, after closing any a stopped studio left pending. */
+  override async listProposalSectionDrafts(
+    ctxIn: CommandContext,
+    ws: string,
+    proposalId: string,
+  ): Promise<ProposalSectionDraft[]> {
+    const ctx = normalize(ctxIn);
+    await this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, false);
+      await this.#closeStaleSectionDrafts(c, uuid(ws), uuid(proposalId));
+    });
+    return super.listProposalSectionDrafts(ctx, ws, proposalId);
+  }
+
   async beginProposalSectionDraft(
     ctxIn: CommandContext,
     ws: string,
@@ -2721,15 +2756,7 @@ export class ConnectionStore extends AutomationStore {
         )
       ).rows[0] as Row | undefined;
       if (!cur) throw fail('NOT_FOUND', 'Proposal not found.');
-      // A draft left pending by a studio that stopped mid-request is closed as failed.
-      await c.query(
-        `update proposal_section_drafts ca set state = 'failed', finished_at = clock_timestamp(),
-           reason = 'The studio stopped before this draft was recorded. Nothing more is known about it.'
-         where ca.proposal_id = $1 and ca.state = 'pending'
-           and ca.created_at < ${CHAT_ANSWER_STALE_POINT}
-           and not (ca.id = any($2::uuid[]))`,
-        [pid, [...this.#liveSectionDrafts]],
-      );
+      await this.#closeStaleSectionDrafts(c, uuid(ws), pid);
       const prior = (
         await c.query(
           `select * from proposal_section_drafts where proposal_id = $1

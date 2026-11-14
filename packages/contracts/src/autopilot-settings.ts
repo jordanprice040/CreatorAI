@@ -78,13 +78,25 @@ export const NOT_HANDS_OFF: readonly (keyof AutopilotSettingsValues)[] = [
   'choose_model_ethics',
   'accept_quote_checked_claims',
 ];
-export function isHandsOff(v: AutopilotSettingsValues): boolean {
+/**
+ * The Hands-off switches that are not on yet. ADR-0101 review 1 L-3: Hands-off saved before
+ * drafting joined it reads as off until the owner turns it on again, so the page names what is
+ * missing.
+ */
+export function handsOffMissing(
+  v: AutopilotSettingsValues,
+): (keyof AutopilotSettingsValues)[] {
   const h = handsOff(v);
-  return (Object.keys(h) as (keyof AutopilotSettingsValues)[]).every(
+  return (Object.keys(h) as (keyof AutopilotSettingsValues)[]).filter(
     (k) =>
-      NOT_HANDS_OFF.includes(k) ||
-      (typeof h[k] === 'number' ? Number(v[k]) >= Number(h[k]) : v[k] === h[k]),
+      !NOT_HANDS_OFF.includes(k) &&
+      !(typeof h[k] === 'number'
+        ? Number(v[k]) >= Number(h[k])
+        : v[k] === h[k]),
   );
+}
+export function isHandsOff(v: AutopilotSettingsValues): boolean {
+  return handsOffMissing(v).length === 0;
 }
 
 export const AutopilotSettingsSchema = z.strictObject({
@@ -190,7 +202,7 @@ export const AUTOPILOT_SETTING_TEXT: Record<
   },
   draft_proposal_sections: {
     label: 'Draft a proposal’s missing sections',
-    text: 'After saving a proposal, asks your chat model to draft the plan sections that are still Unknown yet (it counts toward the daily chat limit and needs Chat answers to allow studio records). Each draft waits under its section on Proposals; nothing is used until you use it and save.',
+    text: 'After saving a proposal, asks your chat model to draft the plan sections that are still Unknown yet: one of the autopilot’s calls, counted toward the daily chat limit too, and only when Chat answers allow studio records. Each draft waits under its section on Proposals; nothing is used until you use it and save. Part of Hands-off since November 14, 2026, so Hands-off saved before then reads as off until you turn it on again.',
   },
 };
 

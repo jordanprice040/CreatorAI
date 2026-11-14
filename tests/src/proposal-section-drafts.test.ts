@@ -402,3 +402,97 @@ test('draft the missing sections: owner and chat rules, drafts only, marks check
   assert.equal(listed[0]?.sent, null);
   assert.deepEqual(listed[0]?.values, {});
 });
+
+test('review 1 M-1, L-1: a draft a stopped studio left pending is closed when read, and loses its words if the proposal was redacted', async (t) => {
+  const s = await discoverySetup(t, new FixtureAdapter());
+  if (!s) return;
+  const store = new ConnectionStore(s.db.pool);
+  const service = new PlanConnectionService({
+    store,
+    vault: null,
+    claudeCode: fakeHost(REPLY),
+    claudeCodeFixtureEnv: { CREATOR_CLAUDE_STAND_IN: 'fake' },
+  });
+  const conn = await connect(store, s.ws.id, service);
+  await store.setChatSettings(owner, s.ws.id, {
+    expected_version: 0,
+    enabled: true,
+    connection_id: conn.id,
+    model_id: MODEL,
+    include_snapshot: true,
+    daily_limit: 10,
+  });
+  const { tool } = await nonCodeSelected(s);
+  const start = await store.proposalDraft(owner, s.ws.id, tool.id);
+  const pid = (
+    await store.createProposal(owner, s.ws.id, {
+      title: 'Turn on reminders',
+      body: start.body,
+    })
+  ).proposal.id;
+  const begin = (st: ConnectionStore) =>
+    st.beginProposalSectionDraft(owner, s.ws.id, pid, {
+      client_id: randomUUID(),
+      version: 1,
+      sections: ['objectives'],
+    });
+  // Moves a pending draft past the stale point (the settle-once trigger is off for this edit).
+  const age = async (id: string) => {
+    const c = await s.db.pool.connect();
+    try {
+      await c.query(`set session_replication_role = replica`);
+      await c.query(
+        `update proposal_section_drafts set created_at = created_at - interval '3 hours' where id = $1`,
+        [id],
+      );
+      await c.query(`set session_replication_role = origin`);
+    } finally {
+      c.release();
+    }
+  };
+
+  // The studio that sent it is still waiting: the draft stays pending, even when old.
+  const live = await begin(store);
+  await age(live.draft.id);
+  assert.equal(
+    (await store.listProposalSectionDrafts(owner, s.ws.id, pid))[0]!.state,
+    'pending',
+  );
+  // A restarted studio does not know it, so once past the stale point it is closed on read and
+  // the page's button is free again without a press.
+  const restarted = new ConnectionStore(s.db.pool);
+  const [closed] = await restarted.listProposalSectionDrafts(
+    owner,
+    s.ws.id,
+    pid,
+  );
+  assert.equal(closed!.id, live.draft.id);
+  assert.equal(closed!.state, 'failed');
+  assert.match(closed!.reason ?? '', /studio stopped before this draft/);
+  assert.ok(closed!.sent?.input, 'an unredacted proposal keeps what was sent');
+
+  // L-1: one left pending and then redacted with its proposal loses its words when closed.
+  const orphan = await begin(restarted);
+  assert.equal(
+    (await restarted.listProposalSectionDrafts(owner, s.ws.id, pid))[0]!.state,
+    'pending',
+  );
+  await restarted.redactEntity(owner, s.ws.id, pid, {
+    expected_version: 1,
+    reason_code: 'privacy',
+  });
+  await age(orphan.draft.id);
+  const again = new ConnectionStore(s.db.pool);
+  const listed = await again.listProposalSectionDrafts(owner, s.ws.id, pid);
+  assert.equal(listed[0]!.id, orphan.draft.id);
+  assert.equal(listed[0]!.state, 'failed');
+  assert.equal(listed[0]!.sent, null);
+  const row = (
+    await s.db.pool.query(
+      'select input, redacted_at from proposal_section_drafts where id = $1',
+      [orphan.draft.id],
+    )
+  ).rows[0];
+  assert.equal(row.input, '');
+  assert.ok(row.redacted_at);
+});

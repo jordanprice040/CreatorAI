@@ -46,6 +46,7 @@ import {
   useSectionDrafts,
 } from './proposal-drafts.js';
 import {
+  draftEdited,
   draftOffers,
   draftReason,
   newlyDrafted,
@@ -784,8 +785,10 @@ function ProposalEditor({
             <p className="small model-draft-mark">
               Started as a model draft by {s.draft.model_id}, which you chose to
               use. Saving keeps that label
-              {s.draft.edited ? ' (marked as edited)' : ''}; the studio notes
-              whether the text was changed.
+              {draftEdited(k, s, drafts.data ?? [])
+                ? ' (marked as edited)'
+                : ''}
+              ; the studio checks whether the text was changed.
             </p>
           )}
           {offers[k] && (
@@ -1010,7 +1013,17 @@ function ProposalEditor({
                 <>
                   {body.sections[k].draft && (
                     <p className="small">
-                      <em>{draftMarkText(body.sections[k].draft!)}.</em>
+                      <em>
+                        {draftMarkText({
+                          ...body.sections[k].draft!,
+                          edited: draftEdited(
+                            k,
+                            body.sections[k],
+                            drafts.data ?? [],
+                          ),
+                        })}
+                        .
+                      </em>
                     </p>
                   )}
                   <Markdown text={body.sections[k].text} />

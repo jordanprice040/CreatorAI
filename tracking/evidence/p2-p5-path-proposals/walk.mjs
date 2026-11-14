@@ -11,6 +11,7 @@
 import { once } from 'node:events';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { preview as vitePreview } from 'vite';
 import { createRequire } from 'node:module';
@@ -155,7 +156,10 @@ try {
       );
 
   await page.goto(`${BASE}/#/projects/path?ws=${s.ws.id}`);
-  await page.locator('ol.path-stages .path-stage', { hasText: 'Proposal' }).first().waitFor();
+  await page
+    .locator('ol.path-stages .path-stage', { hasText: 'Proposal' })
+    .first()
+    .waitFor();
   step(`Path after a non-code selection: ${(await stages()).join(' · ')}`);
   await shot('01-path-proposal-next');
 
@@ -173,7 +177,9 @@ try {
     .getByRole('button', { name: 'Draft the missing sections' })
     .click();
   await panel.getByText(/drafted 4 of \d+ sections/).waitFor();
-  step(`draft outcome: ${(await panel.getByRole('status').innerText()).split('\n')[0]}`);
+  step(
+    `draft outcome: ${(await panel.getByRole('status').innerText()).split('\n')[0]}`,
+  );
   await page.locator('.model-draft').first().waitFor();
   await shot('03-drafts-under-sections');
 
@@ -189,7 +195,9 @@ try {
     has: page.locator('legend', { hasText: 'Ethics and risks' }),
   });
   await ethics.getByText('Unknown yet.').waitFor();
-  step('used the Objectives and Methods drafts; Ethics stays Unknown yet with the model’s note');
+  step(
+    'used the Objectives and Methods drafts; Ethics stays Unknown yet with the model’s note',
+  );
   await page.getByRole('button', { name: 'Save as version 2' }).click();
   await page
     .locator('.proposal-fold', { hasText: 'Objectives' })
@@ -205,33 +213,55 @@ try {
     .getByText(/Model draft by claude-test-model, accepted by a person/)
     .first()
     .waitFor();
-  await page.getByText(/3 required sections are still Unknown yet/).first().waitFor();
+  await page
+    .getByText(/3 required sections are still Unknown yet/)
+    .first()
+    .waitFor();
   await shot('04-preview-labels');
   await page.getByRole('button', { name: 'Edit view' }).click();
 
   await page.goto(`${BASE}/#/projects/path?ws=${s.ws.id}`);
-  await page.locator('ol.path-stages .path-stage', { hasText: 'Proposal' }).first().waitFor();
-  await page.getByText(/3 required sections are still Unknown yet/).first().waitFor();
+  await page
+    .locator('ol.path-stages .path-stage', { hasText: 'Proposal' })
+    .first()
+    .waitFor();
+  await page
+    .getByText(/3 required sections are still Unknown yet/)
+    .first()
+    .waitFor();
   step(`Path after version 2: ${(await stages()).join(' · ')}`);
-  await shot('05-path-finish-proposal');
+  await shot('05-path-proposal-still-next');
 
   await page.goto(`${BASE}/#/monitor/overview?ws=${s.ws.id}`);
   await page.getByText('selection recorded').waitFor();
-  step('Monitor shows “1 selection recorded · 1 proposal · newest: non-code, to a proposal”');
+  step(
+    'Monitor shows “1 selection recorded · 1 proposal · newest: non-code, to a proposal”',
+  );
 
   await page.goto(`${BASE}/#/projects/proposals?ws=${s.ws.id}`);
   await page.locator('.proposals-layout').waitFor();
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole('button').filter({ hasText: /^Proposal:/ }).first().click().catch(() => {});
+  await page
+    .getByRole('button')
+    .filter({ hasText: /^Proposal:/ })
+    .first()
+    .click()
+    .catch(() => {});
   await page.waitForTimeout(500);
   const wide = await page.evaluate(
     () => document.documentElement.scrollWidth > window.innerWidth + 1,
   );
   step(`phone width horizontal overflow on Proposals: ${wide}`);
   await shot('06-phone');
-  step(`console errors: ${errors.length}${errors.length ? ` (${errors.join(' | ')})` : ''}`);
+  step(
+    `console errors: ${errors.length}${errors.length ? ` (${errors.join(' | ')})` : ''}`,
+  );
 } catch (e) {
-  await page?.screenshot({ path: join(shots, 'failure.png'), fullPage: true });
+  // A failed run's screenshot goes to the temp folder, never into the evidence.
+  await page?.screenshot({
+    path: join(tmpdir(), 'p2-p5-walk-failure.png'),
+    fullPage: true,
+  });
   throw e;
 } finally {
   await writeFile(

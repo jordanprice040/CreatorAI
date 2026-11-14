@@ -1212,6 +1212,9 @@ export class CatalogStore extends SelectionStore {
           ),
       )
       .map((d) => String(d.alternative.id).toLowerCase());
+    // A selection that both selects an option for build and advances a non-code one counts as
+    // software: the Path follows the build, and the proposal still shows under Proposals
+    // (ADR-0101, review 1 N-6).
     const route = dispositions.some((d) => d.disposition === 'select_for_build')
       ? ('software' as const)
       : nonCode.length > 0
