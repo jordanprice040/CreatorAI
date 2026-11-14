@@ -19,6 +19,7 @@ import {
   type SourceDetail,
   type SourceSummary,
   type StoredEntity,
+  AUTOPILOT_QUOTE_CHECK_LABEL,
 } from '@creator/contracts';
 import {
   assessClaimEvidence,
@@ -1220,7 +1221,17 @@ export class ResearchStore extends WorkflowStore {
         basis: body ? (body.basis as 'observation' | 'inference') : null,
       },
       status: assessment.status,
-      labels: assessment.labels,
+      // P-12 (ADR-0100): a claim the autopilot accepted on its quote check alone says so
+      // wherever it informs discovery, assessment or a proposal.
+      labels: (
+        await c.query(
+          `select 1 from web_discovery_claims where claim_id = $1 and admitted_via = 'autopilot'
+            limit 1`,
+          [claim.id],
+        )
+      ).rowCount
+        ? [AUTOPILOT_QUOTE_CHECK_LABEL, ...assessment.labels].slice(0, 20)
+        : assessment.labels,
       explanation: assessment.explanation,
       independent_origins: assessment.independent_origins,
       contrary_origins: assessment.contrary_origins,

@@ -3100,6 +3100,20 @@ details.routine > summary {
 .notice.blocked {
   display: block;
 }
+/* N-14: a notice of headed lists (the autopilot's two summaries) reads top to bottom. */
+.notice.stacked {
+  display: block;
+}
+.notice.stacked > p {
+  margin: 0 0 4px;
+}
+.notice.stacked > ul {
+  margin: 0 0 10px;
+  padding-left: 18px;
+}
+.notice.stacked > :last-child {
+  margin-bottom: 0;
+}
 .notice.blocked p {
   margin: 0 0 4px;
 }

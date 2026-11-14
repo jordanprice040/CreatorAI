@@ -41,6 +41,8 @@ import {
 import { Empty, Status, reveal, useLoad } from './ui.js';
 import { usePoll } from './page-active.js';
 import { useEndTime } from './end-time.js';
+import { AllowAndContinue } from './autopilot-next.js';
+import { useAutopilotSettings } from './autopilot-settings.js';
 import { routeHash } from './pages.js';
 
 // P13 (ADR-0092): "Run it for me". One form sets up a new run with routine approvals covering
@@ -88,6 +90,8 @@ export function Autopilot({
   workspace: Workspace;
 }) {
   const base = `workspaces/${workspace.id}`;
+  // ADR-0100: a web search the owner's settings allow needs the run's approvals to cover it.
+  const settings = useAutopilotSettings(base);
   const owner = workspace.role === 'owner';
   const fixture = workspace.record_mode === 'fixture';
   const ctx = useLoad(async () => {
@@ -210,7 +214,12 @@ export function Autopilot({
     route?.kind === 'api'
       ? String(BigInt(Math.round(money * 100)) * 10_000_000n)
       : null;
-  const policy = config ? autopilotRoutinePolicy(config, moneyNano) : null;
+  const policy = config
+    ? autopilotRoutinePolicy(config, moneyNano, {
+        gatherSearch:
+          !!settings?.gather_evidence && settings.max_extra_searches > 0,
+      })
+    : null;
   // PR #191 review R-N1: what the owner ticked is the two summaries as read; any change to them
   // (the end time included) unticks it, as in the automation levels panel.
   const summariesRead = JSON.stringify([
@@ -286,16 +295,20 @@ export function Autopilot({
           autonomy_mode: 'human_in_loop',
           stage_gates: null,
           initial_grants: [],
-          routine_policy: {
-            ...policy,
-            summary_seen: routinePolicySummary(policy),
-          },
         },
       });
       runId = control.run_id;
+      // P-11: the approvals are made with the autopilot, so they end when it ends.
       await api(AutopilotSchema, `${base}/runs/${runId}/autopilots`, {
         csrf: session.csrf_token,
-        body: { config: cfg, summary_seen: autopilotSummary(cfg) },
+        body: {
+          config: cfg,
+          summary_seen: autopilotSummary(cfg),
+          routine_policy: {
+            kind: 'new',
+            policy: { ...policy, summary_seen: routinePolicySummary(policy) },
+          },
+        },
         timeoutMs: 30_000,
       });
       ctx.refresh();
@@ -521,7 +534,8 @@ export function Autopilot({
                   )}
                 </details>
                 {config && policy && (
-                  <div className="notice">
+                  // N-14: read top to bottom, without the flex row's gaps.
+                  <div className="notice stacked">
                     <p>
                       <strong>What the autopilot does</strong>
                     </p>
@@ -573,7 +587,8 @@ export function Autopilot({
                     onChange={(e) => setConfirmed(e.target.checked)}
                   />{' '}
                   I have read both summaries; start a new run with these routine
-                  approvals and run the autopilot on it.
+                  approvals and run the autopilot on it. The approvals end when
+                  the autopilot ends, except while it waits for me.
                 </label>
                 {blockers.length > 0 && (
                   <ul className="error">
@@ -645,7 +660,8 @@ export function Autopilot({
                   {owner &&
                     a.state === 'finished' &&
                     a.outcome &&
-                    AUTOPILOT_RETRYABLE.includes(a.outcome) &&
+                    (AUTOPILOT_RETRYABLE.includes(a.outcome) ||
+                      autopilotContinuable(a).ok) &&
                     (() => {
                       const can = autopilotContinuable(a);
                       return can.ok ? (
@@ -660,6 +676,13 @@ export function Autopilot({
                         <p className="small">{can.reason}</p>
                       );
                     })()}
+                  <AllowAndContinue
+                    a={a}
+                    base={base}
+                    session={session}
+                    owner={owner}
+                    onDone={() => ctx.refresh()}
+                  />
                 </article>
               ))
             )}
