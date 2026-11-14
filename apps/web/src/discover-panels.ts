@@ -70,12 +70,5 @@ export function firstPanel(
 export const panelKey = (actor: string, ws: string) =>
   `creator.discoverPanel.${actor}.${ws}`;
 
-/**
- * Asks the Discover page that holds an element to open its panel. `reveal` (ui.tsx) sends it
- * when its target sits in a closed panel; it bubbles to the page's own section only, since
- * kept-alive pages repeat ids.
- */
-export const SHOW_PANEL = 'creator:show-discover-panel';
-
 export const isPanel = (v: string | undefined): v is DiscoverPanel =>
   PANEL_CHOICES.some((c) => c.key === v);

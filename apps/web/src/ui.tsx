@@ -6,7 +6,6 @@ import {
   type ReactNode,
 } from 'react';
 import { useOnShow } from './page-active.js';
-import { SHOW_PANEL } from './discover-panels.js';
 import {
   ActorSummarySchema,
   ProblemComparisonSchema,
@@ -304,6 +303,13 @@ export function StaleNote({ stale }: { stale?: string | undefined }) {
     </p>
   );
 }
+/**
+ * Asks the Discover page that holds an element to open its panel (P-7, ADR-0103). `reveal`
+ * sends it when its target sits in a closed panel (`[data-panel][hidden]`); it bubbles to the
+ * page's own section only, since kept-alive pages repeat ids.
+ */
+export const SHOW_PANEL = 'creator:show-discover-panel';
+
 /**
  * Scrolls to the element with `id` and moves keyboard focus to it (review 1 of #192, L-1 and
  * L-2). It looks only inside the page that `from` belongs to, since kept-alive pages repeat

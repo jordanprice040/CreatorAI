@@ -51,10 +51,17 @@ import { Explore, type ExploredPick } from './explore.js';
 import { Autopilot } from './autopilot.js';
 import { Automation } from './automation.js';
 import { WebDiscover } from './web-discovery.js';
-import { Empty, Status, reveal, runNames, useLoad, type View } from './ui.js';
+import {
+  Empty,
+  SHOW_PANEL,
+  Status,
+  reveal,
+  runNames,
+  useLoad,
+  type View,
+} from './ui.js';
 import { DiscoveryProgress } from './discovery-progress.js';
 import {
-  SHOW_PANEL,
   firstPanel,
   isPanel,
   panelKey,
