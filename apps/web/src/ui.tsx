@@ -323,36 +323,46 @@ export function reveal(from: Element | null, id: string): boolean {
 }
 
 /**
- * Final UX pass (Jordan, November 14): a "Back to top" button once a long page is scrolled
- * past the first screen. It moves focus back to the page's main region as well as the view.
- */
-/**
  * Review 3 of #192, L-C (WCAG 2.4.11): the sticky top bar's real height, kept in `--topbar-h`
  * on the root element, so scroll padding keeps focused controls and revealed headings below it
  * at every width (the bar wraps to two or three rows on narrow windows).
  */
 export function useTopbarHeight() {
-  const watch = useRef<ResizeObserver | null>(null);
+  const stop = useRef<() => void>(() => undefined);
   // A callback ref, since the bar mounts only once the studio has loaded.
   return useCallback((bar: HTMLElement | null) => {
-    watch.current?.disconnect();
-    watch.current = null;
+    stop.current();
+    stop.current = () => undefined;
     const root = document.documentElement;
     if (!bar || typeof ResizeObserver === 'undefined') {
       root.style.removeProperty('--topbar-h');
       return;
     }
+    // A bar that scrolls away with the page (small or zoomed windows, review 4 R4-L1) covers
+    // nothing, so it needs no padding.
     const set = () =>
       root.style.setProperty(
         '--topbar-h',
-        `${Math.ceil(bar.getBoundingClientRect().height)}px`,
+        getComputedStyle(bar).position === 'sticky'
+          ? `${Math.ceil(bar.getBoundingClientRect().height)}px`
+          : '0px',
       );
     set();
-    watch.current = new ResizeObserver(set);
-    watch.current.observe(bar);
+    const watch = new ResizeObserver(set);
+    watch.observe(bar);
+    // The media query that unsticks the bar can apply without the bar changing size.
+    window.addEventListener('resize', set);
+    stop.current = () => {
+      watch.disconnect();
+      window.removeEventListener('resize', set);
+    };
   }, []);
 }
 
+/**
+ * Final UX pass (Jordan, November 14): a "Back to top" button once a long page is scrolled
+ * past the first screen. It moves focus back to the page's main region as well as the view.
+ */
 export function BackToTop() {
   const [shown, setShown] = useState(false);
   useEffect(() => {

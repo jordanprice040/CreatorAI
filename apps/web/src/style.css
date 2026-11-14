@@ -3534,7 +3534,7 @@ html {
   scroll-padding-bottom: 64px;
   /* Review 2 of #192, L-A and O-1 (2.4.11): focus and scrolled-to headings stop below the
      sticky top bar. */
-  /* Review 3, L-C: the bar's measured height (set from main.tsx), 59 px when unknown. */
+  /* Review 3, L-C: the bar's measured height (useTopbarHeight in ui.tsx), 59 px when unknown. */
   scroll-padding-top: calc(var(--topbar-h, 59px) + 12px);
 }
 /* Review 1 of #192, N-7: fold rows are 24 px targets too, like text buttons. */
@@ -3560,4 +3560,11 @@ details > summary {
 /* Final UX pass: the gate's confirm button kept clear of the next gate's heading. */
 .gate-confirm {
   margin: 4px 0 10px;
+}
+/* Review 4 of #192, R4-L1 (reflow at 400% zoom, 320×256): on a narrow or short window the
+   wrapped top bar would take most of the screen, so it scrolls away with the page instead. */
+@media (max-width: 520px), (max-height: 500px) {
+  .topbar {
+    position: static;
+  }
 }
