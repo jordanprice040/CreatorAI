@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useOnShow } from './page-active.js';
+import { SHOW_PANEL } from './discover-panels.js';
 import {
   ActorSummarySchema,
   ProblemComparisonSchema,
@@ -312,13 +313,29 @@ export function reveal(from: Element | null, id: string): boolean {
   const root: ParentNode = from?.closest('.draft-page') ?? document;
   const target = root.querySelector<HTMLElement>(`#${CSS.escape(id)}`);
   if (!target) return false;
-  const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  target.scrollIntoView({
-    behavior: still ? 'auto' : 'smooth',
-    block: 'start',
-  });
-  if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
-  target.focus({ preventScroll: true });
+  const go = () => {
+    const still = window.matchMedia?.(
+      '(prefers-reduced-motion: reduce)',
+    ).matches;
+    target.scrollIntoView({
+      behavior: still ? 'auto' : 'smooth',
+      block: 'start',
+    });
+    if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+    target.focus({ preventScroll: true });
+  };
+  // P-7: a target inside a closed Discover panel opens that panel first, then is shown once
+  // the page has rendered it.
+  const panel = target.closest<HTMLElement>('[data-panel][hidden]');
+  if (panel) {
+    panel.dispatchEvent(
+      new CustomEvent(SHOW_PANEL, {
+        bubbles: true,
+        detail: panel.dataset.panel,
+      }),
+    );
+    setTimeout(go, 0);
+  } else go();
   return true;
 }
 

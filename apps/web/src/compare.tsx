@@ -48,6 +48,8 @@ import { AssessmentLines, AutoAssess, RangeWhy } from './assess.js';
 import { GateLines } from './gates.js';
 import { LinkClaims } from './link-claims.js';
 import { Routine, WhatWillHappen } from './routine.js';
+import { DiscoveryProgress } from './discovery-progress.js';
+import { useViewMode } from './view-mode.js';
 import {
   decideRoutineSummary,
   dispositionCounts,
@@ -255,6 +257,8 @@ export function Compare({
   open: (view: View, id?: string) => void;
 }) {
   const base = `workspaces/${workspace.id}`;
+  // P-6: the discovery run link is internal detail, shown in Advanced (Runs is Advanced too).
+  const { standard } = useViewMode();
   const problems = useLoad(async () => {
     const list = newestFirst(
       await api(
@@ -586,6 +590,16 @@ export function Compare({
           Refresh
         </button>
       </div>
+      {/* P-6 (ADR-0103): discoveries in plain words, so their progress shows here. */}
+      <DiscoveryProgress
+        key={`progress-${workspace.id}`}
+        session={session}
+        workspace={workspace}
+        open={open}
+        where="decide"
+        skipProblem={d?.cmp.problem.id ?? focus}
+        onFinished={problems.refresh}
+      />
       <Status
         loading={problems.loading}
         error={problems.error}
@@ -628,7 +642,7 @@ export function Compare({
                   .
                 </p>
               )}
-              {d.cmp.workflow_id && (
+              {d.cmp.workflow_id && !standard && (
                 <button
                   className="text"
                   onClick={() => open('runs', d.cmp.workflow_id!)}

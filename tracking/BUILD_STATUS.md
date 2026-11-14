@@ -1,5 +1,11 @@
 # Build status — November 10, 2026
 
+## November 14 update — final UX pass P-6, P-7 and the Runs/Library move (ADR-0103)
+
+What now works (web only, no migration): Discover opens one start panel at a time (Explore for me, Search the web, Discover from claims, Run it for me, How much is automated; Start with a theme in Advanced), keeping each closed panel's fields and polls; links into a closed panel open it. Starting a discovery stays on Discover, which lists each discovery's progress in plain words with its next step (Open in Decide, Open Approvals, Search the web, Sources and claims) and Pause, Resume and Cancel; Decide shows the ones running and refreshes its problems when one finishes. Standard no longer lists Monitor › Runs or Sources › Library (their addresses still open), and Runs links show only in Advanced. Discover in Standard at 1440 px is 1,389 to 3,164 px tall depending on the open panel (7,146 px before).
+
+Checked: a browser walk on a throwaway studio (fixture, ports 5183/4330/4340, its own database): start a discovery from claims, watch it run and finish on Discover, every panel switch, the progress list's Search the web opening a closed panel, Advanced (theme draft, Runs and Library tabs, Run details), and axe-core WCAG 2.2 A/AA (0 violations) with no sideways scroll at 1440 and 390 px; plus the commands listed in the PR.
+
 ## November 14 update — final UX pass P-1 (build after approval) and P-10 (build run default)
 
 What now works (no migration or ADR): a build whose acceptance cases the worker could not run (no WSL2, a lost run, cleanup pending) stops at once with the worker's reason and keeps its candidate, instead of spending its repair rounds on the same patch and stopping with "Patch changes nothing". Building again (after a new approval) carries on from that kept candidate: when the builder submits the candidate's own content, the candidate is reviewed and tested afresh. Build's Start build form opens on the run the spec was frozen in. The P-1 finding's guess (retrying from `task.head`) was not the cause; see `tracking/evidence/p1-build-retry/README.md`.
