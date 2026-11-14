@@ -658,9 +658,10 @@ main > .panel.records:first-child {
 @media (min-width: 761px) {
   .detail-pane {
     position: sticky;
-    top: 68px;
+    /* Review 5 of #192, L-2: below the top bar at every width (its height is measured). */
+    top: calc(var(--topbar-h, 59px) + 9px);
     align-self: start;
-    max-height: calc(100vh - 84px);
+    max-height: calc(100vh - var(--topbar-h, 59px) - 25px);
     overflow-y: auto;
   }
 }
@@ -3546,7 +3547,8 @@ details > summary {
 .back-to-top {
   position: sticky;
   bottom: 16px;
-  z-index: 30;
+  /* Below the navigation drawer (20) and its scrim (15) (review 5, L-1). */
+  z-index: 12;
   display: flex;
   width: max-content;
   margin: 16px 0 0 auto;
@@ -3561,8 +3563,10 @@ details > summary {
 .gate-confirm {
   margin: 4px 0 10px;
 }
-/* Review 4 of #192, R4-L1 (reflow at 400% zoom, 320×256): on a narrow or short window the
-   wrapped top bar would take most of the screen, so it scrolls away with the page instead. */
+/* Review 4 of #192, R4-L1 (reflow at 400% zoom, 320×256): on a short window the wrapped top bar
+   would take most of the screen (the height clause). On a phone in portrait it wraps to about
+   170 px, a fifth of the screen, so it scrolls away there too (the width clause); Back to top
+   brings the menu button back. */
 @media (max-width: 520px), (max-height: 500px) {
   .topbar {
     position: static;
