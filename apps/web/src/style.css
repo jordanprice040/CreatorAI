@@ -661,7 +661,10 @@ main > .panel.records:first-child {
     /* Review 5 of #192, L-2: below the top bar at every width (its height is measured). */
     top: calc(var(--topbar-h, 59px) + 9px);
     align-self: start;
-    max-height: calc(100vh - var(--topbar-h, 59px) - 25px);
+    /* Review 6 of #192: also leaves room for what sits below the list (panel padding and the
+       page footer, about 120 px), so at the end of a long list the pane is not pushed up
+       under the top bar. */
+    max-height: calc(100vh - var(--topbar-h, 59px) - 145px);
     overflow-y: auto;
   }
 }
