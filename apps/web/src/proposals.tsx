@@ -58,6 +58,21 @@ const RESPONSE: Record<string, string> = {
   investigate: 'Investigate',
   build: 'Custom software',
 };
+/**
+ * The option's response type and title, without saying the type twice when the title already
+ * starts with it ("Human-led: Human-led: …" read as a stutter).
+ */
+export function kindTitle(kind: string, title: string): string {
+  const label = RESPONSE[kind] ?? words(kind);
+  const head = /^([^:]{1,40}):\s/.exec(title)?.[1]?.trim().toLowerCase();
+  const known = [
+    label,
+    ...Object.values(RESPONSE),
+    'Software',
+    'Use the existing tool',
+  ].map((x) => x.toLowerCase());
+  return head && known.includes(head) ? title : `${label}: ${title}`;
+}
 const STATE_TEXT = {
   written: 'Written',
   unknown: 'Unknown yet',
@@ -88,20 +103,26 @@ export function ResponseExplanationPanel({
   reloadKey: string;
   open: (view: View, id?: string) => void;
 }) {
+  // Audit (final UX pass): no problem chosen yet means nothing to explain; asking anyway
+  // requested `problems//explanation` and logged a 404 on every Decide visit.
   const x = useLoad(
-    () =>
-      api(
-        ResponseExplanationSchema,
-        `${base}/problems/${problemId}/explanation`,
-      ),
+    async () =>
+      problemId
+        ? api(
+            ResponseExplanationSchema,
+            `${base}/problems/${problemId}/explanation`,
+          )
+        : null,
     [base, problemId, reloadKey],
   );
   const proposals = useLoad(
-    () =>
-      api(
-        z.array(ProposalSummarySchema),
-        `${base}/proposals?problem=${problemId}`,
-      ),
+    async () =>
+      problemId
+        ? api(
+            z.array(ProposalSummarySchema),
+            `${base}/proposals?problem=${problemId}`,
+          )
+        : [],
     [base, problemId, reloadKey],
   );
   const e = x.data;
@@ -128,10 +149,7 @@ export function ResponseExplanationPanel({
             c.disposition === 'proceed_to_validation');
         return (
           <div key={c.alternative.id} className="explain-chosen">
-            <h4>
-              {RESPONSE[c.alternative.kind] ?? words(c.alternative.kind)}:{' '}
-              {c.alternative.title}
-            </h4>
+            <h4>{kindTitle(c.alternative.kind, c.alternative.title)}</h4>
             {c.reasons.length > 0 && (
               <ul className="small">
                 {c.reasons.map((r, i) => (
@@ -167,8 +185,10 @@ export function ResponseExplanationPanel({
           {e.software_avenues.map((a) => (
             <details key={a.option.alternative.id} className="explain-avenue">
               <summary>
-                {RESPONSE[a.option.alternative.kind]}:{' '}
-                {a.option.alternative.title}{' '}
+                {kindTitle(
+                  a.option.alternative.kind,
+                  a.option.alternative.title,
+                )}{' '}
                 <small>
                   ·{' '}
                   {a.option.rank !== null
@@ -369,7 +389,7 @@ export function Proposals({
                 {list.data.eligible.map((e) => (
                   <li key={e.option.id}>
                     <span>
-                      {RESPONSE[e.option.kind]}: {e.option.title}{' '}
+                      {kindTitle(e.option.kind, e.option.title)}{' '}
                       <small>· {clip(e.problem.title, 80)}</small>
                     </span>{' '}
                     <button className="secondary" onClick={() => start(e)}>
@@ -836,10 +856,9 @@ function ProposalEditor({
         {detail ? title : 'New proposal (not saved yet)'}
       </h2>
       <p className="small">
-        {RESPONSE[body.response]} ·{' '}
         {detail
-          ? `${detail.option_title} · problem: ${detail.problem_title}`
-          : 'drafted from the records; sections nobody has filled in are marked unknown'}
+          ? `${kindTitle(body.response, detail.option_title)} · problem: ${detail.problem_title}`
+          : `${RESPONSE[body.response]} · drafted from the records; sections nobody has filled in are marked unknown`}
       </p>
       {detail && (
         <div className="actions">

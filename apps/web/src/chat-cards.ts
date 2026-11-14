@@ -1028,7 +1028,7 @@ const discover: Spec<DiscoverData> = {
       },
       {
         key: 'field_a',
-        label: 'First field',
+        label: 'First subject area',
         prompt:
           'Which two fields should the search look across? Name the first.',
         help: 'Discovery looks where two fields meet for a mechanism that could transfer.',
@@ -1036,7 +1036,7 @@ const discover: Spec<DiscoverData> = {
       },
       {
         key: 'field_b',
-        label: 'Second field',
+        label: 'Second subject area',
         prompt: 'And the second field?',
         type: 'text',
       },
