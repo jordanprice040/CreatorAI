@@ -2,7 +2,7 @@
 
 ## November 14 handoff — final UX pass plan (draft for Jordan)
 
-Docs only, no code, migration or ADR. `docs/FINAL_UX_PASS_PLAN_2026-11-14.md`: the pass's fix-small/propose-big rule, severity scale, references (Nielsen, WCAG 2.2 AA, Fluent/Material, Laws of UX), where it runs (cloud fixture, dev studio Testing workspace, installed app Testing workspace), checks by area, the Standard/Advanced method, the full project walkthrough, and known items K-1..K-8 (first live autopilot notes, November 10 UX notes, audit L-3). Next: Jordan approves or revises the plan; the pass starts only after that.
+Docs only, no code, migration or ADR. `docs/FINAL_UX_PASS_PLAN_2026-11-14.md`: the pass's fix-small/propose-big rule, severity scale, references (Nielsen, WCAG 2.2 AA, Fluent/Material, Laws of UX), where it runs (cloud fixture, dev studio Testing workspace, installed app Testing workspace), checks by area, the Standard/Advanced method, the full project walkthrough, and known items K-1..K-10 (first and second live autopilot notes, November 10 UX notes, audit L-3). Next: Jordan approves or revises the plan; the pass starts only after that.
 
 ## November 12 handoff — full codebase audit fixes
 
