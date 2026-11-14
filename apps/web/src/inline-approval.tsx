@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { DecisionSchema } from '@creator/contracts';
 import { Coverage, api, message } from './oversight.js';
 import { inlineApprovable } from './inline-approval-rules.js';
-import { useLoad } from './ui.js';
+import { StaleNote, useLoad } from './ui.js';
 
 // UX pass P-3: when the owner's own action stops for the owner's approval (recording a
 // selection, freezing a spec, starting a build), the approval is shown where they acted. It is
@@ -120,6 +120,7 @@ export function InlineApproval({
         <strong>You approve this yourself.</strong> Approve it here, once: it is
         the same decision record as in Monitor › Approvals.
       </p>
+      <StaleNote stale={decision.stale} />
       <p className="small">{d.question}</p>
       <Coverage d={d} />
       <label htmlFor={`inline-why-${d.id}`}>
