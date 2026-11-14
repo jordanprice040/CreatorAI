@@ -10,6 +10,17 @@ import { EvidenceRoleSchema, ResponseTypeSchema } from './discovery.js';
 import { ExploreScopeSchema } from './exploration.js';
 import { WebDiscoveryScopeSchema } from './web-discovery.js';
 import { WorkflowResourceSetupSchema } from './orchestration.js';
+import {
+  AutopilotFallbackSchema,
+  AutopilotNextSchema,
+  AutopilotStopKindSchema,
+  SETTING_FOR_STOP,
+  AUTOPILOT_SETTING_TEXT,
+  settingIsOn,
+  type AutopilotSettingsValues,
+  type AutopilotNext,
+  type AutopilotStopKind,
+} from './autopilot-settings.js';
 
 // P13 (ADR-0092): an autopilot runs one run's whole main path without a person between steps:
 // (search the web) → explore the evidence → turn the first candidate into a brief → discovery
@@ -33,6 +44,8 @@ export const AutopilotStageSchema = z.enum([
   'select',
   'proposal',
   'spec',
+  /** ADR-0100: a fallback that links claims and searches the web, then goes back a step. */
+  'gather',
 ]);
 export type AutopilotStage = z.infer<typeof AutopilotStageSchema>;
 
@@ -45,6 +58,7 @@ export const AUTOPILOT_STAGE_LABEL: Record<AutopilotStage, string> = {
   select: 'Choose an option',
   proposal: 'Write the proposal',
   spec: 'Specify the software',
+  gather: 'Gather more evidence',
 };
 
 /**
@@ -70,12 +84,35 @@ export const AutopilotOutcomeSchema = z.enum([
 ]);
 export type AutopilotOutcome = z.infer<typeof AutopilotOutcomeSchema>;
 
+/**
+ * P-11 (ADR-0100): whether an autopilot that finished like this ends the routine approvals made
+ * for it. They stay only while it waits for a person's input (a stop Continue can pick up); a
+ * final result, a cancel or a failed step (after any retries its settings allow) ends them.
+ */
+export function autopilotEndsApprovals(
+  a: Pick<Autopilot, 'state' | 'outcome' | 'steps'>,
+): boolean {
+  return (
+    a.state === 'finished' &&
+    (a.outcome === 'failed' || !autopilotContinuable(a).ok)
+  );
+}
+
 /** Outcomes a person can continue from (the stopped step is tried again). */
 export const AUTOPILOT_RETRYABLE: readonly AutopilotOutcome[] = [
   'needs_person',
   'needs_authority',
   'limit_reached',
   'failed',
+];
+/**
+ * ADR-0100 (review 1 M-1): thin evidence and a first option that cannot be advanced end with
+ * these outcomes, but a setting covers them and a person can add evidence or scores, so they are
+ * stops Continue (and Allow and continue) can pick up.
+ */
+export const SETTLED_BUT_COVERED: readonly AutopilotOutcome[] = [
+  'insufficient_evidence',
+  'no_eligible_option',
 ];
 
 export const AutopilotStepStateSchema = z.enum([
@@ -124,6 +161,10 @@ export const AutopilotStepSchema = z.strictObject({
   no_retry: z.string().max(300).nullable().optional(),
   /** The question a stopped step left open for a person (a decision id), if any. */
   asked: id.nullable().optional(),
+  /** ADR-0100: what kind of stop this was, for the matching setting and next steps. */
+  stop_kind: AutopilotStopKindSchema.nullable().optional(),
+  /** ADR-0100: the owner's setting that let this step take a fallback instead of stopping. */
+  fallback: AutopilotFallbackSchema.nullable().optional(),
   started_at: timestamp,
   finished_at: timestamp.nullable(),
 });
@@ -302,6 +343,14 @@ export const AutopilotSchema = z.strictObject({
   active: z.boolean(),
   /** P33 (ADR-0099): the "Automate selection" level that started it, if one did. */
   automation_id: id.nullable(),
+  /**
+   * P-11 (ADR-0100): the routine approvals made for this autopilot when it started (absent when
+   * it used approvals the run already had), and when they ended with it.
+   */
+  routine_policy_id: id.nullable().optional(),
+  approvals_ended_at: timestamp.nullable().optional(),
+  /** ADR-0100: what to do next when it stopped (computed when read, never stored). */
+  next: z.array(AutopilotNextSchema).max(8).optional(),
 });
 export type Autopilot = z.infer<typeof AutopilotSchema>;
 
@@ -311,10 +360,21 @@ export type Autopilot = z.infer<typeof AutopilotSchema>;
  * at the autopilot's own call limit, or after a cancel or a final result cannot.
  */
 export function autopilotContinuable(
-  a: Pick<Autopilot, 'state' | 'outcome' | 'steps'>,
+  a: Pick<Autopilot, 'state' | 'outcome' | 'steps'> &
+    Partial<Pick<Autopilot, 'approvals_ended_at'>>,
 ): { ok: true } | { ok: false; reason: string } {
   if (a.state !== 'finished') return { ok: false, reason: 'It is running.' };
-  if (!a.outcome || !AUTOPILOT_RETRYABLE.includes(a.outcome))
+  if (a.approvals_ended_at)
+    return {
+      ok: false,
+      reason:
+        'The routine approvals made for this autopilot ended when it stopped; start a new one.',
+    };
+  const covered =
+    !!a.outcome &&
+    SETTLED_BUT_COVERED.includes(a.outcome) &&
+    !!SETTING_FOR_STOP[a.steps.at(-1)?.stop_kind ?? 'other'];
+  if (!a.outcome || (!AUTOPILOT_RETRYABLE.includes(a.outcome) && !covered))
     return {
       ok: false,
       reason: `An autopilot that ended ${(a.outcome ?? 'running').replaceAll('_', ' ')} cannot continue; start a new one.`,
@@ -362,6 +422,7 @@ export function autopilotSummary(c: AutopilotConfig): string[] {
     'If an option’s ethics gate was cleared only on the model’s word, it stops and asks you before choosing it. If you choose under Decide while it waits, Continue goes on with your choice.',
     'For a non-code option it saves a proposal drafted from the records. A software option first needs your humility review to be chosen, and writing and freezing its spec stays with you, so it stops there.',
     `Limits: at most ${c.limits.max_calls} model calls in all, each step setting aside its maximum first; it stops at ${until.slice(0, 10)} ${until.slice(11, 16)} UTC. The run's routine approvals, budgets, spending limits and connection caps still apply.`,
+    'Where your autopilot settings (How much is automated) allow it, it takes a planned fallback instead of stopping (gathering evidence, choosing by the worst case, breaking a tie, the next candidate, a retry); each is recorded with the setting that allowed it.',
     'It never publishes, sends messages, spends outside the run, changes permissions or answers a question for you. Stop it at any time; what it made so far is kept.',
   ];
 }
@@ -380,6 +441,23 @@ export function autopilotStagesNeeded(
 }
 
 /**
+ * ADR-0100: whether an autopilot with these settings may run a web search to gather evidence:
+ * gathering is on with searches left, it uses public or synthetic data on a plan route, and it
+ * does not start at selection (choosing from recorded scores never calls a model).
+ */
+export function autopilotMaySearch(
+  c: AutopilotConfig,
+  gatherSearch: boolean | undefined,
+): boolean {
+  return (
+    !!gatherSearch &&
+    c.start?.stage !== 'select' &&
+    (c.data_class === 'public' || c.data_class === 'synthetic') &&
+    (!!c.research || c.resource_setup.kind === 'subscription')
+  );
+}
+
+/**
  * The routine approvals a new run gets when it is set up for an autopilot: exactly the stages
  * its steps need, its data, at most `max_calls` + 20 steps, until the autopilot ends. The owner
  * confirms this policy's own summary as well; nothing here widens what a routine policy can do.
@@ -387,11 +465,24 @@ export function autopilotStagesNeeded(
 export function autopilotRoutinePolicy(
   c: AutopilotConfig,
   maxTotalNanoUsd: string | null,
+  /**
+   * ADR-0100: the owner's settings let it search the web to gather evidence, so the run's
+   * approvals also cover the evidence and research stages (public data only, on a plan route).
+   */
+  opts: { gatherSearch?: boolean } = {},
 ): RoutinePolicyInput {
+  const search = !!c.research || autopilotMaySearch(c, opts.gatherSearch);
   return {
-    stages: autopilotStagesNeeded(!!c.research, c.start),
+    stages: [
+      ...new Set([
+        ...autopilotStagesNeeded(!!c.research, c.start),
+        ...(search
+          ? (['evidence', 'model_work', 'research'] as RoutineStage[])
+          : []),
+      ]),
+    ].sort() as RoutineStage[],
     data_classes: [
-      ...new Set([c.data_class, ...(c.research ? (['public'] as const) : [])]),
+      ...new Set([c.data_class, ...(search ? (['public'] as const) : [])]),
     ].sort(),
     max_actions: c.limits.max_calls + 20,
     max_total_nano_usd: maxTotalNanoUsd,
@@ -400,4 +491,235 @@ export function autopilotRoutinePolicy(
     rationale:
       'Set up with an autopilot: the steps it takes on this run, nothing else.',
   };
+}
+
+const NEXT: Record<AutopilotStopKind, Omit<AutopilotNext, 'setting'>[]> = {
+  thin_evidence: [
+    {
+      kind: 'search_web',
+      label: 'Search the web',
+      detail: 'Discover › Search the web adds checked claims; then continue.',
+    },
+    {
+      kind: 'link_claims',
+      label: 'Link claims',
+      detail:
+        'Link recorded claims to the problem or its options, then continue.',
+    },
+    {
+      kind: 'exploration',
+      label: 'Open the exploration',
+      detail:
+        'See what the explorer found and the research questions it suggested.',
+    },
+  ],
+  unknown_ratings: [
+    {
+      kind: 'decide',
+      label: 'Score under Decide',
+      detail:
+        'Fill in the unknown ratings (or choose yourself), then continue.',
+    },
+    {
+      kind: 'link_claims',
+      label: 'Link claims to the options',
+      detail:
+        'More evidence narrows unknown ratings when it is assessed again.',
+    },
+  ],
+  tie: [
+    {
+      kind: 'decide',
+      label: 'Choose under Decide',
+      detail:
+        'Pick one of the tied options; Continue goes on with your choice.',
+    },
+  ],
+  close_ranking: [
+    {
+      kind: 'decide',
+      label: 'Choose under Decide',
+      detail: 'The leader changes with the weights; choose, then continue.',
+    },
+  ],
+  not_advanceable: [
+    {
+      kind: 'decide',
+      label: 'Choose under Decide',
+      detail: 'Choose an option yourself, or record the result as it is.',
+    },
+  ],
+  gate_blocked: [
+    {
+      kind: 'decide',
+      label: 'Resolve the gate under Decide',
+      detail:
+        'An ethics or access gate is open; resolve it or choose another option.',
+    },
+    {
+      kind: 'link_claims',
+      label: 'Link claims to the options',
+      detail: 'Evidence about the option lets the gate check be answered.',
+    },
+  ],
+  opportunity: [
+    {
+      kind: 'decide',
+      label: 'Choose under Decide',
+      detail: 'Building it needs an override reason, which is yours to give.',
+    },
+  ],
+  model_ethics: [
+    {
+      kind: 'decide',
+      label: 'Check ethics under Decide',
+      detail:
+        'Only the model cleared its ethics gate; look at it and choose, then continue.',
+    },
+    {
+      kind: 'approvals',
+      label: 'Open Approvals',
+      detail: 'The question also waits under Monitor › Approvals.',
+    },
+  ],
+  failed_step: [
+    {
+      kind: 'continue',
+      label: 'Continue',
+      detail: 'Tries the step again as a new attempt.',
+    },
+  ],
+  claims_held: [
+    {
+      kind: 'search_web',
+      label: 'Review the checked claims',
+      detail:
+        'Discover › Search the web: add the claims you agree with (each shows its quote and page), then continue.',
+    },
+    {
+      kind: 'continue',
+      label: 'Continue',
+      detail: 'Goes on with the claims you added.',
+    },
+  ],
+  person_choice: [
+    {
+      kind: 'decide',
+      label: 'Review your choice under Decide',
+      detail: 'Record it again (or choose another), then continue.',
+    },
+  ],
+  approval: [
+    {
+      kind: 'approvals',
+      label: 'Open Approvals',
+      detail:
+        'Answer the question, or widen the run’s routine approvals, then continue.',
+    },
+  ],
+  paused: [
+    {
+      kind: 'continue',
+      label: 'Resume, then continue',
+      detail:
+        'A person paused the step; resume it under Monitor, then continue.',
+    },
+  ],
+  run_cap: [
+    {
+      kind: 'models',
+      label: 'Raise the per-run cap',
+      detail:
+        'Models and connections › Change caps; accept the changed caps, then continue.',
+    },
+  ],
+  connection: [
+    {
+      kind: 'models',
+      label: 'Fix the connection',
+      detail:
+        'Models and connections: the connection says what it needs (for example accepting its caps); then continue.',
+    },
+  ],
+  daily_cap: [
+    {
+      kind: 'add_requests',
+      label: 'Add 20 requests',
+      detail:
+        'Adds 20 requests for 24 hours without changing caps; then continue.',
+    },
+  ],
+  call_limit: [
+    {
+      kind: 'new_autopilot',
+      label: 'Start a new autopilot',
+      detail:
+        'This one’s call limit is used up; give the next one a higher limit.',
+    },
+  ],
+  end_time: [
+    {
+      kind: 'new_autopilot',
+      label: 'Start a new autopilot',
+      detail: 'Its end time passed; what it made is kept.',
+    },
+  ],
+  spec: [
+    {
+      kind: 'spec',
+      label: 'Write the spec',
+      detail: 'Build › Spec: writing and freezing it stays with you.',
+    },
+  ],
+  other: [],
+};
+
+/**
+ * ADR-0100: what a finished autopilot offers next, from its last step's stop kind: the one-click
+ * setting that would have let it go on (when Continue can retry the step), then the manual steps.
+ */
+export function autopilotNextSteps(
+  a: Pick<Autopilot, 'state' | 'outcome' | 'steps'> &
+    Partial<Pick<Autopilot, 'approvals_ended_at'>>,
+  /** Re-review 2 L-1: the owner's settings now; a setting already on is not offered again. */
+  settings?: AutopilotSettingsValues,
+): AutopilotNext[] {
+  if (a.state !== 'finished') return [];
+  if (a.outcome === 'proposal')
+    return [
+      {
+        kind: 'proposals',
+        label: 'Review the proposal',
+        detail: 'Proposals: sections the records could not fill say so.',
+      },
+    ];
+  if (a.outcome === 'cancelled') return [];
+  const last = a.steps.at(-1);
+  const kind = last?.stop_kind ?? 'other';
+  const can = autopilotContinuable(a);
+  const setting = SETTING_FOR_STOP[kind];
+  const out: AutopilotNext[] = [];
+  if (setting && can.ok && !(settings && settingIsOn(settings, setting)))
+    out.push({
+      kind: 'allow_and_continue',
+      label: `Allow “${AUTOPILOT_SETTING_TEXT[setting].label}” and continue`,
+      detail:
+        `${AUTOPILOT_SETTING_TEXT[setting].text} It stays on for later autopilots; change it under How much is automated.`.slice(
+          0,
+          300,
+        ),
+      setting,
+    });
+  out.push(
+    ...NEXT[kind].filter(
+      (n) => can.ok || (n.kind !== 'continue' && n.kind !== 'add_requests'),
+    ),
+  );
+  if (!can.ok && !out.some((n) => n.kind === 'new_autopilot'))
+    out.push({
+      kind: 'new_autopilot',
+      label: 'Start a new autopilot',
+      detail: can.reason.slice(0, 300),
+    });
+  return out.slice(0, 8);
 }

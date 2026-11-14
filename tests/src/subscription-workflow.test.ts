@@ -335,7 +335,7 @@ test('exploration on a plan needs only the locator qualification and spends noth
     (e: unknown) =>
       e instanceof ContractError &&
       e.code === 'ACCESS_DENIED' &&
-      e.message === 'Exploration route is not ready.' &&
+      e.message === "Exploration can't start on this connection now." &&
       e.details.some((d) => d.includes('not qualified')) &&
       // ADR-0087: the refusal also carries its code and what its fix needs.
       e.reasons.some(

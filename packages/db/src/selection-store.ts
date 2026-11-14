@@ -25,6 +25,7 @@ import {
   type SpecFreeze,
   type SpecStatus,
   type StoredEntity,
+  MODEL_ONLY_ETHICS_NOTE,
 } from '@creator/contracts';
 import {
   ASSESSMENT_PROMPT_HASH,
@@ -1259,6 +1260,25 @@ export class SelectionStore extends TeamStore {
         dispositions: req.dispositions,
         override_reason: req.override_reason,
       };
+      // ADR-0100 (Jordan, November 14): the owner may let an autopilot choose an option whose
+      // ethics only the model cleared. The setting is read here, in this transaction, so neither
+      // the model nor the runner can grant it; the choice is then flagged on the record instead.
+      const modelOnlyEthics =
+        (ctx.autopilot || (await this.actorKind(c, ctx.actorId)) !== 'human') &&
+        modelClearedEthics(report, req.dispositions);
+      const ownerAllows =
+        modelOnlyEthics &&
+        !!ctx.autopilot &&
+        (
+          await c.query(
+            `select 1 from autopilot_settings
+              where workspace_id = $1 and (settings->>'choose_model_ethics')::boolean`,
+            [ws],
+          )
+        ).rowCount === 1;
+      const rationale = ownerAllows
+        ? `${MODEL_ONLY_ETHICS_NOTE} ${req.rationale}`.slice(0, 1200)
+        : req.rationale;
       const admission = await this.admitIn(c, ctx, ws, runId, {
         action_type: 'candidate.select',
         task_id: null,
@@ -1274,9 +1294,7 @@ export class SelectionStore extends TeamStore {
         // stops and asks a person. A person selecting by hand is that person; an autopilot
         // step is not a person, though the owner started it (ADR-0092).
         flags:
-          (ctx.autopilot ||
-            (await this.actorKind(c, ctx.actorId)) !== 'human') &&
-          modelClearedEthics(report, req.dispositions)
+          modelOnlyEthics && !ownerAllows
             ? [
                 {
                   reason: 'ethical_judgment' as const,
@@ -1285,7 +1303,7 @@ export class SelectionStore extends TeamStore {
                 },
               ]
             : [],
-        justification: req.rationale,
+        justification: rationale,
       });
       if (admission.verdict !== 'allow')
         return {
@@ -1310,7 +1328,7 @@ export class SelectionStore extends TeamStore {
           JSON.stringify(req.dispositions),
           JSON.stringify(check.overrides),
           check.overrides.length ? req.override_reason : null,
-          req.rationale,
+          rationale,
           admission.id,
           recordedActor(ctx),
           ctx.autopilot?.id.toLowerCase() ?? null,
@@ -1332,6 +1350,7 @@ export class SelectionStore extends TeamStore {
             ]),
           ),
           overrides: check.overrides.length,
+          ...(ownerAllows ? { model_only_ethics: true } : {}),
         },
         relatedIds: [
           runId,

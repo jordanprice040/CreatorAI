@@ -7,7 +7,12 @@ import {
   type AutopilotOutcome,
   type AutopilotStage,
   type AutopilotStep,
+  type AutopilotSettingKey,
+  type AutopilotSettingsValues,
+  type AutopilotStopKind,
+  AUTOPILOT_SETTINGS_DEFAULT,
   type ErrorCode,
+  type ExactScore,
   type ExplorationResult,
   type SelectRequest,
   type Selection,
@@ -46,6 +51,16 @@ export function nextAutopilotStage(
       return 'select';
     case 'select':
       return last.option?.kind === 'build' ? 'spec' : 'proposal';
+    case 'gather': {
+      // ADR-0100: a fallback goes back to the step it gathered evidence for.
+      const then = last.request?.then;
+      return then === 'explore' ||
+        then === 'brief' ||
+        then === 'assess' ||
+        then === 'select'
+        ? then
+        : null;
+    }
     default:
       return null;
   }
@@ -66,7 +81,13 @@ export function autopilotProblem(
   config: Pick<AutopilotConfig, 'start'>,
   steps: readonly AutopilotStep[],
 ): { id: string; version: number } | null {
-  return carried(steps, 'discover')?.problem ?? config.start?.problem ?? null;
+  // ADR-0100: an assessment of the problem's current version (after a person changed it) wins.
+  return (
+    carried(steps, 'assess')?.problem ??
+    carried(steps, 'discover')?.problem ??
+    config.start?.problem ??
+    null
+  );
 }
 
 export type ChildLimits =
@@ -75,6 +96,7 @@ export type ChildLimits =
       ok: false;
       outcome: AutopilotOutcome;
       reason: string;
+      kind: AutopilotStopKind;
       /** Set when Continue cannot help: the autopilot's own call limit is too small. */
       final?: string;
     };
@@ -89,6 +111,11 @@ export function autopilotChildLimits(input: {
   /** The plan connection's request timeout and per-run request cap (plan routes only). */
   timeout_ms: number | null;
   per_run: number | null;
+  /**
+   * ADR-0100 (live run 2): plan requests this run has already used on the connection; the
+   * per-run cap counts every step of the run together, not each step on its own.
+   */
+  per_run_used?: number;
   /** Calls left in the autopilot's limit. */
   remaining: number;
   /** Seconds until the autopilot ends. */
@@ -107,19 +134,21 @@ export function autopilotChildLimits(input: {
         : width + 1;
   const wanted =
     input.stage === 'explore' ? 2 : input.stage === 'discover' ? 24 : 2 * width;
-  const cap = Math.min(
-    wanted,
-    input.remaining,
-    input.per_run ?? Number.MAX_SAFE_INTEGER,
-  );
+  const used = input.per_run_used ?? 0;
+  const runRoom =
+    input.per_run === null ? Number.MAX_SAFE_INTEGER : input.per_run - used;
+  const cap = Math.min(wanted, input.remaining, runRoom);
   const label = AUTOPILOT_STAGE_LABEL[input.stage];
   if (cap < floor) {
-    const connection = input.per_run !== null && input.per_run < floor;
+    const connection = input.per_run !== null && runRoom < floor;
     return {
       ok: false,
       outcome: 'limit_reached',
+      kind: connection ? 'run_cap' : 'call_limit',
       reason: connection
-        ? `${label} needs at least ${floor} plan requests, above the connection's per-run cap of ${input.per_run}. Raise the cap under Models and connections, then continue.`
+        ? used > 0
+          ? `${label} needs at least ${floor} plan requests; this run has used ${used} of the plan connection's ${input.per_run} requests per run, so ${Math.max(0, runRoom)} are left. Raise the per-run cap under Models and connections › Change caps, accept it, then continue.`
+          : `${label} needs at least ${floor} plan requests, above the connection's per-run cap of ${input.per_run}. Raise the cap under Models and connections, then continue.`
         : `${label} needs at least ${floor} model calls; the autopilot has ${Math.max(0, input.remaining)} left of its limit.`,
       ...(connection
         ? {}
@@ -140,6 +169,7 @@ export function autopilotChildLimits(input: {
     return {
       ok: false,
       outcome: 'limit_reached',
+      kind: 'end_time',
       reason: `The autopilot's end time leaves ${Math.max(0, Math.floor(input.seconds_left))} s, too little for ${label.toLowerCase()}.`,
     };
   return {
@@ -170,10 +200,19 @@ export function autopilotChildLimits(input: {
  */
 export function pickExplored(
   result: ExplorationResult,
+  /** ADR-0100 "try the next candidate": how many earlier candidates were already tried. */
+  skip = 0,
 ):
   | { ok: true; ref: string; title: string; claims: string[] }
   | { ok: false; outcome: AutopilotOutcome; reason: string } {
-  const first = result.candidates.find((c) => c.disposition === 'candidate');
+  const kept = result.candidates.filter((c) => c.disposition === 'candidate');
+  const first = kept[skip];
+  if (!first && skip > 0)
+    return {
+      ok: false,
+      outcome: 'insufficient_evidence',
+      reason: `The exploration has no candidate problem left to try (${kept.length} tried).`,
+    };
   if (!first) {
     const why = result.candidates
       .map((c) => `${c.ref} ${c.disposition.replaceAll('_', ' ')}`)
@@ -203,16 +242,39 @@ export function autopilotDisposition(
   return null;
 }
 
+export type ChoiceFallback = {
+  setting: AutopilotSettingKey;
+  instead_of: AutopilotStopKind;
+  note: string;
+};
+
 export type AutopilotChoice =
   | {
       ok: true;
       option: { id: string; version: number; kind: string; title: string };
       request: Omit<SelectRequest, 'data_class'>;
+      /** ADR-0100: the owner's settings that let the rule choose instead of stopping. */
+      fallbacks: ChoiceFallback[];
     }
-  | { ok: false; outcome: AutopilotOutcome; reason: string };
+  | {
+      ok: false;
+      outcome: AutopilotOutcome;
+      reason: string;
+      kind: AutopilotStopKind;
+      /** Options a person or more evidence would have to settle (for evidence gathering). */
+      options?: { id: string; title: string }[];
+    };
 
 const clip = (s: string, n = 1100) =>
   s.length > n ? `${s.slice(0, n - 1)}…` : s;
+
+type Row = SelectionReport['suitability']['candidates'][number];
+/** a − b for exact scores (sign only). */
+const cmpScore = (a: ExactScore, b: ExactScore) => {
+  const l = BigInt(a.numerator) * BigInt(b.denominator);
+  const r = BigInt(b.numerator) * BigInt(a.denominator);
+  return l === r ? 0 : l > r ? 1 : -1;
+};
 
 /**
  * Final UX pass N-3: the tied options in one short list, each title clipped and at most three
@@ -232,30 +294,44 @@ export function tiedNames(titles: readonly string[]): string {
  * suitability is advanced only when it is fully scored, no other option shares its rank, the
  * first place holds when each criterion is removed or doubled, and no gate blocks its choice;
  * a software option must also lead the opportunity ranking. Every other option is deferred with
- * that reason. Anything else stops for a person.
+ * that reason. Anything else stops for a person, unless the owner's settings (ADR-0100) name a
+ * fallback for that kind of stop: rank by the worst case, break a tie by a fixed order, keep the
+ * leader of a close ranking, or go on to the next option the rule may advance.
  */
-export function autopilotChoice(report: SelectionReport): AutopilotChoice {
+export function autopilotChoice(
+  report: SelectionReport,
+  settings: AutopilotSettingsValues = AUTOPILOT_SETTINGS_DEFAULT,
+): AutopilotChoice {
   const all = report.suitability.candidates;
   if (!all.length)
     return {
       ok: false,
       outcome: 'no_eligible_option',
+      kind: 'not_advanceable',
       reason: 'The problem has no options to choose from.',
     };
+  const fallbacks: ChoiceFallback[] = [];
   // Options the rule could choose: kinds that may advance, kept as candidates by discovery.
   // An option nothing marked a candidate (one a person added later, for example) is not one.
-  const choosable = (c: (typeof all)[number]) =>
+  const choosable = (c: Row) =>
     autopilotDisposition(c.alternative.kind) !== null &&
     c.gates.discovery === 'candidate';
   // Unknown ratings are not neutral: an option that could be chosen and is not fully scored
-  // might rank first once scored, so the rule does not choose past it (review M-2).
+  // might rank first once scored, so the rule does not choose past it (review M-2), unless the
+  // owner chose the worst case (each unknown at 1), which never counts an unknown as neutral.
   const unscored = all.filter(
     (c) => choosable(c) && (c.rank === null || c.score === null),
   );
-  if (unscored.length)
+  const worst = unscored.length > 0;
+  if (worst && !settings.choose_with_unknowns)
     return {
       ok: false,
       outcome: 'needs_person',
+      kind: 'unknown_ratings',
+      options: unscored.map((c) => ({
+        id: c.alternative.id,
+        title: c.alternative.title,
+      })),
       reason: clip(
         `${unscored
           .map(
@@ -271,34 +347,83 @@ export function autopilotChoice(report: SelectionReport): AutopilotChoice {
           )}. Unknown ratings are not neutral, so the rule does not choose past them. Score them under Decide (or choose there yourself), then continue.`,
       ),
     };
-  const ranked = all.filter((c) => c.rank !== null && c.score !== null);
+  if (worst)
+    fallbacks.push({
+      setting: 'choose_with_unknowns',
+      instead_of: 'unknown_ratings',
+      note: `Ranked by the worst case (each unknown rating at 1) because ${unscored.length} option${unscored.length === 1 ? ' is' : 's are'} not fully scored.`,
+    });
+  const ranked = worst
+    ? all.filter((c) => c.range !== null)
+    : all.filter((c) => c.rank !== null && c.score !== null);
   if (!ranked.length)
     return {
       ok: false,
       outcome: 'needs_person',
+      kind: 'unknown_ratings',
+      options: all
+        .filter(choosable)
+        .map((c) => ({ id: c.alternative.id, title: c.alternative.title })),
       reason:
         'No option is fully scored on suitability (unknown ratings are not neutral), so the ranking cannot choose. Score the options under Decide, then continue.',
     };
-  const best = Math.min(...ranked.map((c) => c.rank!));
-  const top = ranked.filter((c) => c.rank === best);
-  if (top.length > 1)
+  const oppRank = new Map(
+    report.opportunity.candidates
+      .filter((c) => c.rank !== null && c.score !== null)
+      .map((c) => [c.alternative.id, c.rank!]),
+  );
+  // Primary order: rank (or, by the worst case, the range's lower end); then, when the owner
+  // allows breaking ties, opportunity rank, fewer unknowns, the better worst case.
+  const primary = (a: Row, b: Row) =>
+    worst ? cmpScore(b.range!.lower, a.range!.lower) : a.rank! - b.rank!;
+  const tiebreak = (a: Row, b: Row) =>
+    (oppRank.get(a.alternative.id) ?? Infinity) -
+      (oppRank.get(b.alternative.id) ?? Infinity) ||
+    a.unknown_criteria.length - b.unknown_criteria.length ||
+    (a.range && b.range ? cmpScore(b.range.lower, a.range.lower) : 0);
+  const order = [...ranked].sort(
+    (a, b) => primary(a, b) || (settings.break_ties ? tiebreak(a, b) : 0),
+  );
+  const same = (a: Row, b: Row) =>
+    primary(a, b) === 0 && (!settings.break_ties || tiebreak(a, b) === 0);
+  const tiedWith = (c: Row, among: readonly Row[]) =>
+    among.filter((x) => x !== c && same(x, c));
+  const firstTie = order.filter((c) => primary(c, order[0]!) === 0);
+  if (firstTie.length > 1 && settings.break_ties) {
+    if (tiedWith(order[0]!, order).length)
+      return {
+        ok: false,
+        outcome: 'needs_person',
+        kind: 'tie',
+        reason: clip(
+          `${firstTie.length} options tie for first${worst ? ' by the worst case' : ' on suitability'}: ${tiedNames(firstTie.map((c) => c.alternative.title))}. The fixed order (opportunity rank, fewer unknowns, the better worst case) does not separate them. Choose one under Decide and continue.`,
+        ),
+      };
+    fallbacks.push({
+      setting: 'break_ties',
+      instead_of: 'tie',
+      note: `${firstTie.map((c) => `“${c.alternative.title}”`).join(' and ')} tied for first; the fixed order (opportunity rank, fewer unknowns, the better worst case) put “${order[0]!.alternative.title}” first.`,
+    });
+  } else if (firstTie.length > 1)
     return {
       ok: false,
       outcome: 'needs_person',
+      kind: 'tie',
       reason: clip(
-        `${top.length} options tie for first on suitability: ${tiedNames(top.map((c) => c.alternative.title))}. A tie is not broken by a rule. Choose one under Decide and continue: the autopilot goes on with your choice.`,
+        `${firstTie.length} options tie for first${worst ? ' by the worst case' : ' on suitability'}: ${tiedNames(firstTie.map((c) => c.alternative.title))}. The autopilot breaks ties only when you allow it (Break ties). Choose one under Decide and continue: the autopilot goes on with your choice.`,
       ),
     };
-  const chosen = top[0]!;
+  const leader = order[0]!;
   const unstable = report.suitability.sensitivity.scenarios.filter(
     (s) => s.top_changed,
   );
-  if (unstable.length)
+  if (unstable.length && !settings.keep_close_leader)
     return {
       ok: false,
       outcome: 'needs_person',
+      kind: 'close_ranking',
       reason: clip(
-        `“${chosen.alternative.title}” ranks first, but not when the weights change (${unstable
+        `“${leader.alternative.title}” ranks first, but not when the weights change (${unstable
           .slice(0, 4)
           .map((s) => s.name)
           .join(
@@ -306,51 +431,120 @@ export function autopilotChoice(report: SelectionReport): AutopilotChoice {
           )}). A close ranking is a judgment for a person: choose under Decide and continue, and the autopilot goes on with your choice.`,
       ),
     };
-  const kind = chosen.alternative.kind;
-  const disposition = autopilotDisposition(kind);
-  if (!disposition)
-    return {
-      ok: false,
-      outcome: 'no_eligible_option',
-      reason: `The first-ranked option “${chosen.alternative.title}” is a ${kind.replaceAll('_', ' ')} outcome, which cannot be advanced.`,
-    };
-  const discovery = chosen.gates.discovery;
-  if (discovery !== 'candidate')
-    return {
-      ok: false,
-      outcome: 'no_eligible_option',
-      reason: discovery
-        ? `Discovery marked the first-ranked option “${chosen.alternative.title}” ${discovery.replaceAll('_', ' ')}, so it is not advanced.`
-        : `The first-ranked option “${chosen.alternative.title}” did not come from discovery as a candidate, so the rule does not advance it; choose under Decide if you want it.`,
-    };
-  const blocked = chosen.gates.blocked[disposition] ?? [];
-  if (blocked.length)
-    return {
-      ok: false,
-      outcome: 'needs_person',
-      reason: clip(
-        `“${chosen.alternative.title}” ranks first but cannot be ${disposition.replaceAll('_', ' ')} yet: ${blocked.join(' ')} Resolve it, or choose under Decide yourself, then continue.`,
-      ),
-    };
-  if (disposition === 'select_for_build') {
-    const opp = report.opportunity.candidates.filter(
-      (c) => c.rank !== null && c.score !== null,
-    );
-    const lead = opp.length ? Math.min(...opp.map((c) => c.rank!)) : null;
-    const leaders = opp.filter((c) => c.rank === lead);
-    if (
-      leaders.length !== 1 ||
-      leaders[0]!.alternative.id !== chosen.alternative.id
-    )
+  if (unstable.length)
+    fallbacks.push({
+      setting: 'keep_close_leader',
+      instead_of: 'close_ranking',
+      note: `Kept the leader under the owner's weights although the leader changes under ${unstable
+        .slice(0, 4)
+        .map((s) => s.name)
+        .join(', ')}.`,
+    });
+  // Why an option cannot be advanced now, or null when it can.
+  const why = (
+    c: Row,
+  ): {
+    kind: AutopilotStopKind;
+    outcome: AutopilotOutcome;
+    reason: string;
+  } | null => {
+    const kind = c.alternative.kind;
+    const disposition = autopilotDisposition(kind);
+    if (!disposition)
+      return {
+        kind: 'not_advanceable',
+        outcome: 'no_eligible_option',
+        reason: `The first-ranked option “${c.alternative.title}” is a ${kind.replaceAll('_', ' ')} outcome, which cannot be advanced.`,
+      };
+    const discovery = c.gates.discovery;
+    if (discovery !== 'candidate')
+      return {
+        kind: 'not_advanceable',
+        outcome: 'no_eligible_option',
+        reason: discovery
+          ? `Discovery marked “${c.alternative.title}” ${discovery.replaceAll('_', ' ')}, so it is not advanced.`
+          : `“${c.alternative.title}” did not come from discovery as a candidate, so the rule does not advance it; choose under Decide if you want it.`,
+      };
+    const blocked = c.gates.blocked[disposition] ?? [];
+    if (blocked.length)
+      return {
+        kind: 'gate_blocked',
+        outcome: 'needs_person',
+        reason: clip(
+          `“${c.alternative.title}” ranks first but cannot be ${disposition.replaceAll('_', ' ')} yet: ${blocked.join(' ')} Resolve it, or choose under Decide yourself, then continue.`,
+        ),
+      };
+    if (disposition === 'select_for_build') {
+      const opp = report.opportunity.candidates.filter(
+        (x) => x.rank !== null && x.score !== null,
+      );
+      const lead = opp.length ? Math.min(...opp.map((x) => x.rank!)) : null;
+      const leaders = opp.filter((x) => x.rank === lead);
+      if (
+        leaders.length !== 1 ||
+        leaders[0]!.alternative.id !== c.alternative.id
+      )
+        return {
+          kind: 'opportunity',
+          outcome: 'needs_person',
+          reason: `“${c.alternative.title}” leads on suitability but not alone on opportunity; building it would need an override reason, which is a person's judgment.`,
+        };
+    }
+    return null;
+  };
+  let chosen = leader;
+  const leaderWhy = why(leader);
+  if (leaderWhy) {
+    // A defer, decline or investigate outcome ranking first is the honest result, not a stop.
+    const ownKind = autopilotDisposition(leader.alternative.kind) === null;
+    const next =
+      settings.next_candidate && !ownKind
+        ? order.find((c) => c !== leader && !why(c))
+        : undefined;
+    if (!next)
+      return {
+        ok: false,
+        outcome: leaderWhy.outcome,
+        kind: leaderWhy.kind,
+        reason: leaderWhy.reason,
+        ...(leaderWhy.kind === 'gate_blocked'
+          ? {
+              options: [
+                { id: leader.alternative.id, title: leader.alternative.title },
+              ],
+            }
+          : {}),
+      };
+    const eligible = order.filter((c) => !why(c));
+    if (tiedWith(next, eligible).length)
       return {
         ok: false,
         outcome: 'needs_person',
-        reason: `“${chosen.alternative.title}” leads on suitability but not alone on opportunity; building it would need an override reason, which is a person's judgment.`,
+        kind: 'tie',
+        reason: clip(
+          `${leaderWhy.reason} The next options the rule may advance (${[next, ...tiedWith(next, eligible)].map((c) => `“${c.alternative.title}”`).join(', ')}) tie. Choose under Decide and continue.`,
+        ),
       };
+    fallbacks.push({
+      setting: 'next_candidate',
+      instead_of: leaderWhy.kind,
+      note: clip(
+        `${leaderWhy.reason.replace(/ Resolve it, or choose under Decide yourself, then continue\.$/, '')} Went on to “${next.alternative.title}”, the best option the rule may advance.`,
+        600,
+      ),
+    });
+    chosen = next;
   }
-  const score = chosen.score?.display ?? 'n/a';
+  const kind = chosen.alternative.kind;
+  const disposition = autopilotDisposition(kind)!;
+  const score =
+    (worst ? chosen.range?.lower.display : chosen.score?.display) ?? 'n/a';
+  const how = worst
+    ? `Best worst case on suitability (${score}, each unknown rating at 1)`
+    : `Ranked ${chosen === leader ? 'first' : chosen.rank} on suitability (${score})`;
   return {
     ok: true,
+    fallbacks,
     option: {
       id: chosen.alternative.id,
       version: chosen.alternative.version,
@@ -368,10 +562,20 @@ export function autopilotChoice(report: SelectionReport): AutopilotChoice {
                 version: c.alternative.version,
               },
               disposition,
-              reasons: [
-                `Ranked first on suitability (${score}) with no tie, and first under every weight check.`,
-                'Chosen by the autopilot rule from the automatic assessment; no gate blocked it.',
-              ],
+              reasons: fallbacks.length
+                ? [
+                    `${how}.`.slice(0, 500),
+                    ...fallbacks.map((f) =>
+                      `Owner's autopilot setting “${f.setting.replaceAll('_', ' ')}”: ${f.note}`.slice(
+                        0,
+                        500,
+                      ),
+                    ),
+                  ].slice(0, 10)
+                : [
+                    `Ranked first on suitability (${score}) with no tie, and first under every weight check.`,
+                    'Chosen by the autopilot rule from the automatic assessment; no gate blocked it.',
+                  ],
               reverse_if:
                 'A person scores the options differently, a gate or claim changes, or another option ranks first.',
             }
@@ -384,15 +588,38 @@ export function autopilotChoice(report: SelectionReport): AutopilotChoice {
               reasons: [
                 !choosable(c)
                   ? 'Not an option the rule can advance (its kind, or discovery did not keep it as a candidate).'
-                  : `Ranked ${c.rank} on suitability; the autopilot advances only the first-ranked option.`,
+                  : c === leader
+                    ? `Ranked first but not advanced: ${leaderWhy?.reason ?? ''}`.slice(
+                        0,
+                        500,
+                      )
+                    : `${worst ? 'A lower worst case' : `Ranked ${c.rank}`} on suitability; the autopilot advances only the option it chose.`,
               ],
               reverse_if:
                 'A person compares the options and prefers this one, or it ranks first after new evidence.',
             },
       ),
-      override_reason: null,
+      // A next option chosen past a higher-ranked one is outranked on purpose; the reason says why.
+      override_reason:
+        chosen === leader && !worst
+          ? null
+          : clip(
+              [
+                worst
+                  ? "The owner's autopilot setting “choose with unknown ratings” ranks by the worst case (each unknown at 1), so a fully scored option can rank lower than its own rank shows."
+                  : '',
+                chosen === leader
+                  ? ''
+                  : `The higher-ranked “${leader.alternative.title}” cannot be advanced now (${leaderWhy!.kind.replaceAll('_', ' ')}); the owner's autopilot setting “try the next candidate” goes on to the best option that can.`,
+              ]
+                .filter(Boolean)
+                .join(' '),
+              1000,
+            ),
       rationale: clip(
-        `Recorded by an unattended autopilot under the run's routine approvals (ADR-0092). “${chosen.alternative.title}” ranked first on suitability (${score}) with no tie, the first place held when each criterion was removed or doubled, and no gate blocked ${disposition.replaceAll('_', ' ')}. The scores are the automatic assessment's; a person can record a different selection at any time.`,
+        fallbacks.length
+          ? `Recorded by an unattended autopilot under the run's routine approvals (ADR-0092), with the owner's autopilot settings (ADR-0100): ${fallbacks.map((f) => f.note).join(' ')} “${chosen.alternative.title}” was chosen (${disposition.replaceAll('_', ' ')}). The scores are the automatic assessment's; a person can record a different selection at any time.`
+          : `Recorded by an unattended autopilot under the run's routine approvals (ADR-0092). “${chosen.alternative.title}” ranked first on suitability (${score}) with no tie, the first place held when each criterion was removed or doubled, and no gate blocked ${disposition.replaceAll('_', ' ')}. The scores are the automatic assessment's; a person can record a different selection at any time.`,
       ),
       shortlist_size: 3,
     },

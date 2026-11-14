@@ -4,6 +4,7 @@ import {
   AUTOMATION_LEVEL_TEXT,
   AUTOMATION_SELECTION_ACTIONS,
   AUTOPILOT_RETRYABLE,
+  autopilotContinuable,
   AUTOPILOT_MIN_CALLS,
   AutopilotConfigSchema,
   AutopilotSchema,
@@ -45,6 +46,13 @@ import {
 import { Empty, Status, useLoad } from './ui.js';
 import { usePoll } from './page-active.js';
 import { endTimeClose, useEndTime } from './end-time.js';
+import {
+  AutopilotSettingsPanel,
+  useAutopilotSettings,
+} from './autopilot-settings.js';
+
+/** The run selector's value for "Automate the rest" on a new run (live-run finding). */
+const NEW_RUN = 'new';
 
 // P33 (ADR-0099): how much of a project is automated. Four levels, each a preset over what
 // already exists: Manual; Automate selection (a standing level on the run that starts a
@@ -60,10 +68,11 @@ export function currentLevel(
   runId: string,
   automations: readonly RunAutomation[],
   /** Newest first, as the server lists them. */
-  autopilots: readonly Pick<
+  autopilots: readonly (Pick<
     Autopilot,
     'run_id' | 'state' | 'config' | 'outcome' | 'automation_id'
-  >[],
+  > &
+    Partial<Pick<Autopilot, 'steps' | 'approvals_ended_at'>>)[],
 ): { level: AutomationLevel; note: string } {
   const standing = automations.find(
     (a) => a.run_id === runId && a.state === 'active',
@@ -78,7 +87,9 @@ export function currentLevel(
   if (
     latest &&
     (latest.state === 'running' ||
-      (latest.outcome !== null && AUTOPILOT_RETRYABLE.includes(latest.outcome)))
+      (latest.outcome !== null &&
+        (AUTOPILOT_RETRYABLE.includes(latest.outcome) ||
+          autopilotContinuable({ ...latest, steps: latest.steps ?? [] }).ok)))
   ) {
     // An autopilot a selection level started that is still working or waiting after the level
     // ended: the run is Manual now (review L-3, review 2 N-1).
@@ -140,6 +151,9 @@ export function Automation({
   const base = `workspaces/${workspace.id}`;
   const owner = workspace.role === 'owner';
   const fixture = workspace.record_mode === 'fixture';
+  const settings = useAutopilotSettings(base);
+  const gatherSearch =
+    !!settings?.gather_evidence && settings.max_extra_searches > 0;
   const ctx = useLoad(async () => {
     const [runs, names, policies, automations, autopilots, problems, routing] =
       await Promise.all([
@@ -180,11 +194,14 @@ export function Automation({
   usePoll(() => ctx.refresh(), 10_000, watching);
 
   const [runId, setRunId] = useState('');
-  const run: RunControl | undefined =
-    c?.runs.find((r) => r.run_id === runId) ?? c?.runs[0];
   const [level, setLevel] = useState<'selection' | 'rest' | 'whole'>(
     'selection',
   );
+  // "Automate the rest" can start on a new run, made for it (with no run yet, it must).
+  const isNew = level === 'rest' && (runId === NEW_RUN || !c?.runs.length);
+  const run: RunControl | undefined = isNew
+    ? undefined
+    : (c?.runs.find((r) => r.run_id === runId) ?? c?.runs[0]);
   const routes = routesOf(c?.routing ?? null, fixture);
   const [routeKey, setRouteKey] = useState('');
   const route = pickRoute(routes, routeKey, fixture);
@@ -209,6 +226,7 @@ export function Automation({
     () => setConfirmed(false),
     [
       run?.run_id,
+      isNew,
       level,
       route?.key,
       dataClass,
@@ -261,10 +279,14 @@ export function Automation({
           extraActions: AUTOMATION_SELECTION_ACTIONS,
         })
       : level === 'rest' && restConfig
-        ? policyStep(view, restRoutinePolicy(restConfig, moneyNano), {
-            stages: automationStagesNeeded('rest', { start: startAt }),
-            extraActions: restConfig.limits.max_calls + 20,
-          })
+        ? policyStep(
+            view,
+            restRoutinePolicy(restConfig, moneyNano, { gatherSearch }),
+            {
+              stages: automationStagesNeeded('rest', { start: startAt }),
+              extraActions: restConfig.limits.max_calls + 20,
+            },
+          )
         : null;
   const levelSummary =
     level === 'selection'
@@ -274,7 +296,7 @@ export function Automation({
         : [];
 
   const blockers = [
-    ...(!run
+    ...(!run && !isNew
       ? [
           'There is no active supervised or human-in-the-loop run. Start one from Discover, or use Run it for me for the whole process.',
         ]
@@ -324,7 +346,7 @@ export function Automation({
     blockers.length === 0;
 
   async function apply() {
-    if (!ready || !run || !step) return;
+    if (!ready || (!run && !isNew) || !step) return;
     // The form may have stayed open: an end time that is (nearly) here is set again, and the
     // owner reads the summaries again before applying (review N-3).
     if (endTimeClose(endsAt)) {
@@ -336,6 +358,7 @@ export function Automation({
     }
     setBusy(true);
     setError('');
+    let newRun = '';
     try {
       // The approvals change goes in the same request, so it is made only if the level or
       // autopilot starts (review L-1).
@@ -359,7 +382,7 @@ export function Automation({
                 },
               }
             : null;
-      if (level === 'selection')
+      if (level === 'selection' && run)
         await api(
           RunAutomationSchema,
           `${base}/runs/${run.run_id}/automation`,
@@ -373,7 +396,7 @@ export function Automation({
             },
           },
         );
-      else if (restConfig)
+      else if (restConfig && run)
         await api(AutopilotSchema, `${base}/runs/${run.run_id}/autopilots`, {
           csrf: session.csrf_token,
           body: {
@@ -383,9 +406,56 @@ export function Automation({
           },
           timeoutMs: 30_000,
         });
+      else if (restConfig && isNew && step.kind === 'new') {
+        // A new run with these routine approvals, then the autopilot on it (as Run it for me).
+        const stamp = new Date().toLocaleString(undefined, {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        });
+        const entity = await api(StoredEntitySchema, `${base}/entities`, {
+          csrf: session.csrf_token,
+          body: {
+            kind: 'run',
+            title: `Automate the rest · ${stamp}`,
+            body: {
+              state: 'queued',
+              experiment_condition: 'human_in_loop',
+              discovery_method: 'structured',
+              config_hash: null,
+            },
+          },
+        });
+        const control = await api(RunControlSchema, `${base}/runs`, {
+          csrf: session.csrf_token,
+          body: {
+            run: { id: entity.id, version: 1 },
+            autonomy_mode: 'human_in_loop',
+            stage_gates: null,
+            initial_grants: [],
+          },
+        });
+        newRun = control.run_id;
+        // P-11: the approvals are made with the autopilot, so they end when it ends.
+        await api(AutopilotSchema, `${base}/runs/${newRun}/autopilots`, {
+          csrf: session.csrf_token,
+          body: {
+            config: restConfig,
+            summary_seen: autopilotSummary(restConfig),
+            routine_policy,
+          },
+          timeoutMs: 30_000,
+        });
+        setRunId(newRun);
+        newRun = '';
+      }
       setConfirmed(false);
     } catch (e) {
       setError(message(e));
+      if (newRun)
+        await api(RunControlSchema, `${base}/runs/${newRun}/cancel`, {
+          csrf: session.csrf_token,
+          body: { reason: 'The autopilot did not start.' },
+        }).catch(() => undefined);
     } finally {
       setBusy(false);
       ctx.refresh();
@@ -428,8 +498,8 @@ export function Automation({
         Choose how much of a project the studio does for you. Every level uses
         routine approvals made for that run only, which you confirm here as one
         summary; the studio never approves its own steps. Publishing, messages,
-        payments, value questions and an ethics gate only the model cleared
-        always stop for you.
+        payments and value questions always stop for you, and an ethics gate
+        only the model cleared does too unless you allow it below.
       </p>
       <ul className="small">
         {(['manual', 'selection', 'rest', 'whole'] as const).map((l) => (
@@ -447,12 +517,15 @@ export function Automation({
       >
         {c && (
           <>
-            {c.runs.length > 0 && (
+            {owner && (
+              <AutopilotSettingsPanel session={session} workspace={workspace} />
+            )}
+            {(c.runs.length > 0 || level === 'rest') && (
               <>
                 <label htmlFor="am-run">Project (run)</label>
                 <select
                   id="am-run"
-                  value={run?.run_id ?? ''}
+                  value={isNew ? NEW_RUN : (run?.run_id ?? '')}
                   onChange={(e) => setRunId(e.target.value)}
                 >
                   {c.runs.map((r) => (
@@ -460,7 +533,18 @@ export function Automation({
                       {runLabel(r, c.names, 48, !standard)}
                     </option>
                   ))}
+                  {level === 'rest' && (
+                    <option value={NEW_RUN}>
+                      A new run, made for this autopilot
+                    </option>
+                  )}
                 </select>
+                {isNew && (
+                  <p className="small">
+                    A new run is made with the routine approvals below, and the
+                    autopilot starts on it.
+                  </p>
+                )}
                 {run && (
                   <p className="small" aria-live="polite">
                     {(() => {
@@ -690,7 +774,7 @@ export function Automation({
                     <button type="submit" disabled={!ready}>
                       {busy
                         ? 'Applying…'
-                        : `${AUTOMATION_LEVEL_TEXT[level].label} on this run`}
+                        : `${AUTOMATION_LEVEL_TEXT[level].label} on ${isNew ? 'a new run' : 'this run'}`}
                     </button>
                   </>
                 )}
