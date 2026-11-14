@@ -3533,6 +3533,24 @@ create unique index autopilots_one_per_trigger on autopilots (automation_id, tri
  where automation_id is not null;
 `,
   },
+  {
+    // ADR-0100: the owner's autopilot settings (one versioned row per workspace; every change is
+    // audited) and the "gather more evidence" step an autopilot takes when they allow it.
+    version: 63,
+    name: 'autopilot_settings',
+    sql: `
+create table autopilot_settings (
+ workspace_id uuid primary key references workspaces(id),
+ settings jsonb not null check (jsonb_typeof(settings) = 'object'),
+ version integer not null check (version >= 1),
+ updated_by uuid not null references actors(id),
+ updated_at timestamptz not null default clock_timestamp()
+);
+alter table autopilots drop constraint autopilots_stage_check;
+alter table autopilots add constraint autopilots_stage_check check (stage in ('research','explore',
+ 'brief','discover','assess','select','proposal','spec','gather'));
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

@@ -61,5 +61,6 @@ export * from './chat-actions.js';
 export * from './sidebar.js';
 export * from './files.js';
 export * from './autopilot.js';
+export * from './autopilot-settings.js';
 export * from './automation.js';
 export * from './api-keys.js';

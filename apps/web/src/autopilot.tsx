@@ -32,6 +32,8 @@ import {
 import { Empty, Status, useLoad } from './ui.js';
 import { usePoll } from './page-active.js';
 import { useEndTime } from './end-time.js';
+import { AllowAndContinue } from './autopilot-next.js';
+import { useAutopilotSettings } from './autopilot-settings.js';
 
 // P13 (ADR-0092): "Run it for me". One form sets up a new run with routine approvals covering
 // exactly the autopilot's steps and starts the autopilot; the owner confirms both summaries.
@@ -78,6 +80,8 @@ export function Autopilot({
   workspace: Workspace;
 }) {
   const base = `workspaces/${workspace.id}`;
+  // ADR-0100: a web search the owner's settings allow needs the run's approvals to cover it.
+  const settings = useAutopilotSettings(base);
   const owner = workspace.role === 'owner';
   const fixture = workspace.record_mode === 'fixture';
   const ctx = useLoad(async () => {
@@ -164,7 +168,12 @@ export function Autopilot({
     route?.kind === 'api'
       ? String(BigInt(Math.round(money * 100)) * 10_000_000n)
       : null;
-  const policy = config ? autopilotRoutinePolicy(config, moneyNano) : null;
+  const policy = config
+    ? autopilotRoutinePolicy(config, moneyNano, {
+        gatherSearch:
+          !!settings?.gather_evidence && settings.max_extra_searches > 0,
+      })
+    : null;
   // PR #191 review R-N1: what the owner ticked is the two summaries as read; any change to them
   // (the end time included) unticks it, as in the automation levels panel.
   const summariesRead = JSON.stringify([
@@ -564,6 +573,13 @@ export function Autopilot({
                         <p className="small">{can.reason}</p>
                       );
                     })()}
+                  <AllowAndContinue
+                    a={a}
+                    base={base}
+                    session={session}
+                    owner={owner}
+                    onDone={() => ctx.refresh()}
+                  />
                 </article>
               ))
             )}

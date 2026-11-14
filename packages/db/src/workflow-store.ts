@@ -1722,6 +1722,21 @@ export class WorkflowStore extends BudgetStore {
         ref(problem),
         `${p.proposal} (${p.perspective}) from discovery run ${wf.id}.`,
       );
+      // ADR-0100 (live run 2's gap): the claims this proposal cited from the packet support the
+      // option, so an assessment reads them (it cannot resolve discovery's own "C3" refs).
+      for (const r of new Set(o.claim_refs)) {
+        const claim = d.packet.claims.find((x) => x.ref === r);
+        if (
+          claim &&
+          (claim.status === 'supported' || claim.status === 'contested')
+        )
+          await link(
+            'supports',
+            { id: claim.claim_id, kind: 'claim', version: claim.version },
+            ref(alt),
+            `Cited by ${p.proposal} as packet ${claim.ref} in discovery run ${wf.id}; evidence ${claim.status} when the run started.`,
+          );
+      }
       alternatives.push({
         proposal: p.proposal,
         id: alt.id,

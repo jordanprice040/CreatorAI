@@ -1,6 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import {
+  AUTOPILOT_SETTINGS_DEFAULT,
+  AllowAndContinueRequestSchema,
+  AutopilotSettingsValuesSchema,
+  SETTING_FOR_STOP,
+  SaveAutopilotSettingsRequestSchema,
+  settingOn,
+  type AutopilotSettings,
+  type AutopilotSettingsValues,
   AUTOPILOT_MAX_STEPS,
   AUTOPILOT_POLICY_VERSION,
   autopilotContinuable,
@@ -20,7 +28,11 @@ import {
   type AutopilotStep,
   type RoutinePolicyChange,
 } from '@creator/contracts';
-import { canonicalHash, nextAutopilotStage } from '@creator/domain';
+import {
+  canonicalHash,
+  nextAutopilotStage,
+  suggestClaims,
+} from '@creator/domain';
 import { WebDiscoveryStore } from './web-discovery-store.js';
 import { routineStopReason } from './routine-stops.js';
 import {
@@ -28,6 +40,7 @@ import {
   iso,
   isPgError,
   normalize,
+  recordedActor,
   uuid,
   type CommandContext,
   type Row,
@@ -537,56 +550,9 @@ export class AutopilotStore extends WebDiscoveryStore {
         const cur = await this.#read(c, ws, id, true);
         if (req.expected_version === undefined)
           throw fail('INVALID_CONTRACT', 'Name the version you continue from.');
-        if (cur.version !== req.expected_version)
-          throw fail(
-            'VERSION_CONFLICT',
-            `The autopilot is at version ${cur.version}.`,
-          );
-        const can = autopilotContinuable(cur);
-        if (!can.ok)
-          throw fail(
-            'INVALID_TRANSITION',
-            cur.state === 'running'
-              ? 'The autopilot is still running.'
-              : can.reason,
-          );
-        if (Date.parse(cur.config.limits.ends_at) <= Date.now())
-          throw fail(
-            'EXPIRED',
-            "The autopilot's end time has passed; start a new autopilot.",
-          );
-        await this.lockRun(c, ws, cur.run_id);
-        const run = (
-          await c.query(
-            'select state from run_controls where workspace_id = $1 and run_id = $2',
-            [ws, cur.run_id],
-          )
-        ).rows[0] as Row;
-        if (run.state !== 'active')
-          throw fail('INVALID_TRANSITION', 'The run is no longer active.');
-        await this.checkAutopilotPolicy(c, ws, cur.run_id, cur.config);
-        const { rows } = await c.query(
-          `update autopilots set state = 'running', outcome = null, finished_at = null,
-             explanation = $3, version = version + 1, updated_at = clock_timestamp()
-           where workspace_id = $1 and id = $2 returning *`,
-          [ws, id, `Continuing at ${cur.stage.replaceAll('_', ' ')}.`],
-        );
-        const next = toAutopilot(rows[0] as Row);
-        await this.append(c, ctx, {
-          workspaceId: ws,
-          action: 'autopilot.continued',
-          subjectKind: 'autopilot',
-          subjectId: id,
-          subjectVersion: next.version,
-          contentHash: next.config_hash,
-          payload: {
-            after: cur.outcome,
-            stage: cur.stage,
-            reason: req.reason ?? null,
-          },
-          relatedIds: [next.run_id],
+        return this.#retryIn(c, ctx, ws, cur, req.expected_version, {
+          reason: req.reason ?? null,
         });
-        return next;
       });
     } catch (e) {
       if (isPgError(e, '23505', 'autopilots_one_running'))
@@ -596,6 +562,442 @@ export class AutopilotStore extends WebDiscoveryStore {
         );
       throw e;
     }
+  }
+
+  async #retryIn(
+    c: PoolClient,
+    ctx: CommandContext,
+    ws: string,
+    cur: Autopilot,
+    expected: number,
+    extra: {
+      reason: string | null;
+      allowed?: string;
+      settings_version?: number;
+    },
+  ): Promise<Autopilot> {
+    if (cur.version !== expected)
+      throw fail(
+        'VERSION_CONFLICT',
+        `The autopilot is at version ${cur.version}.`,
+      );
+    const can = autopilotContinuable(cur);
+    if (!can.ok)
+      throw fail(
+        'INVALID_TRANSITION',
+        cur.state === 'running'
+          ? 'The autopilot is still running.'
+          : can.reason,
+      );
+    if (Date.parse(cur.config.limits.ends_at) <= Date.now())
+      throw fail(
+        'EXPIRED',
+        "The autopilot's end time has passed; start a new autopilot.",
+      );
+    await this.lockRun(c, ws, cur.run_id);
+    const run = (
+      await c.query(
+        'select state from run_controls where workspace_id = $1 and run_id = $2',
+        [ws, cur.run_id],
+      )
+    ).rows[0] as Row;
+    if (run.state !== 'active')
+      throw fail('INVALID_TRANSITION', 'The run is no longer active.');
+    await this.checkAutopilotPolicy(c, ws, cur.run_id, cur.config);
+    const { rows } = await c.query(
+      `update autopilots set state = 'running', outcome = null, finished_at = null,
+         explanation = $3, version = version + 1, updated_at = clock_timestamp()
+       where workspace_id = $1 and id = $2 returning *`,
+      [ws, cur.id, `Continuing at ${cur.stage.replaceAll('_', ' ')}.`],
+    );
+    const next = toAutopilot(rows[0] as Row);
+    await this.append(c, ctx, {
+      workspaceId: ws,
+      action: 'autopilot.continued',
+      subjectKind: 'autopilot',
+      subjectId: cur.id,
+      subjectVersion: next.version,
+      contentHash: next.config_hash,
+      payload: {
+        after: cur.outcome,
+        stage: cur.stage,
+        reason: extra.reason,
+        ...(extra.allowed
+          ? { allowed: extra.allowed, settings_version: extra.settings_version }
+          : {}),
+      },
+      relatedIds: [next.run_id],
+    });
+    return next;
+  }
+
+  // ---- ADR-0100: the owner's autopilot settings -------------------------------------------
+
+  /** The workspace's autopilot settings as stored (defaults, version 0, before the first save). */
+  protected async readAutopilotSettings(
+    c: PoolClient,
+    ws: string,
+    lock = false,
+  ): Promise<{
+    values: AutopilotSettingsValues;
+    version: number;
+    row: Row | null;
+  }> {
+    const row = (
+      await c.query(
+        `select * from autopilot_settings where workspace_id = $1${lock ? ' for update' : ''}`,
+        [ws],
+      )
+    ).rows[0] as Row | undefined;
+    if (!row)
+      return { values: AUTOPILOT_SETTINGS_DEFAULT, version: 0, row: null };
+    return {
+      // A switch added later reads as off for a row saved before it existed.
+      values: AutopilotSettingsValuesSchema.parse({
+        ...AUTOPILOT_SETTINGS_DEFAULT,
+        ...(row.settings as object),
+      }),
+      version: Number(row.version),
+      row,
+    };
+  }
+
+  async autopilotSettings(
+    ctxIn: CommandContext,
+    wsIn: string,
+  ): Promise<AutopilotSettings> {
+    const ctx = normalize(ctxIn);
+    const ws = uuid(wsIn);
+    return this.tx(async (c) => {
+      await this.role(c, ws, ctx.actorId, false);
+      const r = await this.readAutopilotSettings(c, ws);
+      return {
+        workspace_id: ws,
+        values: r.values,
+        version: r.version,
+        updated_by: r.row ? String(r.row.updated_by) : null,
+        updated_at: r.row ? iso(r.row.updated_at) : null,
+        can_change:
+          !ctx.autopilot && (await this.isPolicyOwner(c, ws, ctx.actorId)),
+      };
+    });
+  }
+
+  /** Writes the settings in the caller's transaction (owner checked by the caller). */
+  async #writeSettings(
+    c: PoolClient,
+    ctx: CommandContext,
+    ws: string,
+    expected: number,
+    values: AutopilotSettingsValues,
+    why: string,
+  ) {
+    const cur = await this.readAutopilotSettings(c, ws, true);
+    if (cur.version !== expected)
+      throw fail(
+        'VERSION_CONFLICT',
+        `The autopilot settings are at version ${cur.version}; read them again.`,
+      );
+    const version = cur.version + 1;
+    if (cur.row)
+      await c.query(
+        `update autopilot_settings set settings = $2, version = $3, updated_by = $4,
+           updated_at = clock_timestamp() where workspace_id = $1`,
+        [ws, JSON.stringify(values), version, ctx.actorId],
+      );
+    else
+      try {
+        await c.query(
+          `insert into autopilot_settings (workspace_id, settings, version, updated_by)
+           values ($1, $2, 1, $3)`,
+          [ws, JSON.stringify(values), ctx.actorId],
+        );
+      } catch (e) {
+        if (isPgError(e, '23505'))
+          throw fail(
+            'VERSION_CONFLICT',
+            'The autopilot settings were just saved elsewhere; read them again.',
+          );
+        throw e;
+      }
+    await this.append(c, ctx, {
+      workspaceId: ws,
+      action: 'autopilot_settings.saved',
+      subjectKind: 'workspace',
+      subjectId: ws,
+      subjectVersion: version,
+      contentHash: canonicalHash(values),
+      payload: {
+        before: cur.values,
+        after: values,
+        why,
+      },
+      relatedIds: [],
+    });
+    return version;
+  }
+
+  /** The owner saves the workspace's autopilot settings (named version; audited). */
+  async saveAutopilotSettings(
+    ctxIn: CommandContext,
+    wsIn: string,
+    raw: unknown,
+  ): Promise<AutopilotSettings> {
+    const ctx = normalize(ctxIn);
+    const ws = uuid(wsIn);
+    const req = parse(SaveAutopilotSettingsRequestSchema, raw);
+    if (ctx.autopilot)
+      throw fail(
+        'HUMAN_ONLY_DENIED',
+        'An autopilot cannot change its own settings.',
+      );
+    await this.tx(async (c) => {
+      await this.requireOwner(
+        c,
+        ws,
+        ctx.actorId,
+        'Only the workspace owner can change the autopilot settings.',
+      );
+      await this.#writeSettings(
+        c,
+        ctx,
+        ws,
+        req.expected_version,
+        req.values,
+        'saved',
+      );
+    });
+    return this.autopilotSettings(ctx, ws);
+  }
+
+  /**
+   * "Allow this from now on and continue": turns on the setting the stop names and continues the
+   * autopilot, in one transaction, so neither happens without the other.
+   */
+  async allowAndContinueAutopilot(
+    ctxIn: CommandContext,
+    wsIn: string,
+    idIn: string,
+    raw: unknown,
+  ): Promise<Autopilot> {
+    const ctx = normalize(ctxIn);
+    const ws = uuid(wsIn);
+    const id = uuid(idIn);
+    const req = parse(AllowAndContinueRequestSchema, raw);
+    if (ctx.autopilot)
+      throw fail(
+        'HUMAN_ONLY_DENIED',
+        'An autopilot cannot change its own settings.',
+      );
+    try {
+      return await this.tx(async (c) => {
+        await this.requireOwner(
+          c,
+          ws,
+          ctx.actorId,
+          'Only the workspace owner can change the autopilot settings.',
+        );
+        const cur = await this.#read(c, ws, id, true);
+        const kind = cur.steps.at(-1)?.stop_kind ?? null;
+        const named = kind ? SETTING_FOR_STOP[kind] : undefined;
+        if (
+          !named ||
+          (named !== req.setting &&
+            !(
+              named === 'gather_evidence' &&
+              req.setting === 'max_extra_searches'
+            ))
+        )
+          throw fail(
+            'INVALID_CONTRACT',
+            'This stop is not one that setting covers; read the autopilot again.',
+          );
+        if (cur.version !== req.expected_version)
+          throw fail(
+            'VERSION_CONFLICT',
+            `The autopilot is at version ${cur.version}.`,
+          );
+        const can = autopilotContinuable(cur);
+        if (!can.ok) throw fail('INVALID_TRANSITION', can.reason);
+        // ADR-0098: the run is locked before anything is appended to the audit log.
+        await this.lockRun(c, ws, cur.run_id);
+        const before = await this.readAutopilotSettings(c, ws);
+        const version = await this.#writeSettings(
+          c,
+          ctx,
+          ws,
+          req.settings_version,
+          settingOn(before.values, req.setting),
+          `allowed from autopilot ${id} at ${kind}`,
+        );
+        return this.#retryIn(c, ctx, ws, cur, req.expected_version, {
+          reason: null,
+          allowed: req.setting,
+          settings_version: version,
+        });
+      });
+    } catch (e) {
+      if (isPgError(e, '23505', 'autopilots_one_running'))
+        throw fail(
+          'INVALID_TRANSITION',
+          'Another autopilot is running on this run. Wait for it or stop it first.',
+        );
+      throw e;
+    }
+  }
+
+  /**
+   * ADR-0100 "Gather evidence when it is thin": links recorded claims whose title or statement
+   * name an option (or the problem) to it, as a person's "Link claims" suggestions would, for
+   * the problem's active options that have no claim linked (or the options named). Each link is
+   * asserted by the Autopilot agent with its reason, audited, and can be undone with Unlink.
+   */
+  async autopilotLinkClaims(
+    ctxIn: CommandContext,
+    wsIn: string,
+    problemIn: string,
+    only: readonly string[] | null,
+  ): Promise<{ claim_id: string; to_id: string; to_title: string }[]> {
+    const ctx = normalize(ctxIn);
+    const ws = uuid(wsIn);
+    const problemId = uuid(problemIn);
+    return this.tx(async (c) => {
+      await this.role(c, ws, ctx.actorId, true);
+      const problem = (
+        await c.query(
+          `select id, version, title from entities
+            where workspace_id = $1 and id = $2 and kind = 'problem' and status = 'active'
+            for update`,
+          [ws, problemId],
+        )
+      ).rows[0] as Row | undefined;
+      if (!problem) throw fail('NOT_FOUND', 'The problem was not found.');
+      const options = (
+        await c.query(
+          `select a.id, a.version, a.title from entities a
+             join entity_links o on o.from_id = a.id and o.to_id = $2
+              and o.relation = 'derived_from' and o.retracted_at is null
+            where a.workspace_id = $1 and a.kind = 'alternative' and a.status = 'active'
+            order by a.created_at, a.id limit 8`,
+          [ws, problemId],
+        )
+      ).rows as Row[];
+      const links = (
+        await c.query(
+          `select from_id, to_id from entity_links
+            where workspace_id = $1 and relation in ('supports','contradicts')
+              and from_kind = 'claim' and retracted_at is null
+              and to_id = any($2::uuid[])`,
+          [ws, [problemId, ...options.map((o) => String(o.id))]],
+        )
+      ).rows as Row[];
+      const claims = (
+        (
+          await c.query(
+            `select id, version, title, body from entities
+              where workspace_id = $1 and kind = 'claim' and status = 'active'
+              order by created_at desc, id desc limit 500`,
+            [ws],
+          )
+        ).rows as Row[]
+      ).map((r) => ({
+        id: String(r.id),
+        version: Number(r.version),
+        title: String(r.title),
+        text: String(
+          (r.body as { statement?: string } | null)?.statement ?? '',
+        ),
+      }));
+      const linkedTo = (to: string) =>
+        new Set(
+          links
+            .filter((l) => String(l.to_id) === to)
+            .map((l) => String(l.from_id)),
+        );
+      const wanted = only?.map((x) => x.toLowerCase()) ?? null;
+      const targets: {
+        id: string;
+        version: number;
+        title: string;
+        kind: 'alternative' | 'problem';
+      }[] = [
+        ...options
+          .filter((o) =>
+            wanted
+              ? wanted.includes(String(o.id))
+              : linkedTo(String(o.id)).size === 0,
+          )
+          .map((o) => ({
+            id: String(o.id),
+            version: Number(o.version),
+            title: String(o.title),
+            kind: 'alternative' as const,
+          })),
+        ...(!wanted && linkedTo(problemId).size === 0
+          ? [
+              {
+                id: problemId,
+                version: Number(problem.version),
+                title: String(problem.title),
+                kind: 'problem' as const,
+              },
+            ]
+          : []),
+      ];
+      const made: { claim_id: string; to_id: string; to_title: string }[] = [];
+      for (const t of targets) {
+        const to = String(t.id);
+        const picks = suggestClaims(
+          { title: String(t.title) },
+          claims,
+          linkedTo(to),
+          3,
+        );
+        for (const claim of picks) {
+          const linkId = randomUUID();
+          const ins = await c.query(
+            `insert into entity_links (id, workspace_id, relation, from_id, from_kind,
+               from_version, to_id, to_kind, to_version, rationale, asserted_by)
+             values ($1,$2,'supports',$3,'claim',$4,$5,$6,$7,$8,$9) on conflict do nothing`,
+            [
+              linkId,
+              ws,
+              claim.id,
+              claim.version,
+              to,
+              t.kind,
+              Number(t.version),
+              `Its title or statement names this ${t.kind === 'problem' ? 'problem' : 'option'}; linked by an autopilot under the owner's setting “Gather evidence when it is thin” (ADR-0100). Unlink it if it is not evidence about this.`,
+              recordedActor(ctx),
+            ],
+          );
+          if (!ins.rowCount) continue;
+          await this.append(c, ctx, {
+            workspaceId: ws,
+            action: 'link.created',
+            subjectKind: 'link',
+            subjectId: linkId,
+            subjectVersion: null,
+            contentHash: null,
+            payload: {
+              relation: 'supports',
+              from_kind: 'claim',
+              from_version: claim.version,
+              to_kind: t.kind,
+              to_version: Number(t.version),
+              suggested: true,
+            },
+            relatedIds: [claim.id, to],
+          });
+          made.push({
+            claim_id: claim.id,
+            to_id: to,
+            to_title: String(t.title),
+          });
+        }
+      }
+      return made;
+    });
   }
 
   /** Autopilots a stopped studio left running, for the runner to pick up after a restart. */

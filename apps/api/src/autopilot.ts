@@ -3,7 +3,13 @@ import {
   AUTOPILOT_STAGE_LABEL,
   ContractError,
   ExplorationResultSchema,
+  WebDiscoveryScopeSchema,
+  MODEL_ONLY_ETHICS_NOTE,
+  autopilotNextSteps,
   type Autopilot,
+  type AutopilotFallback,
+  type AutopilotSettings,
+  type AutopilotStopKind,
   type AutopilotOutcome,
   type AutopilotStage,
   type AutopilotStep,
@@ -75,6 +81,21 @@ const said = (e: unknown) =>
 const codeOf = (e: unknown): ErrorCode | null =>
   e instanceof ContractError ? e.code : null;
 
+/** ADR-0100: the kind of stop a refused step made, from the refusal's code and words. */
+export function refusalKind(e: unknown): AutopilotStopKind {
+  const text = said(e).toLowerCase();
+  if (text.includes('per-run request cap')) return 'run_cap';
+  if (text.includes('daily') && text.includes('cap')) return 'daily_cap';
+  const code = codeOf(e);
+  if (code === 'BUDGET_EXCEEDED' || code === 'LIMIT_EXCEEDED')
+    return 'call_limit';
+  if (code === 'EXPIRED') return 'end_time';
+  const outcome = refusalOutcome(code);
+  if (outcome === 'needs_authority') return 'approval';
+  if (outcome === 'failed') return 'failed_step';
+  return 'other';
+}
+
 /** A stable idempotency key per autopilot step attempt. */
 export function autopilotKey(
   id: string,
@@ -95,6 +116,32 @@ type Stop = {
   final?: string;
   /** The question the stop left open for a person, if any. */
   asked?: string;
+  /** ADR-0100: what kind of stop, for the matching setting and next steps. */
+  kind?: AutopilotStopKind;
+};
+/**
+ * ADR-0100: a planned fallback the owner's settings allow instead of a stop. `retry` tries the
+ * same step again (a new attempt), `skip` passes over it, `gather` adds a step that links
+ * claims and may search the web, then goes back to `request.then`.
+ */
+type Fallback = {
+  fallback: AutopilotFallback;
+  then:
+    | { kind: 'retry' }
+    | { kind: 'skip' }
+    | { kind: 'gather'; request: GatherRequest };
+  child?: AutopilotStep['child'];
+};
+type GatherRequest = {
+  then: 'explore' | 'brief' | 'assess' | 'select';
+  reason: string;
+  /** Link suggested claims for this problem (its options with none, or those named). */
+  problem_id: string | null;
+  options: string[] | null;
+  /** The web search question, or null for links only. */
+  question: string | null;
+  /** Filled in when the step finishes: claims linked or added. */
+  added?: number;
 };
 type Done = {
   note: string;
@@ -103,17 +150,23 @@ type Done = {
   child?: AutopilotStep['child'];
   /** Ends the autopilot after this step (the path's last step). */
   outcome?: AutopilotOutcome;
+  /** Replaces the step's recorded request (a gather step records what it added). */
+  request?: Record<string, unknown>;
+  /** The owner's settings that let the step go on instead of stopping. */
+  fallback?: AutopilotFallback;
 };
-type Result = { stop: Stop } | { done: Done };
+type Result = { stop: Stop } | { done: Done } | { redo: Fallback };
 
 const stopOf = (l: {
   outcome: AutopilotOutcome;
   reason: string;
   final?: string;
+  kind?: AutopilotStopKind;
 }): Stop => ({
   outcome: l.outcome,
   note: l.reason,
   ...(l.final ? { final: l.final } : {}),
+  ...(l.kind ? { kind: l.kind } : {}),
 });
 
 export interface AutopilotRunnerOptions {
@@ -149,7 +202,18 @@ export class AutopilotRunner {
     return this.#live.has(id.toLowerCase());
   }
   with(a: Autopilot): Autopilot {
-    return { ...a, active: this.isActive(a.id) };
+    return { ...a, active: this.isActive(a.id), next: autopilotNextSteps(a) };
+  }
+
+  async allowAndContinue(
+    ctx: CommandContext,
+    ws: string,
+    id: string,
+    body: unknown,
+  ) {
+    const a = await this.store.allowAndContinueAutopilot(ctx, ws, id, body);
+    this.#launch(a.created_by, ws, a.id);
+    return this.with(a);
   }
   /** Resolves when this autopilot's driver has stopped (tests and shutdown). */
   async settled(id: string) {
@@ -325,6 +389,7 @@ export class AutopilotRunner {
         );
         await this.#finish(ctx, ws, current, {
           outcome: 'limit_reached',
+          kind: 'end_time',
           note: "The autopilot's end time passed; the step's work was stopped and what it made is kept.",
         });
         return;
@@ -337,6 +402,10 @@ export class AutopilotRunner {
         await this.#finish(ctx, ws, fresh, r.stop);
         return;
       }
+      if ('redo' in r) {
+        await this.#redo(ctx, ws, fresh, r.redo);
+        continue;
+      }
       const done = r.done;
       const now = new Date().toISOString();
       const steps = fresh.steps.map((s, i) =>
@@ -348,6 +417,8 @@ export class AutopilotRunner {
               child: done.child ?? s.child,
               problem: done.problem ?? s.problem,
               option: done.option ?? s.option,
+              ...(done.request ? { request: done.request } : {}),
+              ...(done.fallback ? { fallback: done.fallback } : {}),
               finished_at: now,
             }
           : s,
@@ -374,8 +445,9 @@ export class AutopilotRunner {
     stage: AutopilotStage,
     previous: AutopilotStep | undefined,
   ): Promise<Autopilot | null> {
-    const attempt =
-      previous && previous.stage === stage ? previous.attempt + 1 : 1;
+    // Every attempt of a stage gets its own key, also after a fallback went back to it (a
+    // repeated key would return the first attempt's workflow).
+    const attempt = a.steps.filter((s) => s.stage === stage).length + 1;
     const now = new Date().toISOString();
     const base: AutopilotStep = {
       stage,
@@ -427,7 +499,11 @@ export class AutopilotRunner {
     try {
       planned = await this.#plan(ctx, ws, a, stage);
     } catch (e) {
-      planned = { outcome: refusalOutcome(codeOf(e)), note: said(e) };
+      planned = {
+        outcome: refusalOutcome(codeOf(e)),
+        kind: refusalKind(e),
+        note: said(e),
+      };
     }
     if ('outcome' in planned) {
       return this.store.advanceAutopilot(ctx, ws, a.id, a.version, {
@@ -439,6 +515,7 @@ export class AutopilotRunner {
             state: 'stopped',
             note: planned.note.slice(0, 1200),
             no_retry: planned.final ?? null,
+            stop_kind: planned.kind ?? null,
             finished_at: now,
           },
         ],
@@ -464,14 +541,46 @@ export class AutopilotRunner {
 
   async #routeCaps(ctx: CommandContext, ws: string, a: Autopilot) {
     const r = a.config.resource_setup;
-    if (r.kind !== 'subscription') return { timeout_ms: null, per_run: null };
+    if (r.kind !== 'subscription')
+      return { timeout_ms: null, per_run: null, per_run_used: 0 };
     const caps = (
       await this.store.planConnectionDetail(ctx, ws, r.connection_id)
     ).connection.settings.caps.responses;
+    // ADR-0100 (live run 2): the per-run cap counts the whole run, so size from what is left.
+    const room = await this.store.planRunRoom(
+      ctx,
+      ws,
+      r.connection_id,
+      a.run_id,
+    );
     return {
       timeout_ms: caps.request_timeout_ms,
       per_run: caps.max_requests_per_run,
+      per_run_used: room.used,
     };
+  }
+
+  /** ADR-0100: plan requests left on this run for a web search's 2 requests, or why not. */
+  async #searchRoom(
+    ctx: CommandContext,
+    ws: string,
+    a: Autopilot,
+    connectionId: string,
+  ): Promise<Stop | null> {
+    const room = await this.store.planRunRoom(ctx, ws, connectionId, a.run_id);
+    if (room.per_run - room.used < 2)
+      return {
+        outcome: 'limit_reached',
+        kind: 'run_cap',
+        note: `Searching the web needs 2 plan requests; this run has used ${room.used} of the plan connection's ${room.per_run} requests per run. Raise the per-run cap under Models and connections › Change caps, accept it, then continue.`,
+      };
+    if (room.daily_left < 2)
+      return {
+        outcome: 'limit_reached',
+        kind: 'daily_cap',
+        note: `Searching the web needs 2 plan requests; the connection's daily cap leaves ${room.daily_left}. Add 20 requests (Models and connections) or wait, then continue.`,
+      };
+    return null;
   }
 
   /** The exact request of a step, from the records the earlier steps made. */
@@ -509,10 +618,18 @@ export class AutopilotRunner {
         if (remaining < 2)
           return {
             outcome: 'limit_reached',
+            kind: 'call_limit',
             note: `Searching the web needs 2 plan requests; the autopilot has ${remaining} left.`,
             final:
               'Its call limit is used up and cannot be raised; start a new autopilot with a higher limit.',
           };
+        const capped = await this.#searchRoom(
+          ctx,
+          ws,
+          a,
+          c.research.connection_id,
+        );
+        if (capped) return capped;
         return {
           calls: 2,
           request: {
@@ -586,11 +703,19 @@ export class AutopilotRunner {
             ? c.resource_setup.connection_id
             : null,
         );
-        if (preview.packet.problem.version !== found.problem.version)
-          return {
-            outcome: 'needs_person',
-            note: 'The problem changed after it was found; assess it by hand or start a new autopilot.',
+        if (preview.packet.problem.version !== found.problem.version) {
+          // ADR-0100 "try the next candidate": assess the problem as it is now.
+          if (!(await this.#settings(ctx, ws)).values.next_candidate)
+            return {
+              outcome: 'needs_person',
+              kind: 'other',
+              note: 'The problem changed after it was found; assess it by hand or start a new autopilot.',
+            };
+          found.problem = {
+            id: found.problem.id,
+            version: preview.packet.problem.version,
           };
+        }
         const l = await limitsFor('assess', preview.requests);
         if (!l.ok) return stopOf(l);
         return {
@@ -605,9 +730,118 @@ export class AutopilotRunner {
           },
         };
       }
+      case 'gather': {
+        // Continue after a stopped gather step tries the same gathering again.
+        const last = a.steps.at(-1);
+        const request =
+          last?.stage === 'gather' ? (last.request as GatherRequest) : null;
+        if (!request)
+          return { outcome: 'failed', note: 'The fallback step is missing.' };
+        const { added: _, ...again } = request;
+        return {
+          request: again,
+          calls: again.question ? Math.min(2, Math.max(0, remaining)) : 0,
+        };
+      }
       default:
         return { request: null, calls: 0 };
     }
+  }
+
+  /** ADR-0100: the owner's autopilot settings as they are now. */
+  async #settings(ctx: CommandContext, ws: string): Promise<AutopilotSettings> {
+    return this.store.autopilotSettings(ctx, ws);
+  }
+
+  /** The fallback record a step keeps (the setting, its version, the stop it replaced). */
+  #fb(
+    settings: AutopilotSettings,
+    setting: AutopilotFallback['setting'],
+    instead_of: AutopilotStopKind,
+    note: string,
+  ): AutopilotFallback {
+    return {
+      setting,
+      settings_version: settings.version,
+      instead_of,
+      note: note.slice(0, 600),
+    };
+  }
+
+  /** Failed attempts of this stage so far (each a stopped step that failed). */
+  #failures(a: Autopilot, stage: AutopilotStage) {
+    return a.steps.filter(
+      (s) =>
+        s.stage === stage &&
+        s.state === 'stopped' &&
+        s.fallback?.instead_of === 'failed_step',
+    ).length;
+  }
+
+  /** ADR-0100: a failed step is tried again when the owner allows retries and some are left. */
+  async #retryOr(
+    ctx: CommandContext,
+    ws: string,
+    a: Autopilot,
+    step: AutopilotStep,
+    stop: Stop,
+  ): Promise<Result> {
+    if (stop.outcome !== 'failed') return { stop };
+    const settings = await this.#settings(ctx, ws);
+    if (this.#failures(a, step.stage) >= settings.values.retry_failed)
+      return { stop: { ...stop, kind: stop.kind ?? 'failed_step' } };
+    return {
+      redo: {
+        fallback: this.#fb(
+          settings,
+          'retry_failed',
+          'failed_step',
+          `${stop.note} Trying the step again (the owner's setting “retry a failed step”).`,
+        ),
+        then: { kind: 'retry' },
+      },
+    };
+  }
+
+  /**
+   * ADR-0100: the web search a gather step may run, or why not: the setting, the searches left,
+   * a plan connection to search on, public or synthetic data, and the calls left.
+   */
+  #searchRoute(
+    a: Autopilot,
+    settings: AutopilotSettings,
+  ): { connection_id: string; model_id: string } | string {
+    const v = settings.values;
+    if (!v.gather_evidence) return 'Gathering evidence is off.';
+    const used = a.steps.filter(
+      (s) =>
+        s.stage === 'gather' && s.state !== 'stopped' && s.request?.question,
+    ).length;
+    if (used >= v.max_extra_searches)
+      return `It has used ${used} of the ${v.max_extra_searches} extra web search${v.max_extra_searches === 1 ? '' : 'es'} the settings allow.`;
+    if (!this.web) return 'Web search is not running in this studio.';
+    if (a.config.data_class !== 'public' && a.config.data_class !== 'synthetic')
+      return 'Web search reads public pages; this autopilot works on other data.';
+    if (a.config.limits.max_calls - a.calls_reserved < 2)
+      return 'Its call limit leaves fewer than the 2 requests a search takes.';
+    const r = a.config.research;
+    if (r) return { connection_id: r.connection_id, model_id: r.model_id };
+    const s = a.config.resource_setup;
+    if (s.kind === 'subscription')
+      return { connection_id: s.connection_id, model_id: s.model_id };
+    return 'Web search runs only on a ChatGPT plan connection, and this autopilot uses another route.';
+  }
+
+  /** Gather rounds already taken for this target, and whether the last one added anything. */
+  #gathered(a: Autopilot, then: GatherRequest['then'][]) {
+    const rounds = a.steps.filter(
+      (s) =>
+        s.stage === 'gather' &&
+        s.state === 'done' &&
+        then.includes((s.request as GatherRequest | null)?.then ?? 'explore'),
+    );
+    const last = rounds.at(-1)?.request as GatherRequest | undefined;
+    return { rounds: rounds.length, lastAdded: last?.added ?? null };
   }
 
   async #run(
@@ -632,6 +866,8 @@ export class AutopilotRunner {
           return await this.#brief(ctx, ws, a);
         case 'select':
           return await this.#select(ctx, keyed, ws, a);
+        case 'gather':
+          return await this.#gather(ctx, keyed, ws, a, step, signal);
         case 'proposal':
           return await this.#proposal(ctx, keyed, ws, a);
         case 'spec': {
@@ -639,6 +875,7 @@ export class AutopilotRunner {
           return {
             stop: {
               outcome: 'needs_person',
+              kind: 'spec',
               note: `“${sel?.option?.title ?? 'The option'}” was selected for a bounded build. Writing and freezing its spec stays with you for now (Build › Spec); the autopilot does not write specs.`,
               final:
                 'Writing and freezing the spec stays with you (Build › Spec); Continue cannot do it.',
@@ -647,12 +884,12 @@ export class AutopilotRunner {
         }
       }
     } catch (e) {
-      return {
-        stop: {
-          outcome: refusalOutcome(codeOf(e)),
-          note: `${AUTOPILOT_STAGE_LABEL[step.stage]} was refused: ${said(e)}`,
-        },
+      const stop: Stop = {
+        outcome: refusalOutcome(codeOf(e)),
+        kind: refusalKind(e),
+        note: `${AUTOPILOT_STAGE_LABEL[step.stage]} was refused: ${said(e)}`,
       };
+      return this.#retryOr(ctx, ws, a, step, stop).catch(() => ({ stop }));
     }
   }
 
@@ -680,16 +917,73 @@ export class AutopilotRunner {
     signal: AbortSignal,
   ): Promise<Result> {
     if (!step.request) return { done: { note: 'No web search asked for.' } };
+    const r = await this.#search(ctx, keyed, ws, a, step, step.request, signal);
+    if ('stop' in r) {
+      if (r.stop.outcome === 'cancelled' || r.stop.kind === 'end_time')
+        return r;
+      // ADR-0100: a search that cannot run or keeps failing is skipped (the owner's "try the
+      // next candidate"): the autopilot explores the claims already recorded instead.
+      if (r.stop.outcome === 'failed') {
+        const retried = await this.#retryOr(ctx, ws, a, step, r.stop);
+        if ('redo' in retried) return retried;
+      }
+      const settings = await this.#settings(ctx, ws);
+      if (
+        settings.values.next_candidate &&
+        (r.stop.outcome === 'failed' || r.stop.kind === 'other')
+      )
+        return {
+          redo: {
+            fallback: this.#fb(
+              settings,
+              'next_candidate',
+              r.stop.kind ?? 'failed_step',
+              `${r.stop.note} Skipped the web search and explored the recorded claims instead.`,
+            ),
+            then: { kind: 'skip' },
+          },
+        };
+      return r;
+    }
+    const d = r.d;
+    const admitted = d.proposals.filter(
+      (p) => p.decision === 'admitted',
+    ).length;
+    const pending = d.proposals.filter(
+      (p) => p.check === 'verified' && p.decision === 'pending',
+    ).length;
+    return {
+      done: {
+        child: { kind: 'web_discovery', id: d.id },
+        note: `${d.explanation} ${admitted} claim${admitted === 1 ? '' : 's'} added by the run's routine approvals${pending ? `; ${pending} checked claim${pending === 1 ? '' : 's'} wait for you under Discover › Search the web` : ''}.`.slice(
+          0,
+          1200,
+        ),
+      },
+    };
+  }
+
+  /** Starts (or finds) a step's web discovery and waits for it to finish. */
+  async #search(
+    ctx: CommandContext,
+    keyed: CommandContext,
+    ws: string,
+    a: Autopilot,
+    step: AutopilotStep,
+    request: Record<string, unknown>,
+    signal: AbortSignal,
+  ): Promise<{ stop: Stop } | { d: WebDiscovery }> {
     if (!this.web)
       return {
         stop: {
           outcome: 'needs_authority',
+          kind: 'other',
           note: 'Web search needs the plan connection service and the source fetcher, which this studio is not running.',
         },
       };
-    let id = step.child?.id;
+    let id = step.child?.kind === 'web_discovery' ? step.child.id : undefined;
     if (!id) {
-      const d = await this.web.start(keyed, ws, a.run_id, step.request);
+      const d = await this.web.start(keyed, ws, a.run_id, request);
       id = d.id;
       const child = { kind: 'web_discovery' as const, id };
       if (!(await this.#record(ctx, ws, a, child))) {
@@ -711,27 +1005,11 @@ export class AutopilotRunner {
               { kind: 'web_discovery', id },
               "The autopilot's end time passed.",
             );
-          return this.#late(a);
+          return this.#late(a) as { stop: Stop };
         }
         continue;
       }
-      if (d.state === 'done') {
-        const admitted = d.proposals.filter(
-          (p) => p.decision === 'admitted',
-        ).length;
-        const pending = d.proposals.filter(
-          (p) => p.check === 'verified' && p.decision === 'pending',
-        ).length;
-        return {
-          done: {
-            child: { kind: 'web_discovery', id },
-            note: `${d.explanation} ${admitted} claim${admitted === 1 ? '' : 's'} added by the run's routine approvals${pending ? `; ${pending} checked claim${pending === 1 ? '' : 's'} wait for you under Discover › Search the web` : ''}.`.slice(
-              0,
-              1200,
-            ),
-          },
-        };
-      }
+      if (d.state === 'done') return { d };
       return {
         stop: {
           outcome: d.state === 'cancelled' ? 'cancelled' : 'failed',
@@ -742,6 +1020,123 @@ export class AutopilotRunner {
         },
       };
     }
+  }
+
+  /**
+   * ADR-0100: a fallback that gathers evidence. It links recorded claims that name the problem's
+   * options (or the problem), runs one web search when the request asks for one, links again
+   * with the claims that search added, and records how many it added. With nothing added, a
+   * return to explore stops (exploring again would find the same), and a return to assess goes
+   * straight on to choosing (the settings then decide).
+   */
+  async #gather(
+    ctx: CommandContext,
+    keyed: CommandContext,
+    ws: string,
+    a: Autopilot,
+    step: AutopilotStep,
+    signal: AbortSignal,
+  ): Promise<Result> {
+    const req = step.request as GatherRequest | null;
+    if (!req)
+      return {
+        stop: { outcome: 'failed', note: 'The fallback step is missing.' },
+      };
+    let linked = 0;
+    let searched = 0;
+    const notes: string[] = [];
+    const link = async () => {
+      if (!req.problem_id) return;
+      const made = await this.store.autopilotLinkClaims(
+        ctx,
+        ws,
+        req.problem_id,
+        req.options,
+      );
+      linked += made.length;
+      if (made.length)
+        notes.push(
+          `Linked ${made.length} recorded claim${made.length === 1 ? '' : 's'} whose text names ${[
+            ...new Set(made.map((m) => `“${m.to_title}”`)),
+          ]
+            .slice(0, 4)
+            .join(', ')}.`,
+        );
+    };
+    await link();
+    if (req.question) {
+      const settings = await this.#settings(ctx, ws);
+      const route = this.#searchRoute(
+        { ...a, steps: a.steps.slice(0, -1) },
+        settings,
+      );
+      if (typeof route === 'string') notes.push(`No web search: ${route}`);
+      else {
+        const capped = await this.#searchRoom(ctx, ws, a, route.connection_id);
+        if (capped && !linked) return { stop: capped };
+        if (capped) notes.push(`No web search: ${capped.note}`);
+        else {
+          const scope = WebDiscoveryScopeSchema.parse({
+            ...(a.config.research?.scope ?? {}),
+            question: req.question.slice(0, 300),
+          });
+          const preview = await this.store.previewWebDiscovery(ctx, ws, scope);
+          const r = await this.#search(
+            ctx,
+            keyed,
+            ws,
+            a,
+            step,
+            {
+              connection_id: route.connection_id,
+              model_id: route.model_id,
+              scope,
+              input_hash: preview.input_hash,
+            },
+            signal,
+          );
+          if ('stop' in r) {
+            if (r.stop.outcome === 'cancelled' || r.stop.kind === 'end_time')
+              return r;
+            notes.push(`The web search did not finish: ${r.stop.note}`);
+          } else {
+            searched = r.d.proposals.filter(
+              (p) => p.decision === 'admitted',
+            ).length;
+            const pending = r.d.proposals.filter(
+              (p) => p.check === 'verified' && p.decision === 'pending',
+            ).length;
+            notes.push(
+              `Searched the web for “${req.question.slice(0, 160)}”: ${searched} claim${searched === 1 ? '' : 's'} added by the run's routine approvals${pending ? `, ${pending} waiting for you under Discover › Search the web` : ''}.`,
+            );
+            if (searched) await link();
+          }
+        }
+      }
+    }
+    const added = linked + searched;
+    if (!added && req.then === 'explore')
+      return {
+        stop: {
+          outcome: 'insufficient_evidence',
+          kind: 'thin_evidence',
+          note: `${req.reason} The autopilot gathered evidence but found nothing new. ${notes.join(' ')}`.slice(
+            0,
+            1200,
+          ),
+        },
+      };
+    const then = !added && req.then === 'assess' ? 'select' : req.then;
+    return {
+      done: {
+        request: { ...req, then, added },
+        note: `${notes.join(' ') || 'Nothing new was found.'} ${
+          then === 'select' && req.then === 'assess'
+            ? 'Nothing new to assess, so it goes on to choose.'
+            : `Going back to ${AUTOPILOT_STAGE_LABEL[then].toLowerCase()}.`
+        }`.slice(0, 1200),
+      },
+    };
   }
 
   /** Explore, discover and assess: start (or find) the workflow, wait, read its result. */
@@ -781,6 +1176,7 @@ export class AutopilotRunner {
         return {
           stop: {
             outcome: 'needs_authority',
+            kind: 'approval',
             note: `${AUTOPILOT_STAGE_LABEL[step.stage]} is waiting for a decision (Monitor › Approvals): ${wf.reason}. Answer it, then continue the autopilot.`.slice(
               0,
               1200,
@@ -791,6 +1187,7 @@ export class AutopilotRunner {
         return {
           stop: {
             outcome: 'needs_person',
+            kind: 'paused',
             note: `${AUTOPILOT_STAGE_LABEL[step.stage]} was paused by a person. Resume it, then continue the autopilot.`,
           },
         };
@@ -807,21 +1204,21 @@ export class AutopilotRunner {
     }
     const child = { kind: 'workflow' as const, id };
     if (wf.state !== 'succeeded')
-      return {
-        stop: {
-          outcome: wf.state === 'cancelled' ? 'cancelled' : 'failed',
-          note: `${AUTOPILOT_STAGE_LABEL[step.stage]} ended ${wf.state}: ${wf.reason}`.slice(
-            0,
-            1200,
-          ),
-        },
-      };
+      return this.#retryOr(ctx, ws, a, step, {
+        outcome: wf.state === 'cancelled' ? 'cancelled' : 'failed',
+        note: `${AUTOPILOT_STAGE_LABEL[step.stage]} ended ${wf.state}: ${wf.reason}`.slice(
+          0,
+          1200,
+        ),
+      });
     const result = wf.result;
     if (step.stage === 'explore') {
       const r = ExplorationResultSchema.parse(result?.exploration);
       const pick = pickExplored(r);
       if (!pick.ok)
-        return { stop: { outcome: pick.outcome, note: pick.reason } };
+        return this.#thin(ctx, ws, a, child, pick.reason, 'explore', {
+          questions: [...r.directions.map((d) => d.question), ...r.not_covered],
+        });
       return {
         done: {
           child,
@@ -835,23 +1232,26 @@ export class AutopilotRunner {
     if (step.stage === 'discover') {
       const d = result?.discovery;
       if (!d || d.outcome === 'insufficient_evidence')
-        return {
-          stop: {
-            outcome: 'insufficient_evidence',
-            note: `Discovery found the evidence insufficient: ${wf.reason}`.slice(
-              0,
-              1200,
-            ),
-          },
-        };
+        return this.#thin(
+          ctx,
+          ws,
+          a,
+          child,
+          `Discovery found the evidence insufficient: ${wf.reason}`,
+          'discover',
+          {},
+        );
       const problem = d.catalog_records.problem;
       if (!problem || !d.catalog_records.alternatives.length)
-        return {
-          stop: {
-            outcome: 'no_eligible_option',
-            note: `Discovery proposed no option to assess (${d.outcome.replaceAll('_', ' ')}).`,
-          },
-        };
+        return this.#thin(
+          ctx,
+          ws,
+          a,
+          child,
+          `Discovery proposed no option to assess (${d.outcome.replaceAll('_', ' ')}).`,
+          'discover',
+          { outcome: 'no_eligible_option' },
+        );
       return {
         done: {
           child,
@@ -877,6 +1277,125 @@ export class AutopilotRunner {
     };
   }
 
+  /**
+   * ADR-0100: thin evidence at explore or discover. With the owner's settings: try the
+   * exploration's next candidate problem (discover only), or gather evidence (link claims and
+   * search the web with the explorer's own questions) and explore again; otherwise stop.
+   */
+  async #thin(
+    ctx: CommandContext,
+    ws: string,
+    a: Autopilot,
+    child: AutopilotStep['child'],
+    reason: string,
+    at: 'explore' | 'discover',
+    opts: { questions?: string[]; outcome?: AutopilotOutcome },
+  ): Promise<Result> {
+    const stop: Result = {
+      stop: {
+        outcome: opts.outcome ?? 'insufficient_evidence',
+        kind: 'thin_evidence',
+        note: reason.slice(0, 1200),
+      },
+    };
+    const settings = await this.#settings(ctx, ws);
+    if (at === 'discover' && settings.values.next_candidate) {
+      const left = await this.#candidatesLeft(ctx, ws, a);
+      if (left > 0)
+        return {
+          redo: {
+            child,
+            fallback: this.#fb(
+              settings,
+              'next_candidate',
+              'thin_evidence',
+              `${reason} Trying the exploration's next candidate problem.`,
+            ),
+            then: {
+              kind: 'gather',
+              request: {
+                then: 'brief',
+                reason: 'Trying the next candidate problem.',
+                problem_id: null,
+                options: null,
+                question: null,
+              },
+            },
+          },
+        };
+    }
+    const route = this.#searchRoute(a, settings);
+    if (typeof route === 'string') {
+      if (settings.values.gather_evidence)
+        (stop as { stop: Stop }).stop.note =
+          `${reason} It could not gather more evidence: ${route}`.slice(
+            0,
+            1200,
+          );
+      return stop;
+    }
+    const asked = new Set(
+      a.steps.flatMap((s) =>
+        s.stage === 'gather' && s.request?.question
+          ? [String(s.request.question).toLowerCase()]
+          : [],
+      ),
+    );
+    const brief = carried(a.steps, 'brief');
+    const question = [
+      ...(opts.questions ?? []),
+      ...(brief?.note
+        ? [brief.note.replace(/^Brief “([^”]+)”.*$/s, '$1')]
+        : []),
+      ...a.config.explore.interests,
+    ]
+      .map((q) => q.trim())
+      .find((q) => q && !asked.has(q.toLowerCase()));
+    if (!question) return stop;
+    return {
+      redo: {
+        child,
+        fallback: this.#fb(
+          settings,
+          'gather_evidence',
+          'thin_evidence',
+          `${reason} Gathering evidence, then exploring again.`,
+        ),
+        then: {
+          kind: 'gather',
+          request: {
+            then: 'explore',
+            reason: reason.slice(0, 600),
+            problem_id: null,
+            options: null,
+            question: question.slice(0, 300),
+          },
+        },
+      },
+    };
+  }
+
+  /** Candidate problems the newest exploration has that no brief has been written from yet. */
+  async #candidatesLeft(ctx: CommandContext, ws: string, a: Autopilot) {
+    const ex = carried(a.steps, 'explore');
+    if (!ex?.child) return 0;
+    const wf = (await this.store.getWorkflow(ctx, ws, ex.child.id)).workflow;
+    const r = ExplorationResultSchema.parse(wf.result?.exploration);
+    const kept = r.candidates.filter((c) => c.disposition === 'candidate');
+    return kept.length - this.#briefsSince(a);
+  }
+
+  /** Briefs written since the newest exploration finished (each from the next candidate). */
+  #briefsSince(a: Autopilot) {
+    let at = -1;
+    a.steps.forEach((s, i) => {
+      if (s.stage === 'explore' && s.state === 'done') at = i;
+    });
+    return a.steps
+      .slice(at + 1)
+      .filter((s) => s.stage === 'brief' && s.state === 'done').length;
+  }
+
   async #brief(ctx: CommandContext, ws: string, a: Autopilot): Promise<Result> {
     const ex = carried(a.steps, 'explore');
     if (!ex?.child)
@@ -886,8 +1405,16 @@ export class AutopilotRunner {
     const wf = (await this.store.getWorkflow(ctx, ws, ex.child.id)).workflow;
     const pick = pickExplored(
       ExplorationResultSchema.parse(wf.result?.exploration),
+      this.#briefsSince(a),
     );
-    if (!pick.ok) return { stop: { outcome: pick.outcome, note: pick.reason } };
+    if (!pick.ok)
+      return {
+        stop: {
+          outcome: pick.outcome,
+          kind: 'thin_evidence',
+          note: pick.reason,
+        },
+      };
     // The request (which candidate, which claims) is recorded before the brief is written; the
     // brief's version is added after. A repeated write returns the same brief for the same card.
     const before = await this.store.getAutopilot(ctx, ws, a.id);
@@ -975,6 +1502,7 @@ export class AutopilotRunner {
         return {
           stop: {
             outcome: 'needs_person',
+            kind: 'person_choice',
             note: `Your choice under Decide${
               mine.kind === 'carry' ? ` (“${mine.option.title}”)` : ''
             } was made on other scores than the current ones${
@@ -986,7 +1514,13 @@ export class AutopilotRunner {
         };
     }
     if (mine.kind === 'stop')
-      return { stop: { outcome: mine.outcome, note: mine.reason } };
+      return {
+        stop: {
+          outcome: mine.outcome,
+          kind: 'person_choice',
+          note: mine.reason,
+        },
+      };
     if (mine.kind === 'carry') {
       return {
         done: {
@@ -1002,32 +1536,109 @@ export class AutopilotRunner {
       };
     }
     const report = await this.store.selectionReport(ctx, ws, problem.id);
-    const choice = autopilotChoice(report);
+    const settings = await this.#settings(ctx, ws);
+    const S = settings.values;
+    // ADR-0100: when more evidence could settle the stop (unknown ratings, an open gate), gather
+    // it and assess again before any setting chooses past it.
+    const strict = autopilotChoice(report, {
+      ...S,
+      choose_with_unknowns: false,
+      next_candidate: false,
+    });
+    if (
+      !strict.ok &&
+      (strict.kind === 'unknown_ratings' || strict.kind === 'gate_blocked') &&
+      S.gather_evidence &&
+      // Choosing from recorded scores never calls a model, so it never assesses again.
+      a.config.start?.stage !== 'select'
+    ) {
+      const g = this.#gathered(a, ['assess', 'select']);
+      if (g.rounds < 1 + S.max_extra_searches && g.lastAdded !== 0) {
+        const route = this.#searchRoute(a, settings);
+        const rows = report.suitability.candidates.filter((c) =>
+          (strict.options ?? []).some((o) => o.id === c.alternative.id),
+        );
+        const first = rows[0];
+        const question = first
+          ? `${first.alternative.title}${first.unknown_criteria.length ? `: ${first.unknown_criteria.map((x) => x.replaceAll('_', ' ')).join(', ')}` : ''}`
+          : report.problem.title;
+        return {
+          redo: {
+            fallback: this.#fb(
+              settings,
+              'gather_evidence',
+              strict.kind,
+              `${strict.reason} Gathering evidence for ${rows.length ? rows.map((r) => `“${r.alternative.title}”`).join(', ') : 'the options'}, then assessing again.`,
+            ),
+            then: {
+              kind: 'gather',
+              request: {
+                then: 'assess',
+                reason: strict.reason.slice(0, 600),
+                problem_id: report.problem.id,
+                options: rows.length ? rows.map((r) => r.alternative.id) : null,
+                question: typeof route === 'string' ? null : question,
+              },
+            },
+          },
+        };
+      }
+    }
+    const choice = autopilotChoice(report, S);
     if (!choice.ok)
-      return { stop: { outcome: choice.outcome, note: choice.reason } };
+      return {
+        stop: {
+          outcome: choice.outcome,
+          kind: choice.kind,
+          note: choice.reason,
+        },
+      };
     const out = await this.store.select(keyed, ws, a.run_id, {
       ...choice.request,
       data_class: a.config.data_class,
     });
     if (out.status !== 'recorded' || !out.selection) {
       const n = notAdmitted(choice.option.title, out.admission);
+      const ethics = /ethic/i.test(
+        `${out.admission.reason_code} ${out.admission.explanation}`,
+      );
       return {
         stop: {
           outcome: 'needs_authority',
+          kind: ethics ? 'model_ethics' : 'approval',
           note: n.note,
           ...(n.asked ? { asked: n.asked } : {}),
         },
       };
     }
+    const flagged = out.selection.rationale.startsWith(MODEL_ONLY_ETHICS_NOTE);
     return {
       done: {
         child: { kind: 'selection', id: out.selection.id },
         problem: { id: report.problem.id, version: report.problem.version },
         option: choice.option,
-        note: `Chose “${choice.option.title}” (${choice.request.dispositions.find((d) => d.alternative.id === choice.option.id)!.disposition.replaceAll('_', ' ')}); the other options are deferred.`.slice(
-          0,
-          1200,
-        ),
+        ...(choice.fallbacks[0]
+          ? {
+              fallback: {
+                ...choice.fallbacks[0],
+                settings_version: settings.version,
+              },
+            }
+          : flagged
+            ? {
+                fallback: this.#fb(
+                  settings,
+                  'choose_model_ethics',
+                  'model_ethics',
+                  MODEL_ONLY_ETHICS_NOTE,
+                ),
+              }
+            : {}),
+        note: `Chose “${choice.option.title}” (${choice.request.dispositions.find((d) => d.alternative.id === choice.option.id)!.disposition.replaceAll('_', ' ')}); the other options are deferred.${
+          choice.fallbacks.length
+            ? ` With the owner's autopilot settings: ${choice.fallbacks.map((f) => f.note).join(' ')}`
+            : ''
+        }${flagged ? ` ${MODEL_ONLY_ETHICS_NOTE}` : ''}`.slice(0, 1200),
       },
     };
   }
@@ -1044,9 +1655,13 @@ export class AutopilotRunner {
         stop: { outcome: 'failed', note: 'The chosen option is missing.' },
       };
     const draft = await this.store.proposalDraft(ctx, ws, sel.option.id);
+    const flagged = sel.note.includes(MODEL_ONLY_ETHICS_NOTE);
     const made = await this.store.createProposal(keyed, ws, {
       title: draft.title,
-      body: draft.body,
+      // ADR-0100: a choice past model-only ethics says so at the top of its proposal.
+      body: flagged
+        ? `> ${MODEL_ONLY_ETHICS_NOTE}\n\n${draft.body}`
+        : draft.body,
     });
     return {
       done: {
@@ -1083,6 +1698,7 @@ export class AutopilotRunner {
     return {
       stop: {
         outcome: 'limit_reached',
+        kind: 'end_time',
         note: `The autopilot's end time (${a.config.limits.ends_at.slice(0, 16).replace('T', ' ')} UTC) passed; the step's work was stopped and what it made is kept.`,
       },
     };
@@ -1107,6 +1723,69 @@ export class AutopilotRunner {
       .catch(() => null);
   }
 
+  /**
+   * ADR-0100: records a planned fallback instead of a stop. The step keeps the setting that
+   * allowed it; `retry` leaves it stopped so the next pass tries it again, `skip` marks it
+   * skipped, and `gather` adds the gather step (its key and the calls a search sets aside are
+   * recorded before anything is sent).
+   */
+  async #redo(ctx: CommandContext, ws: string, a: Autopilot, r: Fallback) {
+    const now = new Date().toISOString();
+    const steps: AutopilotStep[] = a.steps.map((s, i) =>
+      i === a.steps.length - 1 && s.state === 'running'
+        ? {
+            ...s,
+            state:
+              r.then.kind === 'skip'
+                ? ('skipped' as const)
+                : ('stopped' as const),
+            child: r.child ?? s.child,
+            note: r.fallback.note.slice(0, 1200),
+            fallback: r.fallback,
+            stop_kind: r.fallback.instead_of,
+            finished_at: now,
+          }
+        : s,
+    );
+    let reserved = a.calls_reserved;
+    if (r.then.kind === 'gather') {
+      const attempt = steps.filter((s) => s.stage === 'gather').length + 1;
+      const calls = r.then.request.question
+        ? Math.min(2, Math.max(0, a.config.limits.max_calls - reserved))
+        : 0;
+      reserved += calls;
+      steps.push({
+        stage: 'gather',
+        attempt,
+        state: 'running',
+        child: null,
+        calls,
+        problem: null,
+        option: null,
+        request: r.then.request,
+        key: autopilotKey(a.id, 'gather', attempt),
+        note: `${AUTOPILOT_STAGE_LABEL.gather}: ${r.then.request.reason}`.slice(
+          0,
+          1200,
+        ),
+        started_at: now,
+        finished_at: null,
+      });
+    }
+    const stage =
+      r.then.kind === 'gather'
+        ? 'gather'
+        : r.then.kind === 'skip'
+          ? (nextAutopilotStage(a.config, steps) ?? a.stage)
+          : a.stage;
+    await this.store.advanceAutopilot(ctx, ws, a.id, a.version, {
+      steps,
+      stage,
+      calls_reserved: reserved,
+      explanation: r.fallback.note,
+    });
+  }
+
   async #finish(ctx: CommandContext, ws: string, a: Autopilot, stop: Stop) {
     const now = new Date().toISOString();
     const steps = a.steps.map((s, i) =>
@@ -1116,6 +1795,7 @@ export class AutopilotRunner {
             state: 'stopped' as const,
             note: stop.note.slice(0, 1200),
             no_retry: stop.final ?? null,
+            stop_kind: stop.kind ?? 'other',
             ...(stop.asked ? { asked: stop.asked } : {}),
             finished_at: now,
           }
