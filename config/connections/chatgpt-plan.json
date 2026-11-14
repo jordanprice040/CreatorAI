@@ -15,7 +15,7 @@
   ],
   "caps": {
     "responses": {
-      "max_requests_per_run": 10,
+      "max_requests_per_run": 30,
       "request_timeout_ms": 120000,
       "max_output_chars": 16000,
       "max_input_chars": 64000

@@ -16,6 +16,7 @@ UX pass proposals P-2 and P-5 ([findings](../docs/FINAL_UX_PASS_FINDINGS_2026-11
 No live model run: the button and the walk used a fake `claude`, and the autopilot tests a stand-in drafter.
 
 Rejected: letting the model fill problem, background, evidence, contrary evidence or costs (facts and citations stay the records' and the person's); a separate model setting for drafting (the chat model is the owner's chosen connection, with its limits); applying drafts automatically or all at once (Jordan asked for section-by-section acceptance); sending the proposal when the owner's chat setting keeps studio records in the studio.
+
 ## ADR-0104 — Standard view: amounts in cents, internal detail in Advanced (November 14, 2026)
 
 Final UX pass P-8 and P-9 (`docs/FINAL_UX_PASS_FINDINGS_2026-11-14.md`, section 9: Jordan accepted P-8 as proposed and revised P-9 on November 14, 02:14 UTC). No migration; display only.
@@ -60,6 +61,12 @@ UX pass proposals P-3 and P-4 (`docs/FINAL_UX_PASS_FINDINGS_2026-11-14.md`, sect
 Review 1 amendment (November 14): the in-place approval is offered only when the signed-in owner is the decision's requester (a member's build goes to Approvals); it shows Uncertainty, If wrong and the study's "Was this question worth asking?" answer; the action can always be sent again from the notice (after an approval made in Approvals, a standing approval, or for a non-owner), and the decision reloads when the page is shown again or the window regains focus. The one-step form ticks an option by default only when every gate in its way can be cleared here.
 
 Rejected: a server "record and approve" endpoint (it would admit and approve in one call without the person seeing the coverage); confirming gates with one reason per option only (Jordan wanted shared reasons with per-option overrides); a migration for `reason_from` (the event payload is the durable record and the row already stores the reason text).
+
+## Owner decision — ChatGPT plan per-run cap default 30 (November 14, 2026)
+
+Jordan, November 14 (decision card): the ChatGPT plan connection's requests per run is 30 from now on. A whole autopilot run needs at least 13 (web search 2, explore 2, discovery 5 types + 2, assessment at least 2; about 17 in practice) and up to about 27 with Hands-off's extra searches and rounds. The shipped default (`config/connections/chatgpt-plan.json`, the Models form's proposed settings) moves from 10 to 30; daily and other caps are unchanged. Existing connections keep their accepted caps until the owner changes them (the dev studio's was raised and accepted the same day). No migration.
+
+The shipped shared daily cap stays 40 requests across both paths. On default caps, one Hands-off whole run (up to about 27) uses most of a day's plan requests, so a second one may not fit the same day. The dev studio's own daily cap is 100. The Claude Code connection's per-run default stays 10, below what a whole autopilot needs; this decision covers the ChatGPT plan only.
 
 ## ADR-0100 — Autopilot settings: opt-in planned fallbacks instead of stops, automatic evidence, and a next step at every stop (November 14, 2026)
 
