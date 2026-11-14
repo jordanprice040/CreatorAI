@@ -786,6 +786,16 @@ function NextAfterStop({
       );
       break;
     case 'needs_person':
+      // P-12: quote-checked web claims wait under Search the web, not Decide.
+      if (last?.stop_kind === 'claims_held') {
+        text = `Next: read the claims its web search found and add the ones you agree with under Discover › Search the web${then} Or allow "Accept quote-checked web claims" below.`;
+        actions = (
+          <button type="button" className="secondary" onClick={go('web-title')}>
+            Search the web
+          </button>
+        );
+        break;
+      }
       text = `Next: this step is yours. Make the choice under Projects › Decide (or write the proposal under Proposals)${then} How much is automated sets which steps stop for you.`;
       actions = (
         <>
