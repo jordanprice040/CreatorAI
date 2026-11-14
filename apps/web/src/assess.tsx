@@ -1,3 +1,4 @@
+import { versionTag } from './plain-words.js';
 import { useViewMode } from './view-mode.js';
 import { usePoll } from './page-active.js';
 import { useEffect, useState } from 'react';
@@ -1304,10 +1305,12 @@ function SystemExplanation({
         {a.route === 'fixture'
           ? 'Fixture rules'
           : `${a.model_id}${a.provider ? ` via ${a.provider}` : ''} (${a.route})`}{' '}
-        · assessed {new Date(card.created_at).toLocaleString()} · problem v
-        {a.problem.version} · {a.role_version} · prompt{' '}
-        {a.prompt_hash.slice(0, 8)} · rubric {b.rubric_version} · workflow{' '}
-        {a.workflow_id.slice(0, 8)}
+        · assessed {new Date(card.created_at).toLocaleString()}
+        {/* Review 3 of #197, L-2: role, prompt, rubric and workflow ids are Advanced. */}
+        {standard
+          ? versionTag(a.problem.version, true) &&
+            ` · problem ${versionTag(a.problem.version, true)}`
+          : ` · problem v${a.problem.version} · ${a.role_version} · prompt ${a.prompt_hash.slice(0, 8)} · rubric ${b.rubric_version} · workflow ${a.workflow_id.slice(0, 8)}`}
       </p>
     </details>
   );

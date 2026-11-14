@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { routinePolicySummary } from '@creator/contracts';
 import { tiedNames } from '@creator/domain';
 import { problemTitle } from '@creator/db';
 import { loadWeb } from './web-module.js';
@@ -164,6 +165,14 @@ test('every action type has a label, and codes and kinds read as words', async (
     'Build waits for your approval',
   );
   assert.equal(
+    plainReason('Build admission needs_human; decision none'),
+    'Build needs your approval',
+  );
+  assert.equal(
+    plainReason('Error: Build admission denied; decision none'),
+    'Build was refused',
+  );
+  assert.equal(
     plainReason('Stopped (decision 8e974486-44c5-4c84-ad14-db1fbaa67784)'),
     'Stopped',
   );
@@ -229,4 +238,22 @@ test('N-2 and N-3: a problem title says its problem once, and a tie names at mos
   );
   const long = tiedNames(['x'.repeat(200)]);
   assert.ok(long.length <= 62, long);
+});
+
+test('review 3 of #197, L-1: the routine summary states its maximum exactly, in dollars', () => {
+  const line = (max: string | null) =>
+    routinePolicySummary({
+      stages: ['research'],
+      data_classes: ['public'],
+      max_actions: 10,
+      max_total_nano_usd: max,
+      stop_on: [],
+      expires_at: '2026-11-15T12:00:00.000Z',
+      rationale: 'Synthetic',
+    }).find((l) => l.startsWith('Limits:'))!;
+  assert.match(line('50000000000'), /up to \$50\.00 in total \(the sum/);
+  assert.match(line('4000000'), /up to \$0\.004 in total/);
+  assert.match(line('12345678901'), /up to \$12\.345678901 in total/);
+  for (const max of ['50000000000', '4000000'])
+    assert.doesNotMatch(line(max), /about|nano-USD/);
 });

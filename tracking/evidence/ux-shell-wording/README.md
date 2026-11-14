@@ -27,12 +27,22 @@ Independent review: `/mnt/project-files/reviews/PR197_SHELL_WORDING_REVIEW_2026-
 
 Re-review: `/mnt/project-files/reviews/PR197_SHELL_WORDING_REREVIEW_2026-11-14.md` (all review-1 fixes confirmed; 1 Low, 5 nits).
 
-- **R-1.** Standard drops the remaining ids and hashes: Try's package list, heading and Compare picker ("Spec v2 · built <when>"), Try's manifest facts (hashes and commit stay in Advanced; Standard shows the package's size), Devices' demo picker and job history (by spec and time), Build's recovery messages and stop reasons (`plainReason`: "Build waits for your approval"), the Monitor › Runs card (the role's name), Marketing's package picker, and the name-missing fallbacks ("an option no longer listed", "someone" for an unknown actor). Checked with a text dump of every Standard page after building and packaging an artifact on the throwaway studio (the API path of `tests/src/build-retry-web.test.ts`): 0 id or hash lines outside Sources › Library (moving to Advanced in the Discover thread). Devices' job history needs a paired desktop, so it is checked in code only. One sentence keeps an exact nano-USD figure on purpose: the routine approval summary ("exactly 5000000000 nano-USD") is the text the owner confirms and the server compares, so it is not reworded here.
+- **R-1.** Standard drops the remaining ids and hashes: Try's package list, heading and Compare picker ("Spec v2 · built <when>"), Try's manifest facts (hashes and commit stay in Advanced; Standard shows the package's size), Devices' demo picker and job history (by spec and time), Build's recovery messages and stop reasons (`plainReason`: "Build waits for your approval"), the Monitor › Runs card (the role's name), Marketing's package picker, and the name-missing fallbacks ("an option no longer listed", "someone" for an unknown actor). Checked with a text dump of every Standard page after building and packaging an artifact on the throwaway studio (the API path of `tests/src/build-retry-web.test.ts`): 0 id or hash lines outside Sources › Library (moving to Advanced in the Discover thread). Devices' job history needs a paired desktop, so it is checked in code only.
 - **N-a.** History amounts say their own unit: the spending ceiling is real money ("from $20.00 to $25.50"), and a simulated budget reads "100.00 sim" without "(simulated)" after it.
 - **N-b.** Approval questions read "Allow “Freeze a spec” on this spec?".
 - **N-c.** `plainText` rewrites only codes the studio knows, so a name someone wrote (`user_id`) stays as written.
 - **N-d.** An unnamed run reads "Human-in-the-loop run".
 - **N-e.** The PR body's checks are brought up to date.
+
+## Review 3 fixes (November 14)
+
+Third review: `/mnt/project-files/reviews/PR197_SHELL_WORDING_REVIEW3_2026-11-14.md` (2 Low, 3 nits).
+
+- **L-1.** The routine approval summary (`routinePolicySummary` in `packages/contracts/src/oversight.ts`, which the page and the server both build from) states its maximum exactly in dollars: "up to $5.00 in total (the sum of each step's stated maximum)", "$0.004" for a sub-cent cap, with no "about" and no nano-USD figure. A page loaded before the upgrade gets the existing "review the summary again" conflict; stored summaries are a record and are not re-checked. Other nano-USD texts the server writes (runtime-ceiling refusals) predate this PR and are left for a follow-up.
+- **L-2.** Assess › "Why these ratings" shows the route and when it was assessed in Standard; the problem version (v2 and later), role version, prompt hash, rubric version and workflow id are Advanced.
+- **N-1.** Build stops read "Build needs your approval" or "Build was refused" for every admission outcome, without "decision none".
+- **N-2.** Workflow role names are a `Record<WorkflowRole, string>` on Monitor › Runs and Overview, so a new role fails typecheck.
+- **N-3.** Assess › "Show what was sent to the model" keeps rubric hashes and option references in Standard on purpose: it is an opt-in audit view of the exact packet, and opening it is the request to see that detail.
 
 ## Checks
 

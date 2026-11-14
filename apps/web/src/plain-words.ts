@@ -125,8 +125,19 @@ const lowerFirst = (s: string) =>
  */
 export const plainReason = (text: string): string => {
   const t = text.replace(/^Error: /, '');
-  if (/^Build admission waiting_human; decision \S+$/.test(t))
-    return 'Build waits for your approval';
+  // Every admission outcome a build stop names (apps/api/src/products.ts, study-build.ts),
+  // with or without a decision (review 3 of #197, N-1).
+  const admission = /^Build admission ([a-z_]+)(?:; decision \S+)?$/.exec(t);
+  if (admission)
+    return admission[1] === 'waiting_human'
+      ? 'Build waits for your approval'
+      : admission[1] === 'needs_human'
+        ? 'Build needs your approval'
+        : admission[1] === 'denied'
+          ? 'Build was refused'
+          : `Build stopped at admission (${codeLabel(admission[1]!)})`;
+  if (t === 'Build admission has no covering grant')
+    return 'Build needs your approval';
   return plainCodes(
     t
       .replace(

@@ -19,6 +19,7 @@ import {
   type Workflow,
   type WorkflowDetail,
   type Workspace,
+  type WorkflowRole,
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
 import { newestFirst } from './versions.js';
@@ -41,6 +42,17 @@ const KIND_GROUP: Record<string, string> = {
   idea: 'Ideas',
   alternative: 'Options',
   specification: 'Specifications',
+};
+
+/**
+ * Each workflow role as the pages name it. A record, so a new role fails typecheck instead
+ * of reading as another role (review 3 of #197, N-2).
+ */
+const ROLE_NAME: Record<WorkflowRole, string> = {
+  r02_discovery: 'Discovery',
+  r01_exploration: 'Explore for me',
+  r08_assessment: 'Automatic assessment',
+  r05_skeptic: 'Skeptic review',
 };
 
 /**
@@ -288,13 +300,7 @@ export function Workflows({
                     <span className={`badge wf-${w.state}`}>
                       {words(w.state)}
                     </span>{' '}
-                    {w.role === 'r02_discovery'
-                      ? 'Discovery'
-                      : w.role === 'r01_exploration'
-                        ? 'Explore for me'
-                        : w.role === 'r08_assessment'
-                          ? 'Automatic assessment'
-                          : 'Skeptic review'}{' '}
+                    {ROLE_NAME[w.role]}{' '}
                     {runName(w.run_id, names) &&
                       `· ${clipText(runName(w.run_id, names), 48)} `}
                     {w.role === 'r01_exploration' || w.role === 'r08_assessment'
@@ -385,13 +391,7 @@ export function Workflows({
               <div className="decision-head">
                 <span className="kind">
                   {standard
-                    ? wf.role === 'r02_discovery'
-                      ? 'Discovery'
-                      : wf.role === 'r01_exploration'
-                        ? 'Explore for me'
-                        : wf.role === 'r08_assessment'
-                          ? 'Automatic assessment'
-                          : 'Skeptic review'
+                    ? ROLE_NAME[wf.role]
                     : `${wf.role_version} · ${wf.id.slice(0, 8)}`}
                 </span>
                 <span className={`badge wf-${wf.state}`}>
