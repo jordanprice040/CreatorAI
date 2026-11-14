@@ -4,9 +4,11 @@
 
 What now works: after a selection, Projects › Path follows the choice. A non-code choice goes to Proposal and Review and finishes when the proposal's current version is complete and reviewed as ready; a selection that advanced nothing ends at Selection; software goes on to Spec, Freeze, Humility review, Build, Package and Try. The overview reports selections and the newest route, shown on Monitor › Overview. On Proposals, the owner can press **Draft the missing sections** on a saved proposal: the chat model drafts the unknown plan sections, each draft shows under its section as a model draft, and a person uses or dismisses each one; a saved section that came from a draft carries the model's name in the page, preview and export. Unsupported facts stay "Unknown yet".
 
-Checked: `pnpm typecheck`, `pnpm format:check`, `pnpm test:db` on PostgreSQL 16 (see SESSION_HANDOFF for counts), new tests `proposal-section-drafts` (overview route and proposal progress; owner, chat and records rules; version and section checks; replay; marks checked by the studio; export labels; audit without words; settle-once; redaction) and `web-proposal-drafts`, plus new Path cases in `web-next-step`. Browser walk `tracking/evidence/p2-p5-path-proposals/walk.mjs` with a fake `claude`. No live model call.
+Checked: `pnpm typecheck`, `pnpm format:check`, `pnpm test:db` on PostgreSQL 16 (1204 tests: 1170 pass, 29 skipped, the 5 known PowerShell-wrapper failures), new tests `proposal-section-drafts` (overview route and proposal progress; owner, chat and records rules; version and section checks; replay; marks checked by the studio; export labels; audit without words; settle-once; redaction) and `web-proposal-drafts`, plus new Path cases in `web-next-step`. Browser walk `tracking/evidence/p2-p5-path-proposals/walk.mjs` with a fake `claude`. No live model call.
 
-Open: the autopilot requesting the draft waits for #193. Independent review in a separate thread.
+After #193 merged: an owner autopilot setting, **Draft a proposal's missing sections** (off by default, part of Hands-off), makes an autopilot's proposal step ask for the drafts too; they wait for a person, and a refusal only shows in the step's note (tests in `autopilot.test.ts`).
+
+Open: independent review in a separate thread.
 ## November 14 update — more automation for the autopilot (ADR-0100, migration 63)
 
 Jordan's November 14 asks: an opt-in way for the autopilot to go on by itself at stops, automatic evidence gathering and claim linking when evidence is thin, a hands-off mode that recovers from most stops, and a clear next step whenever automation waits. Plan with the full stop map (23 stops, 6 that stay hard stops): `docs/AUTOPILOT_MORE_AUTOMATION_PLAN_2026-11-14.md`.

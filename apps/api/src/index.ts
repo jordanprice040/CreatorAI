@@ -516,6 +516,12 @@ export function createApi(
     ? new AutopilotRunner(
         store,
         webDiscovery ? webResearch(webDiscovery, store) : null,
+        planService
+          ? {
+              drafts: (ctx, ws, proposalId, body) =>
+                planService.proposalSectionDraft(ctx, ws, proposalId, body),
+            }
+          : {},
       )
     : null;
   const brokerActor = { actorId: BROKER_ACTOR_ID };

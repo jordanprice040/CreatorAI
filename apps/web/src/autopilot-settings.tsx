@@ -51,6 +51,7 @@ const SWITCHES: AutopilotSettingKey[] = [
   'break_ties',
   'keep_close_leader',
   'next_candidate',
+  'draft_proposal_sections',
   'choose_model_ethics',
   'accept_quote_checked_claims',
 ];

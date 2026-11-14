@@ -32,6 +32,11 @@ export const AutopilotSettingsValuesSchema = z.strictObject({
    * Hands-off. Each one it uses is labelled `AUTOPILOT_QUOTE_CHECK_LABEL`.
    */
   accept_quote_checked_claims: z.boolean(),
+  /**
+   * ADR-0101 (P-5): after saving a proposal, ask the chat model to draft its unknown plan
+   * sections. The drafts wait under their sections; a person still uses each one.
+   */
+  draft_proposal_sections: z.boolean(),
 });
 export type AutopilotSettingsValues = z.infer<
   typeof AutopilotSettingsValuesSchema
@@ -47,6 +52,7 @@ export const AUTOPILOT_SETTINGS_DEFAULT: AutopilotSettingsValues = {
   retry_failed: 0,
   choose_model_ethics: false,
   accept_quote_checked_claims: false,
+  draft_proposal_sections: false,
 };
 
 /**
@@ -64,6 +70,7 @@ export function handsOff(v: AutopilotSettingsValues): AutopilotSettingsValues {
     retry_failed: Math.max(1, v.retry_failed),
     choose_model_ethics: v.choose_model_ethics,
     accept_quote_checked_claims: v.accept_quote_checked_claims,
+    draft_proposal_sections: true,
   };
 }
 /** The switches Hands-off leaves as they are. */
@@ -180,6 +187,10 @@ export const AUTOPILOT_SETTING_TEXT: Record<
   accept_quote_checked_claims: {
     label: 'Accept quote-checked web claims',
     text: 'Lets the autopilot use claims from its web searches whose only check is that their quotes were found word for word. Off: they wait for you under Discover › Search the web. Each one used is labelled “Accepted by autopilot · quote check only”, with its source passage.',
+  },
+  draft_proposal_sections: {
+    label: 'Draft a proposal’s missing sections',
+    text: 'After saving a proposal, asks your chat model to draft the plan sections that are still Unknown yet (it counts toward the daily chat limit and needs Chat answers to allow studio records). Each draft waits under its section on Proposals; nothing is used until you use it and save.',
   },
 };
 
