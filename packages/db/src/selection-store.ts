@@ -2,6 +2,10 @@ import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import {
   ConfirmGateRequestSchema,
+  ConfirmGatesRequestSchema,
+  ContractError,
+  gateItemReason,
+  type ConfirmGatesResult,
   CreateScorecardRequestSchema,
   CreateSpecRequestSchema,
   FreezeSpecRequestSchema,
@@ -701,75 +705,117 @@ export class SelectionStore extends TeamStore {
     const req = parse(ConfirmGateRequestSchema, raw);
     return this.tx(async (c) => {
       await this.requireTeamOwner(c, ws, ctx.actorId);
-      const altId = req.alternative.id.toLowerCase();
+      const report = await this.gateReport(c, ws, problemId, [
+        req.alternative.id,
+      ]);
+      const concerns = confirmableGate(report, req);
+      return this.insertGateConfirmation(c, ctx, ws, req, concerns);
+    });
+  }
+
+  /**
+   * UX pass P-4: the owner confirms ethics and access for several options in one step. Every
+   * item is checked as `confirmGate` checks one, against one report read under the same
+   * transaction, and all are written or none is (one refusal names its option and rolls back).
+   * Each confirmation keeps the reason that applied to its option and gate; its event records
+   * the step's batch id and whether that reason was the shared one or the option's own.
+   */
+  async confirmGates(
+    ctx: CommandContext,
+    ws: string,
+    problemId: string,
+    raw: unknown,
+  ): Promise<ConfirmGatesResult> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    problemId = uuid(problemId);
+    const req = parse(ConfirmGatesRequestSchema, raw);
+    return this.tx(async (c) => {
+      await this.requireTeamOwner(c, ws, ctx.actorId);
+      const report = await this.gateReport(
+        c,
+        ws,
+        problemId,
+        req.items.map((x) => x.alternative.id),
+      );
+      const batchId = randomUUID();
+      const checked = req.items.map((item) => {
+        const { reason, from } = gateItemReason(req, item);
+        const one = {
+          alternative: item.alternative,
+          gate: item.gate,
+          reason,
+          concerns_seen: item.concerns_seen,
+        };
+        try {
+          return { one, from, concerns: confirmableGate(report, one) };
+        } catch (e) {
+          if (!(e instanceof ContractError)) throw e;
+          const row = report.suitability.candidates.find(
+            (x) => x.alternative.id === item.alternative.id.toLowerCase(),
+          );
+          throw fail(
+            e.code,
+            `${row ? `“${row.alternative.title}”` : 'An option'}, ${item.gate}: ${e.message} Nothing was confirmed.`,
+          );
+        }
+      });
+      const confirmations: ConfirmGatesResult['confirmations'] = [];
+      for (const x of checked)
+        confirmations.push({
+          confirmation: await this.insertGateConfirmation(
+            c,
+            ctx,
+            ws,
+            x.one,
+            x.concerns,
+            { id: batchId, reason_from: x.from },
+          ),
+          reason_from: x.from,
+        });
+      return { batch_id: batchId, confirmations };
+    });
+  }
+
+  /**
+   * The current report for gate confirmations, after locking each option's confirmations in id
+   * order (so a one-step confirmation and a single one never deadlock).
+   */
+  private async gateReport(
+    c: PoolClient,
+    ws: string,
+    problemId: string,
+    alternatives: readonly string[],
+  ) {
+    for (const altId of [
+      ...new Set(alternatives.map((x) => x.toLowerCase())),
+    ].sort())
       await c.query(
         "select pg_advisory_xact_lock(hashtext('gate-confirm:' || $1::text))",
         [altId],
       );
-      const {
-        problem,
-        candidates,
-        evidence,
-        linked_hash,
-        problem_linked_hash,
-        team_hash,
-        checklist_hash,
-      } = await this.gather(c, ws, problemId);
-      const report = selectionReport({
-        problem: {
-          id: problem.id,
-          version: problem.version,
-          title: problem.title,
-        },
-        candidates,
-        shortlist_size: 3,
-        evidence,
-        linked_hash,
-        problem_linked_hash,
-        team_hash,
-        checklist_hash,
-      });
-      const row = report.suitability.candidates.find(
-        (x) => x.alternative.id === altId,
-      );
-      if (!row)
-        throw fail('NOT_FOUND', 'That option is not one of this problem’s.');
-      if (row.alternative.version !== req.alternative.version)
-        throw fail(
-          'VERSION_CONFLICT',
-          `The option is now version ${row.alternative.version}; reload before confirming.`,
-        );
-      const detail = row.gates.gate_details?.find((d) => d.gate === req.gate);
-      if (!detail) throw fail('INVALID_CONTRACT', 'Unknown gate.');
-      const now = detail.concerns.map((x) => x.scorecard).sort();
-      const seen = [...req.concerns_seen].map((x) => x.toLowerCase()).sort();
-      if (JSON.stringify(now) !== JSON.stringify(seen))
-        throw fail(
-          'VERSION_CONFLICT',
-          'The concerns on this gate changed since the page loaded them; reload and read them before confirming.',
-        );
-      if (detail.concerns.some((x) => x.by === 'person'))
-        throw fail(
-          'INVALID_TRANSITION',
-          'A person raised this concern on their own scorecard; revise that scorecard to resolve it.',
-        );
-      if (!detail.assessed)
-        throw fail(
-          'INVALID_TRANSITION',
-          `Nothing has assessed ${req.gate} on this option yet; assess the option or score it yourself before confirming.`,
-        );
-      if (detail.state === 'confirmed' || detail.state === 'clear')
-        throw fail(
-          'INVALID_TRANSITION',
-          `The ${req.gate} gate is already ${detail.state === 'clear' ? 'clear from a person’s scorecard' : 'confirmed'} on this version.`,
-        );
-      return this.insertGateConfirmation(
-        c,
-        ctx,
-        ws,
-        req,
-        detail.concerns.map((x) => x.scorecard),
-      );
+    const {
+      problem,
+      candidates,
+      evidence,
+      linked_hash,
+      problem_linked_hash,
+      team_hash,
+      checklist_hash,
+    } = await this.gather(c, ws, problemId);
+    return selectionReport({
+      problem: {
+        id: problem.id,
+        version: problem.version,
+        title: problem.title,
+      },
+      candidates,
+      shortlist_size: 3,
+      evidence,
+      linked_hash,
+      problem_linked_hash,
+      team_hash,
+      checklist_hash,
     });
   }
 
@@ -1749,4 +1795,54 @@ export class SelectionStore extends TeamStore {
       };
     });
   }
+}
+
+/**
+ * Whether the owner may confirm this gate of this option as the report has it now; returns the
+ * concerns the confirmation answers. Shared by the single and the one-step confirmation.
+ */
+function confirmableGate(
+  report: ReturnType<typeof selectionReport>,
+  req: {
+    alternative: { id: string; version: number };
+    gate: 'ethics' | 'access';
+    concerns_seen: readonly string[];
+  },
+): string[] {
+  const altId = req.alternative.id.toLowerCase();
+  const row = report.suitability.candidates.find(
+    (x) => x.alternative.id === altId,
+  );
+  if (!row)
+    throw fail('NOT_FOUND', 'That option is not one of this problem’s.');
+  if (row.alternative.version !== req.alternative.version)
+    throw fail(
+      'VERSION_CONFLICT',
+      `The option is now version ${row.alternative.version}; reload before confirming.`,
+    );
+  const detail = row.gates.gate_details?.find((d) => d.gate === req.gate);
+  if (!detail) throw fail('INVALID_CONTRACT', 'Unknown gate.');
+  const now = detail.concerns.map((x) => x.scorecard).sort();
+  const seen = [...req.concerns_seen].map((x) => x.toLowerCase()).sort();
+  if (JSON.stringify(now) !== JSON.stringify(seen))
+    throw fail(
+      'VERSION_CONFLICT',
+      'The concerns on this gate changed since the page loaded them; reload and read them before confirming.',
+    );
+  if (detail.concerns.some((x) => x.by === 'person'))
+    throw fail(
+      'INVALID_TRANSITION',
+      'A person raised this concern on their own scorecard; revise that scorecard to resolve it.',
+    );
+  if (!detail.assessed)
+    throw fail(
+      'INVALID_TRANSITION',
+      `Nothing has assessed ${req.gate} on this option yet; assess the option or score it yourself before confirming.`,
+    );
+  if (detail.state === 'confirmed' || detail.state === 'clear')
+    throw fail(
+      'INVALID_TRANSITION',
+      `The ${req.gate} gate is already ${detail.state === 'clear' ? 'clear from a person’s scorecard' : 'confirmed'} on this version.`,
+    );
+  return detail.concerns.map((x) => x.scorecard);
 }

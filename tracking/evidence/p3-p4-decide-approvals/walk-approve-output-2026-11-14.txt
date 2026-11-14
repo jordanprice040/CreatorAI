@@ -1,0 +1,7 @@
+INLINE shown 1
+INLINE text "You approve this yourself. Approve it here, once: it is the same decision record as in Monitor › Approvals.Allow candidate.select on problem v1?Actioncandidate · selectTargetproblem 30088f10 · v1Content hash3d89d4b49d8c…Spec hash0a1eb73f87ce…Amountno spendDatasynthetic dataRequest expiresNov 17, 2026, 11:29 AMYour reason for approving (required, brief)Validate the cheapest option first; defer the rest.Approve once and record the selectionOpen it in Monitor › Approvals"
+reason prefilled "Validate the cheapest option first; defer the rest."
+RESULT ["Selection recorded. It now appears in the history below and in Activity."]
+POSTS ["200 /api/workspaces/:id/runs/:id/selections","200 /api/workspaces/:id/decisions/:id/answer","200 /api/workspaces/:id/runs/:id/selections"]
+URL still Decide true
+ERRORS []

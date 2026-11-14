@@ -210,6 +210,81 @@ export const GateConfirmationSchema = z.strictObject({
 });
 export type GateConfirmation = z.infer<typeof GateConfirmationSchema>;
 
+const gateReason = z.string().trim().min(3).max(300);
+
+/**
+ * UX pass P-4 (as Jordan revised it): the owner confirms ethics and access for several options in
+ * one step. One shared reason per gate kind covers every ticked item that has no reason of its
+ * own; an item may give its own reason instead. Every item is checked exactly as a single
+ * confirmation is, and all of them are written together or none is. Each confirmation stores
+ * the reason that applied to its option and gate, and its event records whether that reason
+ * was the shared one or the option's own.
+ */
+export const ConfirmGatesRequestSchema = z
+  .strictObject({
+    shared: z.strictObject({
+      ethics: gateReason.nullable(),
+      access: gateReason.nullable(),
+    }),
+    items: z
+      .array(
+        z.strictObject({
+          alternative: z.strictObject({ id, version }),
+          gate: GateKindSchema,
+          concerns_seen: z.array(z.string().max(80)).max(40),
+          /** This option's own reason for this gate; null uses the shared one. */
+          reason: gateReason.nullable(),
+        }),
+      )
+      .min(1)
+      .max(80),
+  })
+  .superRefine((r, ctx) => {
+    const seen = new Set<string>();
+    r.items.forEach((x, i) => {
+      const key = `${x.alternative.id.toLowerCase()}:${x.gate}`;
+      if (seen.has(key))
+        ctx.addIssue({
+          code: 'custom',
+          path: ['items', i],
+          message: 'Each option and gate is confirmed at most once.',
+        });
+      seen.add(key);
+      if (x.reason === null && r.shared[x.gate] === null)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['items', i, 'reason'],
+          message: `Give a shared ${x.gate} reason or this option's own.`,
+        });
+    });
+  });
+export type ConfirmGatesRequest = z.infer<typeof ConfirmGatesRequestSchema>;
+
+export const GateReasonFromSchema = z.enum(['shared', 'own']);
+export type GateReasonFrom = z.infer<typeof GateReasonFromSchema>;
+
+export const ConfirmGatesResultSchema = z.strictObject({
+  /** Ties the confirmations written in this one step together in their events. */
+  batch_id: id,
+  confirmations: z.array(
+    z.strictObject({
+      confirmation: GateConfirmationSchema,
+      reason_from: GateReasonFromSchema,
+    }),
+  ),
+});
+export type ConfirmGatesResult = z.infer<typeof ConfirmGatesResultSchema>;
+
+/** Which reason applies to one item of a batch: its own when given, else the shared one. */
+export function gateItemReason(
+  r: Pick<ConfirmGatesRequest, 'shared'>,
+  item: Pick<ConfirmGatesRequest['items'][number], 'gate' | 'reason'>,
+): { reason: string; from: GateReasonFrom } {
+  return item.reason !== null
+    ? { reason: item.reason, from: 'own' }
+    : { reason: r.shared[item.gate] ?? '', from: 'shared' };
+}
+
 // ---- The owner's gate rule: who clears a gate ------------------------------------------------
 
 /**

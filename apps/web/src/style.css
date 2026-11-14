@@ -3575,3 +3575,57 @@ details > summary {
     position: static;
   }
 }
+
+/* UX pass P-4: which options can advance, and the one-step gate confirmation. */
+.advance {
+  margin: 8px 0 16px;
+}
+.advance-list ul {
+  margin: 2px 0 4px 1.2em;
+  padding: 0;
+}
+.outlook {
+  font-size: 13px;
+  margin-left: 4px;
+}
+.outlook-now {
+  color: var(--ok);
+}
+.outlook-after_gates {
+  color: var(--warn);
+}
+.outlook-never {
+  color: var(--muted);
+}
+.gate-batch {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  margin: 8px 0;
+}
+.gate-batch h4 {
+  margin: 0 0 4px;
+}
+.gate-batch-options {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+}
+.gate-batch-options > li {
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+.gate-batch-options > li > ul {
+  margin: 2px 0 4px 2.2em;
+  padding: 0;
+}
+.gate-batch-options .own-reasons,
+.gate-batch-options > li > button.text {
+  margin-left: 24px;
+}
+/* UX pass P-3: the owner's approval where they acted. */
+.inline-approval {
+  margin-top: 6px;
+  display: grid;
+  gap: 4px;
+}

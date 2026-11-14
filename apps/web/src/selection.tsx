@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { InlineApproval } from './inline-approval.js';
 import {
   FreezeOutcomeSchema,
   SelectionReportSchema,
@@ -181,8 +182,8 @@ export function Ranking({
 
 /**
  * Freezes the shown specification version under a run. Freezing is an admitted action: the
- * server may ask for an approval first, which is answered under Decisions; the request is
- * then sent again unchanged. Nothing here grants the approval itself.
+ * server may ask for an approval first. The owner answers it here (UX pass P-3, the same
+ * decision record as under Approvals) and the request is then sent again unchanged.
  */
 function FreezeSpec({
   base,
@@ -191,6 +192,8 @@ function FreezeSpec({
   selectionRun,
   dataClass,
   open,
+  owner,
+  workspaceId,
   frozen,
 }: {
   base: string;
@@ -200,6 +203,8 @@ function FreezeSpec({
   selectionRun: string;
   dataClass: 'synthetic' | 'public';
   open: (view: View, id?: string) => void;
+  owner: boolean;
+  workspaceId: string;
   frozen: () => void;
 }) {
   const runId = selectionRun;
@@ -272,25 +277,30 @@ function FreezeSpec({
           <div className="notice">
             <strong>Waiting for your approval.</strong>{' '}
             <span>{outcome.admission.explanation}</span>{' '}
-            {outcome.admission.decision_id && (
-              <button
-                className="secondary"
-                type="button"
-                onClick={() =>
+            {outcome.admission.decision_id ? (
+              <InlineApproval
+                key={outcome.admission.decision_id}
+                workspace={workspaceId}
+                decisionId={outcome.admission.decision_id}
+                csrf={session.csrf_token}
+                owner={owner}
+                verb="freeze this version"
+                initialReason={justification.trim()}
+                onApproved={() => freeze()}
+                openApprovals={() =>
                   open('decisions', outcome.admission.decision_id!)
                 }
+              />
+            ) : (
+              <button
+                className="secondary strong"
+                type="button"
+                disabled={busy}
+                onClick={() => void freeze()}
               >
-                Open the decision
+                I approved it: freeze again
               </button>
-            )}{' '}
-            <button
-              className="secondary strong"
-              type="button"
-              disabled={busy}
-              onClick={() => void freeze()}
-            >
-              I approved it: freeze again
-            </button>
+            )}
           </div>
         )}
         {(outcome?.status === 'denied' || outcome?.status === 'deferred') && (
@@ -687,6 +697,8 @@ export function Scoring({
                 selectionRun={specRun}
                 dataClass={fixture ? 'synthetic' : 'public'}
                 open={open}
+                owner={current.role === 'owner'}
+                workspaceId={workspace}
                 frozen={() => void openSpec(spec.spec.id)}
               />
             ) : (

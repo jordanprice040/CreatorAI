@@ -45,12 +45,15 @@ import {
   yours,
 } from './scorecard.js';
 import { AssessmentLines, AutoAssess, RangeWhy } from './assess.js';
-import { GateLines } from './gates.js';
+import { AdvanceAndGates, GateLines } from './gates.js';
+import { InlineApproval } from './inline-approval.js';
 import { LinkClaims } from './link-claims.js';
 import { Routine, WhatWillHappen } from './routine.js';
 import {
+  assumptionsSummary,
   decideRoutineSummary,
   dispositionCounts,
+  historySummary,
   overrideMatters,
   overrideSummary,
   runSource,
@@ -698,33 +701,51 @@ export function Compare({
               retrieval.
             </p>
 
-            <h3>Assumptions for this run</h3>
-            {d.cmp.assumptions.length === 0 ? (
-              <Empty>
-                No assumptions recorded for the run that found this problem.
-              </Empty>
-            ) : (
-              <ul className="rows">
-                {d.cmp.assumptions.map((a: StoredEntity) => (
-                  <li key={a.id}>
-                    <span className="kind">{String(a.body?.status ?? '')}</span>{' '}
-                    {String(a.body?.statement ?? a.title)}
-                    <small>
-                      {' '}
-                      · if wrong: {String(
-                        a.body?.consequence_if_wrong ?? '—',
-                      )}{' '}
-                      · {String(a.body?.materiality ?? '')}
-                    </small>
-                  </li>
-                ))}
-              </ul>
-            )}
+            {/* UX pass section 6: occasional reading, folded in Standard. */}
+            <Routine summary={assumptionsSummary(d.cmp.assumptions.length)}>
+              <h3>Assumptions for this run</h3>
+              {d.cmp.assumptions.length === 0 ? (
+                <Empty>
+                  No assumptions recorded for the run that found this problem.
+                </Empty>
+              ) : (
+                <ul className="rows">
+                  {d.cmp.assumptions.map((a: StoredEntity) => (
+                    <li key={a.id}>
+                      <span className="kind">
+                        {String(a.body?.status ?? '')}
+                      </span>{' '}
+                      {String(a.body?.statement ?? a.title)}
+                      <small>
+                        {' '}
+                        · if wrong:{' '}
+                        {String(a.body?.consequence_if_wrong ?? '—')} ·{' '}
+                        {String(a.body?.materiality ?? '')}
+                      </small>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Routine>
 
             <div className="fold-head">
               <h3>Alternatives side by side</h3>
               <FoldAll ids={altIds} folds={altFolds} label="alternatives" />
             </div>
+            {alts.length > 0 && (
+              <AdvanceAndGates
+                cands={alts.flatMap((a) => {
+                  const c = suit.get(a.entity.id);
+                  return c ? [c] : [];
+                })}
+                base={base}
+                problemId={d.report.problem.id}
+                session={session}
+                canConfirm={workspace.role === 'owner'}
+                choiceLabel={(x) => DISPOSITION_NOTE[x]}
+                onDone={() => detail.reload()}
+              />
+            )}
             {alts.length === 0 ? (
               <Empty>No alternatives were derived from this problem.</Empty>
             ) : (
@@ -1091,8 +1112,8 @@ export function Compare({
                 <h3 id="decide-title">Decide</h3>
                 <p className="small">
                   Give every option a disposition, a reason and what would
-                  reverse it. Blocked choices are disabled with the gate that
-                  blocks them. This decision binds report{' '}
+                  reverse it. Blocked choices are disabled; what blocks them is
+                  written under each option. This decision binds report{' '}
                   {d.report.report_hash.slice(0, 12)}.
                 </p>
                 {carried?.from && latest && (
@@ -1505,24 +1526,29 @@ export function Compare({
                     <div className="notice">
                       <strong>Waiting for your approval.</strong>
                       <span>{outcome.admission.explanation}</span>
-                      {outcome.admission.decision_id && (
-                        <button
-                          className="secondary"
-                          type="button"
-                          onClick={() =>
+                      {outcome.admission.decision_id ? (
+                        <InlineApproval
+                          key={outcome.admission.decision_id}
+                          workspace={workspace.id}
+                          decisionId={outcome.admission.decision_id}
+                          csrf={session.csrf_token}
+                          owner={workspace.role === 'owner'}
+                          verb="record the selection"
+                          initialReason={rationale.trim()}
+                          onApproved={() => select()}
+                          openApprovals={() =>
                             open('decisions', outcome.admission.decision_id!)
                           }
+                        />
+                      ) : (
+                        <button
+                          className="secondary strong"
+                          type="button"
+                          onClick={() => void select()}
                         >
-                          Open the decision
+                          I approved it: submit again
                         </button>
                       )}
-                      <button
-                        className="secondary strong"
-                        type="button"
-                        onClick={() => void select()}
-                      >
-                        I approved it: submit again
-                      </button>
                     </div>
                   )}
                   {outcome &&
@@ -1550,74 +1576,81 @@ export function Compare({
               open={open}
             />
 
-            <div className="fold-head">
-              <h3>Selection history</h3>
-              <FoldAll
-                ids={d.selections.map((s) => s.id)}
-                folds={historyFolds}
-                label="selections"
-              />
-            </div>
-            {d.selections.length === 0 ? (
-              <Empty>No selection recorded for this problem yet.</Empty>
-            ) : (
-              <ol className="rows">
-                {d.selections.map((s) => (
-                  <li key={s.id}>
-                    <Fold
-                      id={s.id}
-                      folds={historyFolds}
-                      summary={
-                        <>
-                          <strong>{s.current ? 'Current' : 'Replaced'}</strong>{' '}
-                          {s.autopilot_id ? (
-                            <span
-                              className="badge"
-                              title="Recorded by an autopilot under the run's routine approvals, not chosen by a person (ADR-0092)."
-                            >
-                              Autopilot
-                            </span>
-                          ) : null}{' '}
-                          · {when(s.created_at)} ·{' '}
-                          <span className="fold-title">
-                            {clip(s.rationale, 120)}
-                          </span>{' '}
-                          <small>
-                            · {s.dispositions.length} option
-                            {s.dispositions.length === 1 ? '' : 's'}
-                            {s.overrides.length > 0 ? ' · with override' : ''}
-                          </small>
-                        </>
-                      }
-                    >
-                      <p className="small">{s.rationale}</p>
-                      <ul>
-                        {s.dispositions.map((x) => (
-                          <li key={x.alternative.id}>
-                            <span className="kind">{words(x.disposition)}</span>{' '}
-                            {clip(
-                              alts.find((a) => a.entity.id === x.alternative.id)
-                                ?.entity.title ?? shortId(x.alternative.id),
-                              80,
-                            )}
+            <Routine summary={historySummary(d.selections, when)}>
+              <div className="fold-head">
+                <h3>Selection history</h3>
+                <FoldAll
+                  ids={d.selections.map((s) => s.id)}
+                  folds={historyFolds}
+                  label="selections"
+                />
+              </div>
+              {d.selections.length === 0 ? (
+                <Empty>No selection recorded for this problem yet.</Empty>
+              ) : (
+                <ol className="rows">
+                  {d.selections.map((s) => (
+                    <li key={s.id}>
+                      <Fold
+                        id={s.id}
+                        folds={historyFolds}
+                        summary={
+                          <>
+                            <strong>
+                              {s.current ? 'Current' : 'Replaced'}
+                            </strong>{' '}
+                            {s.autopilot_id ? (
+                              <span
+                                className="badge"
+                                title="Recorded by an autopilot under the run's routine approvals, not chosen by a person (ADR-0092)."
+                              >
+                                Autopilot
+                              </span>
+                            ) : null}{' '}
+                            · {when(s.created_at)} ·{' '}
+                            <span className="fold-title">
+                              {clip(s.rationale, 120)}
+                            </span>{' '}
                             <small>
-                              {' '}
-                              · {x.reasons.join(' ')} · reverse if{' '}
-                              {x.reverse_if}
+                              · {s.dispositions.length} option
+                              {s.dispositions.length === 1 ? '' : 's'}
+                              {s.overrides.length > 0 ? ' · with override' : ''}
                             </small>
-                          </li>
-                        ))}
-                      </ul>
-                      {s.overrides.length > 0 && (
-                        <p className="override">
-                          Override: {s.override_reason}
-                        </p>
-                      )}
-                    </Fold>
-                  </li>
-                ))}
-              </ol>
-            )}
+                          </>
+                        }
+                      >
+                        <p className="small">{s.rationale}</p>
+                        <ul>
+                          {s.dispositions.map((x) => (
+                            <li key={x.alternative.id}>
+                              <span className="kind">
+                                {words(x.disposition)}
+                              </span>{' '}
+                              {clip(
+                                alts.find(
+                                  (a) => a.entity.id === x.alternative.id,
+                                )?.entity.title ?? shortId(x.alternative.id),
+                                80,
+                              )}
+                              <small>
+                                {' '}
+                                · {x.reasons.join(' ')} · reverse if{' '}
+                                {x.reverse_if}
+                              </small>
+                            </li>
+                          ))}
+                        </ul>
+                        {s.overrides.length > 0 && (
+                          <p className="override">
+                            Override: {s.override_reason}
+                          </p>
+                        )}
+                      </Fold>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </Routine>
           </>
         )}
       </Status>

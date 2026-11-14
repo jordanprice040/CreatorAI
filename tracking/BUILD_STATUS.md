@@ -1,5 +1,11 @@
 # Build status — November 10, 2026
 
+## November 14 update — final UX pass P-3 (approve in place) and P-4 (one-step gate confirmation) (ADR-0102)
+
+What now works (no migration): Decide lists first which options can advance now, once ethics and access are confirmed, or not even then (with the other reasons as text). The owner confirms ethics and access for the options they tick in one step, with one shared reason per gate and an optional reason of an option's own; each confirmation records the reason that applied and whether it was shared or the option's own. When the owner's own selection, spec freeze or build stops for their approval, they approve it on the same page (same decision record and route as Approvals); Decide and Freeze then go ahead without another press. Decide's assumptions and selection history fold under one line each in Standard (section 6).
+
+Checked: `pnpm typecheck`, `pnpm format:check`, the new DB test (`team-gates.test.ts`, all-or-nothing, reasons per option and gate, audit payload) and web tests (`web-gate-batch.test.ts`), UI walks on a throwaway database (reviewer ports): 10 gate confirmations in one step with one own reason, a selection approved in place without leaving Decide, 390 px axe clean (`tracking/evidence/p3-p4-decide-approvals/`). Full `pnpm test:db`: see the handoff. Not covered: the build path in a browser (the inline approval there is the same component, found from the build's stop reason).
+
 ## November 14 update — final UX pass P-1 (build after approval) and P-10 (build run default)
 
 What now works (no migration or ADR): a build whose acceptance cases the worker could not run (no WSL2, a lost run, cleanup pending) stops at once with the worker's reason and keeps its candidate, instead of spending its repair rounds on the same patch and stopping with "Patch changes nothing". Building again (after a new approval) carries on from that kept candidate: when the builder submits the candidate's own content, the candidate is reviewed and tested afresh. Build's Start build form opens on the run the spec was frozen in. The P-1 finding's guess (retrying from `task.head`) was not the cause; see `tracking/evidence/p1-build-retry/README.md`.

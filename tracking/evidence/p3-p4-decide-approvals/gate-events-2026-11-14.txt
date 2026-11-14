@@ -1,0 +1,12 @@
+gate | reason_from | reason | batch
+ethics | shared | Shared ethics reason: public synthetic data, no people affec | bf80c9e2
+access | own | Runs on the shared lab server, where installs are allowed. | bf80c9e2
+ethics | shared | Shared ethics reason: public synthetic data, no people affec | bf80c9e2
+access | shared | Shared access reason: public synthetic data, no people affec | bf80c9e2
+ethics | shared | Shared ethics reason: public synthetic data, no people affec | bf80c9e2
+access | shared | Shared access reason: public synthetic data, no people affec | bf80c9e2
+ethics | shared | Shared ethics reason: public synthetic data, no people affec | bf80c9e2
+access | shared | Shared access reason: public synthetic data, no people affec | bf80c9e2
+ethics | shared | Shared ethics reason: public synthetic data, no people affec | bf80c9e2
+access | shared | Shared access reason: public synthetic data, no people affec | bf80c9e2
+(10 rows)
