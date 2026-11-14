@@ -596,9 +596,9 @@ export class WorkflowStore extends BudgetStore {
       `insert into workflows (id, workspace_id, fixture, run_id, role, role_version,
          prompt_hash, policy_version, subject_id, subject_version, context, context_hash,
          limits, envelope_id, pricing_snapshot_id, data_class, state, reason, deadline_at,
-         created_by, resource_setup)
+         created_by, resource_setup, autopilot_id)
        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'queued','started',
-         now() + make_interval(secs => $17::double precision), $18, $19)`,
+         now() + make_interval(secs => $17::double precision), $18, $19, $20)`,
       [
         workflowId,
         ws,
@@ -619,6 +619,8 @@ export class WorkflowStore extends BudgetStore {
         w.limits.max_wall_seconds,
         ctx.actorId,
         w.resourceSetup ? JSON.stringify(w.resourceSetup) : null,
+        // Re-review 2 N-3: a workflow an autopilot starts is stamped with it.
+        ctx.autopilot?.id.toLowerCase() ?? null,
       ],
     );
     // The agent that runs tasks acts in this workspace only as an editor: it can submit
@@ -1698,21 +1700,25 @@ export class WorkflowStore extends BudgetStore {
     const alternatives: DiscoveryResult['catalog_records']['alternatives'] = [];
     // ADR-0100: with the owner's "Gather evidence when it is thin" on, each option is linked to
     // the packet claims its proposal cited, so an assessment reads them.
-    // Review 1 L-4: only for a discovery an autopilot ran (a step records it), never one a
-    // person started by hand, and never on a study run, whose conditions stay as frozen.
+    // Review 1 L-4: only for a discovery an autopilot ran, never one a person started by hand,
+    // and never on a study run, whose conditions stay as frozen. Re-review 2 N-3: the workflow's
+    // own stamp says so, or (for one started before the stamp) a step that records it.
     const linkCited =
       (
         await c.query(
           `select 1 from autopilot_settings s
             where s.workspace_id = $1 and (s.settings->>'gather_evidence')::boolean
-              and exists (select 1 from autopilots a where a.workspace_id = $1
-                and a.steps @> $2::jsonb)
+              and (exists (select 1 from workflows w where w.workspace_id = $1
+                  and w.id = $4 and w.autopilot_id is not null)
+                or exists (select 1 from autopilots a where a.workspace_id = $1
+                  and a.steps @> $2::jsonb))
               and not exists (select 1 from study_attempts x where x.workspace_id = $1
                 and x.run_id = $3)`,
           [
             ws,
             JSON.stringify([{ child: { kind: 'workflow', id: wf.id } }]),
             wf.run_id,
+            wf.id,
           ],
         )
       ).rowCount === 1;

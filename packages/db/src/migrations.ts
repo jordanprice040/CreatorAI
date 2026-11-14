@@ -3570,6 +3570,9 @@ create index web_discovery_claims_by_autopilot_claim on web_discovery_claims (cl
 alter table web_discoveries add column autopilot_id uuid;
 alter table web_discoveries add constraint web_discoveries_autopilot_fk
  foreign key (workspace_id, autopilot_id) references autopilots (workspace_id, id);
+alter table workflows add column autopilot_id uuid;
+alter table workflows add constraint workflows_autopilot_fk
+ foreign key (workspace_id, autopilot_id) references autopilots (workspace_id, id);
 `,
   },
 ];

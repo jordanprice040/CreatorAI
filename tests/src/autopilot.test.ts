@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { readFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import {
   AUTOPILOT_SETTINGS_DEFAULT,
   MODEL_ONLY_ETHICS_NOTE,
@@ -10,6 +11,7 @@ import {
   autopilotRoutinePolicy,
   handsOff,
   isHandsOff,
+  settingIsOn,
   settingOn,
   AUTOPILOT_MIN_CALLS,
   AutopilotConfigSchema,
@@ -2497,6 +2499,56 @@ test('ADR-0100: linking suggested claims is the autopilot’s, audited, and neve
     'approved_private',
   );
   assert.equal(again.filter((m) => m.to_id === opt.id).length, 0);
+  // Re-review 2 N-5: on public data, a claim backed only by sources fetched from the web is
+  // linked. The new claim takes a copy of a seeded support whose page was fetched.
+  const opt2 = rep.suitability.candidates[1]!.alternative;
+  const backed = await h.store.createEntity(owner, h.ws.id, {
+    kind: 'claim',
+    title: `${opt2.title} works for this`,
+    body: {
+      statement: `${opt2.title} handles the problem well.`,
+      basis: 'observation',
+      uncertainty: 'test',
+    },
+  });
+  const support = (
+    await h.db.pool.query(
+      `select cs.id, cs.link_id, cs.claim_id from claim_support cs
+        where cs.workspace_id = $1 and cs.stance = 'supports' and cs.retracted_at is null
+          and exists (select 1 from source_retrievals r
+            where r.source_id = cs.source_id and r.state = 'fetched')
+        limit 1`,
+      [h.ws.id],
+    )
+  ).rows[0] as { id: string; link_id: string; claim_id: string };
+  const linkId = randomUUID();
+  await h.db.pool.query(
+    `insert into entity_links select (jsonb_populate_record(null::entity_links,
+       to_jsonb(l) || jsonb_build_object('id', $2::uuid)
+         || case when l.from_id = $3::uuid
+              then jsonb_build_object('from_id', $4::uuid, 'from_version', 1)
+              else jsonb_build_object('to_id', $4::uuid, 'to_version', 1) end)).*
+       from entity_links l where l.id = $1`,
+    [support.link_id, linkId, support.claim_id, backed.id],
+  );
+  await h.db.pool.query(
+    `insert into claim_support select (jsonb_populate_record(null::claim_support,
+       to_jsonb(cs) || jsonb_build_object('id', $2::uuid, 'claim_id', $3::uuid,
+         'claim_version', 1, 'link_id', $4::uuid))).*
+       from claim_support cs where cs.id = $1`,
+    [support.id, randomUUID(), backed.id, linkId],
+  );
+  const linked = await h.store.autopilotLinkClaims(
+    ap,
+    h.ws.id,
+    problem.id,
+    [opt2.id],
+    'public',
+  );
+  assert.ok(
+    linked.some((m) => m.to_id === opt2.id && m.claim_id === backed.id),
+    JSON.stringify(linked),
+  );
   const row = await h.db.pool.query(
     `select asserted_by, rationale from entity_links where to_id = $1 and rationale like 'Its title%'`,
     [opt.id],
@@ -2690,6 +2742,68 @@ test('review 1 M-1: a thin-evidence stop offers Allow and continue and keeps the
   const s = await h.store.autopilotSettings(owner, h.ws.id);
   assert.equal(s.values.gather_evidence, true);
   assert.ok(s.values.max_extra_searches >= 1);
+  // Re-review 2 L-1: with the setting on and no way to search, Continue would only stop here
+  // again. The stop is final: the approvals end and a new autopilot is offered, not Allow.
+  const read = await h.runner.withNext(owner, h.ws.id, b);
+  assert.ok(b.steps.at(-1)!.no_retry, 'final');
+  assert.ok(b.approvals_ended_at, 'its approvals ended');
+  assert.ok(!read.next?.some((n) => n.kind === 'allow_and_continue'));
+  assert.ok(read.next?.some((n) => n.kind === 'new_autopilot'));
+  await rejects(
+    'INVALID_TRANSITION',
+    h.runner.allowAndContinue(owner, h.ws.id, a.id, {
+      expected_version: b.version,
+      settings_version: s.version,
+      setting: 'gather_evidence',
+    }),
+  );
+  assert.equal(
+    (await h.store.autopilotSettings(owner, h.ws.id)).version,
+    s.version,
+    'no settings version saved for nothing',
+  );
+});
+
+test('re-review 2 L-1: a setting already on is not offered again, and an Allow that would change nothing is refused', async (t) => {
+  // The next steps leave out Allow when the owner's settings already have it on.
+  const tie = {
+    state: 'finished' as const,
+    outcome: 'needs_person' as const,
+    steps: [{ stage: 'select', state: 'stopped', stop_kind: 'tie' } as never],
+  };
+  assert.equal(autopilotNextSteps(tie, OFF)[0]?.kind, 'allow_and_continue');
+  assert.ok(
+    !autopilotNextSteps(tie, { ...OFF, break_ties: true }).some(
+      (n) => n.kind === 'allow_and_continue',
+    ),
+  );
+  assert.ok(settingIsOn({ ...OFF, retry_failed: 2 }, 'retry_failed'));
+  assert.ok(!settingIsOn({ ...OFF, gather_evidence: true }, 'gather_evidence'));
+  // The store refuses an Allow of a setting that is already on (a stale card or a direct call).
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  const runId = await h.run();
+  const a = await h.start(runId);
+  if (a.steps.at(-1)?.stop_kind !== 'tie') return; // The fixture's tie is what this needs.
+  await h.store.saveAutopilotSettings(owner, h.ws.id, {
+    expected_version: 0,
+    values: { ...OFF, break_ties: true },
+  });
+  await rejects(
+    'INVALID_TRANSITION',
+    h.runner.allowAndContinue(owner, h.ws.id, a.id, {
+      expected_version: a.version,
+      settings_version: 1,
+      setting: 'break_ties',
+    }),
+    /already on/,
+  );
+  const next = await h.runner.withNext(owner, h.ws.id, a);
+  assert.ok(!next.next?.some((n) => n.kind === 'allow_and_continue'));
+  assert.ok(
+    next.next?.some((n) => n.kind === 'continue' || n.kind === 'decide'),
+  );
 });
 
 test('review 1 L-7: an autopilot’s own approvals end when it is cancelled while running and when a step fails, and Continue is then refused', async (t) => {
@@ -2794,6 +2908,24 @@ test('review 1 L-2: a plan refusal is read by its code, not its words', () => {
     refusalKind(refused('cap_reached', 'The per-run request cap is reached.')),
     'run_cap',
   );
+  // Re-review 2 N-1: a connection that is not set up is named first, whatever else is used up.
+  assert.equal(
+    refusalKind(
+      new ContractError(
+        'ACCESS_DENIED',
+        'This plan request is not admitted.',
+        ['Caps not accepted.', 'The daily request cap is reached.'],
+        [
+          {
+            code: 'daily_cap_reached',
+            text: 'The daily request cap is reached.',
+          },
+          { code: 'caps_not_accepted', text: 'Caps not accepted.' },
+        ],
+      ),
+    ),
+    'connection',
+  );
   assert.equal(
     autopilotNextSteps({
       state: 'finished',
@@ -2831,9 +2963,101 @@ test('review 1 L-3: a whole process that cannot fit under what is left of the pe
   await rejects(
     'LIMIT_EXCEEDED',
     runner.start(owner, h.ws.id, await h.run(), h.body(c)),
-    /has 6 of the plan connection's 10 requests per run left, and a whole process needs at least 8/,
+    /has 6 of the plan connection's 10 requests per run left, and a whole process needs at least 11/,
   );
   assert.equal((await h.store.listAutopilots(owner, h.ws.id)).length, 0);
+});
+
+test('re-review 2 L-2: the start check counts what each step needs from the config: 5 response types and research on 10 requests cannot start', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  let checked = 0;
+  class Fresh extends ConnectionStore {
+    override async planRunRoom() {
+      checked += 1;
+      return { per_run: 10, used: 0, daily_left: 50 };
+    }
+  }
+  const runner = new AutopilotRunner(new Fresh(h.db.pool), null, {
+    pollMs: 5,
+  });
+  const conn = '00000000-0000-4000-8000-0000000000c1';
+  const plan = {
+    kind: 'subscription' as const,
+    connection_id: conn,
+    model_id: 'm',
+    settings_hash: 'a'.repeat(64),
+    max_output_chars: 16000,
+  };
+  const research = {
+    connection_id: conn,
+    model_id: 'm',
+    scope: WebDiscoveryScopeSchema.parse({ interests: ['volunteers'] }),
+    input_hash: 'c'.repeat(64),
+  };
+  // The live run 2 case: explore 2 + discovery (5 types + 2) + assessment 2 + research 2 = 13.
+  await rejects(
+    'LIMIT_EXCEEDED',
+    runner.start(
+      owner,
+      h.ws.id,
+      await h.run(),
+      h.body(h.config({ resource_setup: plan, research })),
+    ),
+    /has 10 of the plan connection's 10 requests per run left, and a whole process needs at least 13/,
+  );
+  // Two response types and no research need 8, which fits: the start goes on to its other checks.
+  const two = h.config({
+    resource_setup: plan,
+    perspectives: ['software', 'process_change'],
+    excluded: (['existing_tool', 'human_led', 'hybrid'] as const).map(
+      (perspective) => ({ perspective, reason: 'Not in this test.' }),
+    ),
+  });
+  const other = await runner
+    .start(owner, h.ws.id, await h.run(), h.body(two))
+    .then(
+      () => null,
+      (e: unknown) => e,
+    );
+  assert.doesNotMatch(String(other), /whole process needs/);
+  assert.equal(checked, 2, String(other));
+});
+
+test('re-review 2 N-2: a repeated start the idempotency key recorded returns the autopilot without checking room again', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  const runId = await h.run();
+  const ctx = { ...owner, idempotencyKey: 'autopilot-start-repeat-1' };
+  const body = h.body(h.config());
+  let checks = 0;
+  const first = await h.store.startAutopilot(
+    ctx,
+    h.ws.id,
+    runId,
+    body,
+    async () => {
+      checks += 1;
+    },
+  );
+  const again = await h.store.startAutopilot(
+    ctx,
+    h.ws.id,
+    runId,
+    body,
+    async () => {
+      checks += 1;
+      throw new Error('the room check ran on a repeated start');
+    },
+  );
+  assert.equal(again.id, first.id);
+  assert.equal(checks, 1);
+  await h.store.cancelAutopilot(owner, h.ws.id, first.id, {
+    expected_version: (await h.store.getAutopilot(owner, h.ws.id, first.id))
+      .version,
+    reason: 'Test.',
+  });
 });
 
 test('review 1 L-4: a discovery a person runs gets no cited-claim links, even with Gather evidence on', async (t) => {

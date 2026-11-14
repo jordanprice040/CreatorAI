@@ -1515,3 +1515,43 @@ test('ADR-0098 re-review 3 L-1: an owner claim admission and an archive of its s
       String(x.status === 'rejected' && x.reason),
     );
 });
+
+test('re-review 2 N-4: a web search an autopilot starts is stamped with it through the real start path', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.qualify();
+  const runId = await h.run();
+  // A finished autopilot record on this run is enough for the stamp's foreign key.
+  const id = randomUUID();
+  await h.db.pool.query(
+    `insert into autopilots (id, workspace_id, run_id, fixture, config, config_hash, summary,
+       policy_version, state, stage, outcome, version, created_by, finished_at)
+     values ($1, $2, $3, false, '{}', $4, array['Test.'], 'test', 'finished', 'research',
+       'cancelled', 1, $5, now())`,
+    [id, h.ws.id, runId, 'a'.repeat(64), owner.actorId],
+  );
+  const d = await h.runner.start(
+    { ...owner, autopilot: { id } },
+    h.ws.id,
+    runId,
+    {
+      connection_id: h.conn.id,
+      model_id: 'm',
+      scope: h.scope,
+      input_hash: scoutInputHash(h.scope),
+    },
+  );
+  await h.runner.settled(d.id);
+  const row = await h.db.pool.query(
+    'select autopilot_id from web_discoveries where id = $1',
+    [d.id],
+  );
+  assert.equal(row.rows[0].autopilot_id, id);
+  // A search a person starts carries no stamp.
+  const mine = await h.start(runId);
+  const plain = await h.db.pool.query(
+    'select autopilot_id from web_discoveries where id = $1',
+    [mine.id],
+  );
+  assert.equal(plain.rows[0].autopilot_id, null);
+});

@@ -7,6 +7,8 @@ import {
   SETTING_FOR_STOP,
   SaveAutopilotSettingsRequestSchema,
   settingOn,
+  settingIsOn,
+  AUTOPILOT_SETTING_TEXT,
   type AutopilotSettings,
   type AutopilotSettingsValues,
   AUTOPILOT_MAX_STEPS,
@@ -98,6 +100,11 @@ export class AutopilotStore extends WebDiscoveryStore {
     wsIn: string,
     runIn: string,
     raw: unknown,
+    /**
+     * Re-review 2 N-2: a check the caller runs only for a new start (not for a repeated one the
+     * idempotency key already recorded), after the owner check and the run lock.
+     */
+    beforeNew?: () => Promise<void>,
   ): Promise<Autopilot> {
     const ctx = normalize(ctxIn);
     const ws = uuid(wsIn);
@@ -127,6 +134,7 @@ export class AutopilotStore extends WebDiscoveryStore {
             'Only the workspace owner, signed in as a person, can start an autopilot.',
           );
           await this.lockRun(c, ws, runId);
+          await beforeNew?.();
           const run = (
             await c.query(
               'select * from run_controls where workspace_id = $1 and run_id = $2',
@@ -864,6 +872,15 @@ export class AutopilotStore extends WebDiscoveryStore {
         // ADR-0098: the run is locked before anything is appended to the audit log.
         await this.lockRun(c, ws, cur.run_id);
         const before = await this.readAutopilotSettings(c, ws);
+        // Re-review 2 L-1: an Allow that changes nothing would only stop here again.
+        if (
+          before.version === req.settings_version &&
+          settingIsOn(before.values, req.setting)
+        )
+          throw fail(
+            'INVALID_TRANSITION',
+            `“${AUTOPILOT_SETTING_TEXT[req.setting].label}” is already on; Allow would change nothing.`,
+          );
         const version = await this.#writeSettings(
           c,
           ctx,

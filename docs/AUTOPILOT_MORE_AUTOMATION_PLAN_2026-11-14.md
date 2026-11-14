@@ -82,9 +82,13 @@ Unit tests for the new rules: the worst-case choice, the tie order, the close-ra
 
 ## Added before review: Jordan's UX decisions P-11 and P-12
 
-- **P-11, run approvals end with the autopilot.** Routine approvals made with an autopilot end when it finishes, fails or is cancelled. While it waits for your input they stay, within their own scope and end time. Approvals the run already had keep their own terms.
+- **P-11, run approvals end with the autopilot.** Routine approvals made with an autopilot end when it finishes, fails or is cancelled. While it waits for your input they stay, within their own scope and end time. Approvals the run already had keep their own terms. A stop at too little evidence or no eligible option counts as waiting only while a setting you could turn on would let it go on; once that setting is on, or it has run out of searches, questions or candidates, it ends and offers a new autopilot.
 - **P-12, quote-checked web claims.** A new setting, **Accept quote-checked web claims**, off by default and not part of Hands-off. Off: claims an autopilot's web search checked only by their quotes wait for you, and the autopilot stops for them with “Allow … and continue”. On: the autopilot uses them, and each carries “Accepted by autopilot · quote check only” wherever it informs discovery, assessment or a proposal, next to its quotes and pages.
 
 ## Fixed after review 1
 
 Every finding of the first review is fixed; the list is in ADR-0100's review 1 amendment in `tracking/DECISIONS.md`. In short: a stop at too little evidence or no eligible option now offers Allow and continue and keeps the autopilot's approvals while it waits; a run without room for a whole process is refused at the start; plan refusals are read by their code, with a new "connection" stop that points to Models and connections; approvals also end on a cancel while running or a failed step; and the autopilot links only claims backed by fetched sources on public data.
+
+## Fixed after re-review 2
+
+Allow and continue is offered only when it would change a setting, and a stop the autopilot can no longer get past ends it (and its approvals) with a new autopilot offered. The start check now adds up what each step needs from the chosen response types, so a run that would stop at discovery is refused at the start. Details: ADR-0100's re-review 2 amendment.

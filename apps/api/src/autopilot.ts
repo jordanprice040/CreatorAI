@@ -17,8 +17,12 @@ import {
   type WebDiscovery,
   type Workflow,
   PlanRefusalCodeSchema,
-  AUTOPILOT_MIN_CALLS,
   StartAutopilotRequestSchema,
+  SETTING_FOR_STOP,
+  SETTLED_BUT_COVERED,
+  AUTOPILOT_SETTING_TEXT,
+  settingIsOn,
+  type AutopilotSettingsValues,
 } from '@creator/contracts';
 import {
   autopilotChildLimits,
@@ -96,6 +100,10 @@ export function refusalKind(e: unknown): AutopilotStopKind {
       ? e.reasons.map((r) => r.code).filter((c) => plan.includes(c))
       : [];
   const text = said(e).toLowerCase();
+  // Re-review 2 N-1: a connection that is not set up (caps not accepted, sign-in, …) is fixed
+  // first; more requests cannot help until it is.
+  if (reasons.some((c) => c !== 'cap_reached' && c !== 'daily_cap_reached'))
+    return 'connection';
   if (reasons.includes('daily_cap_reached')) return 'daily_cap';
   if (reasons.includes('cap_reached') && text.includes('per-run'))
     return 'run_cap';
@@ -217,8 +225,18 @@ export class AutopilotRunner {
   isActive(id: string) {
     return this.#live.has(id.toLowerCase());
   }
-  with(a: Autopilot): Autopilot {
-    return { ...a, active: this.isActive(a.id), next: autopilotNextSteps(a) };
+  /** The autopilot with its live state and next steps (a setting already on is not offered). */
+  with(a: Autopilot, settings?: AutopilotSettingsValues): Autopilot {
+    return {
+      ...a,
+      active: this.isActive(a.id),
+      next: autopilotNextSteps(a, settings),
+    };
+  }
+  /** `with`, reading the owner's settings now (re-review 2 L-1). */
+  async withNext(ctx: CommandContext, ws: string, a: Autopilot) {
+    const s = await this.#settings(ctx, ws).catch(() => null);
+    return this.with(a, s?.values);
   }
 
   async allowAndContinue(
@@ -229,7 +247,7 @@ export class AutopilotRunner {
   ) {
     const a = await this.store.allowAndContinueAutopilot(ctx, ws, id, body);
     this.#launch(a.created_by, ws, a.id);
-    return this.with(a);
+    return this.withNext(ctx, ws, a);
   }
   /** Resolves when this autopilot's driver has stopped (tests and shutdown). */
   async settled(id: string) {
@@ -245,16 +263,18 @@ export class AutopilotRunner {
   }
 
   async start(ctx: CommandContext, ws: string, runId: string, body: unknown) {
-    await this.#fitsRunCap(ctx, ws, runId, body);
-    const a = await this.store.startAutopilot(ctx, ws, runId, body);
+    const a = await this.store.startAutopilot(ctx, ws, runId, body, () =>
+      this.#fitsRunCap(ctx, ws, runId, body),
+    );
     this.#launch(a.created_by, ws, a.id);
-    return this.with(a);
+    return this.withNext(ctx, ws, a);
   }
 
   /**
-   * ADR-0100 (K-9, review 1 L-3): a whole process on a plan connection is refused at the start
-   * when what is left of the connection's per-run cap on this run cannot hold its shortest path
-   * (the research search's 2 requests too, when it uses the same connection).
+   * ADR-0100 (K-9, review 1 L-3, re-review 2 L-2): a whole process on a plan connection is
+   * refused at the start when what is left of the connection's per-run cap on this run cannot
+   * hold the least each step needs (the research search's 2 requests too, when it uses the same
+   * connection). A repeated start the store has already recorded returns that autopilot.
    */
   async #fitsRunCap(
     ctx: CommandContext,
@@ -271,8 +291,12 @@ export class AutopilotRunner {
       .planRunRoom(ctx, ws, r.connection_id, runId)
       .catch(() => null);
     if (!room) return; // A connection that cannot be read is refused by admission instead.
+    // Re-review 2 L-2: each step's own floor (autopilotChildLimits): explore 2, discovery its
+    // response types + 2, assessment at least 2, and the research search's 2 on this connection.
     const need =
-      AUTOPILOT_MIN_CALLS +
+      2 +
+      (c.perspectives.length + 2) +
+      2 +
       (c.research?.connection_id === r.connection_id ? 2 : 0);
     const left = room.per_run - room.used;
     if (left < need)
@@ -285,7 +309,7 @@ export class AutopilotRunner {
   async retry(ctx: CommandContext, ws: string, id: string, body: unknown) {
     const a = await this.store.retryAutopilot(ctx, ws, id, body);
     this.#launch(a.created_by, ws, a.id);
-    return this.with(a);
+    return this.withNext(ctx, ws, a);
   }
 
   async cancel(ctx: CommandContext, ws: string, id: string, body: unknown) {
@@ -554,6 +578,7 @@ export class AutopilotRunner {
       };
     }
     if ('outcome' in planned) {
+      planned = await this.#settle(ctx, ws, planned);
       return this.store.advanceAutopilot(ctx, ws, a.id, a.version, {
         stage,
         steps: [
@@ -803,6 +828,27 @@ export class AutopilotRunner {
   /** ADR-0100: the owner's autopilot settings as they are now. */
   async #settings(ctx: CommandContext, ws: string): Promise<AutopilotSettings> {
     return this.store.autopilotSettings(ctx, ws);
+  }
+
+  /**
+   * Re-review 2 L-1: a settled stop (thin evidence, no eligible option) whose setting is already
+   * on cannot be got past by Continue or Allow, so it ends the autopilot (and P-11 ends its
+   * approvals) and offers a new one.
+   */
+  async #settle(ctx: CommandContext, ws: string, stop: Stop): Promise<Stop> {
+    const setting = stop.kind ? SETTING_FOR_STOP[stop.kind] : undefined;
+    if (stop.final || !setting || !SETTLED_BUT_COVERED.includes(stop.outcome))
+      return stop;
+    const s = await this.#settings(ctx, ws).catch(() => null);
+    if (!s || !settingIsOn(s.values, setting)) return stop;
+    return {
+      ...stop,
+      final:
+        `“${AUTOPILOT_SETTING_TEXT[setting].label}” is already on and it still could not go on. Add evidence or choose under Decide, then start a new autopilot.`.slice(
+          0,
+          300,
+        ),
+    };
   }
 
   /** The fallback record a step keeps (the setting, its version, the stop it replaced). */
@@ -1465,12 +1511,19 @@ export class AutopilotRunner {
     }
     const route = this.#searchRoute(a, settings);
     if (typeof route === 'string') {
-      if (settings.values.gather_evidence)
+      if (settings.values.gather_evidence) {
+        // Re-review 2 L-1: with the setting on, Continue would only stop here again.
         (stop as { stop: Stop }).stop.note =
           `${reason} It could not gather more evidence: ${route}`.slice(
             0,
             1200,
           );
+        (stop as { stop: Stop }).stop.final =
+          `It could not gather more evidence (${route.replace(/\.$/, '')}). Add claims or search the web yourself, then start a new autopilot.`.slice(
+            0,
+            300,
+          );
+      }
       return stop;
     }
     const asked = new Set(
@@ -1496,6 +1549,8 @@ export class AutopilotRunner {
           0,
           1200,
         );
+      (stop as { stop: Stop }).stop.final =
+        'It has already searched the web for every question it had. Add claims or search the web with another question, then start a new autopilot.';
       return stop;
     }
     return {
@@ -1559,6 +1614,13 @@ export class AutopilotRunner {
           outcome: pick.outcome,
           kind: 'thin_evidence',
           note: pick.reason,
+          // Re-review 2 L-1: every candidate was tried; Continue cannot find another.
+          ...(this.#briefsSince(a) > 0
+            ? {
+                final:
+                  'The exploration has no candidate problem left to try. Add claims, then start a new autopilot.',
+              }
+            : {}),
         },
       };
     // The request (which candidate, which claims) is recorded before the brief is written; the
@@ -1938,7 +2000,8 @@ export class AutopilotRunner {
     });
   }
 
-  async #finish(ctx: CommandContext, ws: string, a: Autopilot, stop: Stop) {
+  async #finish(ctx: CommandContext, ws: string, a: Autopilot, stopIn: Stop) {
+    const stop = await this.#settle(ctx, ws, stopIn);
     const now = new Date().toISOString();
     const steps = a.steps.map((s, i) =>
       i === a.steps.length - 1 && s.state === 'running'

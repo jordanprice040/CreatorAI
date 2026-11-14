@@ -16,6 +16,8 @@ import {
   AutopilotStopKindSchema,
   SETTING_FOR_STOP,
   AUTOPILOT_SETTING_TEXT,
+  settingIsOn,
+  type AutopilotSettingsValues,
   type AutopilotNext,
   type AutopilotStopKind,
 } from './autopilot-settings.js';
@@ -108,7 +110,7 @@ export const AUTOPILOT_RETRYABLE: readonly AutopilotOutcome[] = [
  * these outcomes, but a setting covers them and a person can add evidence or scores, so they are
  * stops Continue (and Allow and continue) can pick up.
  */
-const SETTLED_BUT_COVERED: readonly AutopilotOutcome[] = [
+export const SETTLED_BUT_COVERED: readonly AutopilotOutcome[] = [
   'insufficient_evidence',
   'no_eligible_option',
 ];
@@ -679,6 +681,8 @@ const NEXT: Record<AutopilotStopKind, Omit<AutopilotNext, 'setting'>[]> = {
 export function autopilotNextSteps(
   a: Pick<Autopilot, 'state' | 'outcome' | 'steps'> &
     Partial<Pick<Autopilot, 'approvals_ended_at'>>,
+  /** Re-review 2 L-1: the owner's settings now; a setting already on is not offered again. */
+  settings?: AutopilotSettingsValues,
 ): AutopilotNext[] {
   if (a.state !== 'finished') return [];
   if (a.outcome === 'proposal')
@@ -695,7 +699,7 @@ export function autopilotNextSteps(
   const can = autopilotContinuable(a);
   const setting = SETTING_FOR_STOP[kind];
   const out: AutopilotNext[] = [];
-  if (setting && can.ok)
+  if (setting && can.ok && !(settings && settingIsOn(settings, setting)))
     out.push({
       kind: 'allow_and_continue',
       label: `Allow “${AUTOPILOT_SETTING_TEXT[setting].label}” and continue`,

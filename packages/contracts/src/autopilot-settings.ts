@@ -199,6 +199,20 @@ export function settingOn(
   return { ...v, [key]: true };
 }
 
+/**
+ * Re-review 2 L-1: whether "Allow this from now on" would change nothing, because the setting is
+ * already on (for the evidence searches, at least one; for retries, at least one).
+ */
+export function settingIsOn(
+  v: AutopilotSettingsValues,
+  key: keyof AutopilotSettingsValues,
+): boolean {
+  const on = settingOn(v, key);
+  return (Object.keys(on) as (keyof AutopilotSettingsValues)[]).every(
+    (k) => on[k] === v[k],
+  );
+}
+
 export const AllowAndContinueRequestSchema = z.strictObject({
   /** The autopilot version the owner saw. */
   expected_version: version,

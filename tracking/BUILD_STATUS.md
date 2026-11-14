@@ -19,6 +19,8 @@ P-11 and P-12 (Jordan's UX decisions, added before review): routine approvals ma
 
 Review 1 fixes (no High; M-1, L-1 to L-8 and the eight nits, all fixed; ADR-0100 amendment). Six new tests (M-1, L-2, L-3, L-4, L-7 in `autopilot.test.ts`; the L-6 stamp in the P-12 store test, mutation-checked); the L-5 linking test updated. Rechecked: `pnpm typecheck`, `pnpm format:check`, `pnpm test` with the database (1186 tests: 1152 pass, 29 skipped, the 5 known PowerShell-wrapper failures), and the walk again on a fresh throwaway database.
 
+Re-review 2 fixes (two Lows, six nits, all fixed; ADR-0100 amendment): Allow and continue is offered only when it changes a setting, and a stop the autopilot can no longer get past ends it and its approvals; the start check adds up each step's need from the config (5 types + research on 10 requests is refused); connection-setup refusals come first; the room check runs inside the idempotent start; workflows an autopilot starts are stamped. New tests for L-1, L-2, N-1, N-2, N-4 and N-5. Rechecked: `pnpm typecheck`, `pnpm format:check`, `pnpm test` with the database (1190 tests: 1156 pass, 29 skipped, the 5 known PowerShell-wrapper failures).
+
 Limits: web search for evidence runs only on a ChatGPT plan connection; the fixture's identical ratings cannot show a tie broken; Whole process still stops a software option at the spec.
 
 ## November 12 update — full codebase audit and its fixes (L-1, L-2, N-1..N-7)

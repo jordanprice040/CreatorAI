@@ -2343,18 +2343,26 @@ export function createApi(
       );
     } else if (collection === 'autopilots' && autopilot) {
       // ADR-0092 (P13): read, stop and continue autopilots.
-      if (!item && method === 'GET')
+      if (!item && method === 'GET') {
+        const settings = await store
+          .autopilotSettings(ctx, ws)
+          .catch(() => null);
         return send(
           200,
           (
             await store.listAutopilots(ctx, ws, url.searchParams.get('run'))
-          ).map((a) => autopilot.with(a)),
+          ).map((a) => autopilot.with(a, settings?.values)),
           false,
         );
+      }
       if (item && !action && method === 'GET')
         return send(
           200,
-          autopilot.with(await store.getAutopilot(ctx, ws, item)),
+          await autopilot.withNext(
+            ctx,
+            ws,
+            await store.getAutopilot(ctx, ws, item),
+          ),
           false,
         );
       if (item && method === 'POST' && action === 'cancel')
