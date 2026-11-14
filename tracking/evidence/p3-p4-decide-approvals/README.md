@@ -15,7 +15,7 @@ no live provider, no spending.
 - `gate-events-2026-11-14.txt`: the ten `gate.confirmed` events from the database: one batch id, `reason_from` shared
   on nine and own on the first option's access gate.
 - `walk-approve.cjs` decides every option (one to validation, the rest deferred) and presses Record. The run asks the
-  owner's approval; the page shows "You approve this yourself", the coverage and a reason box filled from the
+  owner's approval; the page shows "You asked for this, and you approve it.", the coverage and a reason box filled from the
   rationale. "Approve once and record the selection" answers the decision and records the selection; the page never
   leaves Decide. Output: `walk-approve-output-2026-11-14.txt` (POSTs: selection 200 needing approval, decision answer
   200, selection 200 recorded). After review 1 the approval also shows Uncertainty and If wrong, offers "Was this

@@ -1134,7 +1134,7 @@ function Product({
                           owner={owner}
                           actorId={actorId}
                           approveLabel="Approve once"
-                          afterText="Press Build below to build again."
+                          afterText="Press Start build above to build again."
                           openApprovals={() =>
                             open('decisions', decisionInReason(b.reason)!)
                           }

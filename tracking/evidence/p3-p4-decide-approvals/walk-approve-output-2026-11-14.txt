@@ -1,5 +1,5 @@
 INLINE shown 1
-INLINE text "You asked for this, and you approve it. Approve it here, once: it is the same decision record as in Monitor › Approvals. Asked Nov 14, 2026, 12:20 PM.Allow candidate.select on problem v1?UncertaintyNo grant covers this reversible action.If wrongInternal, reversible work may need redoing.Actioncandidate · selectTargetproblem cb4b2bd8 · v1Content hashf31b83377a0b…Spec hash82280bfa0b9d…Amountno spendDatasynthetic dataRequest expiresNov 17, 2026, 12:20 PMYour reason for approving (required, brief)Validate the cheapest option first; defer the rest.Was this question worth asking?No answerYes, useful"
+INLINE text "You asked for this, and you approve it. Approve it here, once: it is the same decision record as in Monitor › Approvals. Asked Nov 14, 2026, 1:00 PM.Allow candidate.select on problem v1?UncertaintyNo grant covers this reversible action.If wrongInternal, reversible work may need redoing.Actioncandidate · selectTargetproblem 1ac628a2 · v1Content hash0d19795b6f79…Spec hash733182db59ba…Amountno spendDatasynthetic dataRequest expiresNov 17, 2026, 1:00 PMYour reason for approving (required, brief)Validate the cheapest option first; defer the rest.Was this question worth asking?No answerYes, usefulNo"
 reason prefilled "Validate the cheapest option first; defer the rest."
 worth asking offered 1
 outside live region true

@@ -3623,7 +3623,11 @@ details > summary {
 .gate-batch-options > li > button.text {
   margin-left: 24px;
 }
-/* UX pass P-3: the owner's approval where they acted. */
+/* UX pass P-3: the owner's approval where they acted, below the status line. */
+.approval-step {
+  margin-top: 8px;
+  display: block;
+}
 .inline-approval {
   margin-top: 6px;
   display: grid;

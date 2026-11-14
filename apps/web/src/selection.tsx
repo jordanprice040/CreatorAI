@@ -306,6 +306,7 @@ function FreezeSpec({
               initialReason={justification.trim()}
               onApproved={() => freeze()}
               againLabel="I approved it: freeze again"
+              retryLabel="Freeze again"
               openApprovals={() =>
                 open('decisions', outcome.admission.decision_id!)
               }

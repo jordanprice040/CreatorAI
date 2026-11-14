@@ -34,8 +34,10 @@ const log = (k, v) => console.log(k, JSON.stringify(v));
     .sort((a, b) => b.created_at.localeCompare(a.created_at))[0].id;
   await p.goto(`${WEB}/#/projects/decide?ws=${ws}`);
   await p.reload();
-  await p.waitForTimeout(4500);
   const form = p.locator('form.decide');
+  // Wait for the Decide form itself; a fixed pause raced a slow first load.
+  await form.waitFor({ timeout: 60000 });
+  await p.waitForTimeout(1500);
   // Open every option and decide: the first that can advance is recommended or validated, the
   // rest deferred.
   await form.getByRole('button', { name: /Expand all/i }).first().click().catch(() => {});

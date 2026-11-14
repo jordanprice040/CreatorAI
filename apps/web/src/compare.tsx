@@ -1560,6 +1560,7 @@ export function Compare({
                         initialReason={rationale.trim()}
                         onApproved={() => select()}
                         againLabel="I approved it: submit again"
+                        retryLabel="Submit again"
                         openApprovals={() =>
                           open('decisions', outcome.admission.decision_id!)
                         }

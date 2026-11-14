@@ -1,3 +1,5 @@
-status | choice | interruption | same_person
-answered | approve_once | unnecessary | t
+  status  |    choice    | interruption | same_person 
+----------+--------------+--------------+-------------
+ answered | approve_once | unnecessary  | t
 (1 row)
+

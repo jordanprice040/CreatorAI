@@ -6,7 +6,6 @@ import {
   decisionOutcome,
   inlineApprovable,
 } from './inline-approval-rules.js';
-import { useOnShow } from './page-active.js';
 import { StaleNote, useLoad } from './ui.js';
 
 // UX pass P-3: when the owner's own action stops for the owner's approval (recording a
@@ -26,6 +25,7 @@ export function InlineApproval({
   initialReason = '',
   onApproved,
   againLabel,
+  retryLabel,
   afterText,
   openApprovals,
 }: {
@@ -41,8 +41,10 @@ export function InlineApproval({
   initialReason?: string;
   /** Sends the action again: run once approved here, and offered whenever it may help. */
   onApproved?: () => void | Promise<void>;
-  /** The resend button, e.g. "I approved it: submit again". */
+  /** The resend button once approved, e.g. "I approved it: submit again". */
   againLabel?: string;
+  /** The resend button when nothing was approved (re-review N-1), e.g. "Submit again". */
+  retryLabel?: string;
   /** Without `onApproved`: what to do once approved. */
   afterText?: string;
   openApprovals: () => void;
@@ -54,9 +56,10 @@ export function InlineApproval({
     [workspace, decisionId],
   );
   // Review L-2: approving in Approvals (another page or window) shows here on return.
-  const reload = useRef(decision.reload);
-  reload.current = decision.reload;
-  useOnShow(() => reload.current());
+  // Re-review L-1: quiet refreshes, so a failed read keeps the form and shows the stale note.
+  // useLoad already refreshes when the page is shown again.
+  const reload = useRef(decision.refresh);
+  reload.current = decision.refresh;
   useEffect(() => {
     const on = () => reload.current();
     window.addEventListener('focus', on);
@@ -79,16 +82,20 @@ export function InlineApproval({
       setBusy(false);
     }
   }
-  const resend = onApproved && againLabel && (
-    <button
-      className="secondary strong"
-      type="button"
-      disabled={busy}
-      onClick={() => void again()}
-    >
-      {againLabel}
-    </button>
-  );
+  const resendButton = (label: string | undefined) =>
+    onApproved &&
+    label && (
+      <button
+        className="secondary strong"
+        type="button"
+        disabled={busy}
+        onClick={() => void again()}
+      >
+        {label}
+      </button>
+    );
+  const resend = resendButton(againLabel);
+  const retry = resendButton(retryLabel ?? againLabel);
   const fallback = (
     <button className="secondary" type="button" onClick={openApprovals}>
       Open it in Monitor › Approvals
@@ -100,7 +107,7 @@ export function InlineApproval({
     return (
       <p className="small">
         {decision.error ? `${decision.error} ` : ''}
-        {fallback} {resend}
+        {fallback} {retry}
       </p>
     );
   if (approved || decisionApproved(d))
@@ -117,7 +124,7 @@ export function InlineApproval({
     return (
       <p className="small">
         <StaleNote stale={decision.stale} />
-        {can.why} {fallback} {resend}
+        {can.why} {fallback} {retry}
       </p>
     );
   async function approve() {
@@ -144,7 +151,7 @@ export function InlineApproval({
       if (onApproved) await onApproved();
     } catch (e) {
       setError(message(e));
-      decision.reload();
+      decision.refresh();
     } finally {
       setBusy(false);
     }
