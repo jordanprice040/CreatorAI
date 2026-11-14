@@ -45,6 +45,7 @@ import { refusalFixes, type FixAction } from './fix-here.js';
 import { newestFirst } from './versions.js';
 import { envelopesFor } from './build-defaults.js';
 import { useLoad, type View, StaleNote } from './ui.js';
+import { useViewMode } from './view-mode.js';
 import { LinkClaims } from './link-claims.js';
 import { rangeEnds } from './claim-suggest.js';
 import { preferredRoute } from './model-choice.js';
@@ -834,6 +835,8 @@ function Run({
     () => api(WorkflowDetailSchema, `${base}/workflows/${id}`),
     [id],
   );
+  // P-6 (ADR-0103): Runs is Advanced, so its link is too; the line above says the state.
+  const { standard } = useViewMode();
   const wf = d.data?.workflow;
   const live = wf ? LIVE.has(wf.state) : false;
   // PR #191 review R-L1: polled while shown, and a failed read keeps polling (it shows stale).
@@ -882,9 +885,11 @@ function Run({
         Started {when(wf.created_at)}
         {wf.fixture ? ' · fixture rules, not a model' : ''}.{' '}
         {wf.result?.explanation ?? (live ? 'Waiting for the assessor…' : '')}{' '}
-        <button className="text" onClick={() => open('runs', wf.id)}>
-          Run details →
-        </button>
+        {!standard && (
+          <button className="text" onClick={() => open('runs', wf.id)}>
+            Run details →
+          </button>
+        )}
         {live && owner && (
           <>
             {' '}

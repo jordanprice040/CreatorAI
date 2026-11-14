@@ -12,7 +12,13 @@ import {
 } from '@creator/contracts';
 import { createApi } from '@creator/api';
 import { ConnectionStore, migrate, type CommandContext } from '@creator/db';
+import { DISCOVERY_SCENARIOS } from '@creator/domain';
+import { FixtureAdapter } from '@creator/broker';
 import { freshDatabase, LOGIN_CODE, login } from './pg-harness.js';
+import {
+  discoverySetup,
+  owner as discoveryOwner,
+} from './discovery-harness.js';
 
 // ADR-0060/ADR-0073 right-hand sidebar. Named notes belong to one person in one workspace, a
 // stale window cannot overwrite newer text, and they leave no trace in the activity history.
@@ -540,4 +546,26 @@ test('notes and running-now routes: signed in, CSRF on save, stale saves refused
     (await call('POST', `workspaces/${ws}/activity-now`, {})).status,
     404,
   );
+});
+
+test('running now gives a workflow its role and subject, so the sidebar can open where it shows', async (t) => {
+  // ADR-0103 (review L-2, re-review L-A).
+  const s = await discoverySetup(t, new FixtureAdapter());
+  if (!s) return;
+  const scenario = DISCOVERY_SCENARIOS[0]!;
+  const runId = await s.run();
+  const seeded = await s.seed(scenario, runId);
+  const started = await s.store.startDiscovery(
+    discoveryOwner,
+    s.ws.id,
+    runId,
+    s.request(scenario, seeded),
+  );
+  const item = (
+    await new ConnectionStore(s.db.pool).activityNow(discoveryOwner, s.ws.id)
+  ).items.find((i) => i.kind === 'workflow' && i.id === started.workflow.id);
+  assert.ok(item);
+  assert.equal(item.purpose, 'r02_discovery');
+  assert.equal(item.subject_id, started.workflow.subject.id);
+  await s.worker.settle();
 });
