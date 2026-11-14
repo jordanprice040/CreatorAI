@@ -2725,7 +2725,9 @@ table.usage-options th[scope='row'] {
   border-color: var(--ok-border);
 }
 .shortlist .card:not(.candidate) {
-  opacity: 0.85;
+  /* Review 2 of #192, O-2 (1.4.3): a muted border instead of opacity, so text keeps its
+     contrast. */
+  border-style: dashed;
 }
 .shortlist h4 {
   margin: 0 0 8px;
@@ -3530,6 +3532,9 @@ fieldset.gate-checklist li input {
    Back to top button instead of behind it. */
 html {
   scroll-padding-bottom: 64px;
+  /* Review 2 of #192, L-A and O-1 (2.4.11): focus and scrolled-to headings stop below the
+     sticky top bar. */
+  scroll-padding-top: 72px;
 }
 /* Review 1 of #192, N-7: fold rows are 24 px targets too, like text buttons. */
 details > summary {

@@ -693,13 +693,18 @@ function NextAfterStop({
   const exploration = [...a.steps]
     .reverse()
     .find((s) => s.stage === 'explore' && s.child?.kind === 'workflow')?.child;
+  const exploreStarted =
+    [...a.steps].reverse().find((s) => s.child === exploration)?.started_at ??
+    '';
   const openExploration = exploration && (
     <button
       type="button"
       className="secondary"
       onClick={() =>
         window.dispatchEvent(
-          new CustomEvent(OPEN_EXPLORATION, { detail: exploration.id }),
+          new CustomEvent(OPEN_EXPLORATION, {
+            detail: { id: exploration.id, at: exploreStarted },
+          }),
         )
       }
     >
@@ -715,10 +720,17 @@ function NextAfterStop({
     ? ', then press Continue here.'
     : ', then start a new autopilot.';
   // Every candidate the explorer found is already a recorded problem (review 1 of #192, L-6).
+  // The note lists each candidate's disposition, e.g. "(E1 duplicate; E2 insufficient
+  // evidence)"; every one must be a duplicate (review 2 of #192, L-B).
+  const dispositions =
+    /\(([^)]*)\)/
+      .exec(last?.note ?? '')?.[1]
+      ?.split(';')
+      .map((x) => x.trim()) ?? [];
   const allDuplicates =
     a.outcome === 'insufficient_evidence' &&
-    /\bduplicate\b/.test(last?.note ?? '') &&
-    !/\b(new|novel)\b/i.test(last?.note ?? '');
+    dispositions.length > 0 &&
+    dispositions.every((x) => /\bduplicate$/.test(x));
   let text = '';
   let actions: ReactNode = null;
   switch (a.outcome) {

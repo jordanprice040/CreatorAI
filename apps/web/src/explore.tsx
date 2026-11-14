@@ -185,6 +185,7 @@ export function Explore({
   const [error, setError] = useState('');
   const [errorFixes, setErrorFixes] = useState<FixAction[]>([]);
   const [openId, setOpenId] = useState('');
+  const [openedAt, setOpenedAt] = useState('');
   // The autopilot's stopped card opens its exploration here. Only the Explore on the page in
   // view answers (kept-alive pages and Chat cards have their own), inside its own section.
   const active = usePageActive();
@@ -193,9 +194,10 @@ export function Explore({
   const sectionRef = useRef<HTMLElement>(null);
   useEffect(() => {
     const open = (e: Event) => {
-      const id = (e as CustomEvent<string>).detail;
+      const { id, at } = (e as CustomEvent<{ id: string; at: string }>).detail;
       if (!id || !activeRef.current || !sectionRef.current) return;
       setOpenId(id);
+      setOpenedAt(at);
       ctx.refresh();
       reveal(sectionRef.current, 'explore-title');
     };
@@ -755,7 +757,10 @@ export function Explore({
                     </option>
                   ))}
                   {shown && !c.explorations.some((w) => w.id === shown) && (
-                    <option value={shown}>Opened from the autopilot</option>
+                    <option value={shown}>
+                      {openedAt ? `${when(openedAt)} · ` : ''}opened from the
+                      autopilot
+                    </option>
                   )}
                 </select>
               </>
