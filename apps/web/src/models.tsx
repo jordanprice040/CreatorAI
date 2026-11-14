@@ -75,7 +75,8 @@ const PROPOSED_SETTINGS = {
   allowed_task_classes: defaultTaskClasses('chatgpt_plan'),
   caps: {
     responses: {
-      // Jordan, November 14: room for a whole autopilot run with web search and Hands-off.
+      // tracking/DECISIONS.md, "Owner decision — ChatGPT plan per-run cap default 30": room for a
+      // whole autopilot run with web search and Hands-off.
       max_requests_per_run: 30,
       request_timeout_ms: 120000,
       max_output_chars: 16000,

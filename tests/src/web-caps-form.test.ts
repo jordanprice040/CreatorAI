@@ -467,3 +467,67 @@ test('ADR-0084: new connections allow every task their kind can take, in the app
     [],
   );
 });
+
+test('Owner decision (November 14): a ChatGPT plan connection proposes 30 requests per run, in the app and the config', async () => {
+  const config = async (f: string) =>
+    PlanSettingsSchema.parse(
+      JSON.parse(await readFile(`config/connections/${f}`, 'utf8')),
+    );
+  // A whole autopilot needs at least 13 and up to about 27 with Hands-off.
+  assert.equal(
+    (await config('chatgpt-plan.json')).caps.responses.max_requests_per_run,
+    30,
+  );
+  // The decision covers the ChatGPT plan only.
+  assert.equal(
+    (await config('claude-code.json')).caps.responses.max_requests_per_run,
+    10,
+  );
+  // The Models page's two proposed settings, in order: ChatGPT plan, then Claude Code.
+  const page = await readFile('apps/web/src/models.tsx', 'utf8');
+  assert.deepEqual(
+    [...page.matchAll(/max_requests_per_run: (\d+),/g)].map((m) => m[1]),
+    ['30', '10'],
+  );
+});
+
+test('P-12 (review 1 of #199, L-1): the held-claims Next text offers the setting only where it is offered', async () => {
+  const source = await readFile('apps/web/src/autopilot-held.ts', 'utf8');
+  const code = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+    },
+  }).outputText;
+  const m = {} as {
+    heldClaimsSetting: (
+      a: { next?: { kind: string }[] | null },
+      canContinue: boolean,
+    ) => string;
+  };
+  new Function('exports', code)(m);
+  const allow = {
+    next: [{ kind: 'allow_and_continue' }, { kind: 'continue' }],
+  };
+  assert.match(m.heldClaimsSetting(allow, true), /allow .* below/);
+  // The owner turned the setting on after the stop: no button, Continue accepts them.
+  const on = m.heldClaimsSetting({ next: [{ kind: 'continue' }] }, true);
+  assert.match(on, /is on now, so Continue accepts them/);
+  assert.doesNotMatch(on, /below/);
+  // It cannot continue: nothing is offered below, so the text points to the settings.
+  const ended = m.heldClaimsSetting(
+    { next: [{ kind: 'new_autopilot' }] },
+    false,
+  );
+  assert.match(ended, /under How much is automated/);
+  assert.doesNotMatch(ended, /below/);
+  // The page shows the settings button beside Search the web in this branch.
+  const page = await readFile('apps/web/src/autopilot.tsx', 'utf8');
+  const branch = page.slice(
+    page.indexOf("last?.stop_kind === 'claims_held'"),
+    page.indexOf('text = `Next: this step is yours.'),
+  );
+  assert.match(branch, /heldClaimsSetting\(a, canContinue\)/);
+  assert.match(branch, /go\('web-title'\)/);
+  assert.match(branch, /go\('automation-title'\)/);
+});

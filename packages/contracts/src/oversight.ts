@@ -132,7 +132,7 @@ export const ROUTINE_STAGE_TEXT: Record<
   evidence: {
     label: 'Evidence',
     covers:
-      'adding observation claims found by web discovery when a quote of at least six words was found word for word in a fetched page (contrary quotes are added with them). The studio checks that the quote exists, not that it proves the claim; inferences always wait for you, and so do these for an autopilot’s own searches unless the owner turns on Accept quote-checked web claims',
+      'adding observation claims found by web discovery when a quote of at least six words was found word for word in a fetched page (contrary quotes are added with them). The studio checks that the quote exists, not that it proves the claim; inferences always wait for you, and so do these for an autopilot’s own searches unless the owner turns on “Accept quote-checked web claims”',
   },
 };
 export const RoutineStopSchema = z.enum(['person_rejects', 'unknown_outcome']);

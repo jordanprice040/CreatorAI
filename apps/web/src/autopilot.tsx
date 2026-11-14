@@ -43,6 +43,7 @@ import { usePoll } from './page-active.js';
 import { useEndTime } from './end-time.js';
 import { AllowAndContinue } from './autopilot-next.js';
 import { useAutopilotSettings } from './autopilot-settings.js';
+import { heldClaimsSetting } from './autopilot-held.js';
 import { routeHash } from './pages.js';
 
 // P13 (ADR-0092): "Run it for me". One form sets up a new run with routine approvals covering
@@ -788,11 +789,24 @@ function NextAfterStop({
     case 'needs_person':
       // P-12: quote-checked web claims wait under Search the web, not Decide.
       if (last?.stop_kind === 'claims_held') {
-        text = `Next: read the claims its web search found and add the ones you agree with under Discover › Search the web${then} Or allow "Accept quote-checked web claims" below.`;
+        text = `Next: read the claims its web search found and add the ones you agree with under Discover › Search the web${then} ${heldClaimsSetting(a, canContinue)}`;
         actions = (
-          <button type="button" className="secondary" onClick={go('web-title')}>
-            Search the web
-          </button>
+          <>
+            <button
+              type="button"
+              className="secondary"
+              onClick={go('web-title')}
+            >
+              Search the web
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              onClick={go('automation-title')}
+            >
+              How much is automated
+            </button>
+          </>
         );
         break;
       }

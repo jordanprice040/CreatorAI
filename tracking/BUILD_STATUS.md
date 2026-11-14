@@ -1,5 +1,13 @@
 # Build status — November 10, 2026
 
+## November 14 update — ChatGPT plan per-run cap default 30 and the held web-claims next step (PR #199)
+
+What now works (no migration, no ADR; owner decision in `tracking/DECISIONS.md`): a new ChatGPT plan connection proposes 30 requests per run instead of 10, enough for a whole autopilot run (at least 13, up to about 27 with Hands-off). The Claude Code connection stays at 10. When an autopilot stops because its web search's quote-checked claims wait for a person, its next step points to Discover › Search the web and How much is automated. It offers “Accept quote-checked web claims” below only when that button is shown, and says Continue accepts them when the owner has already turned the setting on. The Evidence approval text says these claims wait unless that setting is on.
+
+Found on the November 14 live rerun on the dev studio (schema 63, findings `/mnt/project-files/reviews/LIVE_AUTOPILOT_RERUN_SCHEMA63_2026-11-14.md`). Not fixed here: discovery refuses an "evidence packet too large" in a busy workspace (follow-up 8), Allow at a re-stopped held-claims step searches again (follow-up 10), and calls set aside for a locally refused step are not given back.
+
+Checked: `pnpm typecheck`, `pnpm format:check`, two new tests in `web-caps-form.test.ts` (the 30/10 defaults in config and the Models page, and the held-claims text cases). Full `pnpm test:db` in the cloud on PostgreSQL 16: see the PR.
+
 ## November 14 update — final UX pass P-3 (approve in place) and P-4 (one-step gate confirmation) (ADR-0102)
 
 What now works (no migration): Decide lists first which options can advance now, once ethics and access are confirmed, or not even then (with the other reasons as text). The owner confirms ethics and access for the options they tick in one step, with one shared reason per gate and an optional reason of an option's own; each confirmation records the reason that applied and whether it was shared or the option's own. When the owner's own selection, spec freeze or build stops for their approval, they approve it on the same page (same decision record and route as Approvals); Decide and Freeze then go ahead without another press. Decide's assumptions and selection history fold under one line each in Standard (section 6).
