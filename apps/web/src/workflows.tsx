@@ -384,7 +384,15 @@ export function Workflows({
             <article className="decision" aria-live="polite">
               <div className="decision-head">
                 <span className="kind">
-                  {wf.role_version} · {wf.id.slice(0, 8)}
+                  {standard
+                    ? wf.role === 'r02_discovery'
+                      ? 'Discovery'
+                      : wf.role === 'r01_exploration'
+                        ? 'Explore for me'
+                        : wf.role === 'r08_assessment'
+                          ? 'Automatic assessment'
+                          : 'Skeptic review'
+                    : `${wf.role_version} · ${wf.id.slice(0, 8)}`}
                 </span>
                 <span className={`badge wf-${wf.state}`}>
                   {words(wf.state)}

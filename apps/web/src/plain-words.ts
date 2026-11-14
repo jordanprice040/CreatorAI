@@ -89,15 +89,53 @@ export const codeLabel = (code: string) =>
  * tool.search_public on this run?" reads "Allow search the web on this run?". For approval
  * questions and the work they block (P-8; seen while checking review 1 of #197).
  */
-export const plainText = (text: string) =>
+export const plainText = (text: string): string => {
+  // An approval question as the server writes it (oversight-store.ts): "Allow spec.freeze on
+  // specification v1?" reads "Allow “Freeze a spec” on this spec?" (review 2 of #197, N-b).
+  const q =
+    /^(Allow|Proceed with) ([a-z]+\.[a-z_]+) on (.+?)( despite: (.+))?\?$/.exec(
+      text,
+    );
+  if (q && ACTION_LABEL[q[2]!]) {
+    const subject = /^([a-z_]+) v\d+$/.exec(q[3]!);
+    const on = subject ? `this ${kindLabel(subject[1]!)}` : q[3]!;
+    const despite = q[5] ? ` despite: ${plainCodes(q[5])}` : '';
+    return `${q[1]} “${ACTION_LABEL[q[2]!]}” on ${on}${despite}?`;
+  }
+  return plainCodes(text);
+};
+
+const plainCodes = (text: string) =>
   text
     .replace(/\b[a-z]+\.[a-z_]+\b/g, (a) =>
       ACTION_LABEL[a] ? lowerFirst(ACTION_LABEL[a]!) : a,
     )
-    .replace(/\b[a-z]+(?:_[a-z]+)+\b/g, (code) => codeLabel(code));
+    // Only known codes: a question can be written by a person or a model, and a field name
+    // such as user_id in it is theirs (review 2 of #197, N-c).
+    .replace(/\b[a-z]+(?:_[a-z]+)+\b/g, (code) =>
+      CODE_LABEL[code] ? codeLabel(code) : code,
+    );
 
 const lowerFirst = (s: string) =>
   s ? `${s[0]!.toLowerCase()}${s.slice(1)}` : s;
+
+/**
+ * A stored reason (a build's stop, for one) without the ids it names: "Build admission
+ * waiting_human; decision 8e97…" reads "Build waits for your approval" (review 2 of #197).
+ */
+export const plainReason = (text: string): string => {
+  const t = text.replace(/^Error: /, '');
+  if (/^Build admission waiting_human; decision \S+$/.test(t))
+    return 'Build waits for your approval';
+  return plainCodes(
+    t
+      .replace(
+        /\s*\(?\b(?:decision|run|build|task)?\s?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b\)?/g,
+        '',
+      )
+      .replace(/;\s*$/, ''),
+  );
+};
 
 /** "a human-in-the-loop", "an autonomous within scope" (review 1 of #197, N-1). */
 export const withArticle = (phrase: string) =>
@@ -107,8 +145,12 @@ function upperFirst(s: string) {
   return s ? `${s[0]!.toUpperCase()}${s.slice(1)}` : s;
 }
 
-/** A history line in parts: text, and amounts to show as money. */
-export type EventPart = string | { nano: string };
+/**
+ * A history line in parts: text, and amounts to show as money. `fixture` is set when the line
+ * itself says what the amount is: false for the spending ceiling (always real money), true
+ * for a budget funded in simulated units. Otherwise the page's workspace decides.
+ */
+export type EventPart = string | { nano: string; fixture?: boolean };
 
 const DECIMAL = /^-?\d{1,15}\.\d{1,9}$/;
 const NANO = 1_000_000_000n;
@@ -185,12 +227,13 @@ export function plainEvent(summary: string): EventPart[] {
         s,
       ))
   )
+    // Review 2 of #197, N-a: the amounts carry their own "$", and are always real money.
     return amounts(
-      'Changed the overall spending ceiling from $',
+      'Changed the overall spending ceiling from ',
       m[1]!,
-      ' to $',
+      ' to ',
       m[2]!,
-    );
+    ).map((p) => (typeof p === 'string' ? p : { ...p, fixture: false }));
   if (
     /^Changed the per-run and per-model spending limits \(version \d+\)$/.test(
       s,
@@ -202,7 +245,10 @@ export function plainEvent(summary: string): EventPart[] {
       s,
     ))
   )
-    return amounts(`${m[1]} ${spaced(m[2]!)} budget of `, m[3]!, m[4] ?? '');
+    // The unit says "sim", so the "(simulated)" tail is not repeated (review 2, N-a).
+    return amounts(`${m[1]} ${spaced(m[2]!)} budget of `, m[3]!).map((p) =>
+      typeof p === 'string' || !m![4] ? p : { ...p, fixture: true },
+    );
   if ((m = /^Closed budget; returned (\S+) to its parent$/.exec(s)))
     return amounts('Closed budget; returned ', m[1]!, ' to its parent');
   if ((m = /^Reserved (\S+) for ([a-z_.]+) attempt (\d+)$/.exec(s)))

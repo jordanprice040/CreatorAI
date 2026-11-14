@@ -49,6 +49,7 @@ export function Ranking({
   ranking: RubricRanking;
   names: Map<string, string>;
 }) {
+  const { standard } = useViewMode();
   const changed = ranking.sensitivity.scenarios.filter(
     (s) => s.shortlist_changed,
   );
@@ -134,7 +135,13 @@ export function Ranking({
                         Unresolved against{' '}
                         {c.overlaps_with
                           .map((id) =>
-                            clip(names.get(id) ?? id.slice(0, 8), 40),
+                            clip(
+                              names.get(id) ??
+                                (standard
+                                  ? 'an option no longer listed'
+                                  : id.slice(0, 8)),
+                              40,
+                            ),
                           )
                           .join('; ')}
                       </div>
@@ -589,7 +596,9 @@ export function Scoring({
                           <span className="kind">{words(d.disposition)}</span>{' '}
                           {clip(
                             names.get(d.alternative.id.toLowerCase()) ??
-                              d.alternative.id.slice(0, 8),
+                              (standard
+                                ? 'An option no longer listed'
+                                : d.alternative.id.slice(0, 8)),
                             80,
                           )}
                           <small>

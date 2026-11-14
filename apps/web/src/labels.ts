@@ -71,6 +71,17 @@ export function runName(
  * Without a name it falls back to the oversight mode. P-8: the Standard view passes
  * `id: false`, since ids are Advanced detail; the start time still tells runs apart.
  */
+/**
+ * An autonomy mode as the Standard view words it, matching `codeLabel` in plain-words.ts
+ * ("human-in-the-loop"; review 2 of #197, N-d). Kept here so labels.ts stays import-free.
+ */
+const modeWords = (mode: string) =>
+  mode === 'human_in_loop'
+    ? 'human-in-the-loop'
+    : mode === 'human_led'
+      ? 'human-led'
+      : mode.replace(/_/g, ' ');
+
 export function runLabel(
   run: { run_id: string; created_at: string; autonomy_mode: string },
   names: ReadonlyMap<string, string>,
@@ -80,7 +91,7 @@ export function runLabel(
   const name = runName(run.run_id, names);
   const head = name
     ? clipText(name, max)
-    : `${upper(run.autonomy_mode.replace(/_/g, ' '))} run`;
+    : `${upper(id ? run.autonomy_mode.replace(/_/g, ' ') : modeWords(run.autonomy_mode))} run`;
   // A title that already carries its start time ("Autopilot · Nov 14, 2026, 1:07 AM") does not
   // repeat it (final UX pass).
   // Only the stamp the studio itself writes ("Nov 14, 2026, 1:07 AM"), not any year and time

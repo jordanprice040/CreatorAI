@@ -511,7 +511,11 @@ export function Compare({
   // also named in the summary and in the line above Record.
   const altIds = alts.map((a) => a.entity.id);
   const optionName = (id: string) =>
-    clip(alts.find((a) => a.entity.id === id)?.entity.title ?? shortId(id), 60);
+    clip(
+      alts.find((a) => a.entity.id === id)?.entity.title ??
+        (standard ? 'an option no longer listed' : shortId(id)),
+      60,
+    );
   const incomplete = altIds.filter((id) => {
     const r = row(id);
     return !(r.disposition && r.reasons.trim() && r.reverse_if.trim());
@@ -1606,7 +1610,10 @@ export function Compare({
                             <span className="kind">{words(x.disposition)}</span>{' '}
                             {clip(
                               alts.find((a) => a.entity.id === x.alternative.id)
-                                ?.entity.title ?? shortId(x.alternative.id),
+                                ?.entity.title ??
+                                (standard
+                                  ? 'An option no longer listed'
+                                  : shortId(x.alternative.id)),
                               80,
                             )}
                             <small>

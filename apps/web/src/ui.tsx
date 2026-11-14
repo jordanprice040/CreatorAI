@@ -151,8 +151,11 @@ export function useRoute() {
   return { route, go, lastIn };
 }
 
-/** Display names for actor ids in one workspace; unknown ids show abbreviated. */
-export function useActors(workspace: string) {
+/**
+ * Display names for actor ids in one workspace. An unknown id shows abbreviated, or as
+ * "someone" when `ids` is false (the Standard view, P-8).
+ */
+export function useActors(workspace: string, ids = true) {
   const [actors, setActors] = useState<ActorSummary[]>([]);
   useEffect(() => {
     let stop = false;
@@ -174,7 +177,9 @@ export function useActors(workspace: string) {
     const a = map.get(id);
     return a
       ? `${a.display_name}${a.kind === 'human' ? '' : ` (${a.kind})`}`
-      : `actor ${id.slice(0, 8)}`;
+      : ids
+        ? `actor ${id.slice(0, 8)}`
+        : 'someone';
   };
 }
 

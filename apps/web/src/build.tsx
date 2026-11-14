@@ -1,3 +1,4 @@
+import { plainReason } from './plain-words.js';
 import { SpecForm, type SpecFormMode } from './spec-form.js';
 import { useViewMode } from './view-mode.js';
 import { usePoll } from './page-active.js';
@@ -142,6 +143,7 @@ export function BuildView({
   session: SessionInfo;
   open: (view: View, id?: string) => void;
 }) {
+  const { standard } = useViewMode();
   const base = `workspaces/${workspace.id}`;
   const fixture = workspace.record_mode === 'fixture';
   const owner = workspace.role === 'owner';
@@ -402,8 +404,11 @@ export function BuildView({
                 <ul className="rows">
                   {unwritten.map((u) => (
                     <li key={`${u.selection_id}:${u.alternative.id}`}>
-                      {u.option?.title ?? u.alternative.id.slice(0, 8)}{' '}
-                      <small>v{u.alternative.version}</small>{' '}
+                      {u.option?.title ??
+                        (standard
+                          ? 'An option no longer listed'
+                          : u.alternative.id.slice(0, 8))}{' '}
+                      {!standard && <small>v{u.alternative.version} </small>}
                       <button
                         className="secondary"
                         onClick={() => {
@@ -1015,8 +1020,10 @@ function Product({
                     return 'Nothing was locked, so nothing changed.';
                   return `Recovered: ${[
                     ...released.map((l) => `${l} lock released`),
-                    ...reconciled.map(
-                      (id) => `test run ${shortId(id)} confirmed stopped`,
+                    ...reconciled.map((id) =>
+                      standard
+                        ? 'a test run confirmed stopped'
+                        : `test run ${shortId(id)} confirmed stopped`,
                     ),
                   ].join(', ')}. You can build this product again.`;
                 },
@@ -1069,7 +1076,8 @@ function Product({
               builds[0]?.state === 'checkpoint' && (
                 <p className="small">
                   The last build stopped. Building again continues from its last
-                  candidate ({task.head.slice(0, 8)}) under a new approval.
+                  candidate{standard ? '' : ` (${task.head.slice(0, 8)})`} under
+                  a new approval.
                 </p>
               )}
             {task && owner && current && (
@@ -1115,7 +1123,13 @@ function Product({
                     {when(b.started_at)}
                     {b.fixture && ' · fixture'}
                     {b.reason && (
-                      <small> · {b.reason.replace(/^Error: /, '')}</small>
+                      <small>
+                        {' '}
+                        ·{' '}
+                        {standard
+                          ? plainReason(b.reason)
+                          : b.reason.replace(/^Error: /, '')}
+                      </small>
                     )}
                     {b.state === 'checkpoint' &&
                       b === builds[0] &&

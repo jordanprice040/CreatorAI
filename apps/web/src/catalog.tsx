@@ -1,3 +1,5 @@
+import { kindLabel, versionTag } from './plain-words.js';
+import { useViewMode } from './view-mode.js';
 import { useEffect, useRef, useState } from 'react';
 import { EventLine } from './event-line.js';
 import { useShown } from './page-active.js';
@@ -107,6 +109,7 @@ function LinkList({
   names: Map<string, string>;
   open: (id: string) => void;
 }) {
+  const { standard } = useViewMode();
   if (links.length === 0) return null;
   return (
     <>
@@ -118,9 +121,11 @@ function LinkList({
             <li key={l.id} className={l.retracted_at ? 'retracted' : ''}>
               <span className="relation">{words(l.relation)}</span>{' '}
               <button className="text" onClick={() => open(other.id)}>
-                {words(other.kind)} ·{' '}
-                {names.get(other.id)?.slice(0, 90) ?? shortId(other.id)} · v
-                {other.version}
+                {standard ? kindLabel(other.kind) : words(other.kind)} ·{' '}
+                {names.get(other.id)?.slice(0, 90) ??
+                  (standard ? 'one no longer listed' : shortId(other.id))}
+                {versionTag(other.version, standard) &&
+                  ` · ${versionTag(other.version, standard)}`}
               </button>
               {l.retracted_at && <small> · retracted</small>}
             </li>

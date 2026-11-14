@@ -56,6 +56,7 @@ export function Gallery({
   focus?: string | undefined;
   open: (view: View, id?: string) => void;
 }) {
+  const { standard } = useViewMode();
   const base = `workspaces/${workspace.id}`;
   // Newest first: the latest package is listed on top and opens by default.
   const list = useLoad(
@@ -113,7 +114,10 @@ export function Gallery({
                     aria-current={a.id === selected?.id ? 'true' : undefined}
                     onClick={() => open('gallery', a.id)}
                   >
-                    Spec v{a.spec.version} · {a.commit.slice(0, 10)}
+                    Spec v{a.spec.version} ·{' '}
+                    {standard
+                      ? `built ${when(a.created_at)}`
+                      : a.commit.slice(0, 10)}
                   </button>{' '}
                   <span className={`badge art-${a.state}`}>{a.state}</span>{' '}
                   <small>
@@ -159,6 +163,7 @@ function ArtifactPanel({
   open: (view: View, id?: string) => void;
   reloadList: () => void;
 }) {
+  const { standard } = useViewMode();
   const detail = useLoad(
     () => api(ArtifactDetailSchema, `${base}/artifacts/${summary.id}`),
     [summary.id],
@@ -195,8 +200,9 @@ function ArtifactPanel({
         {d && (
           <>
             <h3 id="art-title">
-              Package {d.manifest.repository.commit.slice(0, 10)} · spec v
-              {d.manifest.spec.version}
+              {standard
+                ? `Package · spec v${d.manifest.spec.version}`
+                : `Package ${d.manifest.repository.commit.slice(0, 10)} · spec v${d.manifest.spec.version}`}
             </h3>
             <p
               className={`integrity ${d.integrity.ok ? 'ok' : 'error'}`}
@@ -408,19 +414,31 @@ function Facts({ d }: { d: ArtifactDetail }) {
     <details open>
       <summary>Manifest</summary>
       <dl className="facts">
-        <dt>Manifest sha256</dt>
-        <dd>
-          <code>{d.artifact.manifest_sha256}</code>
-        </dd>
-        <dt>Archive sha256</dt>
-        <dd>
-          <code>{m.package.sha256}</code> ({m.package.bytes} bytes,{' '}
-          {m.package.files.length} files)
-        </dd>
-        <dt>Commit</dt>
-        <dd>
-          <code>{m.repository.commit}</code>
-        </dd>
+        {/* P-8: hashes and the commit are for audit, so Advanced (review 2 of #197). */}
+        {standard ? (
+          <>
+            <dt>Package</dt>
+            <dd>
+              {m.package.bytes} bytes, {m.package.files.length} files
+            </dd>
+          </>
+        ) : (
+          <>
+            <dt>Manifest sha256</dt>
+            <dd>
+              <code>{d.artifact.manifest_sha256}</code>
+            </dd>
+            <dt>Archive sha256</dt>
+            <dd>
+              <code>{m.package.sha256}</code> ({m.package.bytes} bytes,{' '}
+              {m.package.files.length} files)
+            </dd>
+            <dt>Commit</dt>
+            <dd>
+              <code>{m.repository.commit}</code>
+            </dd>
+          </>
+        )}
         <dt>Spec</dt>
         <dd>
           v{m.spec.version} · task {m.task.key}
@@ -1331,6 +1349,7 @@ function Compare({
   open: (view: View, id?: string) => void;
   reloadList: () => void;
 }) {
+  const { standard } = useViewMode();
   const others = all.filter((a) => a.id !== summary.id);
   const [other, setOther] = useState(
     summary.previous_id ?? others[0]?.id ?? '',
@@ -1355,7 +1374,8 @@ function Compare({
         <select value={other} onChange={(e) => setOther(e.target.value)}>
           {others.map((a) => (
             <option key={a.id} value={a.id}>
-              spec v{a.spec.version} · {a.commit.slice(0, 10)}
+              spec v{a.spec.version} ·{' '}
+              {standard ? `built ${when(a.created_at)}` : a.commit.slice(0, 10)}
             </option>
           ))}
         </select>

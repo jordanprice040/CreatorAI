@@ -32,8 +32,8 @@ export function EventLine({
           <Money
             key={i}
             nano={p.nano}
-            fixture={fixture ?? false}
-            bare={fixture === undefined}
+            fixture={p.fixture ?? fixture ?? false}
+            bare={p.fixture === undefined && fixture === undefined}
             inButton={inButton}
           />
         ),

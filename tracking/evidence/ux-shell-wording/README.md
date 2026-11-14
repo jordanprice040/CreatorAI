@@ -23,6 +23,17 @@ Independent review: `/mnt/project-files/reviews/PR197_SHELL_WORDING_REVIEW_2026-
 - **L-5.** The Sources link asks Discover's Search the web to show itself (`requestWebSearch()` with no prefill), which scrolls to it and moves focus to its heading.
 - **Nits.** "an autonomous within scope run" (`withArticle`); Approvals › Runs reads the autonomy mode as "human-in-the-loop"; Coverage's target uses `kindLabel` ("spec"); the banner reads "Next: Go to the Freeze step on the main path."; `Money`'s unused `exact` and `decimalToNano` are gone; the `WorkflowStore` doc comment is back above the class; routine approvals show the maximum as money ("$12.50"); history lines carry "sim" or "$" from the workspace (`EventLine fixture`).
 
+## Review 2 fixes (November 14)
+
+Re-review: `/mnt/project-files/reviews/PR197_SHELL_WORDING_REREVIEW_2026-11-14.md` (all review-1 fixes confirmed; 1 Low, 5 nits).
+
+- **R-1.** Standard drops the remaining ids and hashes: Try's package list, heading and Compare picker ("Spec v2 · built <when>"), Try's manifest facts (hashes and commit stay in Advanced; Standard shows the package's size), Devices' demo picker and job history (by spec and time), Build's recovery messages and stop reasons (`plainReason`: "Build waits for your approval"), the Monitor › Runs card (the role's name), Marketing's package picker, and the name-missing fallbacks ("an option no longer listed", "someone" for an unknown actor). Checked with a text dump of every Standard page after building and packaging an artifact on the throwaway studio (the API path of `tests/src/build-retry-web.test.ts`): 0 id or hash lines outside Sources › Library (moving to Advanced in the Discover thread). Devices' job history needs a paired desktop, so it is checked in code only. One sentence keeps an exact nano-USD figure on purpose: the routine approval summary ("exactly 5000000000 nano-USD") is the text the owner confirms and the server compares, so it is not reworded here.
+- **N-a.** History amounts say their own unit: the spending ceiling is real money ("from $20.00 to $25.50"), and a simulated budget reads "100.00 sim" without "(simulated)" after it.
+- **N-b.** Approval questions read "Allow “Freeze a spec” on this spec?".
+- **N-c.** `plainText` rewrites only codes the studio knows, so a name someone wrote (`user_id`) stays as written.
+- **N-d.** An unnamed run reads "Human-in-the-loop run".
+- **N-e.** The PR body's checks are brought up to date.
+
 ## Checks
 
 - `walk.mjs` on a throwaway studio (ports 5183/4330/4340, throwaway PostgreSQL 16 database, fixture seeds, the test-double executor from `tracking/evidence/p1-build-retry/dev-double.mjs`): 21 checks pass (24 after review 1, adding the closed fold, Recent calls in words and the Search the web landing). Screenshots `01`..`09` here.

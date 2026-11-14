@@ -547,7 +547,7 @@ function App() {
       void loadWorkspaces();
     } else go({ ws: startingWorkspace(workspaces), id: '' }, true);
   }, [workspaces, route.ws]);
-  const names = useActors(workspace?.id ?? '');
+  const names = useActors(workspace?.id ?? '', !viewMode.standard);
   const studio = Boolean(persistent && auth.session && workspace);
   const facts = useStudioFacts(
     studio ? workspace : null,

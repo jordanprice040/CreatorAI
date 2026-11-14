@@ -12,6 +12,7 @@ type Words = {
   codeLabel: (code: string) => string;
   kindLabel: (kind: string) => string;
   plainText: (text: string) => string;
+  plainReason: (text: string) => string;
   versionTag: (version: number, standard: boolean) => string;
   ACTION_LABEL: Record<string, string>;
 };
@@ -101,27 +102,38 @@ test('history amounts become exact nano parts, so they show in cents with the ex
     { nano: '428537500' },
     ' held',
   ]);
-  assert.equal(
-    text(
-      plainEvent(
-        'Changed the overall spending ceiling from $20.00 to $25.50 (version 2)',
-      ),
+  // Review 2 of #197, N-a: the ceiling's amounts are real money and carry their own "$".
+  assert.deepEqual(
+    plainEvent(
+      'Changed the overall spending ceiling from $20.00 to $25.50 (version 2)',
     ),
-    'Changed the overall spending ceiling from $[20000000000] to $[25500000000]',
+    [
+      'Changed the overall spending ceiling from ',
+      { nano: '20000000000', fixture: false },
+      ' to ',
+      { nano: '25500000000', fixture: false },
+    ],
   );
   assert.equal(
     text(plainEvent('Reserved 0.4285375 for model.generate attempt 1')),
     'Held [428537500] for model writing',
   );
-  assert.equal(
-    text(plainEvent('Funded workspace budget of 100.00 (simulated)')),
-    'Funded workspace budget of [100000000000] (simulated)',
+  // The amount says "sim", so "(simulated)" is not repeated.
+  assert.deepEqual(
+    plainEvent('Funded workspace budget of 100.00 (simulated)'),
+    ['Funded workspace budget of ', { nano: '100000000000', fixture: true }],
   );
 });
 
 test('every action type has a label, and codes and kinds read as words', async () => {
-  const { ACTION_LABEL, actionLabel, codeLabel, kindLabel, plainText } =
-    await words();
+  const {
+    ACTION_LABEL,
+    actionLabel,
+    codeLabel,
+    kindLabel,
+    plainText,
+    plainReason,
+  } = await words();
   const { ActionTypeSchema } = await import('@creator/contracts');
   for (const a of ActionTypeSchema.options)
     assert.ok(ACTION_LABEL[a], `no label for ${a}`);
@@ -131,9 +143,35 @@ test('every action type has a label, and codes and kinds read as words', async (
   assert.equal(codeLabel('some_new_code'), 'some new code');
   assert.equal(
     plainText('Allow tool.search_public on this run?'),
-    'Allow search the web on this run?',
+    'Allow “Search the web” on this run?',
+  );
+  // Review 2 of #197, N-b: the server's kind and version read as the page's words.
+  assert.equal(
+    plainText('Allow spec.freeze on specification v1?'),
+    'Allow “Freeze a spec” on this spec?',
+  );
+  assert.equal(
+    plainText(
+      'Proceed with product.commit_build on alternative v2 despite: low evidence?',
+    ),
+    'Proceed with “Build” on this option despite: low evidence?',
   );
   assert.equal(plainText('Version 2.5 stays'), 'Version 2.5 stays');
+  assert.equal(
+    plainReason(
+      'Error: Build admission waiting_human; decision 8e974486-44c5-4c84-ad14-db1fbaa67784',
+    ),
+    'Build waits for your approval',
+  );
+  assert.equal(
+    plainReason('Stopped (decision 8e974486-44c5-4c84-ad14-db1fbaa67784)'),
+    'Stopped',
+  );
+  // Review 2, N-c: a name someone wrote (user_id) is not rewritten.
+  assert.equal(
+    plainText('Should user_id stay outside_grant?'),
+    'Should user_id stay no approval covers it?',
+  );
   // Review 1 of #197, L-3: Budgets › Recent calls reads a call's state as words.
   assert.equal(codeLabel('settled'), 'cost recorded');
   assert.equal(codeLabel('reconciled_no_charge'), 'confirmed no charge');
@@ -157,6 +195,11 @@ test('Standard leaves out v1 and run ids; Advanced keeps them', async () => {
   const plain = l.runLabel(run, names, 48, false);
   assert.match(plain, /^Course e-book availability · /);
   assert.doesNotMatch(plain, /9ea73968/);
+  // Review 2 of #197, N-d: an unnamed run's mode matches the Approvals wording.
+  assert.match(
+    l.runLabel(run, new Map(), 48, false),
+    /^Human-in-the-loop run · /,
+  );
   const stored =
     'Discovery run b58cc812-1111-4222-8333-444455556666 (fixture): locator rated the evidence well supported.';
   assert.match(
