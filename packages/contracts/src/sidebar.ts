@@ -97,7 +97,10 @@ export const ActivityNowItemSchema = z.strictObject({
   state: z.string().max(40),
   /** True while it is actually moving (spinner); false when paused, waiting for someone or stale. */
   active: z.boolean(),
-  /** For a plan request, what it is for (qualification, chat, codex_build…); otherwise null. */
+  /**
+   * For a plan request, what it is for (qualification, chat, codex_build…); for a workflow, its
+   * role (r02_discovery…, ADR-0103); otherwise null.
+   */
   purpose: z.string().max(40).nullable(),
   run_id: id.nullable(),
   started_at: timestamp,

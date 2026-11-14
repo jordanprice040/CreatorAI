@@ -181,7 +181,8 @@ export async function activityNow(
           : String(r.reason ?? '').slice(0, 200),
       state: stateText,
       active,
-      purpose: null,
+      // ADR-0103 (review L-2): the role, so the sidebar can open where that work shows.
+      purpose: role.slice(0, 40),
       run_id: String(r.run_id),
       started_at: iso(r.created_at),
     });

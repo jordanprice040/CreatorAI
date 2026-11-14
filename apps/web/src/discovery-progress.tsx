@@ -26,6 +26,21 @@ const TONE_TEXT: Record<ProgressTone, string> = {
   stopped: 'Stopped',
 };
 
+/**
+ * Reveals a heading on the page that is shown once it is there (review N-1, L-2): after moving
+ * to Discover, which may be mounting for the first time, it looks a few times. `reveal` opens
+ * the Discover panel that holds it.
+ */
+export function revealWhenShown(heading: string) {
+  let tries = 0;
+  const look = () => {
+    const page = document.querySelector('.draft-page:not([hidden])');
+    if (page?.querySelector(`#${CSS.escape(heading)}`)) reveal(page, heading);
+    else if (++tries < 20) setTimeout(look, 100);
+  };
+  setTimeout(look, 0);
+}
+
 const hiddenKey = (actor: string, ws: string) =>
   `creator.hiddenDiscoveries.${actor}.${ws}`;
 function readHidden(key: string): Set<string> {
@@ -89,16 +104,26 @@ export function DiscoveryProgress({
     );
     return { list, names, tasks };
   }, [workspace.id, keep]);
-  const rows = d.data
-    ? shownDiscoveries(d.data.list, Date.now(), hidden, keep)
-    : [];
-  const anyLive = rows.some((w) => !w.finished_at);
-  usePoll(d.refresh, 3000, anyLive);
-
   // Tell the page when a discovery it was showing as live has finished, and remember which
   // ones were live while the page was open (Decide keeps listing those once they finish).
   const wasLive = useRef(new Set<string>());
   const [seenLive, setSeenLive] = useState<ReadonlySet<string>>(new Set());
+  // Decide lists a finished discovery only when it ran while the page was open (its earlier
+  // results are already in the Problem list and on Discover), and not when its problem is the
+  // one open. Applied before the cap (review M-1), so it never hides a line that would fit.
+  const include = (w: Workflow) =>
+    where === 'discover'
+      ? true
+      : seenLive.has(w.id) &&
+        w.result?.discovery?.catalog_records.problem?.id !== skipProblem;
+  const rows = d.data
+    ? shownDiscoveries(d.data.list, Date.now(), hidden, keep, include)
+    : [];
+  // Every live discovery is listed, so polling runs while any is live (review M-1).
+  const anyLive = rows.some((w) => !w.finished_at);
+  usePoll(d.refresh, 3000, anyLive);
+  // Review N-3: finished lines after the first are folded, so the start choices stay near.
+  const [more, setMore] = useState(false);
   useEffect(() => {
     if (!d.data) return;
     const nowLive = new Set(
@@ -150,31 +175,37 @@ export function DiscoveryProgress({
     }
   }
 
-  const shown = rows
-    .map((wf) => ({
-      wf,
-      line: discoveryLine(wf, d.data?.tasks.get(wf.id) ?? null),
-    }))
-    // Decide lists a finished discovery only when it ran while the page was open; its earlier
-    // results are already in the Problem list (and on Discover).
-    .filter(
-      ({ wf }) =>
-        where === 'discover' || !wf.finished_at || seenLive.has(wf.id),
-    )
-    .filter(
-      ({ wf, line }) =>
-        !wf.finished_at || wf.id === keep || line.problemId !== skipProblem,
-    );
-  if (shown.length === 0 && !error && !d.error) return null;
-  const viewer = workspace.role === 'viewer';
+  const all = rows.map((wf) => ({
+    wf,
+    line: discoveryLine(wf, d.data?.tasks.get(wf.id) ?? null),
+  }));
+  if (all.length === 0 && !error && !d.error) return null;
+  const firstDone = all.findIndex(({ wf }) => wf.finished_at);
+  const foldable = firstDone < 0 ? 0 : all.length - (firstDone + 1);
+  const folded = more ? 0 : foldable;
+  const shown = all.slice(0, all.length - folded);
+  // Review L-1: the workflow controls are owner-only on the server.
+  const owner = workspace.role === 'owner';
   const onDiscover = where === 'discover';
+  // Review N-5: Discover and Decide stay mounted together, so the id names the page too.
+  const titleId = `dp-title-${where}-${workspace.id}`;
+  // Review N-2: screen readers hear when a discovery's state changes, not every step count.
+  const states = all
+    .map(
+      ({ wf, line }) =>
+        `${runName(wf.run_id, d.data?.names ?? new Map()) || 'Discovery'}: ${TONE_TEXT[line.tone]}`,
+    )
+    .join('; ');
   return (
     <section
       className="discovery-progress"
-      aria-labelledby={`dp-title-${workspace.id}`}
+      aria-labelledby={titleId}
       ref={sectionRef}
     >
-      <h3 id={`dp-title-${workspace.id}`}>Discoveries</h3>
+      <h3 id={titleId}>Discoveries</h3>
+      <p className="sr-only" role="status">
+        {states}
+      </p>
       <StaleNote stale={d.stale} />
       {d.error && (
         <p className="error" role="alert">
@@ -184,7 +215,7 @@ export function DiscoveryProgress({
           </button>
         </p>
       )}
-      <ul aria-live="polite">
+      <ul>
         {shown.map(({ wf, line }) => {
           const name = runName(wf.run_id, d.data?.names ?? new Map());
           return (
@@ -233,9 +264,13 @@ export function DiscoveryProgress({
                       <button
                         type="button"
                         className="secondary"
-                        onClick={() => open('submit')}
+                        onClick={() => {
+                          // Review N-1: on its Search the web panel.
+                          open('submit');
+                          revealWhenShown('web-title');
+                        }}
                       >
-                        Open Discover
+                        Search the web
                       </button>
                     )}
                     <button
@@ -247,7 +282,7 @@ export function DiscoveryProgress({
                     </button>
                   </>
                 )}
-                {!wf.finished_at && !viewer && (
+                {!wf.finished_at && owner && (
                   <>
                     {wf.control === 'pause' ? (
                       <button
@@ -305,6 +340,18 @@ export function DiscoveryProgress({
           );
         })}
       </ul>
+      {foldable > 0 && (
+        <button
+          type="button"
+          className="text small"
+          aria-expanded={more}
+          onClick={() => setMore((m) => !m)}
+        >
+          {more
+            ? 'Show fewer finished discoveries'
+            : `Show ${foldable} more finished`}
+        </button>
+      )}
       {error && (
         <p className="error" role="alert">
           {error}

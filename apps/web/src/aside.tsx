@@ -26,6 +26,8 @@ import {
   type NoteDraft,
 } from './note-drafts.js';
 import { Markdown } from './markdown-view.js';
+import { useViewMode } from './view-mode.js';
+import { revealWhenShown } from './discovery-progress.js';
 
 // ADR-0060: the right-hand sidebar. Two tabs, Activity (what is running now and the latest
 // audit events) and Notes (the person's own named notes for this workspace, saved as they
@@ -207,8 +209,19 @@ function elapsed(iso: string, at: number) {
   return `${Math.floor(h / 24)} days`;
 }
 
-function nowTarget(item: ActivityNowItem): [View, string?] {
-  if (item.kind === 'workflow') return ['runs', item.id];
+function nowTarget(
+  item: ActivityNowItem,
+  standard: boolean,
+): [View, string?, string?] {
+  if (item.kind === 'workflow') {
+    // ADR-0103 (review L-2): Standard opens where the work shows (the third value is the
+    // Discover panel heading to show); Runs is an Advanced tab.
+    if (standard && item.purpose === 'r02_discovery') return ['submit'];
+    if (standard && item.purpose === 'r01_exploration')
+      return ['submit', '', 'explore-title'];
+    if (standard && item.purpose === 'r08_assessment') return ['compare'];
+    return ['runs', item.id];
+  }
   if (item.kind === 'desktop_job') return ['desktop'];
   if (item.kind === 'qualification_queue') return ['models'];
   if (item.purpose === 'chat') return ['chat'];
@@ -422,6 +435,7 @@ function ActivityTab({
   go: (view: View, id?: string) => void;
   opener: ReturnType<typeof useOpenSubject>;
 }) {
+  const { standard } = useViewMode();
   const [at, setAt] = useState(() => Date.now());
   useEffect(() => {
     const t = window.setInterval(() => setAt(Date.now()), 30_000);
@@ -445,10 +459,16 @@ function ActivityTab({
       ) : (
         <ul className="aside-list">
           {feed.now.map((item) => {
-            const [view, id] = nowTarget(item);
+            const [view, id, heading] = nowTarget(item, standard);
             return (
               <li key={`${item.kind}:${item.id}`}>
-                <button className="aside-row" onClick={() => go(view, id)}>
+                <button
+                  className="aside-row"
+                  onClick={() => {
+                    go(view, id);
+                    if (heading) revealWhenShown(heading);
+                  }}
+                >
                   <span className="aside-row-top">
                     <span
                       className={item.active ? 'spinner-dot' : 'idle-dot'}

@@ -26,6 +26,7 @@ type Rules = {
     now: number,
     hidden: ReadonlySet<string>,
     keep?: string,
+    include?: (w: { id: string }) => boolean,
   ): { id: string }[];
 };
 
@@ -117,8 +118,18 @@ test('a live discovery says what it is doing in plain words', async () => {
   const waiting = r.discoveryLine(wf(), [task('propose', 'waiting_human')]);
   assert.equal(waiting.tone, 'waiting');
   assert.equal(waiting.next, 'approvals');
-  const paused = r.discoveryLine(wf({ control: 'pause' }), []);
+  const paused = r.discoveryLine(
+    wf({ control: 'pause', state: 'paused_operator' }),
+    [],
+  );
   assert.equal(paused.next, 'resume');
+  assert.match(paused.text, /^Paused/);
+  // Review L-3: a pause asked for during a running step says it is still pausing.
+  const pausing = r.discoveryLine(wf({ control: 'pause' }), [
+    task('propose', 'leased'),
+  ]);
+  assert.equal(pausing.tone, 'waiting');
+  assert.match(pausing.text, /^Pausing: it stops after the current step/);
   assert.match(r.discoveryLine(wf({ control: 'cancel' }), []).text, /Stopping/);
   assert.equal(r.discoveryLine(wf(), null).text, 'Running.');
   // No internal step codes or task kinds leak into the line.
@@ -213,7 +224,44 @@ test('the list keeps live discoveries and the last day of finished ones', async 
   ];
   const ids = (k?: string) =>
     r.shownDiscoveries(list, now, new Set(['hidden']), k).map((w) => w.id);
-  assert.deepEqual(ids(), ['recent', 'live']);
+  // Live ones come first, then finished ones, newest first.
+  assert.deepEqual(ids(), ['live', 'recent']);
   // The one just started stays listed even when hidden or old.
-  assert.deepEqual(ids('old'), ['recent', 'live', 'old']);
+  assert.deepEqual(ids('old'), ['live', 'old', 'recent']);
+});
+
+test('review M-1: a live discovery is never pushed out by newer finished ones', async () => {
+  const r = (await loadWeb('discovery-progress-rules.ts')) as Rules;
+  const now = T0 + 600_000;
+  const done = (id: string, at: number) =>
+    finished({ id, created_at: iso(at), finished_at: iso(at + 1000) });
+  const list = [
+    wf({ id: 'paused', control: 'pause', state: 'paused_operator' }),
+    done('b', T0 + 10),
+    done('c', T0 + 20),
+    done('d', T0 + 30),
+  ];
+  const ids = (keep = '', include?: (w: { id: string }) => boolean) =>
+    r.shownDiscoveries(list, now, new Set(), keep, include).map((w) => w.id);
+  assert.deepEqual(ids(), ['paused', 'd', 'c']);
+  // Every live one is listed even past the cap.
+  const many = [
+    ...list,
+    wf({ id: 'l2', created_at: iso(T0 + 40) }),
+    wf({ id: 'l3', created_at: iso(T0 + 50) }),
+  ];
+  assert.deepEqual(
+    r.shownDiscoveries(many, now, new Set()).map((w) => w.id),
+    ['l3', 'l2', 'paused'],
+  );
+  // ...and the one just started still gets its line.
+  assert.deepEqual(
+    r.shownDiscoveries(many, now, new Set(), 'b').map((w) => w.id),
+    ['l3', 'l2', 'paused', 'b'],
+  );
+  // Decide's rule is applied before the cap, so it fills the free places.
+  assert.deepEqual(
+    ids('', (w) => w.id !== 'd'),
+    ['paused', 'c', 'b'],
+  );
 });

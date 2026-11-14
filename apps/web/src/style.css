@@ -3040,6 +3040,11 @@ table.usage-options th[scope='row'] {
   background: var(--accent-soft);
   box-shadow: inset 3px 0 0 var(--accent);
 }
+.choices-more {
+  display: flex;
+  justify-content: flex-end;
+  margin: -4px 0 8px;
+}
 .start-choice span {
   font-size: 13px;
   color: var(--text-2);

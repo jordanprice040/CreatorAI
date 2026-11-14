@@ -320,7 +320,7 @@ export function Submit({
 
   const [theme, setTheme] = useState('');
   // ADR-0082 (P19): Discover's Guided/Advanced choice is now the app-wide Standard/Advanced.
-  const { standard: guided } = useViewMode();
+  const { standard: guided, set: setViewMode } = useViewMode();
   // P-7 (ADR-0103): one start panel open at a time. The others stay mounted, hidden, so what
   // was typed or picked in them is kept; this browser remembers the last one per workspace.
   const sectionRef = useRef<HTMLElement>(null);
@@ -967,14 +967,6 @@ export function Submit({
       ref={sectionRef}
     >
       <h2 id="sub-title">Discover</h2>
-      <DiscoveryProgress
-        key={`progress-${workspace.id}`}
-        session={session}
-        workspace={workspace}
-        open={open}
-        where="discover"
-        keep={startedId}
-      />
       <div className="start-choices" role="group" aria-label="How to start">
         {panelsFor(guided, panel).map((c) => (
           <button
@@ -991,10 +983,30 @@ export function Submit({
         ))}
       </div>
       {guided && panel !== 'theme' && (
-        <p className="small muted">
-          Theme drafts (Start with a theme) are listed in Advanced.
+        // Review N-4: the same quiet pointer the tab rows use ("Launch in Advanced").
+        <p className="choices-more">
+          <button
+            type="button"
+            className="text small"
+            title="Advanced lists every tab and opens every setting. Change it any time at the foot of the page list."
+            onClick={() => {
+              setViewMode('advanced');
+              choose('theme');
+            }}
+          >
+            Start with a theme in Advanced
+          </button>
         </p>
       )}
+      {/* Review N-3: below the start choices, so they stay on a phone's first screen. */}
+      <DiscoveryProgress
+        key={`progress-${workspace.id}`}
+        session={session}
+        workspace={workspace}
+        open={open}
+        where="discover"
+        keep={startedId}
+      />
       <div
         id="discover-panel-explore"
         data-panel="explore"

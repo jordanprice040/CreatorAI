@@ -65,8 +65,11 @@ export function discoveryLine(
       );
     if (wf.control === 'cancel')
       return line('running', 'Stopping: it ends after the current step.');
-    if (wf.control === 'pause' || wf.state === 'paused_operator')
+    if (wf.state === 'paused_operator')
       return line('waiting', 'Paused. Resume it to carry on.', 'resume');
+    // Review L-3: a pause asked for while a step is still running takes effect after it.
+    if (wf.control === 'pause')
+      return line('waiting', 'Pausing: it stops after the current step.');
     if (wf.state === 'queued') return line('running', 'Waiting to start.');
     if (wf.state === 'reconciling')
       return line(
@@ -120,25 +123,39 @@ export function discoveryLine(
   );
 }
 
+/** At most this many discoveries are listed, unless more are live. */
+export const MAX_LISTED = 3;
+
 /**
- * The discoveries a page lists: every live one, then finished ones from the last day that the
- * person has not hidden, newest first. `keep` (the one just started) is always listed.
+ * The discoveries a page lists (review M-1): every live one first, newest first, so a paused or
+ * slow one is never pushed out; then, up to `MAX_LISTED` in all, finished ones from the last day
+ * that the person has not hidden and that `include` accepts (Decide's own rule), newest first.
+ * `keep` (the one just started here) is always listed.
  */
 export function shownDiscoveries(
   list: readonly Workflow[],
   now: number,
   hidden: ReadonlySet<string>,
   keep = '',
+  include: (w: Workflow) => boolean = () => true,
 ): Workflow[] {
-  return list
-    .filter((w) => w.role === 'r02_discovery')
+  const newest = (a: Workflow, b: Workflow) =>
+    b.created_at.localeCompare(a.created_at);
+  const ours = list.filter((w) => w.role === 'r02_discovery');
+  const live = ours.filter((w) => !w.finished_at).sort(newest);
+  const finished = ours
     .filter(
       (w) =>
-        w.id === keep ||
-        !w.finished_at ||
-        (!hidden.has(w.id) &&
-          now - Date.parse(w.finished_at) < KEEP_FINISHED_MS),
+        w.finished_at &&
+        (w.id === keep ||
+          (!hidden.has(w.id) &&
+            now - Date.parse(w.finished_at) < KEEP_FINISHED_MS &&
+            include(w))),
     )
-    .sort((a, b) => b.created_at.localeCompare(a.created_at))
-    .slice(0, 3);
+    .sort((a, b) => (a.id === keep ? -1 : b.id === keep ? 1 : newest(a, b)));
+  const room = Math.max(
+    MAX_LISTED - live.length,
+    finished[0]?.id === keep && keep ? 1 : 0,
+  );
+  return [...live, ...finished.slice(0, room)];
 }
