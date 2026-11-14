@@ -98,7 +98,11 @@ async function load<T>(file: string, stubs: Record<string, unknown> = {}) {
             ? { useOnShow: () => {}, useShown: () => 0 }
             : name === './older.js'
               ? { useOlder: () => {}, ShowOlder: () => null }
-              : require(name),
+              : name === './money.js'
+                ? { Money: () => null }
+                : name === './view-mode.js'
+                  ? { useViewMode: () => ({ standard: true }) }
+                  : require(name),
     exports,
   );
   return exports;
@@ -107,25 +111,47 @@ async function load<T>(file: string, stubs: Record<string, unknown> = {}) {
 test('money keeps every significant digit and drops trailing zeros', async () => {
   const { money } = await load<{
     money: (nano: string | null, fixture: boolean) => string;
-  }>('budgets.tsx', {
-    './oversight.js': {},
-    './desktop-app.js': {},
-    './versions.js': {},
-    './labels.js': {},
-    './ui.js': {},
-    '../../../config/pricing/fixture-model-v1.json': {},
-    './pricing-bundle.js': {},
-    './pricing-fields.js': {},
-    './charge.js': {},
-    './owner-actions.js': {},
-    './reason-form.js': {},
-  });
+  }>('amounts.ts');
   assert.equal(money('55770000', true), '0.05577 sim');
   assert.equal(money('0', true), '0.00 sim');
   assert.equal(money('100000000000', false), '$100.00');
   assert.equal(money('1', false), '$0.000000001');
   assert.equal(money('-2500000000', false), '-$2.50');
   assert.equal(money(null, false), '—');
+});
+
+test('P-9: Standard shows cents, never a real charge as zero, and knows when it rounded', async () => {
+  const { cents, roundedAway } = await load<{
+    cents: (
+      nano: string | null,
+      fixture: boolean,
+      round?: 'half' | 'down',
+    ) => string;
+    roundedAway: (nano: string | null) => boolean;
+  }>('amounts.ts');
+  // "99.97259 sim" and "0.69665 sim charged" from the final UX pass walk.
+  assert.equal(cents('99972590000', true), '99.97 sim');
+  assert.equal(cents('696650000', true), '0.70 sim');
+  assert.equal(cents('15000000', false), '$0.02'); // half a cent rounds up
+  assert.equal(cents('14999999', false), '$0.01');
+  assert.equal(cents('4999999', false), '<$0.01');
+  assert.equal(cents('1', false), '<$0.01');
+  assert.equal(cents('9999999', true), '<0.01 sim'); // below a cent never rounds up to it
+  assert.equal(cents('0', false), '$0.00');
+  assert.equal(cents('-2500000000', false), '-$2.50');
+  assert.equal(cents('-1', false), '-<$0.01');
+  assert.equal(cents('99995000000', false), '$100.00');
+  assert.equal(cents(null, false), '—');
+  assert.equal(roundedAway('2500000000'), false);
+  assert.equal(roundedAway('55770000'), true);
+  assert.equal(roundedAway('1'), true);
+  assert.equal(roundedAway(null), false);
+  // Review 1 of #197, L-4: what is left rounds down, so $19.995 left never reads $20.00.
+  assert.equal(cents('19995000000', false, 'down'), '$19.99');
+  assert.equal(cents('19995000000', false), '$20.00');
+  assert.equal(cents('99972590000', true, 'down'), '99.97 sim');
+  assert.equal(cents('9999999', false, 'down'), '<$0.01'); // still never zero
+  assert.equal(cents('2500000000', false, 'down'), '$2.50');
 });
 
 test('problem labels clip at words and note problems with nothing proposed', async () => {

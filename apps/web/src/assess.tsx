@@ -1,3 +1,5 @@
+import { versionTag } from './plain-words.js';
+import { useViewMode } from './view-mode.js';
 import { usePoll } from './page-active.js';
 import { useEffect, useState } from 'react';
 import {
@@ -45,7 +47,6 @@ import { refusalFixes, type FixAction } from './fix-here.js';
 import { newestFirst } from './versions.js';
 import { envelopesFor } from './build-defaults.js';
 import { useLoad, type View, StaleNote } from './ui.js';
-import { useViewMode } from './view-mode.js';
 import { LinkClaims } from './link-claims.js';
 import { rangeEnds } from './claim-suggest.js';
 import { preferredRoute } from './model-choice.js';
@@ -1241,12 +1242,14 @@ function SystemExplanation({
   card: StoredEntity;
   claims: { id: string; title: string }[];
 }) {
+  const { standard } = useViewMode();
   const b = card.body as unknown as ScorecardBody | undefined;
   const a = b?.assessment;
   if (!b || !a) return null;
   const criteria = RUBRICS[b.rubric].criteria;
   const claimName = (id: string, version: number) => {
     const c = claims.find((x) => x.id.toLowerCase() === id.toLowerCase());
+    if (standard) return c ? c.title : 'a claim no longer listed';
     return `${c ? c.title : `claim ${id.slice(0, 8)}`} (v${version})`;
   };
   return (
@@ -1306,10 +1309,12 @@ function SystemExplanation({
         {a.route === 'fixture'
           ? 'Fixture rules'
           : `${a.model_id}${a.provider ? ` via ${a.provider}` : ''} (${a.route})`}{' '}
-        · assessed {new Date(card.created_at).toLocaleString()} · problem v
-        {a.problem.version} · {a.role_version} · prompt{' '}
-        {a.prompt_hash.slice(0, 8)} · rubric {b.rubric_version} · workflow{' '}
-        {a.workflow_id.slice(0, 8)}
+        · assessed {new Date(card.created_at).toLocaleString()}
+        {/* Review 3 of #197, L-2: role, prompt, rubric and workflow ids are Advanced. */}
+        {standard
+          ? versionTag(a.problem.version, true) &&
+            ` · problem ${versionTag(a.problem.version, true)}`
+          : ` · problem v${a.problem.version} · ${a.role_version} · prompt ${a.prompt_hash.slice(0, 8)} · rubric ${b.rubric_version} · workflow ${a.workflow_id.slice(0, 8)}`}
       </p>
     </details>
   );

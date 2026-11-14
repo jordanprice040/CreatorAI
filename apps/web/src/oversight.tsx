@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { actionLabel, codeLabel, kindLabel, plainText } from './plain-words.js';
+import { money } from './amounts.js';
+import { useViewMode } from './view-mode.js';
 import { useOnShow, usePageActive } from './page-drafts.js';
 import { RoutinePolicies } from './routine-policy.js';
-import { runLabel } from './labels.js';
+import { runLabel, runRef } from './labels.js';
 import { Fold, FoldAll, useFolds, type Folds } from './fold.js';
 import { clearOtherTransfers, resetTransfers } from './transfers.js';
 import {
@@ -290,7 +293,9 @@ export function SignIn({
   );
 }
 
-export function Coverage({ d }: { d: Decision }) {
+export function Coverage({ d, fixture }: { d: Decision; fixture: boolean }) {
+  // P-8: hashes and record ids are Advanced detail; the server binds them either way.
+  const { standard } = useViewMode();
   const b = d.binding;
   if (!b)
     return (
@@ -303,34 +308,41 @@ export function Coverage({ d }: { d: Decision }) {
     <dl className="coverage">
       <div>
         <dt>Action</dt>
-        <dd>{words(b.action_type)}</dd>
+        <dd>{standard ? actionLabel(b.action_type) : words(b.action_type)}</dd>
       </div>
       <div>
         <dt>Target</dt>
         <dd>
           {b.target
-            ? `${b.target.kind} ${b.target.id.slice(0, 8)} · v${b.target.version}`
+            ? standard
+              ? kindLabel(b.target.kind)
+              : `${b.target.kind} ${b.target.id.slice(0, 8)} · v${b.target.version}`
             : 'none'}
         </dd>
       </div>
-      <div>
-        <dt>Content hash</dt>
-        <dd>
-          <code>{short(b.target?.content_hash)}</code>
-        </dd>
-      </div>
-      <div>
-        <dt>Spec hash</dt>
-        <dd>
-          <code>{short(b.spec_hash)}</code>
-        </dd>
-      </div>
+      {!standard && (
+        <div>
+          <dt>Content hash</dt>
+          <dd>
+            <code>{short(b.target?.content_hash)}</code>
+          </dd>
+        </div>
+      )}
+      {!standard && (
+        <div>
+          <dt>Spec hash</dt>
+          <dd>
+            <code>{short(b.spec_hash)}</code>
+          </dd>
+        </div>
+      )}
       <div>
         <dt>Amount</dt>
         <dd>
+          {/* P-9: approving spends, so the exact maximum is shown, never rounded. */}
           {b.amount_nano_usd === null
             ? 'no spend'
-            : `${b.amount_nano_usd} nano-USD`}
+            : `up to ${money(b.amount_nano_usd, fixture)}`}
         </dd>
       </div>
       <div>
@@ -350,18 +362,27 @@ function DecisionCard({
   focused,
   folds,
   names,
+  runText,
   csrf,
   workspace,
+  fixture,
   onDone,
 }: {
   d: Decision;
   focused: boolean;
   folds: Folds;
   names: (id: string) => string;
+  /** The run the approval is for, in a sentence: its name in Standard, its id in Advanced. */
+  runText: (runId: string) => string;
   csrf: string;
   workspace: string;
+  /** Fixture workspaces count simulated units, not dollars. */
+  fixture: boolean;
   onDone: (choice: string) => void;
 }) {
+  // P-8: Standard reads stored codes as phrases ("no approval covers it").
+  const { standard } = useViewMode();
+  const said = standard ? codeLabel : words;
   const opened = useRef(Date.now());
   const [rationale, setRationale] = useState('');
   const [standing, setStanding] = useState(false);
@@ -420,13 +441,13 @@ function DecisionCard({
                 closed card still has a heading. */}
             <h3 className="question fold-title">
               {d.status === 'pending' ? 'Decision needed' : 'Decision'}:{' '}
-              {d.question}
+              {standard ? plainText(d.question) : d.question}
             </h3>
             <span className="fold-line small">
-              {words(d.reason)} · {d.status}
-              {d.closed_reason ? ` (${words(d.closed_reason)})` : ''}
+              {said(d.reason)} · {d.status}
+              {d.closed_reason ? ` (${said(d.closed_reason)})` : ''}
               {pending ? ` · expires ${when(d.expires_at)}` : ''}
-              {d.response ? ` · answered: ${words(d.response.choice)}` : ''}
+              {d.response ? ` · answered: ${said(d.response.choice)}` : ''}
               {!d.coverage.current && pending && (
                 <>
                   {' · '}
@@ -440,18 +461,20 @@ function DecisionCard({
         }
       >
         <p className="small">
-          Asked by {names(d.requested_by)} on {when(d.created_at)} for run{' '}
-          {d.run_id.slice(0, 8)}
+          Asked by {names(d.requested_by)} on {when(d.created_at)} for{' '}
+          {runText(d.run_id)}
         </p>
         <dl>
           <div>
             <dt>Evidence</dt>
             <dd>
-              {d.evidence_refs.length
-                ? d.evidence_refs
-                    .map((r) => `${r.id.slice(0, 8)} v${r.version}`)
-                    .join(', ')
-                : 'none cited'}
+              {d.evidence_refs.length === 0
+                ? 'none cited'
+                : standard
+                  ? `${d.evidence_refs.length} record${d.evidence_refs.length === 1 ? '' : 's'} cited`
+                  : d.evidence_refs
+                      .map((r) => `${r.id.slice(0, 8)} v${r.version}`)
+                      .join(', ')}
             </dd>
           </div>
           <div>
@@ -464,11 +487,20 @@ function DecisionCard({
           </div>
           <div>
             <dt>Blocks</dt>
-            <dd>{d.blocked_work.join('; ') || '—'}</dd>
+            <dd>
+              {(standard ? d.blocked_work.map(plainText) : d.blocked_work).join(
+                '; ',
+              ) || '—'}
+            </dd>
           </div>
           <div>
             <dt>Can continue</dt>
-            <dd>{d.unblocked_work.join('; ') || '—'}</dd>
+            <dd>
+              {(standard
+                ? d.unblocked_work.map(plainText)
+                : d.unblocked_work
+              ).join('; ') || '—'}
+            </dd>
           </div>
           {d.recommendation && (
             <div>
@@ -480,7 +512,7 @@ function DecisionCard({
           )}
         </dl>
         <h3>What this decision covers</h3>
-        <Coverage d={d} />
+        <Coverage d={d} fixture={fixture} />
         {!d.coverage.current && pending && (
           <p className="error" role="alert">
             The target changed after this request. It cannot be approved; a new
@@ -643,6 +675,7 @@ export function Oversight({
   focus: string;
   names: (id: string) => string;
 }) {
+  const { standard } = useViewMode();
   const workspace = current.id;
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [grants, setGrants] = useState<Grant[]>([]);
@@ -805,7 +838,9 @@ export function Oversight({
   });
   const policyRun = (runId: string) => {
     const r = runs.find((x) => x.run_id === runId);
-    return r ? runLabel(r, runNames) : `run ${runId.slice(0, 8)}`;
+    return r
+      ? runLabel(r, runNames, 48, !standard)
+      : runRef(runId, runNames, !standard);
   };
   return (
     <section className="panel records" aria-labelledby="oversight-title">
@@ -859,8 +894,10 @@ export function Oversight({
                 focused={d.id === focus}
                 folds={decisionFolds}
                 names={names}
+                runText={(id) => runRef(id, runNames, !standard)}
                 csrf={session.csrf_token}
                 workspace={workspace}
+                fixture={current.record_mode === 'fixture'}
                 onDone={(choice) => {
                   setJustApproved(choice.startsWith('approve'));
                   void load();
@@ -877,8 +914,12 @@ export function Oversight({
             <ul>
               {runs.map((r) => (
                 <li key={r.run_id}>
-                  <span className="kind">{words(r.autonomy_mode)}</span>{' '}
-                  {runLabel(r, runNames)} · {r.state}
+                  <span className="kind">
+                    {standard
+                      ? codeLabel(r.autonomy_mode)
+                      : words(r.autonomy_mode)}
+                  </span>{' '}
+                  {runLabel(r, runNames, 48, !standard)} · {r.state}
                   <small>
                     {' '}
                     gates: {r.stage_gates.map(words).join(', ') || 'none'}
@@ -936,10 +977,12 @@ export function Oversight({
             <ul>
               {standing.map((g) => (
                 <li key={g.id}>
-                  <span className="kind">v{g.version}</span>{' '}
-                  {g.action_types.map(words).join(', ')} ·{' '}
-                  {g.run_id ? `run ${g.run_id.slice(0, 8)}` : 'whole workspace'}{' '}
-                  · until {when(g.expires_at)}{' '}
+                  {!standard && <span className="kind">v{g.version}</span>}{' '}
+                  {g.action_types
+                    .map(standard ? actionLabel : words)
+                    .join(', ')}{' '}
+                  · {g.run_id ? policyRun(g.run_id) : 'whole workspace'} · until{' '}
+                  {when(g.expires_at)}{' '}
                   <button className="text" onClick={() => void revoke(g)}>
                     Revoke
                   </button>

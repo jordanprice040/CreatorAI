@@ -893,8 +893,10 @@ function ProposalEditor({
                   )
                   .map((x) => (
                     <li key={x.id}>
-                      Claim {x.id.slice(0, 8)} v{x.version} (not linked to this
-                      problem now){' '}
+                      {standard
+                        ? 'A claim from earlier'
+                        : `Claim ${x.id.slice(0, 8)} v${x.version}`}{' '}
+                      (not linked to this problem now){' '}
                       {editable && (
                         <button
                           type="button"

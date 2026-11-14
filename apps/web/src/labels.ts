@@ -1,3 +1,5 @@
+import type { WorkflowRole } from '@creator/contracts';
+
 // Pure label helpers for record and run pickers: short, distinct labels that put the part
 // of a title that differs first, then when it was made, so a dropdown of look-alike records
 // can be told apart at a glance. No imports, so they can be tested without a browser.
@@ -68,17 +70,30 @@ export function runName(
 /**
  * A run's picker label: its name (the discovery theme, for discovery runs), when it
  * started and its short id, so two runs on the same theme still read differently.
- * Without a name it falls back to the oversight mode.
+ * Without a name it falls back to the oversight mode. P-8: the Standard view passes
+ * `id: false`, since ids are Advanced detail; the start time still tells runs apart.
  */
+/**
+ * An autonomy mode as the Standard view words it, matching `codeLabel` in plain-words.ts
+ * ("human-in-the-loop"; review 2 of #197, N-d). Kept here so labels.ts stays import-free.
+ */
+const modeWords = (mode: string) =>
+  mode === 'human_in_loop'
+    ? 'human-in-the-loop'
+    : mode === 'human_led'
+      ? 'human-led'
+      : mode.replace(/_/g, ' ');
+
 export function runLabel(
   run: { run_id: string; created_at: string; autonomy_mode: string },
   names: ReadonlyMap<string, string>,
   max = 48,
+  id = true,
 ) {
   const name = runName(run.run_id, names);
   const head = name
     ? clipText(name, max)
-    : `${upper(run.autonomy_mode.replace(/_/g, ' '))} run`;
+    : `${upper(id ? run.autonomy_mode.replace(/_/g, ' ') : modeWords(run.autonomy_mode))} run`;
   // A title that already carries its start time ("Autopilot · Nov 14, 2026, 1:07 AM") does not
   // repeat it (final UX pass).
   // Only the stamp the studio itself writes ("Nov 14, 2026, 1:07 AM"), not any year and time
@@ -86,20 +101,35 @@ export function runLabel(
   const dated = /\b[A-Z][a-z]{2} \d{1,2}, \d{4}, \d{1,2}:\d{2}\s?[AP]M\b/.test(
     head,
   );
-  return `${head}${dated ? '' : ` · ${shortWhen(run.created_at)}`} · ${run.run_id.slice(0, 8)}`;
+  return `${head}${dated ? '' : ` · ${shortWhen(run.created_at)}`}${id ? ` · ${run.run_id.slice(0, 8)}` : ''}`;
+}
+
+/**
+ * A run named inside a sentence (P-8). Advanced keeps "run 3fa2b1c0"; Standard gives the
+ * run's name in quotes, or "a run with no name", and never the id (review 1 of #197, L-2).
+ */
+export function runRef(
+  runId: string,
+  names: ReadonlyMap<string, string>,
+  id = true,
+  max = 48,
+) {
+  if (id) return `run ${runId.slice(0, 8)}`;
+  const name = runName(runId, names);
+  return name ? `run “${clipText(name, max)}”` : 'a run with no name';
 }
 
 /**
  * Final UX pass: a discovery's stored uncertainty text, easier to scan. The run's full id
- * becomes its short id, and the run of "No claim in the packet addresses X." sentences
+ * becomes its short id (P-8: left out when `ids` is false, as in the Standard view), and the run of "No claim in the packet addresses X." sentences
  * becomes one "Not covered by any claim: X, Y and Z." The stored text is unchanged.
  */
-export function plainUncertainty(text: string): string {
+export function plainUncertainty(text: string, ids = true): string {
   const missing: string[] = [];
   const rest = text
     .replace(
-      /\b([0-9a-f]{8})-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/g,
-      '$1',
+      /( ?)\b([0-9a-f]{8})-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/g,
+      (_, space: string, short: string) => (ids ? `${space}${short}` : ''),
     )
     // An item ends at the period that ends its sentence, not at one inside it such as "e.g."
     // (review 1 of #192, N-6).
@@ -153,3 +183,18 @@ export function distinctLabels<T extends { id: string }>(
     ]),
   );
 }
+
+/**
+ * Each workflow role as the pages name it, shared by Overview and Monitor › Runs. A record,
+ * so a new role fails typecheck instead of reading as another role (reviews 3 and 4 of #197).
+ */
+export const ROLE_NAME: Record<WorkflowRole, string> = {
+  r02_discovery: 'Discovery',
+  r01_exploration: 'Explore for me',
+  r08_assessment: 'Automatic assessment',
+  r05_skeptic: 'Skeptic review',
+};
+
+/** A role carried as text (Overview's attention list), named from `ROLE_NAME`. */
+export const roleName = (role: string) =>
+  ROLE_NAME[role as WorkflowRole] ?? role.replace(/_/g, ' ');

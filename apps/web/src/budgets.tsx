@@ -1,4 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { Routine } from './routine.js';
+import { useViewMode } from './view-mode.js';
 import {
   BrokerCallResultSchema,
   BrokerStatusSchema,
@@ -18,7 +20,7 @@ import {
 import { api, ApiError, message, when, words } from './oversight.js';
 import { newestFirst } from './versions.js';
 import { ShowOlder, useOlder } from './older.js';
-import { runLabel } from './labels.js';
+import { runLabel, runRef } from './labels.js';
 import { runNames } from './ui.js';
 // The same file `pnpm cli pricing-add` takes; bundled so a fixture studio needs no CLI.
 import fixturePricing from '../../../config/pricing/fixture-model-v1.json';
@@ -31,6 +33,12 @@ import {
   samePricing,
 } from './pricing-fields.js';
 import { RecordCharge } from './charge.js';
+import { money } from './amounts.js';
+import { Money } from './money.js';
+import { actionLabel, codeLabel } from './plain-words.js';
+
+/** Exact amounts; kept here for the pages that already import it from Budgets. */
+export { money };
 import {
   budgetCloseBlocker,
   REASON_MAX,
@@ -39,23 +47,6 @@ import {
 } from './owner-actions.js';
 import { ReasonForm } from './reason-form.js';
 
-/**
- * Exact decimal display of nano-USD: every non-zero digit is kept, trailing zeros past the
- * cents are dropped. Fixture amounts are simulated units, not money.
- */
-export function money(nano: string | null, fixture: boolean): string {
-  if (nano === null) return '—';
-  const v = BigInt(nano);
-  const sign = v < 0n ? '-' : '';
-  const abs = v < 0n ? -v : v;
-  const whole = abs / 1_000_000_000n;
-  const frac = (abs % 1_000_000_000n)
-    .toString()
-    .padStart(9, '0')
-    .replace(/0+$/, '')
-    .padEnd(2, '0');
-  return `${sign}${fixture ? '' : '$'}${whole}.${frac}${fixture ? ' sim' : ''}`;
-}
 /**
  * Stored settlement notes ("Charged 55770000 of 428537500 reserved.") repeat the amounts
  * already shown above them, in raw nano units; the list leaves them out.
@@ -91,20 +82,26 @@ function Bar({ e }: { e: Envelope }) {
             <dt>
               <i className={`dot m-${k}`} aria-hidden="true" /> {label}
             </dt>
-            <dd>{money(v, e.fixture)}</dd>
+            <dd>
+              <Money nano={v} fixture={e.fixture} />
+            </dd>
           </div>
         ))}
         <div>
           <dt>Available</dt>
           <dd>
-            <strong>{money(e.available, e.fixture)}</strong> of{' '}
-            {money(e.cap, e.fixture)}
+            <strong>
+              <Money nano={e.available} fixture={e.fixture} down />
+            </strong>{' '}
+            of <Money nano={e.cap} fixture={e.fixture} />
           </dd>
         </div>
         {e.rollup_incurred !== e.incurred && (
           <div>
             <dt>Including child budgets</dt>
-            <dd>{money(e.rollup_incurred, e.fixture)} charged</dd>
+            <dd>
+              <Money nano={e.rollup_incurred} fixture={e.fixture} /> charged
+            </dd>
           </div>
         )}
       </dl>
@@ -133,6 +130,7 @@ export function Budgets({
   session: SessionInfo;
   workspace: Workspace;
 }) {
+  const { standard } = useViewMode();
   const workspace = current.id;
   const [fundName, setFundName] = useState('');
   const [fundCap, setFundCap] = useState('');
@@ -148,6 +146,9 @@ export function Budgets({
   );
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [pricing, setPricing] = useState<PricingSnapshot[]>([]);
+  // Review 1 of #197, L-1: the fold opens for "no pricing yet" only once the list has
+  // loaded, so it does not open on the empty first render and stay open.
+  const [pricingLoaded, setPricingLoaded] = useState(false);
   const [runs, setRuns] = useState<RunControl[]>([]);
   const [names, setNames] = useState<Map<string, string>>(new Map());
   const [status, setStatus] = useState('');
@@ -195,6 +196,7 @@ export function Budgets({
       }
       setReservations(r);
       setPricing(p);
+      setPricingLoaded(true);
       setRuns(rr.filter((x) => x.state === 'active'));
       setNames(n);
       setEnvelopeId((c) =>
@@ -388,7 +390,7 @@ export function Budgets({
                 <p className="small">
                   {e.in_flight} in flight now · at most {e.max_in_flight} at
                   once
-                  {e.run_id ? ` · run ${e.run_id.slice(0, 8)}` : ''}
+                  {e.run_id ? ` · ${runRef(e.run_id, names, !standard)}` : ''}
                   {e.ends_at
                     ? ` · ${when(e.starts_at!)} – ${when(e.ends_at)}`
                     : ''}
@@ -497,95 +499,113 @@ export function Budgets({
               </button>
             </form>
           )}
-          <h3>Pricing snapshots</h3>
-          {pricing.length === 0 ? (
-            <p className="small">
-              None yet. A model call or discovery run needs one to reserve its
-              maximum cost.
-            </p>
-          ) : (
-            <ul className="small">
-              {pricing.map((p) => (
-                <li key={p.id}>
-                  {p.body.provider}/{p.body.model_id} · {p.body.basis}
-                  {p.body.basis === 'documented' &&
-                    ` · prices as of ${p.body.retrieved_at.slice(0, 10)}`}{' '}
-                  · added {when(p.created_at)}
-                </li>
-              ))}
-            </ul>
-          )}
-          {current.role === 'owner' &&
-            (current.record_mode === 'fixture' ? (
-              !pricing.some(
-                (p) => p.body.model_id === fixturePricing.model_id,
-              ) && (
-                <button
-                  className="secondary"
-                  disabled={busy}
-                  onClick={() => void addPricing(fixturePricing)}
-                >
-                  Add fixture pricing (simulated units)
-                </button>
-              )
+          {/* Final UX pass, section 6: pricing is setup, and the fixture call is a
+              diagnostic, so Standard folds both once pricing exists. */}
+          <Routine
+            summary={
+              pricing.length === 0
+                ? 'Pricing snapshots: none yet'
+                : `Pricing snapshots: ${pricing.length} recorded`
+            }
+            open={pricingLoaded && pricing.length === 0}
+          >
+            <h3>Pricing snapshots</h3>
+            {pricing.length === 0 ? (
+              <p className="small">
+                None yet. A model call or discovery run needs one to reserve its
+                maximum cost.
+              </p>
             ) : (
-              <DocumentedPricing
-                pricing={pricing}
-                busy={busy}
-                add={(body) => void addPricing(body)}
-              />
-            ))}
+              <ul className="small">
+                {pricing.map((p) => (
+                  <li key={p.id}>
+                    {p.body.provider}/{p.body.model_id} · {p.body.basis}
+                    {p.body.basis === 'documented' &&
+                      ` · prices as of ${p.body.retrieved_at.slice(0, 10)}`}{' '}
+                    · added {when(p.created_at)}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {current.role === 'owner' &&
+              (current.record_mode === 'fixture' ? (
+                !pricing.some(
+                  (p) => p.body.model_id === fixturePricing.model_id,
+                ) && (
+                  <button
+                    className="secondary"
+                    disabled={busy}
+                    onClick={() => void addPricing(fixturePricing)}
+                  >
+                    Add fixture pricing (simulated units)
+                  </button>
+                )
+              ) : (
+                <DocumentedPricing
+                  pricing={pricing}
+                  busy={busy}
+                  add={(body) => void addPricing(body)}
+                />
+              ))}
+          </Routine>
           {current.record_mode === 'fixture' &&
             envelopes.length > 0 &&
             runs.length > 0 &&
             pricing.length > 0 && (
-              <form onSubmit={submit}>
-                <h3>Try a fixture call</h3>
-                <label htmlFor="bprompt">Prompt</label>
-                <input
-                  id="bprompt"
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                />
-                <label htmlFor="benv">Budget</label>
-                <select
-                  id="benv"
-                  value={envelopeId}
-                  onChange={(e) => setEnvelopeId(e.target.value)}
-                >
-                  {envelopes.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.name} · {e.status}
-                    </option>
-                  ))}
-                </select>
-                <label htmlFor="brun">Run</label>
-                <select
-                  id="brun"
-                  value={runId}
-                  onChange={(e) => setRunId(e.target.value)}
-                >
-                  {runs.map((r) => (
-                    <option key={r.run_id} value={r.run_id}>
-                      {runLabel(r, names)}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  className="primary"
-                  disabled={busy || !prompt.trim() || !envelopeId || !runId}
-                  type="submit"
-                >
-                  Reserve and send <span aria-hidden="true">→</span>
-                </button>
-                {last && (
-                  <p className="small" role="status">
-                    <strong>{words(last.status)}</strong> (
-                    {words(last.reason_code)}): {last.explanation}
-                    {last.output?.text ? ` Output: “${last.output.text}”` : ''}
-                  </p>
-                )}
-              </form>
+              <Routine summary="Try a fixture call (a check of the budget path)">
+                <form onSubmit={submit}>
+                  <h3>Try a fixture call</h3>
+                  <label htmlFor="bprompt">Prompt</label>
+                  <input
+                    id="bprompt"
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                  />
+                  <label htmlFor="benv">Budget</label>
+                  <select
+                    id="benv"
+                    value={envelopeId}
+                    onChange={(e) => setEnvelopeId(e.target.value)}
+                  >
+                    {envelopes.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.name} · {e.status}
+                      </option>
+                    ))}
+                  </select>
+                  <label htmlFor="brun">Run</label>
+                  <select
+                    id="brun"
+                    value={runId}
+                    onChange={(e) => setRunId(e.target.value)}
+                  >
+                    {runs.map((r) => (
+                      <option key={r.run_id} value={r.run_id}>
+                        {runLabel(r, names, 48, !standard)}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    className="primary"
+                    disabled={busy || !prompt.trim() || !envelopeId || !runId}
+                    type="submit"
+                  >
+                    Reserve and send <span aria-hidden="true">→</span>
+                  </button>
+                  {last && (
+                    <p className="small" role="status">
+                      <strong>{words(last.status)}</strong> (
+                      {standard
+                        ? codeLabel(last.reason_code)
+                        : words(last.reason_code)}
+                      ): {last.explanation}
+                      {last.output?.text
+                        ? ` Output: “${last.output.text}”`
+                        : ''}
+                    </p>
+                  )}
+                </form>
+              </Routine>
             )}
         </div>
         <div>
@@ -599,13 +619,13 @@ export function Budgets({
                   <span className={`kind res-${r.status}`}>
                     {STATUS_NOTE[r.status]}
                   </span>{' '}
-                  {words(r.action_type)} · {r.provider}/{r.model_id} · attempt{' '}
-                  {r.attempt}
+                  {standard ? actionLabel(r.action_type) : words(r.action_type)}{' '}
+                  · {r.provider}/{r.model_id} · attempt {r.attempt}
                   <br />
                   <small>
-                    {words(r.reason_code)} · reserved{' '}
-                    {money(r.reserved, r.fixture)} · charged{' '}
-                    {money(r.incurred, r.fixture)}
+                    {standard ? codeLabel(r.reason_code) : words(r.reason_code)}{' '}
+                    · reserved <Money nano={r.reserved} fixture={r.fixture} /> ·
+                    charged <Money nano={r.incurred} fixture={r.fixture} />
                     {r.usage
                       ? ` · ${r.usage.uncached_input_tokens + r.usage.cached_input_tokens + r.usage.cache_write_tokens} in / ${r.usage.output_tokens} out tokens`
                       : ''}{' '}

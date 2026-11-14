@@ -331,6 +331,19 @@ function discoveryTaskContext(
 }
 
 /**
+ * A discovered problem's title: "<brief>: <observable problem>". Final UX pass N-2: when the
+ * brief was written from that same problem (as the autopilot does), the title says it once
+ * instead of "X.: X.", and the brief's closing period never sits before the colon.
+ */
+export function problemTitle(brief: string, observable: string): string {
+  const b = brief.trim().replace(/[.\s]+$/, '');
+  const o = observable.trim();
+  if (!b || b.toLowerCase() === o.replace(/[.\s]+$/, '').toLowerCase())
+    return o;
+  return `${b}: ${o}`;
+}
+
+/**
  * Durable workflows (migration 4): a coordinator per run, tasks with leases and fencing
  * tokens, and wake-ups from decisions through the outbox. Lock order (ADR-0098) is run control,
  * then workflow row, then task rows; the broker, in its own transaction, locks run control and
@@ -1661,7 +1674,7 @@ export class WorkflowStore extends BudgetStore {
       );
     const problem = await create(
       'problem',
-      `${d.packet.brief.title}: ${out.observable_problem}`,
+      problemTitle(d.packet.brief.title, out.observable_problem),
       {
         statement: clip(out.problem_statement, 2000),
         affected_group: clip(out.affected_users, 500),

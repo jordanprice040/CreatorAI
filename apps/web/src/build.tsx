@@ -1,6 +1,8 @@
+import { plainReason } from './plain-words.js';
 import { InlineApproval } from './inline-approval.js';
 import { decisionInReason } from './inline-approval-rules.js';
 import { SpecForm, type SpecFormMode } from './spec-form.js';
+import { useViewMode } from './view-mode.js';
 import { usePoll } from './page-active.js';
 import { HumilityForm } from './humility.js';
 import {
@@ -143,6 +145,7 @@ export function BuildView({
   session: SessionInfo;
   open: (view: View, id?: string) => void;
 }) {
+  const { standard } = useViewMode();
   const base = `workspaces/${workspace.id}`;
   const fixture = workspace.record_mode === 'fixture';
   const owner = workspace.role === 'owner';
@@ -403,8 +406,11 @@ export function BuildView({
                 <ul className="rows">
                   {unwritten.map((u) => (
                     <li key={`${u.selection_id}:${u.alternative.id}`}>
-                      {u.option?.title ?? u.alternative.id.slice(0, 8)}{' '}
-                      <small>v{u.alternative.version}</small>{' '}
+                      {u.option?.title ??
+                        (standard
+                          ? 'An option no longer listed'
+                          : u.alternative.id.slice(0, 8))}{' '}
+                      {!standard && <small>v{u.alternative.version} </small>}
                       <button
                         className="secondary"
                         onClick={() => {
@@ -702,6 +708,7 @@ function ProductVersions({
   versions: ProductEntry[];
   render: (entry: ProductEntry) => ReactNode;
 }) {
+  const { standard } = useViewMode();
   const [pick, setPick] = useState('');
   const shown =
     versions.find((v) => v.product.id === pick) ?? versions[0] ?? null;
@@ -721,7 +728,7 @@ function ProductVersions({
           >
             {versions.map((v, i) => (
               <option key={v.product.id} value={v.product.id}>
-                {`v${v.product.binding.spec_version} · product ${shortId(v.product.id)}${
+                {`v${v.product.binding.spec_version}${standard ? '' : ` · product ${shortId(v.product.id)}`}${
                   v.builds[0] ? ` · ${STATE_LABEL[v.builds[0].state]}` : ''
                 }${i === 0 ? ' (latest)' : ''}`}
               </option>
@@ -930,6 +937,7 @@ function Product({
   /** ADR-0087: where the owner presses fixes for a refused build start. */
   fixes: FixContext;
 }) {
+  const { standard } = useViewMode();
   const p = entry.product;
   // Only the newest: once a later build ran, an old interruption needs nothing more.
   const newest = entry.builds[0];
@@ -950,8 +958,8 @@ function Product({
   return (
     <article className="artifact">
       <h4>
-        {spec?.spec.title ?? 'Spec'} v{p.binding.spec_version} · product{' '}
-        {shortId(p.id)}
+        {spec?.spec.title ?? 'Spec'} v{p.binding.spec_version}
+        {!standard && ` · product ${shortId(p.id)}`}
       </h4>
       {p.recipe === 'static-web/1' && (
         <p className="notice">
@@ -1021,8 +1029,10 @@ function Product({
                     return 'Nothing was locked, so nothing changed.';
                   return `Recovered: ${[
                     ...released.map((l) => `${l} lock released`),
-                    ...reconciled.map(
-                      (id) => `test run ${shortId(id)} confirmed stopped`,
+                    ...reconciled.map((id) =>
+                      standard
+                        ? 'a test run confirmed stopped'
+                        : `test run ${shortId(id)} confirmed stopped`,
                     ),
                   ].join(', ')}. You can build this product again.`;
                 },
@@ -1075,7 +1085,8 @@ function Product({
               builds[0]?.state === 'checkpoint' && (
                 <p className="small">
                   The last build stopped. Building again continues from its last
-                  candidate ({task.head.slice(0, 8)}) under a new approval.
+                  candidate{standard ? '' : ` (${task.head.slice(0, 8)})`} under
+                  a new approval.
                 </p>
               )}
             {task && owner && current && (
@@ -1116,11 +1127,18 @@ function Product({
               <ul className="rows">
                 {builds.map((b) => (
                   <li key={b.id}>
-                    <span className="badge">{STATE_LABEL[b.state]}</span> build{' '}
-                    {shortId(b.id)} · started {when(b.started_at)}
+                    <span className="badge">{STATE_LABEL[b.state]}</span> build
+                    {!standard && ` ${shortId(b.id)}`} · started{' '}
+                    {when(b.started_at)}
                     {b.fixture && ' · fixture'}
                     {b.reason && (
-                      <small> · {b.reason.replace(/^Error: /, '')}</small>
+                      <small>
+                        {' '}
+                        ·{' '}
+                        {standard
+                          ? plainReason(b.reason)
+                          : b.reason.replace(/^Error: /, '')}
+                      </small>
                     )}
                     {b.state === 'checkpoint' &&
                       b === builds[0] &&
@@ -1129,6 +1147,7 @@ function Product({
                         <InlineApproval
                           key={decisionInReason(b.reason)}
                           workspace={workspaceId}
+                          fixture={fixture}
                           decisionId={decisionInReason(b.reason)!}
                           csrf={fixes.csrf}
                           owner={owner}
@@ -1293,6 +1312,7 @@ function StartBuild({
   /** ADR-0087: where the owner presses fixes for the reasons below in place. */
   fixes?: FixContext;
 }) {
+  const { standard } = useViewMode();
   const reviews = data.reviews.filter((r) => {
     const s = (r.body as { subject?: { id?: string; version?: number } })
       .subject;
@@ -1456,7 +1476,7 @@ function StartBuild({
     chosenHere ? 'changed here' : 'studio default';
   const runName = data.runs.find((r) => r.run_id === runId);
   const recordsSummary = [
-    `Run: ${runName ? runLabel(runName, data.names) : 'none'}`,
+    `Run: ${runName ? runLabel(runName, data.names, 48, !standard) : 'none'}`,
     `budget: ${data.budgets.find((b) => b.id === budgetId)?.name ?? 'none'}`,
     `review: ${chosen ? recordLabel(chosen) : 'none for this version'}`,
     sourceOf(run || budget || price || review),
@@ -1507,7 +1527,7 @@ function StartBuild({
           {data.runs.length === 0 && <option value="">No active run</option>}
           {data.runs.map((r) => (
             <option key={r.run_id} value={r.run_id}>
-              {runLabel(r, data.names)}
+              {runLabel(r, data.names, 48, !standard)}
             </option>
           ))}
         </select>

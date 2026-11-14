@@ -1,3 +1,4 @@
+import { Money } from './money.js';
 import { useEffect, useState, type FormEvent } from 'react';
 import {
   SEARCH_TYPES,
@@ -308,9 +309,26 @@ export function Search({
                               {h.match !== 'text'
                                 ? ` · matched ${words(h.match)}`
                                 : ''}
-                              {h.amounts
-                                ? ` · incurred ${h.amounts.incurred} nano-USD${h.amounts.unknown !== '0' ? `, ${h.amounts.unknown} unknown` : ''}${h.amounts.fixture ? ' (simulated)' : ''}`
-                                : ''}
+                              {h.amounts && (
+                                <>
+                                  {' '}
+                                  · incurred{' '}
+                                  <Money
+                                    nano={h.amounts.incurred}
+                                    fixture={h.amounts.fixture}
+                                  />
+                                  {h.amounts.unknown !== '0' && (
+                                    <>
+                                      ,{' '}
+                                      <Money
+                                        nano={h.amounts.unknown}
+                                        fixture={h.amounts.fixture}
+                                      />{' '}
+                                      unknown
+                                    </>
+                                  )}
+                                </>
+                              )}
                             </small>
                             <div>
                               <SnippetText snippet={h.snippet} />

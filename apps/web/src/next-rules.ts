@@ -449,7 +449,11 @@ export function nextStep(view: StepView, f: StudioFacts): Step {
       if (f.claims === 0)
         return {
           tone: 'next',
-          text: 'Fetch approved sources below and record the claims a discovery will use.',
+          // P-14: Fetch needs a run, so with none the line names that step first.
+          text:
+            f.runs === 0
+              ? 'Register a run for fetching below, then fetch approved sources and record the claims a discovery will use, or let Discover › Search the web find pages.'
+              : 'Fetch approved sources below and record the claims a discovery will use.',
         };
       return pipelineStep(f);
     case 'submit':
@@ -817,32 +821,57 @@ const PROJECT_VIEWS: readonly StepView[] = [
 ];
 
 /**
- * The main path in a few words, for the short line on pages outside Projects: which stage
- * is current and how it stands, or that the path is finished, and the tab that takes it.
+ * P-15 (final UX pass): the short path summary in the Next banner's own shape, so every page
+ * shows guidance the same way: a lead ("Next", "Blocked", "All clear"), one sentence, and the
+ * page that takes the step.
  */
-export function pathSummary(f: StudioFacts): { text: string; view: StepView } {
+export function pathBanner(f: StudioFacts): {
+  tone: Step['tone'];
+  text: string;
+  view: StepView;
+} {
   const { stages, step, finished } = pathStages(f);
   if (finished) {
     const route = routeOf(f);
     if (route === 'non_code')
-      return { text: 'finished: the proposal is reviewed', view: 'path' };
+      return {
+        tone: 'clear',
+        text: 'The main path is finished: the proposal is reviewed as ready.',
+        view: 'path',
+      };
     if (route === 'none')
-      return { text: 'waiting on another selection', view: 'compare' };
+      return {
+        tone: 'next',
+        text: 'Record another selection: the last one advanced no option.',
+        view: 'compare',
+      };
     return step.tone === 'next'
       ? {
-          text: 'revising from your feedback is next',
+          tone: 'next',
+          text: 'Revise this product from your feedback on the main path.',
           view: step.action?.view ?? 'gallery',
         }
-      : { text: 'finished for this product', view: 'path' };
+      : {
+          tone: 'clear',
+          text: 'The main path is finished for this product.',
+          view: 'path',
+        };
   }
   const s = stages.find((x) => x.state !== 'done' && x.state !== 'skipped')!;
-  const how =
-    s.state === 'blocked'
-      ? 'is blocked'
-      : s.state === 'running'
-        ? 'is in progress'
-        : 'is next';
-  return { text: `${s.label} ${how}`, view: s.view };
+  if (s.state === 'blocked')
+    return {
+      tone: 'blocked',
+      text: `${s.label} on the main path is blocked.`,
+      view: s.view,
+    };
+  return {
+    tone: 'next',
+    text:
+      s.state === 'running'
+        ? `${s.label} is in progress on the main path.`
+        : `Go to the ${s.label} step on the main path.`,
+    view: s.view,
+  };
 }
 
 /**

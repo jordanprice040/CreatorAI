@@ -1,4 +1,8 @@
+import { runRef } from './labels.js';
+import { runNames } from './ui.js';
+import { useViewMode } from './view-mode.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Money } from './money.js';
 import {
   UsageSummarySchema,
   type PlanConnectionUsage,
@@ -21,6 +25,9 @@ import {
   watchAfterWrite,
 } from './usage-refresh.js';
 import './usage.css';
+
+const upperFirst = (s: string) =>
+  s ? `${s[0]!.toUpperCase()}${s.slice(1)}` : s;
 
 // Runbook step 9: one glance at the limits that stop work. Plan requests are counted against
 // the studio's own caps exactly as admission counts them (rolling 24 hours); the provider's own
@@ -119,6 +126,24 @@ function PlanBlock({
   csrf: string;
   reload: () => void;
 }) {
+  const { standard } = useViewMode();
+  // P-8: Standard names each run rather than showing its id (review 1 of #197, L-2).
+  // The names are a nicety: `runNames` answers an empty map when it cannot read them, and a
+  // run without one reads "a run with no name", so there is no failure to show here.
+  const hasRuns = standard && p.runs.length > 0;
+  const [runTitles, setRunTitles] = useState<ReadonlyMap<string, string>>(
+    () => new Map(),
+  );
+  useEffect(() => {
+    if (!hasRuns) return;
+    let live = true;
+    void runNames(`workspaces/${workspace.id}`).then((n) => {
+      if (live) setRunTitles(n);
+    });
+    return () => {
+      live = false;
+    };
+  }, [workspace.id, hasRuns]);
   const provider = PROVIDER[p.kind];
   const extra = extraLine(p.daily.extras, p.daily.configured_cap);
   const tone = planTone(p);
@@ -184,7 +209,11 @@ function PlanBlock({
               key={r.run_id}
               className={r.requests >= r.cap ? 'usage-alert' : undefined}
             >
-              <span>Run {r.run_id.slice(0, 8)}</span>
+              <span>
+                {standard
+                  ? upperFirst(runRef(r.run_id, runTitles, false))
+                  : `Run ${r.run_id.slice(0, 8)}`}
+              </span>
               <span>
                 {r.requests} of {r.cap} per-run requests
                 {r.requests >= r.cap && ' (cap reached)'}
@@ -269,9 +298,11 @@ export function UsagePanel({
         {c ? (
           <>
             <p className="usage-line">
-              <strong>{money(c.exposure_nano_usd, false)}</strong> of{' '}
-              {money(c.ceiling_nano_usd, false)} ceiling ·{' '}
-              {money(c.remaining_nano_usd, false)} left
+              <strong>
+                <Money nano={c.exposure_nano_usd} fixture={false} />
+              </strong>{' '}
+              of <Money nano={c.ceiling_nano_usd} fixture={false} /> ceiling ·{' '}
+              <Money nano={c.remaining_nano_usd} fixture={false} down /> left
             </p>
             <Meter
               used={Number(BigInt(c.exposure_nano_usd) / 1_000_000n)}
@@ -433,8 +464,18 @@ export function UsageIndicator({
             )}
             {usage.api_cost && (
               <span>
-                API {money(usage.api_cost.exposure_nano_usd, false)}/
-                {money(usage.api_cost.ceiling_nano_usd, false)}
+                API{' '}
+                <Money
+                  nano={usage.api_cost.exposure_nano_usd}
+                  fixture={false}
+                  inButton
+                />
+                /
+                <Money
+                  nano={usage.api_cost.ceiling_nano_usd}
+                  fixture={false}
+                  inButton
+                />
               </span>
             )}
             {!top && !usage.api_cost && <span>Usage</span>}

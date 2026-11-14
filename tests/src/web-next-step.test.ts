@@ -150,6 +150,15 @@ test('pages that cannot act yet say why and link to where it is fixed', async ()
     'evidence',
   );
   assert.equal(nextStep('payments', { ...done, artifacts: 0 }).tone, 'blocked');
+  // P-14: with no run to fetch under, Sources names registering one first.
+  assert.match(
+    nextStep('evidence', { ...done, claims: 0, runs: 0 }).text,
+    /^Register a run for fetching below, then fetch/,
+  );
+  assert.match(
+    nextStep('evidence', { ...done, claims: 0 }).text,
+    /^Fetch approved sources below/,
+  );
 });
 
 test('waiting decisions come first on the monitor and show as a note elsewhere', async () => {
@@ -572,7 +581,7 @@ type MoreRules = Omit<Rules, 'pathStages'> & {
     finished: boolean;
   };
   lineStyle: (view: string, f: Facts) => 'full' | 'short';
-  pathSummary: (f: Facts) => { text: string; view: string };
+  pathBanner: (f: Facts) => { tone: string; text: string; view: string };
 };
 
 const tried = (feedback: Facts) => ({
@@ -644,7 +653,7 @@ test('a finished path never reads "Next:" on pages that only repeat it', async (
 });
 
 test('the full line shows on Projects and on pages it is about; elsewhere a short summary', async () => {
-  const { lineStyle, pathSummary } = await load<MoreRules>('next-rules.ts');
+  const { lineStyle, pathBanner } = await load<MoreRules>('next-rules.ts');
   for (const view of ['path', 'build', 'gallery', 'submit', 'marketing'])
     assert.equal(lineStyle(view, done), 'full', view);
   for (const view of ['settings', 'models', 'chat', 'catalog', 'decisions'])
@@ -655,26 +664,36 @@ test('the full line shows on Projects and on pages it is about; elsewhere a shor
   assert.equal(lineStyle('chat', { ...done, pending: 2 }), 'full');
   assert.equal(lineStyle('decisions', { ...done, pending: 1 }), 'full');
   assert.equal(lineStyle('overview', { ...done, attention: 1 }), 'full');
-  // The summary names the current stage, or that the path is finished.
-  assert.deepEqual(pathSummary(done), { text: 'Try is next', view: 'gallery' });
-  assert.deepEqual(pathSummary({ ...done, frozenSpecs: 0 }), {
-    text: 'Freeze is next',
+  // P-15: the summary is a Next banner naming the current stage, or that the path is finished.
+  assert.deepEqual(pathBanner(done), {
+    tone: 'next',
+    text: 'Go to the Try step on the main path.',
+    view: 'gallery',
+  });
+  assert.deepEqual(pathBanner({ ...done, frozenSpecs: 0 }), {
+    tone: 'next',
+    text: 'Go to the Freeze step on the main path.',
     view: 'scores',
   });
-  assert.equal(
-    pathSummary({
+  assert.deepEqual(
+    pathBanner({
       ...done,
       product: { ...(done.product as Facts), build: 'failed' },
-    }).text,
-    'Build is blocked',
+    }),
+    {
+      tone: 'blocked',
+      text: 'Build on the main path is blocked.',
+      view: 'build',
+    },
   );
+  assert.deepEqual(pathBanner(tried({ total: 1, accepted: 0, undecided: 1 })), {
+    tone: 'clear',
+    text: 'The main path is finished for this product.',
+    view: 'path',
+  });
   assert.equal(
-    pathSummary(tried({ total: 1, accepted: 0, undecided: 1 })).text,
-    'finished for this product',
-  );
-  assert.equal(
-    pathSummary(tried({ total: 1, accepted: 1, undecided: 0 })).text,
-    'revising from your feedback is next',
+    pathBanner(tried({ total: 1, accepted: 1, undecided: 0 })).text,
+    'Revise this product from your feedback on the main path.',
   );
 });
 
@@ -750,7 +769,7 @@ const proposalFacts = (p: Facts = {}) => ({
 });
 
 test('a non-code selection branches the Path to Proposal and Review, and it finishes (P-2)', async () => {
-  const { pathStages, nextStep, pathSummary } =
+  const { pathStages, nextStep, pathBanner } =
     await load<MoreRules>('next-rules.ts');
   const keys = (f: Facts) =>
     pathStages(f).stages.map((s) => `${s.key}:${s.state}`);
@@ -792,10 +811,11 @@ test('a non-code selection branches the Path to Proposal and Review, and it fini
   assert.match(end.step.text, /path is finished/);
   assert.deepEqual(nextStep('path', finished), end.step);
   assert.deepEqual(nextStep('proposals', finished), end.step);
-  assert.equal(
-    pathSummary(finished).text,
-    'finished: the proposal is reviewed',
-  );
+  assert.deepEqual(pathBanner(finished), {
+    tone: 'clear',
+    text: 'The main path is finished: the proposal is reviewed as ready.',
+    view: 'path',
+  });
   // A reviewed version with required sections unknown again (a later revision) is not done.
   assert.equal(
     pathStages(
@@ -806,7 +826,7 @@ test('a non-code selection branches the Path to Proposal and Review, and it fini
 });
 
 test('a software selection goes on to Spec, and a selection that advanced nothing ends the Path (P-2)', async () => {
-  const { pathStages, pathSummary } = await load<MoreRules>('next-rules.ts');
+  const { pathStages, pathBanner } = await load<MoreRules>('next-rules.ts');
   // Software: Selection is done once recorded, and Spec is next on Build.
   const sw = pathStages(chose('software'));
   const spec = sw.stages.find((s) => s.key === 'spec')!;
@@ -821,7 +841,11 @@ test('a software selection goes on to Spec, and a selection that advanced nothin
   assert.equal(none.finished, true);
   assert.equal(none.step.tone, 'clear');
   assert.match(none.step.text, /chose no option to build/);
-  assert.equal(pathSummary(chose('none')).text, 'waiting on another selection');
+  assert.deepEqual(pathBanner(chose('none')), {
+    tone: 'next',
+    text: 'Record another selection: the last one advanced no option.',
+    view: 'compare',
+  });
   // Before any selection, Selection is next and Spec says where each choice goes.
   const before = pathStages(chose(null, null, 0));
   assert.equal(before.stages.find((s) => s.key === 'selection')?.state, 'next');

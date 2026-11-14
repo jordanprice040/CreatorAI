@@ -19,7 +19,7 @@ import {
   feedbackCounts,
   lineStyle,
   nextStep,
-  pathSummary,
+  pathBanner,
   pathSpecReviewed,
   workflowCounts,
   type BuildState,
@@ -240,6 +240,8 @@ export function useStudioFacts(
   return facts;
 }
 
+const LEAD = { blocked: 'Blocked', clear: 'All clear', next: 'Next' } as const;
+
 /**
  * One line above the tabs: what comes next on this tab, or why it is blocked, with a button
  * to the tab that takes the step, named by page and tab when it is on another page.
@@ -283,34 +285,32 @@ export function NextStep({
       )}
     </>
   );
-  // Outside Projects the line would only repeat the path's step, so it shrinks to a summary.
+  // Outside Projects the line would only repeat the path's step, so it shrinks to a summary,
+  // shown in the same Next banner as everywhere else (P-15).
   if (lineStyle(view, facts) === 'short') {
-    const path = pathSummary(facts);
+    const path = pathBanner(facts);
     return (
       <aside
-        className="next-step next-short"
-        aria-label="Where the main path stands"
+        className={`next-step next-${path.tone}`}
+        aria-label="What's next on the main path"
       >
-        <p className="small">
-          Main path: {path.text}.{' '}
-          <button
-            type="button"
-            className="text"
-            onClick={() => open(path.view)}
-          >
-            Open {placeLabel(path.view, view)}
-          </button>
+        <p>
+          <strong>{LEAD[path.tone]}:</strong> {path.text}{' '}
+          {path.view !== view && (
+            <button
+              type="button"
+              className="text"
+              onClick={() => open(path.view)}
+            >
+              Open {placeLabel(path.view, view)}
+            </button>
+          )}
         </p>
         {notes}
       </aside>
     );
   }
-  const lead =
-    step.tone === 'blocked'
-      ? 'Blocked'
-      : step.tone === 'clear'
-        ? 'All clear'
-        : 'Next';
+  const lead = LEAD[step.tone];
   return (
     <aside
       className={`next-step next-${step.tone}`}
