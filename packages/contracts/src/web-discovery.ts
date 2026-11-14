@@ -283,7 +283,7 @@ export const WebClaimProposalSchema = z.strictObject({
   contradicting_sources: counter,
   decision: z.enum(['pending', 'admitted', 'dismissed']),
   claim_id: id.nullable(),
-  admitted_via: z.enum(['owner', 'routine_policy']).nullable(),
+  admitted_via: z.enum(['owner', 'routine_policy', 'autopilot']).nullable(),
   decided_by: id.nullable(),
   decided_at: timestamp.nullable(),
   decision_reason: z.string().max(500).nullable(),
