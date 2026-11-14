@@ -1,3 +1,4 @@
+import { useViewMode } from './view-mode.js';
 import { useState, type FormEvent } from 'react';
 import {
   DesktopDeviceSchema,
@@ -192,6 +193,7 @@ function PairedJobs({
   workspace: Workspace;
   session: SessionInfo | null;
 }) {
+  const { standard } = useViewMode();
   const history = useLoad(
     () => api(z.array(DesktopJobSchema), `desktop/devices/${device.id}/jobs`),
     [device.id],
@@ -278,7 +280,9 @@ function PairedJobs({
             )
             .map((a) => (
               <option key={a.id} value={a.id}>
-                {a.id} · {a.commit.slice(0, 10)}
+                {standard
+                  ? `Spec v${a.spec.version} · built ${when(a.created_at)}`
+                  : `${a.id} · ${a.commit.slice(0, 10)}`}
               </option>
             ))}
         </select>
@@ -333,10 +337,11 @@ function PairedJobs({
       )}
       {history.data?.map((job) => (
         <article key={job.id} className="decision">
-          <h5>{job.id}</h5>
+          <h5>{standard ? `Job started ${when(job.created_at)}` : job.id}</h5>
           <p>
-            {job.state} · exact manifest {job.manifest_sha256.slice(0, 12)} ·{' '}
-            {when(job.created_at)}
+            {job.state}
+            {!standard &&
+              ` · exact manifest ${job.manifest_sha256.slice(0, 12)} · ${when(job.created_at)}`}
           </p>
           <p>
             Verification: worker report only. Local compute billing: not

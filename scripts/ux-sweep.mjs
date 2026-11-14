@@ -159,6 +159,8 @@ for (const s of shots) {
         continue;
       // Inline links inside running text are exempt from 2.5.8.
       if (el.tagName === 'A' && style.display === 'inline') continue;
+      // So are the Standard view's amounts (P-9), which open to their exact value in place.
+      if (el.matches('button.money')) continue;
       if (r.width < 24 || r.height < 24)
         small.push(
           `${el.tagName.toLowerCase()} "${(el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 40)}" ${Math.round(r.width)}×${Math.round(r.height)}`,

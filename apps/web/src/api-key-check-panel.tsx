@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Money } from './money.js';
 import {
   z,
   ApiKeyStatusSchema,
@@ -527,9 +528,10 @@ export function ApiKeyCheck({
                 <strong>{outcome.headline}</strong>
               </p>
               <p className="small">
-                {when(outcome.at)} · charged {money(outcome.incurred, false)} (
-                {money(outcome.reserved, false)} was reserved) · from the
-                documented price, not an invoice.
+                {when(outcome.at)} · charged{' '}
+                <Money nano={outcome.incurred} fixture={false} /> (
+                <Money nano={outcome.reserved} fixture={false} /> was reserved)
+                · from the documented price, not an invoice.
                 {outcome.reply !== null && outcome.reply.trim()
                   ? ` Reply: “${outcome.reply.trim().slice(0, 200)}”.`
                   : ''}
@@ -545,7 +547,7 @@ export function ApiKeyCheck({
                     {when(r.created_at)} · {r.provider}/{r.model_id} ·{' '}
                     {r.status}
                     {r.reason_code !== r.status ? ` (${r.reason_code})` : ''} ·
-                    charged {money(r.incurred, false)}
+                    charged <Money nano={r.incurred} fixture={false} />
                   </li>
                 ))}
               </ul>

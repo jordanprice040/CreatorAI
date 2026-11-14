@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useViewMode } from './view-mode.js';
 import { InlineApproval } from './inline-approval.js';
 import {
   FreezeOutcomeSchema,
@@ -49,6 +50,7 @@ export function Ranking({
   ranking: RubricRanking;
   names: Map<string, string>;
 }) {
+  const { standard } = useViewMode();
   const changed = ranking.sensitivity.scenarios.filter(
     (s) => s.shortlist_changed,
   );
@@ -134,7 +136,13 @@ export function Ranking({
                         Unresolved against{' '}
                         {c.overlaps_with
                           .map((id) =>
-                            clip(names.get(id) ?? id.slice(0, 8), 40),
+                            clip(
+                              names.get(id) ??
+                                (standard
+                                  ? 'an option no longer listed'
+                                  : id.slice(0, 8)),
+                              40,
+                            ),
                           )
                           .join('; ')}
                       </div>
@@ -207,6 +215,7 @@ function FreezeSpec({
   workspaceId: string;
   frozen: () => void;
 }) {
+  const { standard } = useViewMode();
   const runId = selectionRun;
   const [justification, setJustification] = useState('');
   const [outcome, setOutcome] = useState<FreezeOutcome | null>(null);
@@ -247,8 +256,9 @@ function FreezeSpec({
         to. Later edits make a new version and show which tasks changed.
       </p>
       <p className="small">
-        Recorded under run {selectionRun.slice(0, 8)}, the run that made this
-        spec&apos;s selection.
+        {standard
+          ? 'Recorded under the run that made this spec’s selection.'
+          : `Recorded under run ${selectionRun.slice(0, 8)}, the run that made this spec’s selection.`}
       </p>
       <label htmlFor="frz-why">Why this version is ready</label>
       <textarea
@@ -356,6 +366,7 @@ export function Scoring({
   onFocus: (problemId: string) => void;
   open: (view: View, id?: string) => void;
 }) {
+  const { standard } = useViewMode();
   const desktop = useDesktopApp();
   const workspace = current.id;
   const [problems, setProblems] = useState<StoredEntity[]>([]);
@@ -550,9 +561,15 @@ export function Scoring({
             names={names}
           />
           <p className="small">
-            Report <code>{report.report_hash.slice(0, 12)}</code> · a selection
-            must name this hash, so a decision is never made on a changed
-            report.
+            {standard ? (
+              'A selection is tied to this exact report, so a decision is never made on a changed report.'
+            ) : (
+              <>
+                Report <code>{report.report_hash.slice(0, 12)}</code> · a
+                selection must name this hash, so a decision is never made on a
+                changed report.
+              </>
+            )}
           </p>
         </>
       )}
@@ -597,7 +614,9 @@ export function Scoring({
                           <span className="kind">{words(d.disposition)}</span>{' '}
                           {clip(
                             names.get(d.alternative.id.toLowerCase()) ??
-                              d.alternative.id.slice(0, 8),
+                              (standard
+                                ? 'An option no longer listed'
+                                : d.alternative.id.slice(0, 8)),
                             80,
                           )}
                           <small>

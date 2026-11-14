@@ -182,9 +182,19 @@ export const RevokeRoutinePolicyRequestSchema = z.strictObject({
   expected_version: version,
   reason: short,
 });
+/**
+ * Exact dollars from nano-USD, every non-zero digit kept ("$50.00", "$0.004"): the same rule
+ * as the web's `money`. The routine summary is where the owner authorizes spending, so its
+ * maximum is exact and in dollars (review 3 of #197, L-1; P-9).
+ */
 const dollars = (nano: string) => {
-  const cents = (BigInt(nano) + 5_000_000n) / 10_000_000n;
-  return `$${cents / 100n}.${String(cents % 100n).padStart(2, '0')}`;
+  const v = BigInt(nano);
+  const frac = (v % 1_000_000_000n)
+    .toString()
+    .padStart(9, '0')
+    .replace(/0+$/, '')
+    .padEnd(2, '0');
+  return `$${v / 1_000_000_000n}.${frac}`;
 };
 /**
  * The one up-front summary of a routine approval policy, in the order the form shows it.
@@ -204,7 +214,7 @@ export function routinePolicySummary(p: RoutinePolicyInput): string[] {
     `Limits: at most ${p.max_actions} step${p.max_actions === 1 ? '' : 's'} in total; ${
       p.max_total_nano_usd === null
         ? 'no step that states a money amount'
-        : `steps that state a money amount up to about ${dollars(p.max_total_nano_usd)} in total (the sum of each step's stated maximum; exactly ${p.max_total_nano_usd} nano-USD)`
+        : `steps that state a money amount up to ${dollars(p.max_total_nano_usd)} in total (the sum of each step's stated maximum)`
     }; ends ${until.slice(0, 10)} ${until.slice(11, 16)} UTC. Budgets, spending limits and connection request caps still apply as well.`,
     ...stops.map((s) => ROUTINE_STOP_TEXT[s]),
     'Never covered: publishing, sending messages, payments, GitHub changes, account or access changes, raising budgets, or changing this policy.',

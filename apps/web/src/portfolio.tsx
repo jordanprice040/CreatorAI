@@ -7,6 +7,7 @@ import {
   type SessionInfo,
 } from '@creator/contracts';
 import { api, message } from './oversight.js';
+import { Money } from './money.js';
 import { useOnShow } from './page-active.js';
 import { ShowOlder, useOlder } from './older.js';
 
@@ -225,8 +226,14 @@ export function Portfolio({
           <dl>
             <dt>Mode</dt>
             <dd>{p?.mode}</dd>
-            <dt>Maintenance reserve available (nano-USD)</dt>
-            <dd>{view.state.reserve_available}</dd>
+            <dt>Maintenance reserve available</dt>
+            <dd>
+              <Money
+                nano={view.state.reserve_available}
+                fixture={workspace.record_mode === 'fixture'}
+                down
+              />
+            </dd>
             <dt>Due maintenance / review backlog / active capacity</dt>
             <dd>
               {view.state.maintenance_due} / {view.state.review_backlog} /{' '}

@@ -1,4 +1,6 @@
+import { useViewMode } from './view-mode.js';
 import { Fragment, useState, type FormEvent } from 'react';
+import { Money } from './money.js';
 import {
   ArtifactSummarySchema,
   EntitlementSchema,
@@ -109,6 +111,7 @@ export function Payments({
   workspace: Workspace;
   open: (view: View, id?: string) => void;
 }) {
+  const { standard } = useViewMode();
   const base = `workspaces/${workspace.id}`;
   const fixture = workspace.record_mode === 'fixture';
   const viewer = workspace.role === 'viewer';
@@ -266,7 +269,8 @@ export function Payments({
                     )}
                     <small>
                       {' '}
-                      · release {shortId(o.artifact_id)} · {when(o.created_at)}
+                      · {!standard && `release ${shortId(o.artifact_id)} · `}
+                      {when(o.created_at)}
                       {replaced.has(o.id) &&
                         ' · buyers can no longer check out; archive it and offer the current release'}
                     </small>
@@ -338,7 +342,9 @@ export function Payments({
                 {Object.entries(d.balances.balances).map(([k, v]) => (
                   <Fragment key={k}>
                     <dt>{ACCOUNT_LABEL[k] ?? words(k)}</dt>
-                    <dd>{usd(asShown(k, v))}</dd>
+                    <dd>
+                      <Money nano={asShown(k, v)} fixture={!!fixture} />
+                    </dd>
                   </Fragment>
                 ))}
               </dl>
@@ -364,8 +370,8 @@ export function Payments({
                     {e.customer_ref}
                     <small>
                       {' '}
-                      · offer {shortId(e.offer_id)} · {e.reason} ·{' '}
-                      {when(e.updated_at)}
+                      · {!standard && `offer ${shortId(e.offer_id)} · `}
+                      {e.reason} · {when(e.updated_at)}
                     </small>
                   </li>
                 ))}
@@ -653,6 +659,7 @@ function AddOffer({
   busy: boolean;
   act: Act;
 }) {
+  const { standard } = useViewMode();
   // Fall back to the first valid option when the lists change under the open form.
   const [connPick, setConnectionId] = useState('');
   const connectionId = connections.some((c) => c.id === connPick)
@@ -717,8 +724,9 @@ function AddOffer({
           >
             {artifacts.map((a) => (
               <option key={a.id} value={a.id}>
-                {shortId(a.id)} · spec v{a.spec.version} ·{' '}
-                {a.commit.slice(0, 10)}
+                {standard
+                  ? `Spec v${a.spec.version} · built ${when(a.created_at)}`
+                  : `${shortId(a.id)} · spec v${a.spec.version} · ${a.commit.slice(0, 10)}`}
               </option>
             ))}
           </select>

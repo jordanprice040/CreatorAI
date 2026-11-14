@@ -692,7 +692,7 @@ export function Submit({
       value:
         runChoice === 'new'
           ? `A new run, ${newMode === 'supervised' ? 'supervised: it asks before every consequential step' : 'human in the loop: it asks at stage gates'}`
-          : `Continues ${existingRun && c ? runLabel(existingRun, c.names) : 'the chosen run'}`,
+          : `Continues ${existingRun && c ? runLabel(existingRun, c.names, 48, !guided) : 'the chosen run'}`,
       source:
         runChoice === 'new' ? sourceText('oversight', newMode) : 'changed here',
     },
@@ -1404,7 +1404,7 @@ export function Submit({
                     <option value="new">Register a new run</option>
                     {c.runs.map((r) => (
                       <option key={r.run_id} value={r.run_id}>
-                        Existing: {runLabel(r, c.names)}
+                        Existing: {runLabel(r, c.names, 48, !guided)}
                       </option>
                     ))}
                   </select>

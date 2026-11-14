@@ -1,3 +1,4 @@
+import { useViewMode } from './view-mode.js';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import {
   HumilityVerdictSchema,
@@ -61,6 +62,7 @@ export function HumilityForm({
   saved: () => void;
   cancel: () => void;
 }) {
+  const { standard } = useViewMode();
   const [d, setD] = useState<HumilityDraft>(() =>
     earlier
       ? draftFromBody(earlier.body as unknown as HumilityBodyShape)
@@ -309,7 +311,9 @@ export function HumilityForm({
                           })
                         }
                       />
-                      Claim {r.slice(0, 8)}… v{r.slice(r.lastIndexOf('@') + 1)}
+                      {standard
+                        ? 'A claim from the earlier review'
+                        : `Claim ${r.slice(0, 8)}… v${r.slice(r.lastIndexOf('@') + 1)}`}
                     </label>
                   ))}
                 </fieldset>

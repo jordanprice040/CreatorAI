@@ -1,4 +1,7 @@
+import { kindLabel, versionTag } from './plain-words.js';
+import { useViewMode } from './view-mode.js';
 import { useEffect, useRef, useState } from 'react';
+import { EventLine } from './event-line.js';
 import { useShown } from './page-active.js';
 import {
   ActivityPageSchema,
@@ -18,15 +21,7 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { api, ApiError, message, words } from './oversight.js';
-import {
-  Empty,
-  Stamp,
-  Status,
-  eventText,
-  shortId,
-  useLoad,
-  type View,
-} from './ui.js';
+import { Empty, Stamp, Status, shortId, useLoad, type View } from './ui.js';
 import {
   archiveWarning,
   canArchive,
@@ -114,6 +109,7 @@ function LinkList({
   names: Map<string, string>;
   open: (id: string) => void;
 }) {
+  const { standard } = useViewMode();
   if (links.length === 0) return null;
   return (
     <>
@@ -125,9 +121,11 @@ function LinkList({
             <li key={l.id} className={l.retracted_at ? 'retracted' : ''}>
               <span className="relation">{words(l.relation)}</span>{' '}
               <button className="text" onClick={() => open(other.id)}>
-                {words(other.kind)} ·{' '}
-                {names.get(other.id)?.slice(0, 90) ?? shortId(other.id)} · v
-                {other.version}
+                {standard ? kindLabel(other.kind) : words(other.kind)} ·{' '}
+                {names.get(other.id)?.slice(0, 90) ??
+                  (standard ? 'one no longer listed' : shortId(other.id))}
+                {versionTag(other.version, standard) &&
+                  ` · ${versionTag(other.version, standard)}`}
               </button>
               {l.retracted_at && <small> · retracted</small>}
             </li>
@@ -652,7 +650,10 @@ export function Catalog({
                 <ol className="history">
                   {activity.map((h) => (
                     <li key={h.event_id}>
-                      {eventText(h.summary)}{' '}
+                      <EventLine
+                        summary={h.summary}
+                        fixture={workspace.record_mode === 'fixture'}
+                      />{' '}
                       <Stamp
                         actor={`${h.actor.display_name}${h.actor.kind === 'human' ? '' : ` (${h.actor.kind})`}`}
                         at={h.occurred_at}

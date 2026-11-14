@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { Money } from './money.js';
 import {
   SpendLimitsViewSchema,
   type SessionInfo,
@@ -242,7 +243,10 @@ export function SpendingLimits({ session }: { session: SessionInfo }) {
                   <small>
                     {' '}
                     · highest run so far{' '}
-                    {money(v.top_runs[0].exposure_nano_usd, false)}
+                    <Money
+                      nano={v.top_runs[0].exposure_nano_usd}
+                      fixture={false}
+                    />
                   </small>
                 )}
               </dd>
@@ -289,7 +293,9 @@ export function SpendingLimits({ session }: { session: SessionInfo }) {
                           </>
                         )}
                       </td>
-                      <td>{money(m.exposure_nano_usd, false)}</td>
+                      <td>
+                        <Money nano={m.exposure_nano_usd} fixture={false} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>

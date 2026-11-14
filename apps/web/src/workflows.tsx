@@ -1,4 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { useViewMode } from './view-mode.js';
+import { Money } from './money.js';
 import {
   EnvelopeSchema,
   EvidencePacketSchema,
@@ -21,12 +23,12 @@ import {
 import { api, message, when, words } from './oversight.js';
 import { newestFirst } from './versions.js';
 import { envelopeFor } from './build-defaults.js';
-import { money } from './budgets.js';
 import { useOnShow, usePageActive } from './page-drafts.js';
 import {
   clipText,
   distinctLabels,
   recordLabel,
+  ROLE_NAME,
   runLabel,
   runName,
 } from './labels.js';
@@ -58,6 +60,7 @@ export function Workflows({
   focus: string;
   onFocus: (id: string) => void;
 }) {
+  const { standard } = useViewMode();
   const workspace = current.id;
   const active = usePageActive();
   const [list, setList] = useState<Workflow[]>([]);
@@ -286,13 +289,7 @@ export function Workflows({
                     <span className={`badge wf-${w.state}`}>
                       {words(w.state)}
                     </span>{' '}
-                    {w.role === 'r02_discovery'
-                      ? 'Discovery'
-                      : w.role === 'r01_exploration'
-                        ? 'Explore for me'
-                        : w.role === 'r08_assessment'
-                          ? 'Automatic assessment'
-                          : 'Skeptic review'}{' '}
+                    {ROLE_NAME[w.role]}{' '}
                     {runName(w.run_id, names) &&
                       `· ${clipText(runName(w.run_id, names), 48)} `}
                     {w.role === 'r01_exploration' || w.role === 'r08_assessment'
@@ -340,7 +337,7 @@ export function Workflows({
               )}
               {runs.map((r) => (
                 <option key={r.run_id} value={r.run_id}>
-                  {runLabel(r, names)}
+                  {runLabel(r, names, 48, !standard)}
                 </option>
               ))}
             </select>
@@ -382,7 +379,9 @@ export function Workflows({
             <article className="decision" aria-live="polite">
               <div className="decision-head">
                 <span className="kind">
-                  {wf.role_version} · {wf.id.slice(0, 8)}
+                  {standard
+                    ? ROLE_NAME[wf.role]
+                    : `${wf.role_version} · ${wf.id.slice(0, 8)}`}
                 </span>
                 <span className={`badge wf-${wf.state}`}>
                   {words(wf.state)}
@@ -457,9 +456,11 @@ export function Workflows({
               ) : (
                 <p className="small">
                   {detail.usage.attempts} calls · charged{' '}
-                  {money(detail.usage.incurred, wf.fixture)} · in flight{' '}
-                  {money(detail.usage.reserved, wf.fixture)} · unknown (held){' '}
-                  {money(detail.usage.unknown, wf.fixture)}
+                  <Money nano={detail.usage.incurred} fixture={wf.fixture} /> ·
+                  in flight{' '}
+                  <Money nano={detail.usage.reserved} fixture={wf.fixture} /> ·
+                  unknown (held){' '}
+                  <Money nano={detail.usage.unknown} fixture={wf.fixture} />
                 </p>
               )}
               {wf.result && (

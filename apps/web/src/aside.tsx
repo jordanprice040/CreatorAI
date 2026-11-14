@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { EventLine } from './event-line.js';
 import {
   ActivityNowSchema,
   ActivityPageSchema,
@@ -13,7 +14,7 @@ import {
   type WorkspaceNote,
 } from '@creator/contracts';
 import { api, ApiError, message, when } from './oversight.js';
-import { Icon, eventText, type View } from './ui.js';
+import { Icon, type View } from './ui.js';
 import { canOpen, useOpenSubject } from './destinations.js';
 import './aside.css';
 import {
@@ -365,7 +366,13 @@ export function RightSidebar({
         hidden={aside.tab !== 'activity'}
         className="aside-body"
       >
-        <ActivityTab feed={feed} isNew={isNew} go={go} opener={opener} />
+        <ActivityTab
+          feed={feed}
+          isNew={isNew}
+          go={go}
+          opener={opener}
+          fixture={workspace.record_mode === 'fixture'}
+        />
       </div>
       <div
         id="aside-notes"
@@ -432,7 +439,10 @@ function ActivityTab({
   isNew,
   go,
   opener,
+  fixture,
 }: {
+  /** The workspace's mode, for history amounts ("sim" or "$"). */
+  fixture: boolean;
   feed: ReturnType<typeof useActivityFeed>;
   isNew: (e: ActivityEntry) => boolean;
   go: (view: View, id?: string) => void;
@@ -509,7 +519,11 @@ function ActivityTab({
                       {e.actor.display_name}
                       {e.actor.kind === 'human' ? '' : ` (${e.actor.kind})`}
                     </strong>{' '}
-                    {eventText(e.summary)}
+                    <EventLine
+                      summary={e.summary}
+                      fixture={fixture}
+                      inButton={linked}
+                    />
                   </span>
                 </span>
                 <time className="aside-row-sub" dateTime={e.occurred_at}>

@@ -1,3 +1,4 @@
+import { useViewMode } from './view-mode.js';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   z,
@@ -6,7 +7,7 @@ import {
   type SessionInfo,
   type Workspace,
 } from '@creator/contracts';
-import { api, message } from './oversight.js';
+import { api, message, when } from './oversight.js';
 import { useOnShow } from './page-active.js';
 import { ShowOlder, useOlder } from './older.js';
 
@@ -60,6 +61,7 @@ export function Marketing({
   workspace: Workspace;
   session: SessionInfo | null;
 }) {
+  const { standard } = useViewMode();
   const base = `workspaces/${workspace.id}`;
   const [campaigns, setCampaigns] = useState<z.infer<typeof Campaign>[]>([]);
   const [artifacts, setArtifacts] = useState<
@@ -208,7 +210,9 @@ export function Marketing({
               .filter((a) => a.current && a.state === 'verified')
               .map((a) => (
                 <option key={a.id} value={a.id}>
-                  {a.id} · {a.backend}
+                  {standard
+                    ? `Spec v${a.spec.version} · built ${when(a.created_at)}`
+                    : `${a.id} · ${a.backend}`}
                 </option>
               ))}
           </select>

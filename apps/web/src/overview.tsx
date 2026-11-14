@@ -9,15 +9,18 @@ import {
   type Workflow,
   type Workspace,
 } from '@creator/contracts';
+import { useViewMode } from './view-mode.js';
+import { EventLine } from './event-line.js';
+import { plainText } from './plain-words.js';
+import { roleName } from './labels.js';
+import { Money } from './money.js';
 import { useState } from 'react';
 import { api, message, when, words } from './oversight.js';
-import { money } from './budgets.js';
 import { usePoll } from './page-active.js';
 import {
   Empty,
   STATE_NOTE,
   StateBadge,
-  eventText,
   Status,
   shortId,
   useLoad,
@@ -43,6 +46,7 @@ export function Overview({
   workspace: Workspace;
   open: (view: View, id?: string) => void;
 }) {
+  const { standard } = useViewMode();
   const base = `workspaces/${workspace.id}`;
   const [error, setError] = useState('');
   const data = useLoad(async () => {
@@ -116,12 +120,19 @@ export function Overview({
                 </small>
               </button>
               <button className="tile" onClick={() => open('budgets')}>
-                <strong>{money(o.budget.incurred, fixture)}</strong>
-                <span>charged of {money(o.budget.cap, fixture)} funded</span>
+                <strong>
+                  <Money nano={o.budget.incurred} fixture={fixture} inButton />
+                </strong>
+                <span>
+                  charged of{' '}
+                  <Money nano={o.budget.cap} fixture={fixture} inButton />{' '}
+                  funded
+                </span>
                 <small>
-                  {money(o.budget.reserved, fixture)} in flight ·{' '}
-                  {money(o.budget.unknown, fixture)} held unknown ·{' '}
-                  {o.budget.denied_calls} calls refused
+                  <Money nano={o.budget.reserved} fixture={fixture} inButton />{' '}
+                  in flight ·{' '}
+                  <Money nano={o.budget.unknown} fixture={fixture} inButton />{' '}
+                  held unknown · {o.budget.denied_calls} calls refused
                 </small>
               </button>
               <button className="tile" onClick={() => open('evidence')}>
@@ -147,11 +158,12 @@ export function Overview({
                       className="text"
                       onClick={() => open('decisions', x.id)}
                     >
-                      {x.question}
+                      {standard ? plainText(x.question) : x.question}
                     </button>
                     <small>
                       {' '}
-                      · run {shortId(x.run_id)} · expires {when(x.expires_at)}
+                      {!standard && `· run ${shortId(x.run_id)} `}· expires{' '}
+                      {when(x.expires_at)}
                     </small>
                   </li>
                 ))}
@@ -167,14 +179,7 @@ export function Overview({
                   <li key={w.id}>
                     <StateBadge state={w.state} />{' '}
                     <button className="text" onClick={() => open('runs', w.id)}>
-                      {w.role === 'r02_discovery'
-                        ? 'Discovery'
-                        : w.role === 'r01_exploration'
-                          ? 'Exploration'
-                          : w.role === 'r08_assessment'
-                            ? 'Assessment'
-                            : 'Skeptic review'}{' '}
-                      {shortId(w.id)}
+                      {roleName(w.role)} {!standard && shortId(w.id)}
                     </button>
                     <small>
                       {' '}
@@ -219,7 +224,10 @@ export function Overview({
                 Failed recently:{' '}
                 {o.attention
                   .filter((a) => a.state === 'failed')
-                  .map((a) => `${shortId(a.workflow_id)} (${words(a.reason)})`)
+                  .map(
+                    (a) =>
+                      `${standard ? roleName(a.role) : shortId(a.workflow_id)} (${words(a.reason)})`,
+                  )
                   .join(', ')}
               </p>
             )}
@@ -250,14 +258,7 @@ export function Overview({
                           className="text"
                           onClick={() => open('runs', w.id)}
                         >
-                          {w.role === 'r02_discovery'
-                            ? 'Discovery'
-                            : w.role === 'r01_exploration'
-                              ? 'Exploration'
-                              : w.role === 'r08_assessment'
-                                ? 'Assessment'
-                                : 'Skeptic review'}{' '}
-                          {shortId(w.id)}
+                          {roleName(w.role)} {!standard && shortId(w.id)}
                         </button>
                         <small>
                           {' '}
@@ -329,7 +330,7 @@ export function Overview({
                   <ol className="rows history">
                     {d.activity.entries.map((e) => (
                       <li key={e.event_id}>
-                        {eventText(e.summary)}
+                        <EventLine summary={e.summary} fixture={fixture} />
                         <small>
                           {' '}
                           · {e.actor.display_name}
