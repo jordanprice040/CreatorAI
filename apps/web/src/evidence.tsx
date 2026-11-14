@@ -255,10 +255,11 @@ export function Evidence({
     <section className="panel records" aria-labelledby="ev-title">
       <h2 id="ev-title">Sources and claim evidence</h2>
       <p>
-        Pages are fetched only by the server’s source broker, from approved
-        hosts, after the run’s grant admits the fetch. Their text is kept as
-        evidence and never acted on. A claim counts as supported only by current
-        passages it actually quotes; reposts of one story count once.
+        Fetch a page from an approved website, then cite a passage from it in a
+        claim. The studio keeps the page’s text as evidence and never follows
+        instructions in it. A claim counts as supported only by passages it
+        quotes, and reposts of one story count once. For pages you don’t have
+        yet, Projects › Discover › Search the web finds them for you.
       </p>
       {status && <p className="small">{status}</p>}
       <div className="connection">
@@ -292,8 +293,11 @@ export function Evidence({
             ))}
           </datalist>
         )}
+        <label htmlFor="evrun" className="inline">
+          under
+        </label>
         <select
-          aria-label="Run"
+          id="evrun"
           value={runId}
           onChange={(e) => setRunId(e.target.value)}
         >

@@ -187,9 +187,12 @@ export function ThemeIntent({
           </li>
         ))}
       </ul>
-      <button type="button" disabled={busy} onClick={() => void open('new')}>
-        New theme draft
-      </button>
+      {/* The form below is already a new draft until a saved one is opened (final UX pass). */}
+      {record && (
+        <button type="button" disabled={busy} onClick={() => void open('new')}>
+          New theme draft
+        </button>
+      )}
       {pending && (
         <div role="group" aria-label="Unsaved theme edits">
           <p>Discard unsaved edits before opening another draft?</p>

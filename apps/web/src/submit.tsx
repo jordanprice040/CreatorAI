@@ -154,8 +154,8 @@ const FIELD_NAMES: Record<string, string> = {
 const fieldName = (path: PropertyKey[]) =>
   path[0] === 'fields' && typeof path[1] === 'number'
     ? path[1] === 0
-      ? 'First field'
-      : 'Second field'
+      ? 'First subject area'
+      : 'Second subject area'
     : (FIELD_NAMES[String(path[0] ?? '')] ?? words(String(path[0] ?? 'brief')));
 /** Validation messages in words a person would use. */
 const plain = (m: string) =>
@@ -1028,7 +1028,9 @@ export function Submit({
               />
               <div className="two">
                 <div>
-                  <label htmlFor="b-fa">First field</label>
+                  <label htmlFor="b-fa">
+                    First subject area (for example nursing)
+                  </label>
                   <input
                     id="b-fa"
                     required
@@ -1038,7 +1040,9 @@ export function Submit({
                   />
                 </div>
                 <div>
-                  <label htmlFor="b-fb">Second field</label>
+                  <label htmlFor="b-fb">
+                    Second subject area (for example logistics)
+                  </label>
                   <input
                     id="b-fb"
                     required

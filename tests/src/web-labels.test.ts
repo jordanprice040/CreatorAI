@@ -11,6 +11,7 @@ type Labels = {
     max?: number,
   ) => string;
   runName: (id: string, names: ReadonlyMap<string, string>) => string;
+  plainUncertainty: (text: string) => string;
   runLabel: (
     run: { run_id: string; created_at: string; autonomy_mode: string },
     names: ReadonlyMap<string, string>,
@@ -145,6 +146,34 @@ test('runs are named by their discovery theme, with date and short id', async ()
     /^Human in loop run · .+ · 99999999$/,
   );
   assert.equal(l.runName('missing', names), '');
+  // A title that already carries its start time does not repeat it (final UX pass).
+  const stamped = new Map([
+    [
+      '18ee7451-0000-4000-8000-000000000004',
+      'Autopilot · Nov 14, 2026, 1:07 AM',
+    ],
+  ]);
+  assert.equal(
+    l.runLabel(run('18ee7451-0000-4000-8000-000000000004'), stamped),
+    'Autopilot · Nov 14, 2026, 1:07 AM · 18ee7451',
+  );
+});
+
+test('uncertainty text lists what no claim covers once, with a short run id', async () => {
+  const l = await labels();
+  assert.equal(
+    l.plainUncertainty(
+      'Discovery run a656f18b-ad37-44b1-b770-5309277b5ae1 (fixture): packet sufficient. No claim in the packet addresses who is affected. No claim in the packet addresses a gap in existing tools. No claim in the packet addresses data availability.',
+    ),
+    'Discovery run a656f18b (fixture): packet sufficient. Not covered by any claim: who is affected, a gap in existing tools and data availability.',
+  );
+  assert.equal(
+    l.plainUncertainty(
+      'No claim in the packet addresses urgency or frequency.',
+    ),
+    'Not covered by any claim: urgency or frequency.',
+  );
+  assert.equal(l.plainUncertainty('Synthetic fixture.'), 'Synthetic fixture.');
 });
 
 test('record pickers no longer default to the problem with the most options', async () => {

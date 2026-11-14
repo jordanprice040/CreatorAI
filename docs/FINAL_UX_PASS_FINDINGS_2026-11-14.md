@@ -19,7 +19,7 @@ Plan: `docs/FINAL_UX_PASS_PLAN_2026-11-14.md` (approved by Jordan, November 14, 
 - **Findings:** 1 High, 9 Medium, 14 Low and about 25 nits.
   - 22 items fixed in PR #192: section 3.
   - 15 proposals for Jordan: section 4.
-  - The remaining nits are web-only wording fixes. I'm finishing them on the same PR before review: section 5.
+  - The nits: section 5.
 - **The one High** is a real bug, not polish. A build that stopped for approval fails every time it is started again after the approval (P-1). So the $0 fixture sample never reaches Package or Try from the app.
 
 ## 2. Scorecard (my judgment, Nielsen 1–4, 4 = no issue)
@@ -94,7 +94,7 @@ Checks run:
 | P-10 | Low    | Build          | Prepare task defaults the build's run to another project's run.                                                                                                                                                                                                                                                                                                                          | Default to the spec's own run.                                                                                                                                                                                                                                                            |
 | P-11 | Low    | Autopilot      | K-4: a run's routine approvals stay in force until their end time after the autopilot has ended.                                                                                                                                                                                                                                                                                         | End the run's routine approvals when its autopilot ends, or offer "End these approvals now" on the stopped card.                                                                                                                                                                          |
 | P-12 | —      | Autopilot      | K-10: web claims that pass only the quote check are accepted automatically during an autopilot run.                                                                                                                                                                                                                                                                                      | **Your decision.** My recommendation: keep it automatic only when automation is set to accept web claims, and label those claims "accepted by the autopilot (quote check only)" so a person can review them.                                                                              |
-| P-13 | —      | Autopilot      | K-9 (server), K-11, K-12, K-13 and your November 14 automation asks: continue at person-stops, automatic evidence and claim linking, a new-run option for Automate the rest.                                                                                                                                                                                                             | **Already in [Expand autopilot automation options](#cmsg_01Ekfs9asX2KK8f8YWsvsDtFDeUbJ5GivuBajxeRjhbs5H)**, which has its own plan. The ethics-gate part needs you to revisit the November 12 rule there. Nothing to decide here.                                                         |
+| P-13 | —      | Autopilot      | K-9 (server), K-11, K-12, K-13 and your November 14 automation asks: continue at person-stops, automatic evidence and claim linking, a new-run option for Automate the rest.                                                                                                                                                                                                             | **Already in [Expand autopilot automation options](#cmsg_01Ekfs9asX2KK8f8YWsvsDtFDeUbJ5GivuBajxeRjhbs5H)**, which has its own plan. You made the ethics rule an owner setting (off by default) at 01:31 UTC; it is built there. Nothing to decide here.                                   |
 | P-14 | Low    | Sources        | First use: the Next banner says "Fetch approved sources below", but Fetch stays disabled until "Register a run for fetching", whose button sits below the fetch row. Nothing says why Fetch is disabled, and Search the web (the easier route) isn't mentioned.                                                                                                                          | Put "Register a run" (or an automatic evidence run) before Fetch, give the disabled reason beside it, and link to Discover › Search the web. This could be fix-now if you prefer; it changes the order of a form, so I'm asking.                                                          |
 | P-15 | Low    | Chat, Sources  | Two styles for the same guidance: Projects tabs use the Next banner, while Chat and Sources use a "Main path: … is next" line.                                                                                                                                                                                                                                                           | Use the Next banner everywhere.                                                                                                                                                                                                                                                           |
 
@@ -107,25 +107,40 @@ Suggested threads, by your answer 3:
 - **Shell and wording:** P-8, P-9, P-14 and P-15.
 - **Autopilot:** P-11 and P-12 go to the existing autopilot thread.
 
-## 5. Nits still being fixed on PR #192 (no decision needed)
+## 5. Nits (no decision needed)
 
-These are web-only wording and layout fixes, finished before the PR goes to review:
+Fixed in the second commit on PR #192:
 
-- N-1: Decide's Uncertainty line lists 7 "No claim in the packet addresses …" sentences in one paragraph. It becomes a short list.
-- N-2: The problem heading repeats its title when the title and statement are equal ("X.: X.").
-- N-3: A run-on tie sentence that lists every option title.
-- N-4: Run names repeat their date ("· Nov 14, 2026, 1:07 AM · Nov 14, 1:07 AM").
-- N-5: The tab badge reads "Runs : A run finished".
-- N-6: The theme draft shows its form and its "New theme draft" button together.
-- N-7: Long third-person intros on Discover, Chat and Sources get shorter, second-person text.
-- N-8: First-run wording "Register a run for fetching".
-- N-9: The Sources "Choose a source or a claim." placeholder sits under the fetch row, not in the empty right column (Library does it right).
-- N-10: The Fetch row's run select has no visible label.
-- N-11: The brief's "First field / Second field" labels don't say what a field is.
-- N-12: Checkboxes are 13 px; they become 16 px (still inside their label).
-- N-13: The Decide card's "Clear ethics: I confirm" button touches the next heading.
-- N-14: The "What the autopilot does" summary has a blank gap under its heading.
-- N-15: "Reset fields" sits above the panel heading at 390 px.
+- N-1: Decide's Uncertainty line listed up to 7 "No claim in the packet addresses …" sentences and a full run UUID. It now reads "Not covered by any claim: who is affected, … and data availability", with the short run id. The stored text is unchanged; there is a unit test.
+- N-4: Run names no longer repeat their date ("Autopilot · Nov 14, 2026, 1:07 AM · Nov 14, 1:07 AM"). Unit test added.
+- N-6: The "New theme draft" button shows only once a saved draft is open, since the form is already a new draft.
+- N-7: The Sources intro is now plain and second person, and points to Search the web. The other intros are left for P-8's wording thread.
+- N-10: The Fetch row's run select has a visible label ("under").
+- N-11: The brief's "First field / Second field" are now "First subject area (for example nursing)" and "Second subject area", on the form and the Chat card.
+- N-12: Checkboxes and radios are 16 px, inside their clickable labels.
+- N-13: The "Clear ethics: I confirm" button has space before the next gate's heading.
+
+Checked and left as they are:
+
+- N-5: "Runs : A run finished" is the screen-reader text of the tab's dot (the sweep reads text content). Nobody sees it, and it reads fine aloud.
+- N-8: "Register a run for fetching" matches the button's own name. P-14 changes the step itself.
+- N-9: The Sources placeholder is in the right column; it only looked centred in a full-page shot. No change.
+
+Moved to P-8, because the text comes from the server:
+
+- N-2: The problem heading repeats the title ("X.: X.").
+- N-3: The run-on tie sentence that lists every option.
+
+Left for P-7's Discover layout work, which rebuilds these panels:
+
+- N-14: The blank gap in the autopilot summary.
+- N-15: "Reset fields" placement at 390 px.
+
+Re-check after this commit:
+
+- a quick sweep at 1440 px (78 shots): 0 axe violations, 0 console errors, 0 failed API requests, no button under 24 px
+- typecheck and format checks pass
+- 243 web unit tests pass
 
 ## 6. Standard and Advanced
 
@@ -162,7 +177,7 @@ Today, Advanced-only covers Sell, Campaigns, Maintain, Workers and Study. I reco
 
 ## 8. Still to do in the pass
 
-1. Finish section 5 on PR #192.
+1. (Done) Section 5 on PR #192.
 2. An independent review of PR #192 in its own thread.
 3. Jordan's decisions on section 4, then one thread per area.
 4. The live walk on Jordan's PC: dev studio, Testing workspace, live plan connection, with his typed OK.

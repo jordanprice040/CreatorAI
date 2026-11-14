@@ -922,6 +922,9 @@ input[type='radio'] {
   /* Final UX pass: never the full width of a text field (it centred the box above its label). */
   width: auto;
   padding: 0;
+  /* 16 px boxes, easier to hit than the browser's 13 px; the label around them adds the rest. */
+  min-width: 16px;
+  min-height: 16px;
 }
 /* A checkbox with its sentence beside it, top-aligned for wrapped lines. */
 label.check {
@@ -3538,4 +3541,8 @@ fieldset.gate-checklist li input {
   .back-to-top {
     display: none;
   }
+}
+/* Final UX pass: the gate's confirm button kept clear of the next gate's heading. */
+.gate-confirm {
+  margin: 4px 0 10px;
 }
