@@ -21,7 +21,7 @@ Final UX pass proposals P-6 and P-7 and the section 6 Standard/Advanced table, a
 **Amendment (November 14, re-review of PR #196: one Low, three nits, all fixed).**
 
 - **L-A.** Sidebar workflow items carry `subject_id` (`ActivityNowItemSchema`, null for other kinds), so in Standard a running assessment opens Decide on the problem being assessed, not the last one viewed.
-- **Nits.** "Pausing: it stops after the current step." uses the running tone, like "Stopping…", since nothing is needed from the person (N-A). The sidebar's Discovery research item scrolls to that discovery's line and focuses it (N-B). The theme button's wording and visible note, above (N-C).
+- **Nits.** "Pausing: it stops after the current step." uses the running tone, like "Stopping…", since nothing is needed from the person (N-A). The sidebar's Discovery research item scrolls to that discovery's line and focuses it (N-B). After a third review: a discovery line's id names its page (`dp-discover-…`, `dp-decide-…`), and the theme button and its note sit on the same side at any width. The theme button's wording and visible note, above (N-C).
 
 ## ADR-0100 — Autopilot settings: opt-in planned fallbacks instead of stops, automatic evidence, and a next step at every stop (November 14, 2026)
 

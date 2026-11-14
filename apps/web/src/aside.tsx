@@ -217,7 +217,7 @@ function nowTarget(
     // ADR-0103 (review L-2): Standard opens where the work shows (the third value is the
     // Discover panel heading to show); Runs is an Advanced tab.
     if (standard && item.purpose === 'r02_discovery')
-      return ['submit', '', `dp-${item.id}`];
+      return ['submit', '', `dp-discover-${item.id}`];
     if (standard && item.purpose === 'r01_exploration')
       return ['submit', '', 'explore-title'];
     // Re-review L-A: Decide opens on the problem being assessed, not the last one viewed.

@@ -144,7 +144,7 @@ export function DiscoveryProgress({
     if (!keep || shownKeep.current === keep) return;
     if (!rows.some((w) => w.id === keep)) return;
     shownKeep.current = keep;
-    reveal(sectionRef.current, `dp-${keep}`);
+    reveal(sectionRef.current, `dp-${where}-${keep}`);
   });
 
   function hide(id: string) {
@@ -219,7 +219,7 @@ export function DiscoveryProgress({
         {shown.map(({ wf, line }) => {
           const name = runName(wf.run_id, d.data?.names ?? new Map());
           return (
-            <li key={wf.id} id={`dp-${wf.id}`} tabIndex={-1}>
+            <li key={wf.id} id={`dp-${where}-${wf.id}`} tabIndex={-1}>
               <p>
                 <span className={`badge dp-${line.tone}`}>
                   {TONE_TEXT[line.tone]}

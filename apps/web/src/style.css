@@ -3041,13 +3041,15 @@ table.usage-options th[scope='row'] {
   box-shadow: inset 3px 0 0 var(--accent);
 }
 .choices-more {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: flex-end;
-  gap: 2px 8px;
+  /* Re-review N-E: button and note wrap on the same (right) side at any width. */
+  text-align: right;
   margin: -4px 0 8px;
   color: var(--muted);
+}
+.choices-more span {
+  display: block;
+  font-size: 12px;
+  line-height: 1.55;
 }
 .start-choice span {
   font-size: 13px;
