@@ -16,6 +16,7 @@ UX pass proposals P-2 and P-5 ([findings](../docs/FINAL_UX_PASS_FINDINGS_2026-11
 No live model run: the button and the walk used a fake `claude`, and the autopilot tests a stand-in drafter.
 
 Rejected: letting the model fill problem, background, evidence, contrary evidence or costs (facts and citations stay the records' and the person's); a separate model setting for drafting (the chat model is the owner's chosen connection, with its limits); applying drafts automatically or all at once (Jordan asked for section-by-section acceptance); sending the proposal when the owner's chat setting keeps studio records in the studio.
+
 ## ADR-0104 — Standard view: amounts in cents, internal detail in Advanced (November 14, 2026)
 
 Final UX pass P-8 and P-9 (`docs/FINAL_UX_PASS_FINDINGS_2026-11-14.md`, section 9: Jordan accepted P-8 as proposed and revised P-9 on November 14, 02:14 UTC). No migration; display only.
