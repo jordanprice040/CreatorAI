@@ -64,6 +64,7 @@ import { useModelChoice } from './model-switch.js';
 import {
   artifactForBuild,
   builderSummary,
+  buildRunDefault,
   envelopeFor,
   modelGrantCovers,
 } from './build-defaults.js';
@@ -1097,6 +1098,11 @@ function Product({
                 taskKey={key}
                 specId={p.binding.spec_id}
                 specVersion={p.binding.spec_version}
+                specRun={
+                  spec?.latest_freeze?.spec.version === p.binding.spec_version
+                    ? spec.latest_freeze.run_id
+                    : null
+                }
                 data={data}
                 fixture={fixture}
                 open={open}
@@ -1265,6 +1271,7 @@ function StartBuild({
   taskKey,
   specId,
   specVersion,
+  specRun,
   data,
   fixture,
   busy,
@@ -1275,6 +1282,8 @@ function StartBuild({
   taskKey: string;
   specId: string;
   specVersion: number;
+  /** The run the spec version was frozen in: the build's default run (P-10). */
+  specRun: string | null;
   data: Data;
   fixture: boolean;
   busy: boolean;
@@ -1337,15 +1346,15 @@ function StartBuild({
   /** A plan builder that was chosen and is no longer verified: nothing is sent until re-chosen. */
   const lostBuilder =
     builder !== '' && builder !== 'broker' && !connection ? builder : '';
-  // The newest run that can build; on the plan route, preferably one whose standing grant
-  // admits the role requests, so the default is a run the build can actually use.
-  const usable = data.runs.filter((r) => r.autonomy_mode !== 'human_only');
-  const granted = usable.find((r) => data.modelRuns.has(r.run_id));
+  // P-10: the spec's own run first; else, on the plan route, a run whose standing grant
+  // admits the role requests; else the newest run that can build.
   const runId = data.runs.some((r) => r.run_id === run)
     ? run
-    : ((connection?.kind === 'roles' ? granted : undefined)?.run_id ??
-      usable[0]?.run_id ??
-      '');
+    : buildRunDefault(
+        data.runs,
+        specRun,
+        connection?.kind === 'roles' ? (id) => data.modelRuns.has(id) : null,
+      );
   // A run or task budget belongs to its own run; the default is one this run may use.
   const budgetId = data.budgets.some(
     (b) => b.id === budget && (b.run_id === null || b.run_id === runId),

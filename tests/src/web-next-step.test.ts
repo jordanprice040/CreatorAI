@@ -381,6 +381,38 @@ test('the default budget is never one bound to another run', async () => {
   assert.deepEqual(envelopesFor([{ id: 'x', run_id: 'r2' }], 'r1'), []);
 });
 
+// Final UX pass P-10: after Prepare task, the build form opened on another project's newer run.
+test("the build form's run defaults to the spec's own run", async () => {
+  const { buildRunDefault } = await load<{
+    buildRunDefault: (
+      newestFirst: { run_id: string; autonomy_mode: string }[],
+      specRun: string | null,
+      granted: ((runId: string) => boolean) | null,
+    ) => string;
+  }>('build-defaults.ts');
+  const runs = [
+    { run_id: 'other-project', autonomy_mode: 'supervised' },
+    { run_id: 'granted', autonomy_mode: 'supervised' },
+    { run_id: 'spec-run', autonomy_mode: 'supervised' },
+  ];
+  const grantedOnly = (id: string) => id === 'granted';
+  // The spec's run wins over a newer run, on the broker and on the plan route.
+  assert.equal(buildRunDefault(runs, 'spec-run', null), 'spec-run');
+  assert.equal(buildRunDefault(runs, 'spec-run', grantedOnly), 'spec-run');
+  // Without it (ended, human-only, or unknown) the earlier defaults stand.
+  assert.equal(buildRunDefault(runs, null, null), 'other-project');
+  assert.equal(buildRunDefault(runs, 'ended', grantedOnly), 'granted');
+  assert.equal(
+    buildRunDefault(
+      [runs[0]!, { run_id: 'spec-run', autonomy_mode: 'human_only' }],
+      'spec-run',
+      null,
+    ),
+    'other-project',
+  );
+  assert.equal(buildRunDefault([], 'spec-run', null), '');
+});
+
 test('a build counts as packaged when Gallery holds its commit, even after a restart', async () => {
   const { artifactForBuild } = await load<Defaults>('build-defaults.ts');
   const spec = { spec_id: 's', spec_version: 4 };

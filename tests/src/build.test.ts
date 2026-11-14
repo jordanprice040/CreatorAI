@@ -445,14 +445,15 @@ test('the ChatGPT-plan Codex builder still goes through scoped patches and an in
     'the patch was applied as a scoped change',
   );
   // The final state comes from QA on this host, never from the Codex claim. Real
-  // execution needs Windows + WSL2; elsewhere every QA case fails closed. On Windows
-  // without the opt-in gate the worker may or may not be usable, so either state stands.
+  // execution needs Windows + WSL2; elsewhere the worker cannot run a case, and the build
+  // stops closed with the worker's reason (P-1). On Windows without the opt-in gate the
+  // worker may or may not be usable, so either state stands.
   if (real) assert.equal(result.state, 'verified_candidate');
   else if (process.platform === 'win32')
     assert.ok(['verified_candidate', 'checkpoint'].includes(result.state));
   else {
     assert.equal(result.state, 'checkpoint');
-    assert.match(result.reason, /Repair limit reached/);
+    assert.match(result.reason, /The worker did not finish check A1 \(blocked/);
   }
 });
 
@@ -1087,18 +1088,25 @@ test('one approval covers a whole build: repair rounds and both roles never ask 
 
 test('a stopped build continues from its last candidate; the original base is stale', async (t) => {
   const s = await setup(t);
+  // QA runs before the review verdict is acted on; the double lets it run here (P-1).
+  const builds = new BuildSupervisor(
+    s.products,
+    new TestDoubleExecutor(s.products),
+  );
+  const run = (commit: string) =>
+    builds.run(s.product.id, s.task.id, commit, s.plan, s.ports);
   s.script((r) => {
     const value = JSON.parse(buildFixtureAnswer(r.input)!);
     if (r.input[0]!.text.startsWith('independent-reviewer/'))
       value.verdict = 'blocked';
     return value;
   });
-  const first = await s.run();
+  const first = await run(s.product.initial_commit);
   assert.equal(first.state, 'checkpoint');
   assert.match(first.reason, /Reviewer blocked/);
   assert.notEqual(first.commit, s.product.initial_commit);
   // The task's worktree moved on, so the base commit no longer names the candidate.
-  await assert.rejects(s.run(), /Stale build candidate/);
+  await assert.rejects(run(s.product.initial_commit), /Stale build candidate/);
   assert.equal(
     await s.products.taskHead(s.product.id, s.task.id),
     first.commit,
@@ -1110,17 +1118,129 @@ test('a stopped build continues from its last candidate; the original base is st
     else value.verdict = 'blocked';
     return value;
   });
-  const resumed = await s.builds.run(
-    s.product.id,
-    s.task.id,
-    first.commit,
-    s.plan,
-    s.ports,
-  );
+  const resumed = await run(first.commit);
   assert.equal(resumed.state, 'checkpoint');
   // The builder of the resumed build starts from the stopped build's candidate.
   const builder = JSON.parse(s.requests.at(-2)!.input[1]!.text);
   assert.equal(builder.candidate, first.commit);
+});
+
+// Final UX pass P-1: the worker could not run the acceptance cases (in the cloud container,
+// "Isolation unavailable" without WSL2). The build used to spend its repair round resubmitting
+// the same patch and stopped with "Patch changes nothing", and every resume failed the same way.
+test('a worker that cannot run a case stops the build with its reason; a resumed build keeps and judges that candidate', async (t) => {
+  const s = await setup(t);
+  const worker = new TestDoubleExecutor(s.products);
+  let blocked = 1;
+  const run = worker.run.bind(worker);
+  worker.run = async (...a: Parameters<typeof worker.run>) => {
+    const e = await run(...a);
+    if (blocked <= 0) return e;
+    blocked--;
+    return {
+      ...e,
+      state: 'blocked',
+      exit_code: null,
+      log: '',
+      reason:
+        'Error: Isolation unavailable: this reviewed backend requires Windows + WSL2',
+    };
+  };
+  const builds = new BuildSupervisor(s.products, worker);
+  const plan: BuildPlan = { ...s.plan, max_repairs: 1, max_calls: 4 };
+  const first = await builds.run(
+    s.product.id,
+    s.task.id,
+    s.product.initial_commit,
+    plan,
+    s.ports,
+  );
+  assert.equal(first.state, 'checkpoint', JSON.stringify(first));
+  assert.match(
+    first.reason,
+    /The worker did not finish check A1 \(blocked: Error: Isolation unavailable: .*\)\. The candidate is kept; build again once the worker runs\.$/,
+  );
+  // No repair round was spent on code no test judged: builder and reviewer only.
+  assert.equal(first.calls, 2);
+  assert.equal(first.repairs, 0);
+  assert.notEqual(first.commit, s.product.initial_commit);
+  const firstDir = join(s.products.dir(s.product.id), 'builds', first.id);
+  assert.ok(!(await readdir(firstDir)).some((f) => f.startsWith('refused-')));
+
+  // Built again from the task head (what the web sends): the builder sees the stopped
+  // build's candidate, submits its own content, and that candidate is reviewed and tested.
+  const head = await s.products.taskHead(s.product.id, s.task.id);
+  assert.equal(head, first.commit);
+  const resumed = await builds.run(
+    s.product.id,
+    s.task.id,
+    head,
+    { ...plan, deadline: new Date(Date.now() + 300000).toISOString() },
+    s.ports,
+  );
+  assert.equal(resumed.state, 'verified_candidate', JSON.stringify(resumed));
+  assert.equal(resumed.commit, first.commit);
+  assert.equal(resumed.repairs, 0);
+  const builder = JSON.parse(s.requests.at(-2)!.input[1]!.text);
+  assert.equal(builder.candidate, first.commit);
+  const reviewer = JSON.parse(s.requests.at(-1)!.input[1]!.text);
+  assert.equal(reviewer.candidate, first.commit);
+  const dir = join(s.products.dir(s.product.id), 'builds', resumed.id);
+  assert.deepEqual(
+    JSON.parse(await readFile(join(dir, 'candidate-0.json'), 'utf8')),
+    { commit: first.commit, changed_files: [] },
+  );
+  assert.equal(
+    await s.products.taskHead(s.product.id, s.task.id),
+    first.commit,
+  );
+});
+
+test('an empty patch is refused on the first commit and on a candidate this build already judged', async (t) => {
+  const s = await setup(t);
+  const builds = new BuildSupervisor(
+    s.products,
+    new TestDoubleExecutor(s.products),
+  );
+  // A first build whose reviewer blocks leaves its candidate as the task head.
+  s.script((r) => {
+    const value = JSON.parse(buildFixtureAnswer(r.input)!);
+    if (r.input[0]!.text.startsWith('independent-reviewer/'))
+      value.verdict = 'blocked';
+    return value;
+  });
+  const first = await builds.run(
+    s.product.id,
+    s.task.id,
+    s.product.initial_commit,
+    s.plan,
+    s.ports,
+  );
+  assert.match(first.reason, /Reviewer blocked/);
+  // Resumed: the kept candidate is judged once. The reviewer asks for changes, and the
+  // builder's second empty patch is refused instead of judging the same candidate again.
+  s.script((r) => {
+    const value = JSON.parse(buildFixtureAnswer(r.input)!);
+    if (r.input[0]!.text.startsWith('independent-reviewer/')) {
+      value.verdict = 'changes_requested';
+      value.findings = ['Synthetic finding'];
+    }
+    return value;
+  });
+  const resumed = await builds.run(
+    s.product.id,
+    s.task.id,
+    first.commit,
+    { ...s.plan, max_repairs: 1, max_calls: 4 },
+    s.ports,
+  );
+  assert.equal(resumed.state, 'checkpoint', JSON.stringify(resumed));
+  assert.match(
+    resumed.reason,
+    /Repair limit reached; the last patch was refused: Patch changes nothing/,
+  );
+  // Builder, reviewer, builder: the same candidate is not reviewed twice.
+  assert.equal(resumed.calls, 3);
 });
 
 test('the path dialect admits Python package files and still refuses dot, dash and cache paths', () => {

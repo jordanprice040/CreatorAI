@@ -31,7 +31,11 @@ import {
   type Execution,
   type QaCase,
 } from './contracts.js';
-import { PatchRefusedError, ProductSupervisor } from './products.js';
+import {
+  NoChangePatchError,
+  PatchRefusedError,
+  ProductSupervisor,
+} from './products.js';
 import { ExecutionSupervisor } from './execution.js';
 import { canonical, fileAt, jsonWrite, readJson, withLock } from './files.js';
 import { git, head, clean, safeTree } from './git.js';
@@ -568,6 +572,8 @@ export class BuildSupervisor {
       let lastRefusal: string | null = null;
       // The newest review and QA feedback, kept through later refused rounds (PR #146 M-1).
       let lastReview: unknown = null;
+      // Candidates this build has sent to review and QA.
+      const judged = new Set<string>();
       try {
         if (plan.plan_roles) {
           // Both roles must be admissible before the grant is used or the builder is sent.
@@ -697,11 +703,22 @@ export class BuildSupervisor {
             );
           } catch (e) {
             if (!(e instanceof PatchRefusedError)) throw e;
-            await refuse(e.message, []);
-            continue;
+            // P-1: a build resumed from an earlier build's candidate, whose builder submits the
+            // candidate's own content, keeps that candidate. This build then reviews and tests it
+            // afresh; a candidate this build already judged still refuses the empty patch.
+            if (
+              !(e instanceof NoChangePatchError) ||
+              commit === task.base_commit ||
+              judged.has(commit)
+            ) {
+              await refuse(e.message, []);
+              continue;
+            }
+            submitted = { commit, changed_files: [] };
           }
           lastRefusal = null;
           commit = submitted.commit;
+          judged.add(commit);
           await jsonWrite(join(dir, `candidate-${cycle}.json`), submitted);
           // Deliberately excludes builder summaries, prior reviews and QA results.
           const review = checked(
@@ -765,6 +782,17 @@ export class BuildSupervisor {
             } finally {
               clearInterval(monitor);
               while (stopping) await new Promise((r) => setTimeout(r, 10));
+            }
+            // P-1: a case the worker could not carry out (blocked, lost, cleanup pending) judged
+            // nothing about the code. It stops the build with the worker's reason instead of
+            // spending a repair round on a candidate no test has run (as plan qualification does).
+            if (!['succeeded', 'failed'].includes(execution.state)) {
+              await active();
+              throw new Error(
+                `The worker did not finish check ${c.check_key} (${execution.state}${
+                  execution.reason ? `: ${execution.reason}` : ''
+                }). The candidate is kept; build again once the worker runs.`,
+              );
             }
             const ok = qaPassed(execution, commit, c);
             // Repair feedback names a failed held-out case but not its inputs or expected output.

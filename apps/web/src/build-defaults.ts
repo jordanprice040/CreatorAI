@@ -53,6 +53,26 @@ export function envelopeFor<T extends { id: string; run_id: string | null }>(
   return newestFirst.find((e) => e.run_id === null || e.run_id === runId);
 }
 
+/**
+ * The run a build form opens on (final UX pass P-10): the run the spec was frozen in, when
+ * it can still build; otherwise, on the plan route, the newest run a standing grant admits
+ * model requests on; otherwise the newest run that can build. Never another project's run
+ * while the spec's own run is there. `newestFirst` holds only active runs.
+ */
+export function buildRunDefault(
+  newestFirst: readonly { run_id: string; autonomy_mode: string }[],
+  specRun: string | null,
+  granted: ((runId: string) => boolean) | null,
+): string {
+  const usable = newestFirst.filter((r) => r.autonomy_mode !== 'human_only');
+  return (
+    usable.find((r) => r.run_id === specRun)?.run_id ??
+    (granted ? usable.find((r) => granted(r.run_id)) : undefined)?.run_id ??
+    usable[0]?.run_id ??
+    ''
+  );
+}
+
 /** Every budget a run may draw on, in the given order: shared ones and the run's own. */
 export function envelopesFor<T extends { id: string; run_id: string | null }>(
   list: readonly T[],
