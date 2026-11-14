@@ -1,5 +1,26 @@
 # Session handoff — November 10, 2026
 
+## November 14 handoff — final UX pass, fixture part (PR #192)
+
+Jordan approved the plan at 00:57 UTC. The cloud fixture pass is done. `scripts/ux-sweep.mjs` (Playwright and axe-core, a dev dependency) took 156 shots; the full fixture walk is in `docs/FINAL_UX_PASS_FINDINGS_2026-11-14.md`.
+
+Web-only fixes on this branch:
+
+- autopilot next step after every stop, with links; readable-claims count; end time renewed; per-run cap warning; the Start box always unticks
+- Decide and Path banner wording
+- Approvals "press it again" hint
+- Back to top button
+- checkbox alignment and 16 px boxes; text buttons at least 24 px
+- doubled kind labels, the `problems//explanation` 404, condensed uncertainty text, run labels without a repeated date, and smaller wording fixes
+
+Checks: typecheck, format:check and 243 web unit tests pass; the sweep re-run shows 0 axe violations and 0 console errors.
+
+Proposals P-1..P-15 wait for Jordan. P-1 (High) is a bug: a build retried after approval fails with "Patch changes nothing", likely because `build.tsx` retries from `task.head`.
+
+Server-side autopilot work belongs to the "Expand autopilot automation options" thread (branch `claude/project-thread-77qqks`).
+
+Next: an independent review of #192, then Jordan's decisions and one thread per area, the live walk, and the L-3 docs last. No migration or ADR.
+
 ## November 14 handoff — final UX pass plan (draft for Jordan)
 
 Docs only, no code, migration or ADR. `docs/FINAL_UX_PASS_PLAN_2026-11-14.md`: the pass's fix-small/propose-big rule, severity scale, references (Nielsen, WCAG 2.2 AA, Fluent/Material, Laws of UX), where it runs (cloud fixture, dev studio Testing workspace, installed app Testing workspace), checks by area, the Standard/Advanced method, the full project walkthrough, and known items K-1..K-13 (live autopilot notes, November 10 UX notes, audit L-3). Next: Jordan approves or revises the plan; the pass starts only after that.
