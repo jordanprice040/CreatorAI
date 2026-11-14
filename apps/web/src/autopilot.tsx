@@ -1,4 +1,10 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
 import {
   AUTOPILOT_MIN_CALLS,
   AUTOPILOT_RETRYABLE,
@@ -7,6 +13,7 @@ import {
   AutopilotConfigSchema,
   AutopilotSchema,
   EvidenceRoleSchema,
+  ExplorationPreviewSchema,
   RunControlSchema,
   StoredEntitySchema,
   WebDiscoveryPreviewSchema,
@@ -23,6 +30,7 @@ import {
 import { api, message, when, words } from './oversight.js';
 import {
   AUTOPILOTS_CHANGED,
+  OPEN_EXPLORATION,
   loadRoutes,
   pickRoute,
   planOf,
@@ -32,6 +40,7 @@ import {
 import { Empty, Status, useLoad } from './ui.js';
 import { usePoll } from './page-active.js';
 import { useEndTime } from './end-time.js';
+import { routeHash } from './pages.js';
 
 // P13 (ADR-0092): "Run it for me". One form sets up a new run with routine approvals covering
 // exactly the autopilot's steps and starts the autopilot; the owner confirms both summaries.
@@ -115,7 +124,7 @@ export function Autopilot({
   // The end time is fixed while the owner reads the summary, so the summary read is the one
   // sent. It is worked out again when the hours change, and when the page comes back into view
   // unless the summary is confirmed (then only once the end time is close or past).
-  const [endsAt] = useEndTime(hours, undefined, confirmed);
+  const [endsAt, renewEnd] = useEndTime(hours, undefined, confirmed);
   const [pickedClass, setPickedClass] = useState<
     'synthetic' | 'public' | 'private_approved'
   >(fixture ? 'synthetic' : 'public');
@@ -160,6 +169,42 @@ export function Autopilot({
     limits: { max_calls: maxCalls, ends_at: endsAt },
   });
   const config: AutopilotConfig | null = draft.success ? draft.data : null;
+  // Final UX pass K-2: the explorer reads only claims with a passage, so say before the start
+  // how many in this scope it can read (from the same preview Explore for me shows).
+  const exploreKey = config ? JSON.stringify(config.explore) : '';
+  const [readable, setReadable] = useState<{
+    key: string;
+    read: number;
+    without: number;
+  } | null>(null);
+  const previewSeq = useRef(0);
+  useEffect(() => {
+    if (!owner || !config) return;
+    const seq = ++previewSeq.current;
+    const t = setTimeout(() => {
+      api(ExplorationPreviewSchema, `${base}/exploration-preview`, {
+        csrf: session.csrf_token,
+        body: config.explore,
+      }).then(
+        (p) =>
+          seq === previewSeq.current &&
+          setReadable({
+            key: exploreKey,
+            read: p.packet.claims.length,
+            without: p.packet.not_searched.without_passages,
+          }),
+        () => seq === previewSeq.current && setReadable(null),
+      );
+    }, 400);
+    return () => clearTimeout(t);
+  }, [exploreKey, workspace.id, c?.autopilots.length]);
+  const passages = readable?.key === exploreKey ? readable : null;
+  // Final UX pass K-9: every step shares the autopilot's one run, so a plan connection's
+  // per-run request cap is the real limit on the calls.
+  const perRun =
+    route?.kind === 'plan'
+      ? (plan?.connection.settings.caps.responses.max_requests_per_run ?? null)
+      : null;
   const moneyNano =
     route?.kind === 'api'
       ? String(BigInt(Math.round(money * 100)) * 10_000_000n)
@@ -252,7 +297,6 @@ export function Autopilot({
         body: { config: cfg, summary_seen: autopilotSummary(cfg) },
         timeoutMs: 30_000,
       });
-      setConfirmed(false);
       ctx.refresh();
     } catch (err) {
       setError(message(err));
@@ -263,6 +307,11 @@ export function Autopilot({
         }).catch(() => undefined);
       ctx.refresh();
     } finally {
+      // Live autopilot findings (November 14): the box never stays ticked after a start, even
+      // one that failed or timed out after the server began it, so one more click on Start
+      // cannot begin another whole run. The next start also counts its hours from now (K-3).
+      setConfirmed(false);
+      renewEnd();
       setBusy(false);
     }
   }
@@ -282,6 +331,8 @@ export function Autopilot({
       setError(message(err));
     } finally {
       setBusy(false);
+      // Final UX pass K-3: the next start counts its hours from now, not from the page load.
+      renewEnd();
       ctx.refresh();
     }
   }
@@ -424,6 +475,21 @@ export function Autopilot({
                         : exploring, discovery and assessment need about that
                         many on the shortest path.
                       </p>
+                      {perRun !== null && maxCalls > perRun && (
+                        <p
+                          className="small model-note model-note-warn"
+                          role="note"
+                        >
+                          This connection allows {perRun} model requests per
+                          run, and every step shares the autopilot's one run, so
+                          it stops after {perRun}
+                          {perRun < AUTOPILOT_MIN_CALLS
+                            ? ', before the shortest path can finish'
+                            : ''}
+                          . Raise the per-run cap under Models and connections,
+                          or set fewer calls here.
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label htmlFor="ap-hours">Stop after (hours)</label>
@@ -462,6 +528,32 @@ export function Autopilot({
                       {autopilotSummary(config).map((l) => (
                         <li key={l}>{l}</li>
                       ))}
+                      {passages && (
+                        <li>
+                          {passages.read === 0
+                            ? 'No claim in this scope has a passage to read yet'
+                            : `The explorer can read ${passages.read} claim${passages.read === 1 ? '' : 's'} in this scope`}
+                          {passages.without > 0
+                            ? `; ${passages.without} without a passage ${passages.without === 1 ? 'is' : 'are'} not read`
+                            : ''}
+                          {researchOn
+                            ? ', before the web search adds more'
+                            : ''}
+                          .{' '}
+                          {passages.without > 0 && (
+                            <a
+                              href={routeHash({
+                                view: 'evidence',
+                                ws: workspace.id,
+                                id: '',
+                                q: '',
+                              })}
+                            >
+                              Cite passages in Sources and claims
+                            </a>
+                          )}
+                        </li>
+                      )}
                     </ul>
                     <p>
                       <strong>Routine approvals for its new run</strong>
@@ -537,6 +629,9 @@ export function Autopilot({
                       </li>
                     ))}
                   </ol>
+                  {owner && a.state === 'finished' && a.outcome && (
+                    <NextAfterStop autopilot={a} workspace={workspace} />
+                  )}
                   {owner && a.state === 'running' && (
                     <button
                       className="secondary"
@@ -571,5 +666,120 @@ export function Autopilot({
         )}
       </Status>
     </section>
+  );
+}
+
+const scrollTo = (id: string) =>
+  document
+    .getElementById(id)
+    ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+/**
+ * Final UX pass K-1: what the person can do after an autopilot stops, as links to the place
+ * where they do it. Continue (below it) picks the work up again once that is done.
+ */
+function NextAfterStop({
+  autopilot: a,
+  workspace,
+}: {
+  autopilot: AutopilotRecord;
+  workspace: Workspace;
+}) {
+  const href = (view: 'evidence' | 'compare' | 'decisions' | 'proposals') =>
+    routeHash({ view, ws: workspace.id, id: '', q: '' });
+  const exploration = [...a.steps]
+    .reverse()
+    .find((s) => s.stage === 'explore' && s.child?.kind === 'workflow')?.child;
+  const openExploration = exploration && (
+    <button
+      type="button"
+      className="secondary"
+      onClick={() =>
+        window.dispatchEvent(
+          new CustomEvent(OPEN_EXPLORATION, { detail: exploration.id }),
+        )
+      }
+    >
+      Open the exploration
+    </button>
+  );
+  let text = '';
+  let actions: ReactNode = null;
+  switch (a.outcome) {
+    case 'insufficient_evidence':
+    case 'no_eligible_option':
+      text =
+        a.outcome === 'insufficient_evidence'
+          ? 'Next: give it more to read. Cite a passage for claims that have none, or search the web for new claims, then start the autopilot again.'
+          : 'Next: read why each option cannot go ahead in the exploration and under Decide; more evidence, or a person’s judgment there, can change it.';
+      actions = (
+        <>
+          {openExploration}
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => scrollTo('web-title')}
+          >
+            Search the web
+          </button>
+          <a className="button secondary" href={href('evidence')}>
+            Sources and claims
+          </a>
+        </>
+      );
+      break;
+    case 'needs_person':
+      text =
+        'Next: this step is yours. Make the choice under Projects › Decide (or write the proposal under Proposals), then press Continue here. How much is automated sets which steps stop for you.';
+      actions = (
+        <>
+          <a className="button secondary" href={href('compare')}>
+            Open Decide
+          </a>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => scrollTo('automation-title')}
+          >
+            How much is automated
+          </button>
+        </>
+      );
+      break;
+    case 'needs_authority':
+      text =
+        'Next: approve the waiting action under Monitor › Approvals, then press Continue here.';
+      actions = (
+        <a className="button secondary" href={href('decisions')}>
+          Open Approvals
+        </a>
+      );
+      break;
+    case 'limit_reached':
+      text =
+        'Next: press Continue to carry on with what is left, or start a new autopilot with more calls or hours.';
+      break;
+    case 'failed':
+      text =
+        'Next: read the last step’s note above. Continue tries that step again.';
+      break;
+    case 'proposal':
+      text = 'Next: read and finish the proposal under Projects › Proposals.';
+      actions = (
+        <a className="button secondary" href={href('proposals')}>
+          Open Proposals
+        </a>
+      );
+      break;
+    default:
+      return null;
+  }
+  return (
+    <div className="next-after-stop">
+      <p>
+        <strong>{text}</strong>
+      </p>
+      {actions && <div className="actions">{actions}</div>}
+    </div>
   );
 }

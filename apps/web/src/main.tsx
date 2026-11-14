@@ -30,6 +30,7 @@ import { DesktopDevices } from './desktop.js';
 import { DesktopApp } from './desktop-app.js';
 import { Settings } from './settings.js';
 import {
+  BackToTop,
   Icon,
   PAGES,
   pageOf,
@@ -1207,6 +1208,7 @@ function App() {
                 <PageLoad>{body()}</PageLoad>
               )}
             </DesktopApp.Provider>
+            <BackToTop />
           </main>
           {!inStudio && (
             <footer className="foot">

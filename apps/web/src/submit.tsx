@@ -980,7 +980,7 @@ export function Submit({
       />
       <ThemeIntent key={workspace.id} session={session} workspace={workspace} />
       <h3 id="discover">Discover from existing claims</h3>
-      <ViewModeSwitch />
+      <ViewModeSwitch compact />
       <p className="small">
         Write what you know, attach the claims it rests on, and start. Evidence
         is only the claims you attach; the locator does not search the web.
@@ -1222,7 +1222,8 @@ export function Submit({
                 </ul>
               )}
               <p className="small">
-                {evidence.length} claims attached (1–30 needed)
+                {evidence.length} claim{evidence.length === 1 ? '' : 's'}{' '}
+                attached (1–30 needed)
                 {openClaims.size > evidence.length
                   ? '. A ticked claim counts once you mark what it supports.'
                   : '.'}

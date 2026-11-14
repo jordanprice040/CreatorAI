@@ -297,6 +297,40 @@ export function StaleNote({ stale }: { stale?: string | undefined }) {
     </p>
   );
 }
+/**
+ * Final UX pass (Jordan, November 14): a "Back to top" button once a long page is scrolled
+ * past the first screen. It moves focus back to the page's main region as well as the view.
+ */
+export function BackToTop() {
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    const check = () => setShown(window.scrollY > window.innerHeight);
+    check();
+    window.addEventListener('scroll', check, { passive: true });
+    window.addEventListener('resize', check);
+    return () => {
+      window.removeEventListener('scroll', check);
+      window.removeEventListener('resize', check);
+    };
+  }, []);
+  if (!shown) return null;
+  return (
+    <button
+      type="button"
+      className="secondary back-to-top"
+      onClick={() => {
+        const still = window.matchMedia?.(
+          '(prefers-reduced-motion: reduce)',
+        ).matches;
+        window.scrollTo({ top: 0, behavior: still ? 'auto' : 'smooth' });
+        document.getElementById('content')?.focus({ preventScroll: true });
+      }}
+    >
+      <span aria-hidden="true">↑</span> Back to top
+    </button>
+  );
+}
+
 export function Empty({ children }: { children: ReactNode }) {
   return <p className="small empty-note">{children}</p>;
 }

@@ -18,6 +18,11 @@ import { envelopesFor } from './build-defaults.js';
 
 /** Sent on `window` when a panel starts or stops autopilots, so the others read them again. */
 export const AUTOPILOTS_CHANGED = 'creator:autopilots-changed';
+/**
+ * Sent on `window` with an exploration's workflow id as `detail`, so Explore for me opens it
+ * (the autopilot's stopped card links to the exploration it made).
+ */
+export const OPEN_EXPLORATION = 'creator:open-exploration';
 
 export type Route =
   | {

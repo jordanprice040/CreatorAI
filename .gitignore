@@ -19,3 +19,4 @@ __pycache__/
 
 # Stray test logs at the repository root (audit 2026-11-12 N-1); evidence logs live under tracking/.
 /*.log
+.ux-sweep/

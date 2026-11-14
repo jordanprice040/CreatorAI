@@ -620,7 +620,7 @@ export function Compare({
                 <p className="small">
                   From the brief “{d.cmp.brief.title}”
                   {d.cmp.brief.body?.outcome_measure
-                    ? `, measured by: ${String(d.cmp.brief.body.outcome_measure)}`
+                    ? `, measured by: ${String(d.cmp.brief.body.outcome_measure).replace(/\.+$/, '')}`
                     : ''}
                   .
                 </p>

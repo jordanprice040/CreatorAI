@@ -919,6 +919,20 @@ textarea:disabled {
 input[type='checkbox'],
 input[type='radio'] {
   accent-color: var(--accent);
+  /* Final UX pass: never the full width of a text field (it centred the box above its label). */
+  width: auto;
+  padding: 0;
+}
+/* A checkbox with its sentence beside it, top-aligned for wrapped lines. */
+label.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-weight: 400;
+}
+label.check > input {
+  flex: none;
+  margin: 3px 0 0;
 }
 textarea {
   resize: vertical;
@@ -1144,6 +1158,10 @@ a.primary.link {
 .text.selected {
   text-decoration: underline;
   color: var(--accent-strong);
+}
+/* WCAG 2.2 2.5.8: a text button is a target of at least 24 px high (final UX pass sweep). */
+button.text {
+  min-height: 24px;
 }
 button.text[aria-current='true'] {
   font-weight: 700;
@@ -3487,4 +3505,37 @@ fieldset.gate-checklist li input {
 .fix-here .fix-line,
 .fix-outcome .error {
   display: block;
+}
+/* Final UX pass K-1: what to do after an autopilot stops. */
+.next-after-stop {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--accent-bg);
+  background: var(--surface-raised);
+  border-radius: var(--radius-sm);
+}
+.next-after-stop p {
+  margin: 0;
+}
+.next-after-stop .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+/* Final UX pass: Back to top, shown once a long page is scrolled past the first screen. Sticky
+   at the foot of the main column, so it never covers the right-hand sidebar. */
+.back-to-top {
+  position: sticky;
+  bottom: 16px;
+  z-index: 30;
+  display: flex;
+  width: max-content;
+  margin: 16px 0 0 auto;
+  box-shadow: var(--shadow);
+}
+@media print {
+  .back-to-top {
+    display: none;
+  }
 }

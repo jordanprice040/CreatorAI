@@ -496,6 +496,13 @@ function DecisionCard({
             {d.response.rationale}
           </p>
         )}
+        {d.response?.choice.startsWith('approve') && (
+          <p className="notice ok">
+            <strong>Next:</strong> go back to the page that asked (for example
+            Decide, Scores and specs or Build) and press the same button again,
+            or its “I approved it” button where one shows. It goes through now.
+          </p>
+        )}
         {pending && (
           <>
             <label htmlFor={`why-${d.id}`}>Your reason (required, brief)</label>
