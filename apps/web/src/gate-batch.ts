@@ -68,11 +68,24 @@ export function batchOptions(cands: readonly RankedCandidate[]): BatchOption[] {
 }
 
 /**
- * Ticked by default: options whose gate is the only thing between them and advancing. One that
- * something else blocks stays unticked (confirming it would change nothing yet).
+ * Ticked by default: options whose gate is the only thing between them and advancing, and whose
+ * gates can all be cleared here. One that something else blocks stays unticked (confirming it
+ * would change nothing yet).
  */
 export const tickedByDefault = (o: BatchOption) =>
-  o.outlook.state === 'after_gates';
+  o.outlook.state === 'after_gates' && gatesConfirmableNow(o.cand);
+
+/**
+ * Review L-1: why confirming here alone does not let a listed option advance, or null when it
+ * does (or it can already advance).
+ */
+export function batchNote(o: BatchOption): string | null {
+  if (o.outlook.state === 'never')
+    return 'confirming alone does not let it advance (see above)';
+  if (o.outlook.state === 'after_gates' && !gatesConfirmableNow(o.cand))
+    return 'confirming this alone does not let it advance: another gate needs resolving first (see the option below)';
+  return null;
+}
 
 export type OwnReasons = Partial<Record<GateKind, string>>;
 

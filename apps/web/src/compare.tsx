@@ -728,10 +728,6 @@ export function Compare({
               )}
             </Routine>
 
-            <div className="fold-head">
-              <h3>Alternatives side by side</h3>
-              <FoldAll ids={altIds} folds={altFolds} label="alternatives" />
-            </div>
             {alts.length > 0 && (
               <AdvanceAndGates
                 cands={alts.flatMap((a) => {
@@ -746,6 +742,11 @@ export function Compare({
                 onDone={() => detail.reload()}
               />
             )}
+
+            <div className="fold-head">
+              <h3>Alternatives side by side</h3>
+              <FoldAll ids={altIds} folds={altFolds} label="alternatives" />
+            </div>
             {alts.length === 0 ? (
               <Empty>No alternatives were derived from this problem.</Empty>
             ) : (
@@ -1523,33 +1524,10 @@ export function Compare({
                     </p>
                   )}
                   {outcome && outcome.status === 'needs_human' && (
-                    <div className="notice">
-                      <strong>Waiting for your approval.</strong>
+                    <p className="notice">
+                      <strong>Waiting for your approval.</strong>{' '}
                       <span>{outcome.admission.explanation}</span>
-                      {outcome.admission.decision_id ? (
-                        <InlineApproval
-                          key={outcome.admission.decision_id}
-                          workspace={workspace.id}
-                          decisionId={outcome.admission.decision_id}
-                          csrf={session.csrf_token}
-                          owner={workspace.role === 'owner'}
-                          verb="record the selection"
-                          initialReason={rationale.trim()}
-                          onApproved={() => select()}
-                          openApprovals={() =>
-                            open('decisions', outcome.admission.decision_id!)
-                          }
-                        />
-                      ) : (
-                        <button
-                          className="secondary strong"
-                          type="button"
-                          onClick={() => void select()}
-                        >
-                          I approved it: submit again
-                        </button>
-                      )}
-                    </div>
+                    </p>
                   )}
                   {outcome &&
                     (outcome.status === 'denied' ||
@@ -1566,6 +1544,37 @@ export function Compare({
                     </p>
                   )}
                 </div>
+                {/* Review N-5: the approval sits outside the live region, so only the status
+                    line above is announced. */}
+                {outcome && outcome.status === 'needs_human' && (
+                  <div className="notice approval-step">
+                    {outcome.admission.decision_id ? (
+                      <InlineApproval
+                        key={outcome.admission.decision_id}
+                        workspace={workspace.id}
+                        decisionId={outcome.admission.decision_id}
+                        csrf={session.csrf_token}
+                        owner={workspace.role === 'owner'}
+                        actorId={session.actor_id}
+                        approveLabel="Approve once and record the selection"
+                        initialReason={rationale.trim()}
+                        onApproved={() => select()}
+                        againLabel="I approved it: submit again"
+                        openApprovals={() =>
+                          open('decisions', outcome.admission.decision_id!)
+                        }
+                      />
+                    ) : (
+                      <button
+                        className="secondary strong"
+                        type="button"
+                        onClick={() => void select()}
+                      >
+                        I approved it: submit again
+                      </button>
+                    )}
+                  </div>
+                )}
               </form>
             )}
 

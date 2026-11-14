@@ -652,6 +652,7 @@ export function BuildView({
                       data={d}
                       owner={owner}
                       workspaceId={workspace.id}
+                      actorId={session.actor_id}
                       fixture={fixture}
                       busy={busy}
                       act={act}
@@ -899,6 +900,7 @@ function Product({
   data,
   owner,
   workspaceId,
+  actorId,
   fixture,
   busy,
   act,
@@ -912,6 +914,8 @@ function Product({
   data: Data;
   owner: boolean;
   workspaceId: string;
+  /** The signed-in person (P-3: only their own build's approval is answered in place). */
+  actorId: string;
   fixture: boolean;
   busy: boolean;
   act: (
@@ -1128,7 +1132,9 @@ function Product({
                           decisionId={decisionInReason(b.reason)!}
                           csrf={fixes.csrf}
                           owner={owner}
-                          verb="build again (press Build below)"
+                          actorId={actorId}
+                          approveLabel="Approve once"
+                          afterText="Press Build below to build again."
                           openApprovals={() =>
                             open('decisions', decisionInReason(b.reason)!)
                           }

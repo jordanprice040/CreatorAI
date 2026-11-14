@@ -11,6 +11,7 @@ import {
 } from '@creator/contracts';
 import { ApiError, api, message, when } from './oversight.js';
 import {
+  batchNote,
   batchOptions,
   batchRequest,
   batchSummary,
@@ -313,8 +314,12 @@ export function AdvanceAndGates({
         options.filter(tickedByDefault).map((o) => o.cand.alternative.id),
       ),
     );
-    setOwn({});
-    setOwnOpen(new Set());
+    // Review N-2: own reasons typed for options still listed are kept.
+    const still = new Set(options.map((o) => o.cand.alternative.id));
+    setOwn((m) =>
+      Object.fromEntries(Object.entries(m).filter(([id]) => still.has(id))),
+    );
+    setOwnOpen((s) => new Set([...s].filter((id) => still.has(id))));
   }, [key]);
   if (!cands.length) return null;
   const choices = (xs: readonly SelectionDisposition[]) =>
@@ -433,8 +438,7 @@ export function AdvanceAndGates({
                       <small>
                         {' '}
                         · {o.gates.map((g) => GATE[g.gate]).join(' and ')}
-                        {o.outlook.state === 'never' &&
-                          ' · confirming alone does not let it advance (see above)'}
+                        {batchNote(o) && ` · ${batchNote(o)}`}
                       </small>
                     </span>
                   </label>

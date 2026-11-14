@@ -183,11 +183,14 @@ export type PacketTeam = z.infer<typeof PacketTeamSchema>;
 export const GateKindSchema = z.enum(['ethics', 'access']);
 export type GateKind = z.infer<typeof GateKindSchema>;
 
+/** One line: why a gate is fine for an option (single and one-step confirmations, review N-3). */
+const gateReason = z.string().trim().min(3).max(300);
+
 export const ConfirmGateRequestSchema = z.strictObject({
   alternative: z.strictObject({ id, version }),
   gate: GateKindSchema,
   /** One line: why this gate is fine for this option. */
-  reason: z.string().trim().min(3).max(300),
+  reason: gateReason,
   /**
    * The concerns the page showed for this gate (scorecard id@version of each card that raised
    * one). The server refuses the confirmation when they differ from the current ones, so a
@@ -209,8 +212,6 @@ export const GateConfirmationSchema = z.strictObject({
   created_at: timestamp,
 });
 export type GateConfirmation = z.infer<typeof GateConfirmationSchema>;
-
-const gateReason = z.string().trim().min(3).max(300);
 
 /**
  * UX pass P-4 (as Jordan revised it): the owner confirms ethics and access for several options in

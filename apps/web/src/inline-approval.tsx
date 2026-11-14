@@ -1,35 +1,50 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { DecisionSchema } from '@creator/contracts';
-import { Coverage, api, message } from './oversight.js';
-import { inlineApprovable } from './inline-approval-rules.js';
+import { Coverage, api, message, when } from './oversight.js';
+import {
+  decisionApproved,
+  decisionOutcome,
+  inlineApprovable,
+} from './inline-approval-rules.js';
+import { useOnShow } from './page-active.js';
 import { StaleNote, useLoad } from './ui.js';
 
 // UX pass P-3: when the owner's own action stops for the owner's approval (recording a
 // selection, freezing a spec, starting a build), the approval is shown where they acted. It is
 // the same decision record, answered through the same route as on Monitor › Approvals: the
-// coverage shown is what approve-once permits, a typed reason is required, and the server
-// checks that the target has not changed. Anyone else's request still goes to Approvals.
+// coverage shown is what approve-once permits, a typed reason is required, the study's
+// "worth asking?" answer is offered, and the server checks that the target has not changed.
+// Anyone else's request still goes to Approvals; the action can always be sent again here.
 
 export function InlineApproval({
   workspace,
   decisionId,
   csrf,
   owner,
-  verb,
+  actorId,
+  approveLabel,
   initialReason = '',
   onApproved,
+  againLabel,
+  afterText,
   openApprovals,
 }: {
   workspace: string;
   decisionId: string;
   csrf: string;
   owner: boolean;
-  /** What happens after approving, e.g. "record the selection". */
-  verb: string;
+  /** The signed-in person: only their own request is approved here (review M-1). */
+  actorId: string;
+  /** The approve button, e.g. "Approve once and record the selection". */
+  approveLabel: string;
   /** Filled into the reason box (the person's own words from the form); editable. */
   initialReason?: string;
-  /** Runs the action again once approved; absent, the person presses it again themselves. */
+  /** Sends the action again: run once approved here, and offered whenever it may help. */
   onApproved?: () => void | Promise<void>;
+  /** The resend button, e.g. "I approved it: submit again". */
+  againLabel?: string;
+  /** Without `onApproved`: what to do once approved. */
+  afterText?: string;
   openApprovals: () => void;
 }) {
   const opened = useRef(Date.now());
@@ -38,11 +53,42 @@ export function InlineApproval({
       api(DecisionSchema, `workspaces/${workspace}/decisions/${decisionId}`),
     [workspace, decisionId],
   );
+  // Review L-2: approving in Approvals (another page or window) shows here on return.
+  const reload = useRef(decision.reload);
+  reload.current = decision.reload;
+  useOnShow(() => reload.current());
+  useEffect(() => {
+    const on = () => reload.current();
+    window.addEventListener('focus', on);
+    return () => window.removeEventListener('focus', on);
+  }, []);
   const [reason, setReason] = useState(initialReason);
+  const [interruption, setInterruption] = useState<
+    '' | 'useful' | 'unnecessary'
+  >('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [approved, setApproved] = useState(false);
   const d = decision.data;
+  async function again() {
+    if (!onApproved) return;
+    setBusy(true);
+    try {
+      await onApproved();
+    } finally {
+      setBusy(false);
+    }
+  }
+  const resend = onApproved && againLabel && (
+    <button
+      className="secondary strong"
+      type="button"
+      disabled={busy}
+      onClick={() => void again()}
+    >
+      {againLabel}
+    </button>
+  );
   const fallback = (
     <button className="secondary" type="button" onClick={openApprovals}>
       Open it in Monitor › Approvals
@@ -54,35 +100,24 @@ export function InlineApproval({
     return (
       <p className="small">
         {decision.error ? `${decision.error} ` : ''}
-        {fallback}
+        {fallback} {resend}
       </p>
     );
-  const can = inlineApprovable(d, owner);
-  if (
-    approved ||
-    (d.status === 'answered' && d.response?.choice === 'approve_once')
-  )
+  if (approved || decisionApproved(d))
     return (
       <p className="small">
-        Approved once.{' '}
-        {onApproved ? (
-          <button
-            className="secondary strong"
-            type="button"
-            disabled={busy}
-            onClick={() => void onApproved()}
-          >
-            {verb[0]!.toUpperCase() + verb.slice(1)} now
-          </button>
-        ) : (
-          `Now ${verb}.`
-        )}
+        {approved
+          ? 'Approved once.'
+          : `This request was ${decisionOutcome(d)}.`}{' '}
+        {resend ?? afterText}
       </p>
     );
+  const can = inlineApprovable(d, { owner, actorId });
   if (!can.ok)
     return (
       <p className="small">
-        {can.why} {fallback}
+        <StaleNote stale={decision.stale} />
+        {can.why} {fallback} {resend}
       </p>
     );
   async function approve() {
@@ -101,7 +136,7 @@ export function InlineApproval({
             coverage_hash: d!.coverage.coverage_hash,
             standing_expires_at: null,
             time_spent_ms: Math.min(86_400_000, Date.now() - opened.current),
-            interruption: null,
+            interruption: interruption || null,
           },
         },
       );
@@ -116,12 +151,23 @@ export function InlineApproval({
   }
   return (
     <section className="inline-approval" aria-label="Approve here">
-      <p className="small">
-        <strong>You approve this yourself.</strong> Approve it here, once: it is
-        the same decision record as in Monitor › Approvals.
-      </p>
       <StaleNote stale={decision.stale} />
+      <p className="small">
+        <strong>You asked for this, and you approve it.</strong> Approve it
+        here, once: it is the same decision record as in Monitor › Approvals.
+        Asked {when(d.created_at)}.
+      </p>
       <p className="small">{d.question}</p>
+      <dl>
+        <div>
+          <dt>Uncertainty</dt>
+          <dd>{d.uncertainty}</dd>
+        </div>
+        <div>
+          <dt>If wrong</dt>
+          <dd>{d.consequence_if_wrong}</dd>
+        </div>
+      </dl>
       <Coverage d={d} />
       <label htmlFor={`inline-why-${d.id}`}>
         Your reason for approving (required, brief)
@@ -133,6 +179,18 @@ export function InlineApproval({
         value={reason}
         onChange={(e) => setReason(e.target.value)}
       />
+      <label htmlFor={`inline-int-${d.id}`}>
+        Was this question worth asking?
+      </label>
+      <select
+        id={`inline-int-${d.id}`}
+        value={interruption}
+        onChange={(e) => setInterruption(e.target.value as typeof interruption)}
+      >
+        <option value="">No answer</option>
+        <option value="useful">Yes, useful</option>
+        <option value="unnecessary">No, an unnecessary interruption</option>
+      </select>
       <div className="actions">
         <button
           className="primary"
@@ -140,7 +198,7 @@ export function InlineApproval({
           disabled={busy || !reason.trim()}
           onClick={() => void approve()}
         >
-          {busy ? 'Approving…' : `Approve once and ${verb}`}
+          {busy ? 'Approving…' : approveLabel}
         </button>
         {fallback}
       </div>

@@ -10,6 +10,7 @@ type Batch = ReturnType<typeof advanceOutlook>;
 type Option = { cand: RankedCandidate; outlook: Batch; gates: unknown[] };
 type Mod = {
   gatesConfirmableNow(c: RankedCandidate): boolean;
+  batchNote(o: Option): string | null;
   batchOptions(c: readonly RankedCandidate[]): Option[];
   tickedByDefault(o: Option): boolean;
   sharedNeeded(
@@ -25,11 +26,20 @@ type Mod = {
   ): { request: ConfirmGatesRequest } | { missing: string };
   batchSummary(r: ConfirmGatesRequest): string;
 };
+type Seen = {
+  status: string;
+  kind: string;
+  coverage: { current: boolean };
+  requested_by: string;
+  response: { choice: string } | null;
+};
 type Rules = {
   inlineApprovable(
-    d: { status: string; kind: string; coverage: { current: boolean } },
-    owner: boolean,
+    d: Seen,
+    viewer: { owner: boolean; actorId: string },
   ): { ok: boolean; why?: string };
+  decisionApproved(d: Seen): boolean;
+  decisionOutcome(d: Seen): string;
   decisionInReason(r: string | null): string | null;
 };
 type Routine = {
@@ -217,6 +227,25 @@ test('the one-step form lists confirmable gates, ticks only options it lets adva
     [one, five, six].map((c) => m.gatesConfirmableNow(c)),
     [true, false, true],
   );
+  // Review L-1: a person's ethics concern and a system access concern. Only access is offered,
+  // and confirming it alone does not let the option advance, so it is not ticked for you.
+  const mixed = cand(
+    7,
+    'use_existing',
+    { recommend_alternative: [GATE], proceed_to_validation: [GATE] },
+    [
+      { gate: 'ethics', state: 'unresolved', by: 'person' },
+      { gate: 'access', state: 'unresolved', by: 'system' },
+    ],
+  );
+  const [mixedOpt] = m.batchOptions([mixed]);
+  assert.deepEqual(
+    (mixedOpt!.gates as { gate: string }[]).map((g) => g.gate),
+    ['access'],
+  );
+  assert.equal(mixedOpt!.outlook.state, 'after_gates');
+  assert.equal(m.tickedByDefault(mixedOpt!), false);
+  assert.match(m.batchNote(mixedOpt!)!, /another gate needs resolving first/);
   const opts = m.batchOptions([four, one, two, three, five, six]);
   // A person's concern (5) and a clear option (6) are not offered; the ones it helps come first.
   assert.deepEqual(
@@ -293,26 +322,59 @@ test('the one-step form lists confirmable gates, ticks only options it lets adva
   );
 });
 
-test('the owner’s approval shows where they acted only when they can give it there', async () => {
+test('the owner’s approval shows where they acted only for their own request', async () => {
   const r = (await loadWeb('inline-approval-rules.ts')) as Rules;
-  const pending = {
+  const me = '11111111-1111-4111-8111-111111111111';
+  const pending: Seen = {
     status: 'pending',
     kind: 'authorization',
     coverage: { current: true },
+    requested_by: me,
+    response: null,
   };
-  assert.deepEqual(r.inlineApprovable(pending, true), { ok: true });
-  assert.equal(r.inlineApprovable(pending, false).ok, false);
+  const owner = { owner: true, actorId: me };
+  assert.deepEqual(r.inlineApprovable(pending, owner), { ok: true });
   assert.equal(
-    r.inlineApprovable({ ...pending, kind: 'choice' }, true).ok,
+    r.inlineApprovable(pending, { ...owner, owner: false }).ok,
     false,
   );
-  assert.equal(
-    r.inlineApprovable({ ...pending, coverage: { current: false } }, true).ok,
-    false,
-  );
+  // Review M-1: a team member's build is approved in Approvals, not "by yourself" here.
   assert.match(
-    r.inlineApprovable({ ...pending, status: 'answered' }, true).why!,
-    /answered/,
+    r.inlineApprovable(
+      { ...pending, requested_by: '22222222-2222-4222-8222-222222222222' },
+      owner,
+    ).why!,
+    /Someone else asked/,
+  );
+  assert.equal(
+    r.inlineApprovable({ ...pending, kind: 'choice' }, owner).ok,
+    false,
+  );
+  assert.equal(
+    r.inlineApprovable({ ...pending, coverage: { current: false } }, owner).ok,
+    false,
+  );
+  // Review N-4: a closed request says how it ended.
+  const answered = (choice: string): Seen => ({
+    ...pending,
+    status: 'answered',
+    response: { choice },
+  });
+  assert.equal(
+    r.inlineApprovable(answered('reject'), owner).why,
+    'This request was rejected.',
+  );
+  assert.equal(
+    r.decisionOutcome(answered('approve_standing')),
+    'approved as a standing policy',
+  );
+  assert.equal(r.decisionOutcome({ ...pending, status: 'expired' }), 'expired');
+  // Review L-2: either approval lets the action go again.
+  assert.deepEqual(
+    ['approve_once', 'approve_standing', 'reject', 'defer'].map((c) =>
+      r.decisionApproved(answered(c)),
+    ),
+    [true, true, false, false],
   );
   const id = '0f1e2d3c-4b5a-4968-8776-655443322110';
   assert.equal(

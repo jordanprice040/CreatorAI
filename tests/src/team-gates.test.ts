@@ -4,7 +4,9 @@ import { randomUUID } from 'node:crypto';
 import {
   ADVANCING_DISPOSITIONS,
   AssessmentPacketSchema,
+  ConfirmGatesResultSchema,
   ContractError,
+  GateConfirmationSchema,
   advanceOutlook,
   kindAllows,
   routinePolicySummary,
@@ -32,6 +34,9 @@ import {
 } from '@creator/broker';
 import { studioMachine } from '@creator/db';
 import { discoverySetup, owner } from './discovery-harness.js';
+import { LOGIN_CODE, login } from './pg-harness.js';
+import { createApi } from '@creator/api';
+import { once } from 'node:events';
 
 // ADR-0090: the team profile goes with every assessment and is the owner's alone; the owner
 // confirms a gate seen exactly as it is now; a later concern or option version makes the
@@ -791,4 +796,83 @@ test('the owner confirms several options’ gates in one step, with shared or ow
     }),
     /already confirmed/,
   );
+});
+
+// Review L-4: the one-step route over HTTP: `/batch` reaches the one-step confirmation, writes
+// need the CSRF token, and the single route still confirms one gate.
+test('the one-step and single gate confirmation routes over HTTP', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  s.adapter.access =
+    'Nothing in the packet shows the team can install Python tools (csvkit needs Python and pip).';
+  await s.assess();
+  const [first, second] = (await s.report()).suitability.candidates;
+  assert.ok(first && second);
+  const api = createApi({
+    CREATOR_DATABASE_URL: s.db.url,
+    CREATOR_DEV_LOGIN_CODE: LOGIN_CODE,
+    CREATOR_WORKER: 'off',
+  });
+  api.server.listen(0, '127.0.0.1');
+  await once(api.server, 'listening');
+  t.after(api.close);
+  await api.ready();
+  const base = `http://127.0.0.1:${(api.server.address() as { port: number }).port}/api`;
+  const auth = await login(base);
+  const me = (await (
+    await fetch(`${base}/auth/session`, { headers: auth.read })
+  ).json()) as { actor_id: string };
+  await s.store.addMember(owner, s.ws.id, me.actor_id, 'owner');
+  const root = `${base}/workspaces/${s.ws.id}/problems/${s.problem.id}/gate-confirmations`;
+  const send = (
+    path: string,
+    body: unknown,
+    headers: Record<string, string> = auth.write,
+  ) =>
+    fetch(`${root}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify(body),
+    });
+  const item = (c: RankedCandidate, g: 'ethics' | 'access') => ({
+    alternative: { id: c.alternative.id, version: c.alternative.version },
+    gate: g,
+    concerns_seen: gate(c, g).concerns.map((x) => x.scorecard),
+  });
+  const batch = {
+    shared: {
+      ethics: 'Public data only; no people are affected.',
+      access: null,
+    },
+    items: [{ ...item(first, 'ethics'), reason: null }],
+  };
+  assert.equal((await send('/batch', batch, auth.read)).status, 403);
+  assert.equal(
+    (await fetch(`${root}/batch`, { headers: auth.read })).status,
+    404,
+  );
+  const done = await send('/batch', batch);
+  assert.equal(done.status, 201);
+  const result = ConfirmGatesResultSchema.parse(await done.json());
+  assert.deepEqual(
+    result.confirmations.map((x) => [x.confirmation.gate, x.reason_from]),
+    [['ethics', 'shared']],
+  );
+  // A body for the single route is not a one-step request, and the other way round.
+  assert.equal(
+    (
+      await send('/batch', {
+        ...item(second, 'ethics'),
+        reason: 'Fine for this option.',
+      })
+    ).status,
+    400,
+  );
+  const one = await send('', {
+    ...item(second, 'ethics'),
+    reason: 'Fine for this option.',
+  });
+  assert.equal(one.status, 201);
+  assert.equal(GateConfirmationSchema.parse(await one.json()).gate, 'ethics');
+  assert.equal((await send('', batch)).status, 400);
 });

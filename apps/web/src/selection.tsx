@@ -274,34 +274,10 @@ function FreezeSpec({
           </p>
         )}
         {outcome?.status === 'needs_human' && (
-          <div className="notice">
+          <p className="notice">
             <strong>Waiting for your approval.</strong>{' '}
-            <span>{outcome.admission.explanation}</span>{' '}
-            {outcome.admission.decision_id ? (
-              <InlineApproval
-                key={outcome.admission.decision_id}
-                workspace={workspaceId}
-                decisionId={outcome.admission.decision_id}
-                csrf={session.csrf_token}
-                owner={owner}
-                verb="freeze this version"
-                initialReason={justification.trim()}
-                onApproved={() => freeze()}
-                openApprovals={() =>
-                  open('decisions', outcome.admission.decision_id!)
-                }
-              />
-            ) : (
-              <button
-                className="secondary strong"
-                type="button"
-                disabled={busy}
-                onClick={() => void freeze()}
-              >
-                I approved it: freeze again
-              </button>
-            )}
-          </div>
+            <span>{outcome.admission.explanation}</span>
+          </p>
         )}
         {(outcome?.status === 'denied' || outcome?.status === 'deferred') && (
           <p className="error">
@@ -315,6 +291,37 @@ function FreezeSpec({
           </p>
         )}
       </div>
+      {/* Review N-5: outside the live region, so only the status line is announced. */}
+      {outcome?.status === 'needs_human' && (
+        <div className="notice approval-step">
+          {outcome.admission.decision_id ? (
+            <InlineApproval
+              key={outcome.admission.decision_id}
+              workspace={workspaceId}
+              decisionId={outcome.admission.decision_id}
+              csrf={session.csrf_token}
+              owner={owner}
+              actorId={session.actor_id}
+              approveLabel="Approve once and freeze this version"
+              initialReason={justification.trim()}
+              onApproved={() => freeze()}
+              againLabel="I approved it: freeze again"
+              openApprovals={() =>
+                open('decisions', outcome.admission.decision_id!)
+              }
+            />
+          ) : (
+            <button
+              className="secondary strong"
+              type="button"
+              disabled={busy}
+              onClick={() => void freeze()}
+            >
+              I approved it: freeze again
+            </button>
+          )}
+        </div>
+      )}
     </form>
   );
 }

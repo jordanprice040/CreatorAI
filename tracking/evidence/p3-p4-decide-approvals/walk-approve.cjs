@@ -62,6 +62,15 @@ const log = (k, v) => console.log(k, JSON.stringify(v));
   if (await inline.count()) {
     log('INLINE text', (await inline.textContent()).replace(/\s+/g, ' ').slice(0, 600));
     log('reason prefilled', await inline.locator('textarea').inputValue());
+    log(
+      'worth asking offered',
+      await inline.locator('select[id^=inline-int-]').count(),
+    );
+    await inline.locator('select[id^=inline-int-]').selectOption('unnecessary');
+    log(
+      'outside live region',
+      await inline.evaluate((e) => !e.closest('[aria-live]')),
+    );
     await inline.screenshot({ path: shot('inline-approval.png') });
     await inline.getByRole('button', { name: /Approve once and record the selection/ }).click();
     await p.waitForTimeout(4000);
