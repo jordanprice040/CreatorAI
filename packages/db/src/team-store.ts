@@ -445,6 +445,8 @@ export class TeamStore extends DiscoveryStore {
     ws: string,
     raw: unknown,
     concerns: readonly string[],
+    /** UX pass P-4: the one-step confirmation this belongs to, and whose reason applied. */
+    batch?: { id: string; reason_from: 'shared' | 'own' },
   ): Promise<GateConfirmation> {
     const req = parse(ConfirmGateRequestSchema, raw);
     const id = randomUUID();
@@ -453,6 +455,7 @@ export class TeamStore extends DiscoveryStore {
       gate: req.gate,
       reason: req.reason,
       concerns,
+      ...(batch ? { batch_id: batch.id, reason_from: batch.reason_from } : {}),
     };
     const eventId = await this.append(c, ctx, {
       workspaceId: ws,

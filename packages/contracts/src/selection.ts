@@ -559,6 +559,54 @@ export const RankedCandidateSchema = z.strictObject({
   gates: GateReportSchema,
 });
 export type RankedCandidate = z.infer<typeof RankedCandidateSchema>;
+
+/**
+ * UX pass P-4: whether an option can advance (build, validate or be recommended), and what
+ * stands in the way. `now`: some advancing choice is open. `after_gates`: the ethics and access
+ * gate is the only block on some advancing choice, so confirming it lets the option advance.
+ * `never`: something besides that gate blocks every advancing choice its kind allows, so
+ * confirming the gate alone changes nothing; `blocks` says what (the gate's own text left out).
+ *
+ * The domain puts the gate's reason first in every advancing choice's list whenever the gate is
+ * not clear and the option's kind allows that choice (a kind's own block comes only for choices
+ * it rules out); the domain tests pin that order.
+ */
+export function advanceOutlook(
+  c: Pick<RankedCandidate, 'alternative' | 'gates'>,
+): {
+  state: 'now' | 'after_gates' | 'never';
+  /** The advancing choices open now (now) or once the gate is confirmed (after_gates). */
+  choices: SelectionDisposition[];
+  /** For `never`: each other reason, once, with the choices it blocks. */
+  blocks: { reason: string; choices: SelectionDisposition[] }[];
+} {
+  const allowed = ADVANCING_DISPOSITIONS.filter((d) =>
+    kindAllows(c.alternative.kind, d),
+  );
+  const gated = c.gates.ethics_access !== 'clear';
+  const rest = (d: SelectionDisposition) => {
+    const all = c.gates.blocked[d] ?? [];
+    return gated ? all.slice(1) : all;
+  };
+  const open = allowed.filter((d) => !(c.gates.blocked[d] ?? []).length);
+  if (open.length) return { state: 'now', choices: open, blocks: [] };
+  const after = gated ? allowed.filter((d) => !rest(d).length) : [];
+  if (after.length) return { state: 'after_gates', choices: after, blocks: [] };
+  const blocks: { reason: string; choices: SelectionDisposition[] }[] = [];
+  // A kind that allows no advancing choice (a failed outcome): say why, from the kind's blocks.
+  const why = allowed.length
+    ? allowed.map((d) => [d, rest(d)] as const)
+    : ADVANCING_DISPOSITIONS.map(
+        (d) => [d, (c.gates.blocked[d] ?? []).slice(0, 1)] as const,
+      );
+  for (const [d, reasons] of why)
+    for (const reason of reasons) {
+      const b = blocks.find((x) => x.reason === reason);
+      if (b) b.choices.push(d);
+      else blocks.push({ reason, choices: [d] });
+    }
+  return { state: 'never', choices: [], blocks };
+}
 export const SensitivitySchema = z.strictObject({
   shortlist_size: counter,
   baseline: z.array(id),
