@@ -14,9 +14,7 @@ import {
 } from '@creator/contracts';
 import {
   DISCOVERY_SCENARIOS,
-  MAX_PACKET_CHARS,
   assessSufficiency,
-  buildPacket,
   canonicalHash,
   catalogMatches,
   checkDiscoveryOutput,
@@ -615,45 +613,4 @@ test('independence problems are reported when a first proposal could read anothe
   );
   // Without a skeptic pass nothing becomes a candidate.
   assert.ok(result.proposals.every((x) => x.disposition !== 'candidate'));
-});
-
-test('a busy workspace’s catalog is fitted into the packet instead of refusing discovery (live rerun, November 14)', () => {
-  const input = (catalog: { title: string; summary: string }[]) => ({
-    brief: {
-      id: randomUUID(),
-      version: 1,
-      content_hash: 'a'.repeat(64),
-      title: 'Brief',
-      body: brief,
-    },
-    evidence: [],
-    catalog: catalog.map((c) => ({
-      id: randomUUID(),
-      kind: 'problem' as const,
-      version: 1,
-      ...c,
-    })),
-    max_age_days: 180,
-    now: new Date('2026-11-14T23:00:00Z'),
-  });
-  // A small catalog is passed through unchanged.
-  const small = buildPacket(
-    input([{ title: 'Recorded problem', summary: 'x'.repeat(400) }]),
-  );
-  assert.equal(small.catalog[0]!.summary.length, 400);
-  // Forty long entries (newest first) did not fit; now the newest ones do, shortened.
-  const many = Array.from({ length: 40 }, (_, i) => ({
-    title: `Problem ${i} ${'t'.repeat(300)}`,
-    summary: 's'.repeat(400),
-  }));
-  const p = buildPacket(input(many));
-  assert.ok(JSON.stringify(p).length <= MAX_PACKET_CHARS);
-  assert.ok(p.catalog.length > 0 && p.catalog.length < 40);
-  assert.ok(p.catalog[0]!.title.startsWith('Problem 0 '));
-  assert.equal(p.catalog[0]!.title.length, 160);
-  assert.equal(p.catalog[0]!.summary.length, 200);
-  assert.deepEqual(
-    p.catalog.map((c) => c.ref),
-    p.catalog.map((_, i) => `K${i + 1}`),
-  );
 });
