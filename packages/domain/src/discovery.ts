@@ -137,19 +137,37 @@ export function buildPacket(input: {
         })),
     }),
   );
-  return {
+  const packet = (catalog: Omit<CatalogEntry, 'ref'>[]): EvidencePacket => ({
     packet_version: 'discovery-packet/1',
     kind: 'untrusted_evidence/1',
     authority: 'none',
     brief: input.brief,
     claims,
-    catalog: input.catalog
-      .slice(0, 40)
-      .map((c, i) => ({ ...c, ref: `K${i + 1}` })),
+    catalog: catalog.map((c, i) => ({ ...c, ref: `K${i + 1}` })),
     sufficiency: assessSufficiency(claims),
     max_age_days: input.max_age_days,
     assessed_at: input.now.toISOString(),
-  };
+  });
+  const full = packet(input.catalog.slice(0, 40));
+  if (JSON.stringify(full).length <= MAX_PACKET_CHARS) return full;
+  // A busy workspace's catalog alone can pass the bound (live rerun, November 14): the claims
+  // and brief keep their room, and the catalog takes what is left, newest entries first with
+  // shortened text, as the exploration packet does. Claims that do not fit still refuse.
+  const fitted: Omit<CatalogEntry, 'ref'>[] = [];
+  let room = MAX_PACKET_CHARS - JSON.stringify(packet([])).length;
+  for (const c of input.catalog.slice(0, 40)) {
+    const entry = {
+      ...c,
+      title: c.title.slice(0, 160),
+      summary: c.summary.slice(0, 200),
+    };
+    const size =
+      JSON.stringify({ ...entry, ref: `K${fitted.length + 1}` }).length + 1;
+    if (size > room) break;
+    fitted.push(entry);
+    room -= size;
+  }
+  return packet(fitted);
 }
 
 // ---- Catalog similarity (duplicates) ---------------------------------------------------
