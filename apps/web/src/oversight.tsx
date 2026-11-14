@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { actionLabel, codeLabel } from './plain-words.js';
+import { money } from './amounts.js';
+import { useViewMode } from './view-mode.js';
 import { useOnShow, usePageActive } from './page-drafts.js';
 import { RoutinePolicies } from './routine-policy.js';
 import { runLabel } from './labels.js';
@@ -290,7 +293,9 @@ export function SignIn({
   );
 }
 
-function Coverage({ d }: { d: Decision }) {
+function Coverage({ d, fixture }: { d: Decision; fixture: boolean }) {
+  // P-8: hashes and record ids are Advanced detail; the server binds them either way.
+  const { standard } = useViewMode();
   const b = d.binding;
   if (!b)
     return (
@@ -303,34 +308,41 @@ function Coverage({ d }: { d: Decision }) {
     <dl className="coverage">
       <div>
         <dt>Action</dt>
-        <dd>{words(b.action_type)}</dd>
+        <dd>{standard ? actionLabel(b.action_type) : words(b.action_type)}</dd>
       </div>
       <div>
         <dt>Target</dt>
         <dd>
           {b.target
-            ? `${b.target.kind} ${b.target.id.slice(0, 8)} · v${b.target.version}`
+            ? standard
+              ? words(b.target.kind)
+              : `${b.target.kind} ${b.target.id.slice(0, 8)} · v${b.target.version}`
             : 'none'}
         </dd>
       </div>
-      <div>
-        <dt>Content hash</dt>
-        <dd>
-          <code>{short(b.target?.content_hash)}</code>
-        </dd>
-      </div>
-      <div>
-        <dt>Spec hash</dt>
-        <dd>
-          <code>{short(b.spec_hash)}</code>
-        </dd>
-      </div>
+      {!standard && (
+        <div>
+          <dt>Content hash</dt>
+          <dd>
+            <code>{short(b.target?.content_hash)}</code>
+          </dd>
+        </div>
+      )}
+      {!standard && (
+        <div>
+          <dt>Spec hash</dt>
+          <dd>
+            <code>{short(b.spec_hash)}</code>
+          </dd>
+        </div>
+      )}
       <div>
         <dt>Amount</dt>
         <dd>
+          {/* P-9: approving spends, so the exact maximum is shown, never rounded. */}
           {b.amount_nano_usd === null
             ? 'no spend'
-            : `${b.amount_nano_usd} nano-USD`}
+            : `up to ${money(b.amount_nano_usd, fixture)}`}
         </dd>
       </div>
       <div>
@@ -352,6 +364,7 @@ function DecisionCard({
   names,
   csrf,
   workspace,
+  fixture,
   onDone,
 }: {
   d: Decision;
@@ -360,8 +373,13 @@ function DecisionCard({
   names: (id: string) => string;
   csrf: string;
   workspace: string;
+  /** Fixture workspaces count simulated units, not dollars. */
+  fixture: boolean;
   onDone: (choice: string) => void;
 }) {
+  // P-8: Standard reads stored codes as phrases ("no approval covers it").
+  const { standard } = useViewMode();
+  const said = standard ? codeLabel : words;
   const opened = useRef(Date.now());
   const [rationale, setRationale] = useState('');
   const [standing, setStanding] = useState(false);
@@ -423,10 +441,10 @@ function DecisionCard({
               {d.question}
             </h3>
             <span className="fold-line small">
-              {words(d.reason)} · {d.status}
-              {d.closed_reason ? ` (${words(d.closed_reason)})` : ''}
+              {said(d.reason)} · {d.status}
+              {d.closed_reason ? ` (${said(d.closed_reason)})` : ''}
               {pending ? ` · expires ${when(d.expires_at)}` : ''}
-              {d.response ? ` · answered: ${words(d.response.choice)}` : ''}
+              {d.response ? ` · answered: ${said(d.response.choice)}` : ''}
               {!d.coverage.current && pending && (
                 <>
                   {' · '}
@@ -480,7 +498,7 @@ function DecisionCard({
           )}
         </dl>
         <h3>What this decision covers</h3>
-        <Coverage d={d} />
+        <Coverage d={d} fixture={fixture} />
         {!d.coverage.current && pending && (
           <p className="error" role="alert">
             The target changed after this request. It cannot be approved; a new
@@ -643,6 +661,7 @@ export function Oversight({
   focus: string;
   names: (id: string) => string;
 }) {
+  const { standard } = useViewMode();
   const workspace = current.id;
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [grants, setGrants] = useState<Grant[]>([]);
@@ -805,7 +824,9 @@ export function Oversight({
   });
   const policyRun = (runId: string) => {
     const r = runs.find((x) => x.run_id === runId);
-    return r ? runLabel(r, runNames) : `run ${runId.slice(0, 8)}`;
+    return r
+      ? runLabel(r, runNames, 48, !standard)
+      : `run ${runId.slice(0, 8)}`;
   };
   return (
     <section className="panel records" aria-labelledby="oversight-title">
@@ -861,6 +882,7 @@ export function Oversight({
                 names={names}
                 csrf={session.csrf_token}
                 workspace={workspace}
+                fixture={current.record_mode === 'fixture'}
                 onDone={(choice) => {
                   setJustApproved(choice.startsWith('approve'));
                   void load();
@@ -878,7 +900,7 @@ export function Oversight({
               {runs.map((r) => (
                 <li key={r.run_id}>
                   <span className="kind">{words(r.autonomy_mode)}</span>{' '}
-                  {runLabel(r, runNames)} · {r.state}
+                  {runLabel(r, runNames, 48, !standard)} · {r.state}
                   <small>
                     {' '}
                     gates: {r.stage_gates.map(words).join(', ') || 'none'}
@@ -936,10 +958,12 @@ export function Oversight({
             <ul>
               {standing.map((g) => (
                 <li key={g.id}>
-                  <span className="kind">v{g.version}</span>{' '}
-                  {g.action_types.map(words).join(', ')} ·{' '}
-                  {g.run_id ? `run ${g.run_id.slice(0, 8)}` : 'whole workspace'}{' '}
-                  · until {when(g.expires_at)}{' '}
+                  {!standard && <span className="kind">v{g.version}</span>}{' '}
+                  {g.action_types
+                    .map(standard ? actionLabel : words)
+                    .join(', ')}{' '}
+                  · {g.run_id ? policyRun(g.run_id) : 'whole workspace'} · until{' '}
+                  {when(g.expires_at)}{' '}
                   <button className="text" onClick={() => void revoke(g)}>
                     Revoke
                   </button>

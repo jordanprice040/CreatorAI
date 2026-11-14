@@ -1,4 +1,6 @@
 import type { Prefill } from './prefill.js';
+import { versionTag } from './plain-words.js';
+import { useViewMode } from './view-mode.js';
 import { useEffect, useState, type FormEvent } from 'react';
 import {
   ClaimEvidenceSchema,
@@ -26,7 +28,7 @@ import { api, message, when, words } from './oversight.js';
 import { newestFirst } from './versions.js';
 import { useOnShow } from './page-active.js';
 import { recordLabel, runLabel } from './labels.js';
-import { runNames } from './ui.js';
+import { runNames, type View } from './ui.js';
 import { REASON_MAX } from './owner-actions.js';
 import { ReasonForm } from './reason-form.js';
 import { Routine, WhatWillHappen } from './routine.js';
@@ -61,6 +63,7 @@ export function Evidence({
   focus,
   onFocus,
   prefill = null,
+  open,
 }: {
   session: SessionInfo;
   workspace: Workspace;
@@ -69,7 +72,10 @@ export function Evidence({
   onFocus: (focus: string) => void;
   /** An address handed over from Chat for the fetch form. */
   prefill?: Prefill;
+  /** Opens another page (P-14: Discover › Search the web). */
+  open?: (view: View) => void;
 }) {
+  const { standard } = useViewMode();
   const workspace = current.id;
   const [sources, setSources] = useState<SourceSummary[]>([]);
   const [claims, setClaims] = useState<StoredEntity[]>([]);
@@ -250,6 +256,14 @@ export function Evidence({
     }
   }
   const fixture = current.record_mode === 'fixture';
+  // P-14: why Fetch is off, said beside it rather than only on hover.
+  const fetchBlocked = busy
+    ? ''
+    : !runId
+      ? 'Fetch needs a run first (above).'
+      : !url.trim()
+        ? 'Enter a page address to fetch.'
+        : '';
 
   return (
     <section className="panel records" aria-labelledby="ev-title">
@@ -273,6 +287,45 @@ export function Evidence({
           .fixture.test hosts (the address field suggests some). None of it is
           real reporting.
         </p>
+      )}
+      {runs.length === 0 && (
+        // P-14: Fetch needs a run, so the step that makes one comes first, with the
+        // easier route beside it.
+        <div className="notice">
+          <p>
+            <strong>
+              First, {owner ? 'register' : 'ask an owner to register'} a run for
+              fetching.
+            </strong>{' '}
+            Each fetch runs under a run&apos;s permission, so Fetch stays off
+            until one exists. The run may fetch public pages for 24 hours and
+            nothing else
+            {owner ? '; you can revoke that under Monitor › Approvals' : ''}.
+            {!fixture &&
+              ' Real pages are fetched only while live fetching is on.'}
+          </p>
+          <div className="actions">
+            {owner && (
+              <button
+                type="button"
+                className="secondary"
+                disabled={busy}
+                onClick={() => void registerRun()}
+              >
+                Register a run for fetching
+              </button>
+            )}
+            {open && (
+              <button
+                type="button"
+                className="text"
+                onClick={() => open('submit')}
+              >
+                Or let the studio find pages: Discover › Search the web
+              </button>
+            )}
+          </div>
+        </div>
       )}
       <form className="fetch-row" onSubmit={(e) => void fetchSource(e)}>
         <label htmlFor="evurl" className="inline">
@@ -304,41 +357,22 @@ export function Evidence({
           {runs.length === 0 && <option value="">No registered runs</option>}
           {runs.map((r) => (
             <option key={r.run_id} value={r.run_id}>
-              {runLabel(r, names)}
+              {runLabel(r, names, 48, !standard)}
             </option>
           ))}
         </select>
         <button
           disabled={busy || !runId || !url.trim()}
-          title={
-            !runId
-              ? 'Register a run first; each fetch runs under a run’s permission'
-              : !url.trim()
-                ? 'Enter the page address to fetch'
-                : undefined
-          }
+          aria-describedby={fetchBlocked ? 'evfetch-why' : undefined}
         >
           {busy ? 'Fetching…' : 'Fetch'}
         </button>
-        {owner && runs.length === 0 && (
-          <button
-            type="button"
-            className="secondary"
-            disabled={busy}
-            onClick={() => void registerRun()}
-          >
-            Register a run for fetching
-          </button>
+        {fetchBlocked && (
+          <span id="evfetch-why" className="small">
+            {fetchBlocked}
+          </span>
         )}
       </form>
-      {owner && runs.length === 0 && (
-        <p className="small">
-          Registering a run lets it fetch public pages for 24 hours and nothing
-          else. You can revoke that under Monitor › Approvals.
-          {!fixture &&
-            ' Real pages are fetched only while live fetching is on.'}
-        </p>
-      )}
       {last && (
         <p className={`small ret-${last.state}`} role="status">
           <span className="badge">{words(last.state)}</span>{' '}
@@ -365,7 +399,7 @@ export function Evidence({
                     {s.title}
                     <small>
                       {' '}
-                      v{s.version}
+                      {versionTag(s.version, standard)}
                       {s.cluster_size > 1
                         ? ` · 1 of ${s.cluster_size} from one origin`
                         : ''}
@@ -394,7 +428,7 @@ export function Evidence({
                     aria-current={evidence?.claim.id === c.id}
                     onClick={() => void openClaim(c.id)}
                   >
-                    {c.title} <small>v{c.version}</small>
+                    {c.title} <small>{versionTag(c.version, standard)}</small>
                   </button>
                 </li>
               ))}

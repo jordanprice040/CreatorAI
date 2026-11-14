@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { EventLine } from './event-line.js';
 import { useShown } from './page-active.js';
 import {
   ActivityPageSchema,
@@ -18,15 +19,7 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { api, ApiError, message, words } from './oversight.js';
-import {
-  Empty,
-  Stamp,
-  Status,
-  eventText,
-  shortId,
-  useLoad,
-  type View,
-} from './ui.js';
+import { Empty, Stamp, Status, shortId, useLoad, type View } from './ui.js';
 import {
   archiveWarning,
   canArchive,
@@ -652,7 +645,7 @@ export function Catalog({
                 <ol className="history">
                   {activity.map((h) => (
                     <li key={h.event_id}>
-                      {eventText(h.summary)}{' '}
+                      <EventLine summary={h.summary} />{' '}
                       <Stamp
                         actor={`${h.actor.display_name}${h.actor.kind === 'human' ? '' : ` (${h.actor.kind})`}`}
                         at={h.occurred_at}

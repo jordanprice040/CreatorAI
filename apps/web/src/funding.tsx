@@ -1,4 +1,5 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { Money } from './money.js';
 import {
   CapacitySchema,
   ReinvestmentPolicySchema,
@@ -186,7 +187,10 @@ export function Funding({
 }) {
   const base = `workspaces/${workspace.id}`;
   const owner = workspace.role === 'owner';
-  const usd = (n: string) => money(n, workspace.record_mode === 'fixture');
+  const fixture = workspace.record_mode === 'fixture';
+  // `usd` is exact, for sentences and confirmations; `show` is the display amount (P-9).
+  const usd = (n: string) => money(n, fixture);
+  const show = (n: string) => <Money nano={n} fixture={fixture} />;
   const data = useLoad(async () => {
     const [capacity, policy, rails, commitments, allocations, tranches] =
       await Promise.all([
@@ -249,7 +253,7 @@ export function Funding({
     connections.filter((c) => c.status === 'active').map((c) => c.id),
   );
   const now = Date.now();
-  const forms = { base, session, busy, act, usd };
+  const forms = { base, session, busy, act, usd, show };
 
   return (
     <>
@@ -285,7 +289,7 @@ export function Funding({
       >
         {d && (
           <>
-            <CapacityFacts capacity={d.capacity} usd={usd} />
+            <CapacityFacts capacity={d.capacity} usd={show} />
             {BigInt(d.capacity.outstanding_losses_nano) > 0n && owner && (
               <div className="actions">
                 <button
@@ -312,7 +316,7 @@ export function Funding({
             )}
 
             <h4>Reinvesting policy</h4>
-            <PolicySummary policy={d.policy} usd={usd} />
+            <PolicySummary policy={d.policy} usd={show} />
             {owner && (
               <details className="gh-add" key={`policy-${done}`}>
                 <summary>
@@ -329,9 +333,10 @@ export function Funding({
               <ul className="rows">
                 {allocations.items.map((a) => (
                   <li key={a.id}>
-                    <strong>{usd(a.amount_nano)}</strong>
-                    {a.amount_nano !== a.requested_nano &&
-                      ` of ${usd(a.requested_nano)} asked`}{' '}
+                    <strong>{show(a.amount_nano)}</strong>
+                    {a.amount_nano !== a.requested_nano && (
+                      <> of {show(a.requested_nano)} asked</>
+                    )}{' '}
                     <span className="badge">
                       {a.target === 'portfolio' ? 'portfolio' : 'own budget'}
                     </span>
@@ -362,7 +367,7 @@ export function Funding({
                     : 'Turn reinvesting on in the policy above before turning earnings into budget.'}
                 </p>
               ))}
-            <Tranches tranches={d.tranches} now={now} usd={usd} />
+            <Tranches tranches={d.tranches} now={now} usd={show} />
 
             <h4>Funding sources</h4>
             <p className="small">
@@ -439,6 +444,8 @@ type Forms = {
   busy: boolean;
   act: Act;
   usd: (n: string) => string;
+  /** The display amount: cents in Standard, exact on request (P-9). */
+  show: (n: string) => ReactNode;
 };
 
 function CapacityFacts({
@@ -446,7 +453,7 @@ function CapacityFacts({
   usd,
 }: {
   capacity: Capacity;
-  usd: (n: string) => string;
+  usd: (n: string) => ReactNode;
 }) {
   return (
     <dl className="facts">
@@ -496,7 +503,7 @@ function PolicySummary({
   usd,
 }: {
   policy: ReinvestmentPolicy | null;
-  usd: (n: string) => string;
+  usd: (n: string) => ReactNode;
 }) {
   if (!p)
     return (
@@ -936,7 +943,7 @@ function Tranches({
 }: {
   tranches: z.infer<typeof TrancheSchema>[];
   now: number;
-  usd: (n: string) => string;
+  usd: (n: string) => ReactNode;
 }) {
   if (tranches.length === 0)
     return (
@@ -986,6 +993,7 @@ function RailRow({
   busy,
   act,
   usd,
+  show,
 }: Forms & {
   rail: Rail;
   state: { counts: boolean; note: string };
@@ -1015,7 +1023,7 @@ function RailRow({
           {r.kind === 'owner_attested'
             ? 'balance you record'
             : 'processor balance'}
-          {r.available_nano !== null && ` · last ${usd(r.available_nano)}`} ·{' '}
+          {r.available_nano !== null && <> · last {show(r.available_nano)}</>} ·{' '}
           {state.note}
         </small>
       </div>
@@ -1262,7 +1270,7 @@ function Commitments({
   session,
   busy,
   act,
-  usd,
+  show,
 }: Forms & {
   commitments: z.infer<typeof CommitmentSchema>[];
   owner: boolean;
@@ -1281,7 +1289,7 @@ function Commitments({
         <ul className="rows">
           {open.map((c) => (
             <li key={c.id}>
-              <strong>{c.label}</strong> · {usd(c.amount_nano_usd)}{' '}
+              <strong>{c.label}</strong> · {show(c.amount_nano_usd)}{' '}
               <span className="badge">{COMMITMENT_KIND[c.kind] ?? c.kind}</span>
               <small> · since {when(c.created_at)}</small>
               {owner &&
@@ -1341,7 +1349,7 @@ function Commitments({
           <ul className="rows">
             {closed.map((c) => (
               <li key={c.id}>
-                {c.label} · {usd(c.amount_nano_usd)}
+                {c.label} · {show(c.amount_nano_usd)}
                 <small>
                   {' '}
                   · {COMMITMENT_KIND[c.kind] ?? c.kind} · closed{' '}

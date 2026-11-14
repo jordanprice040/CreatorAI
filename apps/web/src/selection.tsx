@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useViewMode } from './view-mode.js';
 import {
   FreezeOutcomeSchema,
   SelectionReportSchema,
@@ -338,6 +339,7 @@ export function Scoring({
   onFocus: (problemId: string) => void;
   open: (view: View, id?: string) => void;
 }) {
+  const { standard } = useViewMode();
   const desktop = useDesktopApp();
   const workspace = current.id;
   const [problems, setProblems] = useState<StoredEntity[]>([]);
@@ -532,9 +534,15 @@ export function Scoring({
             names={names}
           />
           <p className="small">
-            Report <code>{report.report_hash.slice(0, 12)}</code> · a selection
-            must name this hash, so a decision is never made on a changed
-            report.
+            {standard ? (
+              'A selection is tied to this exact report, so a decision is never made on a changed report.'
+            ) : (
+              <>
+                Report <code>{report.report_hash.slice(0, 12)}</code> · a
+                selection must name this hash, so a decision is never made on a
+                changed report.
+              </>
+            )}
           </p>
         </>
       )}

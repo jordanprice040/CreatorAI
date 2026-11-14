@@ -68,12 +68,14 @@ export function runName(
 /**
  * A run's picker label: its name (the discovery theme, for discovery runs), when it
  * started and its short id, so two runs on the same theme still read differently.
- * Without a name it falls back to the oversight mode.
+ * Without a name it falls back to the oversight mode. P-8: the Standard view passes
+ * `id: false`, since ids are Advanced detail; the start time still tells runs apart.
  */
 export function runLabel(
   run: { run_id: string; created_at: string; autonomy_mode: string },
   names: ReadonlyMap<string, string>,
   max = 48,
+  id = true,
 ) {
   const name = runName(run.run_id, names);
   const head = name
@@ -86,20 +88,20 @@ export function runLabel(
   const dated = /\b[A-Z][a-z]{2} \d{1,2}, \d{4}, \d{1,2}:\d{2}\s?[AP]M\b/.test(
     head,
   );
-  return `${head}${dated ? '' : ` · ${shortWhen(run.created_at)}`} · ${run.run_id.slice(0, 8)}`;
+  return `${head}${dated ? '' : ` · ${shortWhen(run.created_at)}`}${id ? ` · ${run.run_id.slice(0, 8)}` : ''}`;
 }
 
 /**
  * Final UX pass: a discovery's stored uncertainty text, easier to scan. The run's full id
- * becomes its short id, and the run of "No claim in the packet addresses X." sentences
+ * becomes its short id (P-8: left out when `ids` is false, as in the Standard view), and the run of "No claim in the packet addresses X." sentences
  * becomes one "Not covered by any claim: X, Y and Z." The stored text is unchanged.
  */
-export function plainUncertainty(text: string): string {
+export function plainUncertainty(text: string, ids = true): string {
   const missing: string[] = [];
   const rest = text
     .replace(
-      /\b([0-9a-f]{8})-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/g,
-      '$1',
+      /( ?)\b([0-9a-f]{8})-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/g,
+      (_, space: string, short: string) => (ids ? `${space}${short}` : ''),
     )
     // An item ends at the period that ends its sentence, not at one inside it such as "e.g."
     // (review 1 of #192, N-6).

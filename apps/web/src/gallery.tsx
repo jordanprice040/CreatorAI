@@ -1,3 +1,4 @@
+import { Money } from './money.js';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { usePoll } from './page-active.js';
 import {
@@ -37,8 +38,6 @@ const LABELS = {
   runnable_demo: 'Runnable demo',
   native_installer: 'Native installer',
 } as const;
-const nano = (n: string) =>
-  n === '0' ? '$0' : `$${(Number(n) / 1e9).toFixed(6)}`;
 
 /**
  * Verified artifacts from the local product store. Every download, preview start and
@@ -450,8 +449,8 @@ function Facts({ d }: { d: ArtifactDetail }) {
           {m.costs.plan_requests
             ? `${m.costs.plan_requests.request_ids.length} ChatGPT-plan requests (${m.costs.plan_requests.model_id}, plan quota), `
             : ''}
-          {m.costs.broker_calls} broker calls, {nano(m.costs.settled_nano_usd)}{' '}
-          settled
+          {m.costs.broker_calls} broker calls,{' '}
+          <Money nano={m.costs.settled_nano_usd} fixture={false} /> settled
           {m.costs.unsettled_attempts
             ? `, ${m.costs.unsettled_attempts} unsettled`
             : ''}
@@ -1364,8 +1363,9 @@ function Compare({
               : 'Not a direct revision of that version.'}{' '}
             Spec v{result.spec_versions[0]} → v{result.spec_versions[1]};
             changed tasks: {result.changed_tasks.join(', ') || 'none'}; cost{' '}
-            {nano(result.costs.base_nano_usd)} ({result.costs.base_calls} calls)
-            → {nano(result.costs.candidate_nano_usd)} (
+            <Money nano={result.costs.base_nano_usd} fixture={false} /> (
+            {result.costs.base_calls} calls) →{' '}
+            <Money nano={result.costs.candidate_nano_usd} fixture={false} /> (
             {result.costs.candidate_calls} calls).
           </p>
           <table className="tests">

@@ -1,4 +1,5 @@
 import { Fragment, useState, type FormEvent } from 'react';
+import { Money } from './money.js';
 import {
   ArtifactSummarySchema,
   EntitlementSchema,
@@ -338,7 +339,9 @@ export function Payments({
                 {Object.entries(d.balances.balances).map(([k, v]) => (
                   <Fragment key={k}>
                     <dt>{ACCOUNT_LABEL[k] ?? words(k)}</dt>
-                    <dd>{usd(asShown(k, v))}</dd>
+                    <dd>
+                      <Money nano={asShown(k, v)} fixture={!!fixture} />
+                    </dd>
                   </Fragment>
                 ))}
               </dl>

@@ -1,4 +1,5 @@
 import { ViewModeSwitch } from './view-mode.js';
+import { Money } from './money.js';
 import { useEffect, useState, type FormEvent } from 'react';
 import {
   RuntimeCeilingSchema,
@@ -159,11 +160,16 @@ export function Settings({
               <dd>{when(c.counted_since)}</dd>
               <dt>Used or held</dt>
               <dd>
-                {money(c.exposure_nano_usd, false)}{' '}
+                <Money nano={c.exposure_nano_usd} fixture={false} />{' '}
                 <small>settled cost plus calls in flight or unknown</small>
               </dd>
               <dt>Left</dt>
-              <dd>{money((left < 0n ? 0n : left).toString(), false)}</dd>
+              <dd>
+                <Money
+                  nano={(left < 0n ? 0n : left).toString()}
+                  fixture={false}
+                />
+              </dd>
             </dl>
             {c.unknown_calls > 0 && (
               <p className="notice">

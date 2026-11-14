@@ -1,5 +1,15 @@
 # Decision log
 
+## ADR-0104 — Standard view: amounts in cents, internal detail in Advanced (November 14, 2026)
+
+Final UX pass P-8 and P-9 (`docs/FINAL_UX_PASS_FINDINGS_2026-11-14.md`, section 9: Jordan accepted P-8 as proposed and revised P-9 on November 14, 02:14 UTC). No migration; display only.
+
+- **Amounts (P-9).** The Standard view rounds routine amounts to cents (half a cent rounds up). An amount that is not zero but below one cent reads `<0.01` with its unit (`<$0.01`, `<0.01 sim`), so a real charge never reads as zero. When rounding leaves digits out, the amount is a small text button (`Money`, `apps/web/src/money.tsx`) that shows the exact value on click, tap or keyboard, and as its hover title. Advanced shows every amount exactly. Wherever the owner authorizes spending (an approval's maximum, ceilings, spending limits, a budget to fund or allocate, prices, the charge preview, the run budget a check lends) the exact amount is shown before confirming, in both views. Storage, comparisons, reservations and enforcement stay exact nano-USD; nothing rounded is sent to the server.
+- **Internal detail (P-8).** One label map (`apps/web/src/plain-words.ts`) gives action types, record kinds and stored codes their page words. The Standard view leaves out record ids, short ids, report and content hashes, event numbers and first versions ("v1"; v2 and later still show, since they mark a revision); Advanced keeps all of them. Stored history lines are unchanged and are read in plain words only for display (`plainEvent`). Commands a person must type (the desktop pairing command) keep their ids.
+- **Server wording (N-2, N-3).** A discovered problem whose brief repeats its observable problem is titled once (`problemTitle`), and the autopilot's tie stop names at most three options with clipped titles (`tiedNames`). Existing records keep their stored titles.
+
+Rejected: rounding in storage or in the API (it would break the exact-money invariant); hiding ids everywhere (Advanced is where they are needed for support and audit).
+
 ## ADR-0099 — Automation levels for a project: presets over routine approvals and the autopilot (November 12, 2026)
 
 P33 of the [installed-walk fix plan](../docs/FIX_PLAN_INSTALLED_WALK_2026-11-11.md) (walk item 22, Decision B1; Jordan, November 11: "I would still like to automate the full process"; November 12: start P33 now). **Migration 62** (`run_automations`; 60 is held by #185, 61 by P31). Builds on ADR-0079 (P10 routine approvals), ADR-0092 (P13 autopilot) and ADR-0090 (who clears gates). No model call or spending was needed to build or verify it.

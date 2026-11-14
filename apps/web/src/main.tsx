@@ -210,7 +210,7 @@ function FixtureDemo() {
               </div>
               <div>
                 <dt>Provider cost</dt>
-                <dd>0 nano-USD · fixture only</dd>
+                <dd>None · fixture only</dd>
               </div>
             </dl>
             <details>
@@ -825,6 +825,7 @@ function App() {
             focus={pageRoute.id}
             onFocus={focus}
             prefill={prefillFor('evidence', workspace.id)}
+            open={open}
           />
         );
       case 'decisions':

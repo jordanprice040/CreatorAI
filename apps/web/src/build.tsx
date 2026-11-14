@@ -1,4 +1,5 @@
 import { SpecForm, type SpecFormMode } from './spec-form.js';
+import { useViewMode } from './view-mode.js';
 import { usePoll } from './page-active.js';
 import { HumilityForm } from './humility.js';
 import {
@@ -1269,6 +1270,7 @@ function StartBuild({
   /** ADR-0087: where the owner presses fixes for the reasons below in place. */
   fixes?: FixContext;
 }) {
+  const { standard } = useViewMode();
   const reviews = data.reviews.filter((r) => {
     const s = (r.body as { subject?: { id?: string; version?: number } })
       .subject;
@@ -1432,7 +1434,7 @@ function StartBuild({
     chosenHere ? 'changed here' : 'studio default';
   const runName = data.runs.find((r) => r.run_id === runId);
   const recordsSummary = [
-    `Run: ${runName ? runLabel(runName, data.names) : 'none'}`,
+    `Run: ${runName ? runLabel(runName, data.names, 48, !standard) : 'none'}`,
     `budget: ${data.budgets.find((b) => b.id === budgetId)?.name ?? 'none'}`,
     `review: ${chosen ? recordLabel(chosen) : 'none for this version'}`,
     sourceOf(run || budget || price || review),
@@ -1483,7 +1485,7 @@ function StartBuild({
           {data.runs.length === 0 && <option value="">No active run</option>}
           {data.runs.map((r) => (
             <option key={r.run_id} value={r.run_id}>
-              {runLabel(r, data.names)}
+              {runLabel(r, data.names, 48, !standard)}
             </option>
           ))}
         </select>

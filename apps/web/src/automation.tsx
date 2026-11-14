@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useViewMode } from './view-mode.js';
 import {
   AUTOMATION_LEVEL_TEXT,
   AUTOMATION_SELECTION_ACTIONS,
@@ -135,6 +136,7 @@ export function Automation({
   session: SessionInfo;
   workspace: Workspace;
 }) {
+  const { standard } = useViewMode();
   const base = `workspaces/${workspace.id}`;
   const owner = workspace.role === 'owner';
   const fixture = workspace.record_mode === 'fixture';
@@ -414,7 +416,9 @@ export function Automation({
 
   const name = (id: string) => {
     const r = c?.runs.find((x) => x.run_id === id);
-    return r && c ? runLabel(r, c.names) : `run ${id.slice(0, 8)}`;
+    return r && c
+      ? runLabel(r, c.names, 48, !standard)
+      : `run ${id.slice(0, 8)}`;
   };
 
   return (
@@ -453,7 +457,7 @@ export function Automation({
                 >
                   {c.runs.map((r) => (
                     <option key={r.run_id} value={r.run_id}>
-                      {runLabel(r, c.names)}
+                      {runLabel(r, c.names, 48, !standard)}
                     </option>
                   ))}
                 </select>

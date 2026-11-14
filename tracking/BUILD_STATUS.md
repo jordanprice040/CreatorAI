@@ -1,5 +1,11 @@
 # Build status — November 10, 2026
 
+## November 14 update — final UX pass: shell and wording (P-8, P-9, P-14, P-15, Budgets folds; ADR-0104)
+
+What now works (no migration): the Standard view shows amounts in cents with the exact value on click, tap or keyboard (`<0.01` for a charge below a cent), and the exact maximum wherever spending is authorized; Advanced shows every amount exactly, and storage and enforcement stay exact. Standard reads history lines, action types and stored codes in page words and leaves out ids, hashes, event numbers and first versions; Advanced keeps them. A discovered problem whose brief repeats it is titled once (N-2), and the autopilot's tie stop names at most three options (N-3). Sources with no run puts "register a run" before Fetch, says why Fetch is off and links to Search the web (P-14). Every page shows guidance in the Next banner (P-15). Budgets folds pricing snapshots (once pricing exists) and the fixture call in Standard. Details: `tracking/evidence/ux-shell-wording/README.md`.
+
+Checked: CHECKS_PLACEHOLDER
+
 ## November 14 update — final UX pass P-1 (build after approval) and P-10 (build run default)
 
 What now works (no migration or ADR): a build whose acceptance cases the worker could not run (no WSL2, a lost run, cleanup pending) stops at once with the worker's reason and keeps its candidate, instead of spending its repair rounds on the same patch and stopping with "Patch changes nothing". Building again (after a new approval) carries on from that kept candidate: when the builder submits the candidate's own content, the candidate is reviewed and tested afresh. Build's Start build form opens on the run the spec was frozen in. The P-1 finding's guess (retrying from `task.head`) was not the cause; see `tracking/evidence/p1-build-retry/README.md`.

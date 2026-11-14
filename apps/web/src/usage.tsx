@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Money } from './money.js';
 import {
   UsageSummarySchema,
   type PlanConnectionUsage,
@@ -269,9 +270,11 @@ export function UsagePanel({
         {c ? (
           <>
             <p className="usage-line">
-              <strong>{money(c.exposure_nano_usd, false)}</strong> of{' '}
-              {money(c.ceiling_nano_usd, false)} ceiling ·{' '}
-              {money(c.remaining_nano_usd, false)} left
+              <strong>
+                <Money nano={c.exposure_nano_usd} fixture={false} />
+              </strong>{' '}
+              of <Money nano={c.ceiling_nano_usd} fixture={false} /> ceiling ·{' '}
+              <Money nano={c.remaining_nano_usd} fixture={false} /> left
             </p>
             <Meter
               used={Number(BigInt(c.exposure_nano_usd) / 1_000_000n)}
@@ -433,8 +436,18 @@ export function UsageIndicator({
             )}
             {usage.api_cost && (
               <span>
-                API {money(usage.api_cost.exposure_nano_usd, false)}/
-                {money(usage.api_cost.ceiling_nano_usd, false)}
+                API{' '}
+                <Money
+                  nano={usage.api_cost.exposure_nano_usd}
+                  fixture={false}
+                  inButton
+                />
+                /
+                <Money
+                  nano={usage.api_cost.ceiling_nano_usd}
+                  fixture={false}
+                  inButton
+                />
               </span>
             )}
             {!top && !usage.api_cost && <span>Usage</span>}

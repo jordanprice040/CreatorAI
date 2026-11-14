@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { EventLine } from './event-line.js';
 import {
   ActivityNowSchema,
   ActivityPageSchema,
@@ -13,7 +14,7 @@ import {
   type WorkspaceNote,
 } from '@creator/contracts';
 import { api, ApiError, message, when } from './oversight.js';
-import { Icon, eventText, type View } from './ui.js';
+import { Icon, type View } from './ui.js';
 import { canOpen, useOpenSubject } from './destinations.js';
 import './aside.css';
 import {
@@ -486,7 +487,7 @@ function ActivityTab({
                       {e.actor.display_name}
                       {e.actor.kind === 'human' ? '' : ` (${e.actor.kind})`}
                     </strong>{' '}
-                    {eventText(e.summary)}
+                    <EventLine summary={e.summary} inButton={linked} />
                   </span>
                 </span>
                 <time className="aside-row-sub" dateTime={e.occurred_at}>
