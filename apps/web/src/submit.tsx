@@ -154,8 +154,8 @@ const FIELD_NAMES: Record<string, string> = {
 const fieldName = (path: PropertyKey[]) =>
   path[0] === 'fields' && typeof path[1] === 'number'
     ? path[1] === 0
-      ? 'First field'
-      : 'Second field'
+      ? 'First subject area'
+      : 'Second subject area'
     : (FIELD_NAMES[String(path[0] ?? '')] ?? words(String(path[0] ?? 'brief')));
 /** Validation messages in words a person would use. */
 const plain = (m: string) =>
@@ -980,7 +980,7 @@ export function Submit({
       />
       <ThemeIntent key={workspace.id} session={session} workspace={workspace} />
       <h3 id="discover">Discover from existing claims</h3>
-      <ViewModeSwitch />
+      <ViewModeSwitch compact />
       <p className="small">
         Write what you know, attach the claims it rests on, and start. Evidence
         is only the claims you attach; the locator does not search the web.
@@ -1028,7 +1028,9 @@ export function Submit({
               />
               <div className="two">
                 <div>
-                  <label htmlFor="b-fa">First field</label>
+                  <label htmlFor="b-fa">
+                    First subject area (for example nursing)
+                  </label>
                   <input
                     id="b-fa"
                     required
@@ -1038,7 +1040,9 @@ export function Submit({
                   />
                 </div>
                 <div>
-                  <label htmlFor="b-fb">Second field</label>
+                  <label htmlFor="b-fb">
+                    Second subject area (for example logistics)
+                  </label>
                   <input
                     id="b-fb"
                     required
@@ -1222,7 +1226,8 @@ export function Submit({
                 </ul>
               )}
               <p className="small">
-                {evidence.length} claims attached (1–30 needed)
+                {evidence.length} claim{evidence.length === 1 ? '' : 's'}{' '}
+                attached (1–30 needed)
                 {openClaims.size > evidence.length
                   ? '. A ticked claim counts once you mark what it supports.'
                   : '.'}

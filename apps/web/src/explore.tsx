@@ -1,4 +1,4 @@
-import { usePoll } from './page-active.js';
+import { usePageActive, usePoll } from './page-active.js';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   EXPLORATION_TASK_CLASS,
@@ -40,8 +40,9 @@ import {
 } from './fix-buttons.js';
 import { refusalFixes, type FixAction } from './fix-here.js';
 import { newestFirst } from './versions.js';
+import { OPEN_EXPLORATION } from './autopilot-routes.js';
 import { envelopesFor } from './build-defaults.js';
-import { Empty, Status, useLoad, type View } from './ui.js';
+import { Empty, Status, reveal, useLoad, type View } from './ui.js';
 import { preferredRoute } from './model-choice.js';
 import { missingTaskTexts } from './discover-defaults.js';
 import {
@@ -184,6 +185,25 @@ export function Explore({
   const [error, setError] = useState('');
   const [errorFixes, setErrorFixes] = useState<FixAction[]>([]);
   const [openId, setOpenId] = useState('');
+  const [openedAt, setOpenedAt] = useState('');
+  // The autopilot's stopped card opens its exploration here. Only the Explore on the page in
+  // view answers (kept-alive pages and Chat cards have their own), inside its own section.
+  const active = usePageActive();
+  const activeRef = useRef(active);
+  activeRef.current = active;
+  const sectionRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const open = (e: Event) => {
+      const { id, at } = (e as CustomEvent<{ id: string; at: string }>).detail;
+      if (!id || !activeRef.current || !sectionRef.current) return;
+      setOpenId(id);
+      setOpenedAt(at);
+      ctx.refresh();
+      reveal(sectionRef.current, 'explore-title');
+    };
+    window.addEventListener(OPEN_EXPLORATION, open);
+    return () => window.removeEventListener(OPEN_EXPLORATION, open);
+  }, [workspace.id]);
 
   const c = ctx.data;
   // ADR-0081: with nothing picked here, start from the current model in the top bar.
@@ -478,7 +498,11 @@ export function Explore({
 
   const shown = openId || c?.explorations[0]?.id || '';
   return (
-    <section className="explore" aria-labelledby="explore-title">
+    <section
+      className="explore"
+      aria-labelledby="explore-title"
+      ref={sectionRef}
+    >
       <h3 id="explore-title">Explore for me</h3>
       <p>
         No theme needed. The studio reads the claims already recorded in this
@@ -732,6 +756,12 @@ export function Explore({
                       {when(w.created_at)} · {words(w.state)}
                     </option>
                   ))}
+                  {shown && !c.explorations.some((w) => w.id === shown) && (
+                    <option value={shown}>
+                      {openedAt ? `${when(openedAt)} · ` : ''}opened from the
+                      autopilot
+                    </option>
+                  )}
                 </select>
               </>
             )}

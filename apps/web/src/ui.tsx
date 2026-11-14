@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { useOnShow } from './page-active.js';
 import {
   ActorSummarySchema,
@@ -297,6 +303,96 @@ export function StaleNote({ stale }: { stale?: string | undefined }) {
     </p>
   );
 }
+/**
+ * Scrolls to the element with `id` and moves keyboard focus to it (review 1 of #192, L-1 and
+ * L-2). It looks only inside the page that `from` belongs to, since kept-alive pages repeat
+ * ids, and jumps without animation when the person asks for reduced motion.
+ */
+export function reveal(from: Element | null, id: string): boolean {
+  const root: ParentNode = from?.closest('.draft-page') ?? document;
+  const target = root.querySelector<HTMLElement>(`#${CSS.escape(id)}`);
+  if (!target) return false;
+  const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  target.scrollIntoView({
+    behavior: still ? 'auto' : 'smooth',
+    block: 'start',
+  });
+  if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+  target.focus({ preventScroll: true });
+  return true;
+}
+
+/**
+ * Review 3 of #192, L-C (WCAG 2.4.11): the sticky top bar's real height, kept in `--topbar-h`
+ * on the root element, so scroll padding keeps focused controls and revealed headings below it
+ * at every width (the bar wraps to two or three rows on narrow windows).
+ */
+export function useTopbarHeight() {
+  const stop = useRef<() => void>(() => undefined);
+  // A callback ref, since the bar mounts only once the studio has loaded.
+  return useCallback((bar: HTMLElement | null) => {
+    stop.current();
+    stop.current = () => undefined;
+    const root = document.documentElement;
+    if (!bar || typeof ResizeObserver === 'undefined') {
+      root.style.removeProperty('--topbar-h');
+      return;
+    }
+    // A bar that scrolls away with the page (small or zoomed windows, review 4 R4-L1) covers
+    // nothing, so it needs no padding.
+    const set = () =>
+      root.style.setProperty(
+        '--topbar-h',
+        getComputedStyle(bar).position === 'sticky'
+          ? `${Math.ceil(bar.getBoundingClientRect().height)}px`
+          : '0px',
+      );
+    set();
+    const watch = new ResizeObserver(set);
+    watch.observe(bar);
+    // The media query that unsticks the bar can apply without the bar changing size.
+    window.addEventListener('resize', set);
+    stop.current = () => {
+      watch.disconnect();
+      window.removeEventListener('resize', set);
+    };
+  }, []);
+}
+
+/**
+ * Final UX pass (Jordan, November 14): a "Back to top" button once a long page is scrolled
+ * past the first screen. It moves focus back to the page's main region as well as the view.
+ */
+export function BackToTop() {
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    const check = () => setShown(window.scrollY > window.innerHeight);
+    check();
+    window.addEventListener('scroll', check, { passive: true });
+    window.addEventListener('resize', check);
+    return () => {
+      window.removeEventListener('scroll', check);
+      window.removeEventListener('resize', check);
+    };
+  }, []);
+  if (!shown) return null;
+  return (
+    <button
+      type="button"
+      className="secondary back-to-top"
+      onClick={() => {
+        const still = window.matchMedia?.(
+          '(prefers-reduced-motion: reduce)',
+        ).matches;
+        window.scrollTo({ top: 0, behavior: still ? 'auto' : 'smooth' });
+        document.getElementById('content')?.focus({ preventScroll: true });
+      }}
+    >
+      <span aria-hidden="true">↑</span> Back to top
+    </button>
+  );
+}
+
 export function Empty({ children }: { children: ReactNode }) {
   return <p className="small empty-note">{children}</p>;
 }

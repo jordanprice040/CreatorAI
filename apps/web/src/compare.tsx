@@ -35,7 +35,7 @@ import {
 import { newestFirst } from './versions.js';
 import { Fold, FoldAll, useFolds } from './fold.js';
 import { firstNeeding, groupByReason, nameList } from './fold-state.js';
-import { runLabel } from './labels.js';
+import { plainUncertainty, runLabel } from './labels.js';
 import { HumilityForm } from './humility.js';
 import { ResponseExplanationPanel } from './proposals.js';
 import {
@@ -614,13 +614,16 @@ export function Compare({
               <p>{String(d.cmp.problem.body?.statement ?? '')}</p>
               <p className="small">
                 Affects: {String(d.cmp.problem.body?.affected_group ?? '—')} ·
-                Uncertainty: {String(d.cmp.problem.body?.uncertainty ?? '—')}
+                Uncertainty:{' '}
+                {plainUncertainty(
+                  String(d.cmp.problem.body?.uncertainty ?? '—'),
+                )}
               </p>
               {d.cmp.brief && (
                 <p className="small">
                   From the brief “{d.cmp.brief.title}”
                   {d.cmp.brief.body?.outcome_measure
-                    ? `, measured by: ${String(d.cmp.brief.body.outcome_measure)}`
+                    ? `, measured by: ${String(d.cmp.brief.body.outcome_measure).replace(/\.+$/, '')}`
                     : ''}
                   .
                 </p>
@@ -959,7 +962,9 @@ export function Compare({
                         </p>
                         <p className="small">
                           Uncertainty:{' '}
-                          {String(a.entity.body?.uncertainty ?? '—')}
+                          {plainUncertainty(
+                            String(a.entity.body?.uncertainty ?? '—'),
+                          )}
                         </p>
                         {hr && (
                           <p className="small">

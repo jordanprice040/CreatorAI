@@ -228,7 +228,7 @@ export function GateLines({
                 </div>
               ) : (
                 <button
-                  className="secondary"
+                  className="secondary gate-confirm"
                   onClick={() => {
                     setOpen(d.gate);
                     setReason('');

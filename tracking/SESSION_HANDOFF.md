@@ -1,5 +1,30 @@
 # Session handoff — November 10, 2026
 
+## November 14 handoff — final UX pass, fixture part (PR #192)
+
+Jordan approved the plan at 00:57 UTC. The cloud fixture pass is done. `scripts/ux-sweep.mjs` (Playwright and axe-core, a dev dependency) took 156 shots; the full fixture walk is in `docs/FINAL_UX_PASS_FINDINGS_2026-11-14.md`.
+
+Web-only fixes on this branch:
+
+- autopilot next step after every stop, with links; readable-claims count; end time renewed; per-run cap warning; the Start box always unticks
+- Decide and Path banner wording
+- Approvals "press it again" hint
+- Back to top button
+- checkbox alignment and 16 px boxes; text buttons at least 24 px
+- doubled kind labels, the `problems//explanation` 404, condensed uncertainty text, run labels without a repeated date, and smaller wording fixes
+
+Checks: typecheck, format:check and 243 web unit tests pass; the sweep re-run shows 0 axe violations and 0 console errors.
+
+Proposals P-1..P-15 wait for Jordan. P-1 (High) is a bug: a build retried after approval fails with "Patch changes nothing", likely because `build.tsx` retries from `task.head`.
+
+Server-side autopilot work belongs to the "Expand autopilot automation options" thread (branch `claude/project-thread-77qqks`).
+
+Next: an independent review of #192, then Jordan's decisions and one thread per area, the live walk, and the L-3 docs last. No migration or ADR.
+
+## November 14 handoff — final UX pass plan (draft for Jordan)
+
+Docs only, no code, migration or ADR. `docs/FINAL_UX_PASS_PLAN_2026-11-14.md`: the pass's fix-small/propose-big rule, severity scale, references (Nielsen, WCAG 2.2 AA, Fluent/Material, Laws of UX), where it runs (cloud fixture, dev studio Testing workspace, installed app Testing workspace), checks by area, the Standard/Advanced method, the full project walkthrough, and known items K-1..K-13 (live autopilot notes, November 10 UX notes, audit L-3). Next: Jordan approves or revises the plan; the pass starts only after that.
+
 ## November 12 handoff — full codebase audit fixes
 
 Branch `claude/project-thread-2jhwqe`, no migration or ADR. Report `docs/FULL_AUDIT_2026-11-12.md` (also `/mnt/project-files/reviews/FULL_AUDIT_2026-11-12.md`), with a Fixes section. New: `usePoll` in `apps/web/src/page-active.ts`; `useLoad` returns `stale` and `Status` takes `stale`; `apps/web/src/end-time.ts` (`endAfter`, `useEndTime`); `dueAutomations` ignores failed or cancelled newer assessments. Tests: `tests/src/web-load-poll.test.ts` (8, a small hook harness, no DOM), `automation.test.ts` audit N-7, `codex-host.test.ts` pin check. Review 1 (2 L, 5 nits) fixed: `StaleNote` in `ui.tsx`, `stale` on every `useLoad` view (scan test in `web-load-poll.test.ts`), `usePoll` in `assess.tsx` `Run`, `explore.tsx` and `overview.tsx`, `endTimeClose` in `end-time.ts`, `useLoad` tracks the dependencies its data was read for. Open: L-3 docs refresh at the final UX pass. Re-review nits N-1..N-4 fixed (`useEndTime` takes `keep`, the confirmation; `useLoad` shows Loading on a full load; one end time in the automation widen test). Next: merge.

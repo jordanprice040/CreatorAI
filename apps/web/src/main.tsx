@@ -30,6 +30,8 @@ import { DesktopDevices } from './desktop.js';
 import { DesktopApp } from './desktop-app.js';
 import { Settings } from './settings.js';
 import {
+  BackToTop,
+  useTopbarHeight,
   Icon,
   PAGES,
   pageOf,
@@ -442,6 +444,8 @@ function PageTabs({
 }
 
 function App() {
+  // Review 3 of #192, L-C: scroll padding follows the sticky top bar's real height.
+  const topbar = useTopbarHeight();
   const [health, setHealth] = useState('Checking connection…');
   // The full health line, shown on hover; the bar keeps a short form so it fits on one row.
   const [healthDetail, setHealthDetail] = useState('');
@@ -1065,7 +1069,7 @@ function App() {
               {auth.error}
             </p>
           )}
-          <header className="topbar">
+          <header className="topbar" ref={topbar}>
             {inStudio ? (
               <>
                 <button
@@ -1207,6 +1211,7 @@ function App() {
                 <PageLoad>{body()}</PageLoad>
               )}
             </DesktopApp.Provider>
+            <BackToTop />
           </main>
           {!inStudio && (
             <footer className="foot">
