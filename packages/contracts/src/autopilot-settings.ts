@@ -61,7 +61,7 @@ export function handsOff(v: AutopilotSettingsValues): AutopilotSettingsValues {
     break_ties: true,
     keep_close_leader: true,
     next_candidate: true,
-    retry_failed: 1,
+    retry_failed: Math.max(1, v.retry_failed),
     choose_model_ethics: v.choose_model_ethics,
     accept_quote_checked_claims: v.accept_quote_checked_claims,
   };
@@ -74,7 +74,9 @@ export const NOT_HANDS_OFF: readonly (keyof AutopilotSettingsValues)[] = [
 export function isHandsOff(v: AutopilotSettingsValues): boolean {
   const h = handsOff(v);
   return (Object.keys(h) as (keyof AutopilotSettingsValues)[]).every(
-    (k) => NOT_HANDS_OFF.includes(k) || v[k] === h[k],
+    (k) =>
+      NOT_HANDS_OFF.includes(k) ||
+      (typeof h[k] === 'number' ? Number(v[k]) >= Number(h[k]) : v[k] === h[k]),
   );
 }
 
@@ -114,6 +116,8 @@ export const AutopilotStopKindSchema = z.enum([
   'paused',
   'run_cap',
   'daily_cap',
+  /** Review 1 L-2: the connection refused for its own setup (caps not accepted, sign-in, …). */
+  'connection',
   'call_limit',
   'end_time',
   'spec',
@@ -240,10 +244,10 @@ export type AutopilotFallback = z.infer<typeof AutopilotFallbackSchema>;
 
 export type AutopilotSettingKey = keyof AutopilotSettingsValues;
 
-/** ADR-0100: the flag on a selection (and its proposal) an autopilot made past model-only ethics. */
 /** P-12: the label a quote-checked web claim the autopilot accepted carries wherever it is used. */
 export const AUTOPILOT_QUOTE_CHECK_LABEL =
   'Accepted by autopilot · quote check only' as const;
 
+/** ADR-0100: the flag on a selection (and its proposal) an autopilot made past model-only ethics. */
 export const MODEL_ONLY_ETHICS_NOTE =
   'Ethics checked by the model only: look at it.' as const;

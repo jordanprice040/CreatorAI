@@ -16,6 +16,9 @@ import {
   type ErrorCode,
   type WebDiscovery,
   type Workflow,
+  PlanRefusalCodeSchema,
+  AUTOPILOT_MIN_CALLS,
+  StartAutopilotRequestSchema,
 } from '@creator/contracts';
 import {
   autopilotChildLimits,
@@ -86,9 +89,19 @@ const codeOf = (e: unknown): ErrorCode | null =>
 
 /** ADR-0100: the kind of stop a refused step made, from the refusal's code and words. */
 export function refusalKind(e: unknown): AutopilotStopKind {
+  // Review 1 L-2: a plan connection's refusal names its reason by code; read that first.
+  const plan: readonly string[] = PlanRefusalCodeSchema.options;
+  const reasons =
+    e instanceof ContractError
+      ? e.reasons.map((r) => r.code).filter((c) => plan.includes(c))
+      : [];
   const text = said(e).toLowerCase();
+  if (reasons.includes('daily_cap_reached')) return 'daily_cap';
+  if (reasons.includes('cap_reached') && text.includes('per-run'))
+    return 'run_cap';
+  if (reasons.length) return 'connection';
   if (text.includes('per-run request cap')) return 'run_cap';
-  if (text.includes('daily') && text.includes('cap')) return 'daily_cap';
+  if (text.includes('daily request cap')) return 'daily_cap';
   const code = codeOf(e);
   if (code === 'BUDGET_EXCEEDED' || code === 'LIMIT_EXCEEDED')
     return 'call_limit';
@@ -232,9 +245,41 @@ export class AutopilotRunner {
   }
 
   async start(ctx: CommandContext, ws: string, runId: string, body: unknown) {
+    await this.#fitsRunCap(ctx, ws, runId, body);
     const a = await this.store.startAutopilot(ctx, ws, runId, body);
     this.#launch(a.created_by, ws, a.id);
     return this.with(a);
+  }
+
+  /**
+   * ADR-0100 (K-9, review 1 L-3): a whole process on a plan connection is refused at the start
+   * when what is left of the connection's per-run cap on this run cannot hold its shortest path
+   * (the research search's 2 requests too, when it uses the same connection).
+   */
+  async #fitsRunCap(
+    ctx: CommandContext,
+    ws: string,
+    runId: string,
+    body: unknown,
+  ) {
+    const req = StartAutopilotRequestSchema.safeParse(body);
+    if (!req.success) return; // The store refuses it with the contract's own message.
+    const c = req.data.config;
+    const r = c.resource_setup;
+    if (c.start || r.kind !== 'subscription') return;
+    const room = await this.store
+      .planRunRoom(ctx, ws, r.connection_id, runId)
+      .catch(() => null);
+    if (!room) return; // A connection that cannot be read is refused by admission instead.
+    const need =
+      AUTOPILOT_MIN_CALLS +
+      (c.research?.connection_id === r.connection_id ? 2 : 0);
+    const left = room.per_run - room.used;
+    if (left < need)
+      throw new ContractError(
+        'LIMIT_EXCEEDED',
+        `This run has ${Math.max(0, left)} of the plan connection's ${room.per_run} requests per run left, and a whole process needs at least ${need}. Raise the per-run cap under Models and connections, or start from a recorded problem.`,
+      );
   }
 
   async retry(ctx: CommandContext, ws: string, id: string, body: unknown) {
@@ -817,6 +862,8 @@ export class AutopilotRunner {
   #searchRoute(
     a: Autopilot,
     settings: AutopilotSettings,
+    /** Calls already set aside for the step that would search (review 1 L-1). */
+    own = 0,
   ): { connection_id: string; model_id: string } | string {
     const v = settings.values;
     if (!v.gather_evidence) return 'Gathering evidence is off.';
@@ -829,7 +876,7 @@ export class AutopilotRunner {
     if (!this.web) return 'Web search is not running in this studio.';
     if (a.config.data_class !== 'public' && a.config.data_class !== 'synthetic')
       return 'Web search reads public pages; this autopilot works on other data.';
-    if (a.config.limits.max_calls - a.calls_reserved < 2)
+    if (a.config.limits.max_calls - (a.calls_reserved - own) < 2)
       return 'Its call limit leaves fewer than the 2 requests a search takes.';
     const r = a.config.research;
     if (r) return { connection_id: r.connection_id, model_id: r.model_id };
@@ -1130,6 +1177,7 @@ export class AutopilotRunner {
         ws,
         req.problem_id,
         req.options,
+        a.config.data_class,
       );
       linked += made.length;
       if (made.length)
@@ -1156,6 +1204,7 @@ export class AutopilotRunner {
       const route = this.#searchRoute(
         { ...a, steps: a.steps.slice(0, -1) },
         settings,
+        step.calls,
       );
       if (typeof route === 'string') notes.push(`No web search: ${route}`);
       else {

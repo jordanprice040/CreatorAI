@@ -217,8 +217,8 @@ export class WebDiscoveryStore extends PortfolioStore {
           const id = randomUUID();
           await c.query(
             `insert into web_discoveries (id, workspace_id, fixture, run_id, connection_id, model_id,
-               scope, input_hash, policy_version, state, version, created_by)
-             select $1, w.id, w.fixture, $3, $4, $5, $6, $7, $8, 'searching', 1, $9
+               scope, input_hash, policy_version, state, version, created_by, autopilot_id)
+             select $1, w.id, w.fixture, $3, $4, $5, $6, $7, $8, 'searching', 1, $9, $10
              from workspaces w where w.id = $2`,
             [
               id,
@@ -230,6 +230,7 @@ export class WebDiscoveryStore extends PortfolioStore {
               req.input_hash,
               WEB_DISCOVERY_POLICY_VERSION,
               ctx.actorId,
+              ctx.autopilot?.id ?? null,
             ],
           );
           await this.append(c, ctx, {
@@ -762,13 +763,18 @@ export class WebDiscoveryStore extends PortfolioStore {
     ws: string,
     id: string,
   ): Promise<{ accept: boolean; version: number } | null> {
+    // Review 1 L-6: the search records the autopilot that started it, so a person resuming it
+    // after a restart still holds its quote-checked claims.
     const made =
       !!ctx.autopilot ||
       !!(
         await c.query(
-          `select 1 from autopilots where workspace_id = $1
-              and steps @> $2::jsonb limit 1`,
-          [ws, JSON.stringify([{ child: { kind: 'web_discovery', id } }])],
+          `select 1 from web_discoveries where workspace_id = $1 and id = $2
+              and autopilot_id is not null
+           union all
+           select 1 from autopilots where workspace_id = $1
+              and steps @> $3::jsonb limit 1`,
+          [ws, id, JSON.stringify([{ child: { kind: 'web_discovery', id } }])],
         )
       ).rowCount;
     if (!made) return null;

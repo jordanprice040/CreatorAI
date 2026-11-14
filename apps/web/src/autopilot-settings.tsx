@@ -129,11 +129,11 @@ export function AutopilotSettingsPanel({
                 : 'Hands-off is off.'}
               {s.updated_at ? ` Last changed ${when(s.updated_at)}.` : ''}
             </p>
-            {s.can_change && !isHandsOff(s.values) && (
+            {s.can_change && !isHandsOff(draft) && (
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => void save(handsOff(s.values))}
+                onClick={() => void save(handsOff(draft))}
               >
                 Turn on Hands-off
               </button>

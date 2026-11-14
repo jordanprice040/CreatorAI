@@ -50,6 +50,7 @@ import {
   DEFAULT_OWNER_ACTOR_ID,
   autopilotKey,
   createApi,
+  refusalKind,
   type AutopilotWeb,
 } from '@creator/api';
 import { discoverySetup, owner } from './discovery-harness.js';
@@ -2459,8 +2460,8 @@ test('ADR-0100: linking suggested claims is the autopilot’s, audited, and neve
   const problem = a.steps.find((s) => s.stage === 'discover')!.problem!;
   const rep = await h.store.selectionReport(owner, h.ws.id, problem.id);
   const opt = rep.suitability.candidates[0]!.alternative;
-  // A recorded claim that names the option.
-  await h.store.createEntity(owner, h.ws.id, {
+  // A recorded claim that names the option, with no source fetched from the web behind it.
+  const note = await h.store.createEntity(owner, h.ws.id, {
     kind: 'claim',
     title: `${opt.title} works for this`,
     body: {
@@ -2470,13 +2471,31 @@ test('ADR-0100: linking suggested claims is the autopilot’s, audited, and neve
     },
   });
   const ap = { ...owner, autopilot: { id: a.id } };
-  const made = await h.store.autopilotLinkClaims(ap, h.ws.id, problem.id, [
-    opt.id,
-  ]);
-  assert.ok(made.some((m) => m.to_id === opt.id));
-  const again = await h.store.autopilotLinkClaims(ap, h.ws.id, problem.id, [
-    opt.id,
-  ]);
+  // Review 1 L-5: on public or synthetic data it is never linked unattended.
+  const pub = await h.store.autopilotLinkClaims(
+    ap,
+    h.ws.id,
+    problem.id,
+    [opt.id],
+    'synthetic',
+  );
+  assert.ok(pub.every((m) => m.claim_id !== note.id));
+  // An autopilot on approved private data may link it.
+  const made = await h.store.autopilotLinkClaims(
+    ap,
+    h.ws.id,
+    problem.id,
+    [opt.id],
+    'approved_private',
+  );
+  assert.ok(made.some((m) => m.to_id === opt.id && m.claim_id === note.id));
+  const again = await h.store.autopilotLinkClaims(
+    ap,
+    h.ws.id,
+    problem.id,
+    [opt.id],
+    'approved_private',
+  );
   assert.equal(again.filter((m) => m.to_id === opt.id).length, 0);
   const row = await h.db.pool.query(
     `select asserted_by, rationale from entity_links where to_id = $1 and rationale like 'Its title%'`,
@@ -2636,4 +2655,198 @@ test('P-11: approvals made with an autopilot end when it ends, stay while it wai
     (v) => v.policy.run_id === runId2,
   )!.policy;
   assert.equal(kept.status, 'active');
+});
+
+test('review 1 M-1: a thin-evidence stop offers Allow and continue and keeps the autopilot’s own approvals while it waits', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  // No claims at all: exploration finds no candidate.
+  const p = h.policy();
+  const runId = await h.run(null);
+  const a = await h.runner.start(owner, h.ws.id, runId, {
+    ...h.body(h.config()),
+    routine_policy: {
+      kind: 'new' as const,
+      policy: { ...p, summary_seen: routinePolicySummary(p) },
+    },
+  });
+  await h.runner.settled(a.id);
+  const thin = h.runner.with(await h.store.getAutopilot(owner, h.ws.id, a.id));
+  assert.equal(thin.outcome, 'insufficient_evidence', thin.explanation);
+  assert.equal(thin.steps.at(-1)!.stop_kind, 'thin_evidence');
+  assert.ok(autopilotContinuable(thin).ok);
+  assert.equal(thin.next?.[0]?.setting, 'gather_evidence');
+  assert.equal(thin.approvals_ended_at, null, 'it waits for you');
+  await h.runner.allowAndContinue(owner, h.ws.id, a.id, {
+    expected_version: thin.version,
+    settings_version: 0,
+    setting: 'gather_evidence',
+  });
+  await h.runner.settled(a.id);
+  const b = await h.store.getAutopilot(owner, h.ws.id, a.id);
+  // It explored again; an API route cannot search the web, so it says so and waits again.
+  assert.equal(b.steps.filter((s) => s.stage === 'explore').length, 2);
+  assert.match(b.explanation, /could not gather more evidence/);
+  const s = await h.store.autopilotSettings(owner, h.ws.id);
+  assert.equal(s.values.gather_evidence, true);
+  assert.ok(s.values.max_extra_searches >= 1);
+});
+
+test('review 1 L-7: an autopilot’s own approvals end when it is cancelled while running and when a step fails, and Continue is then refused', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  const research = {
+    connection_id: '00000000-0000-4000-8000-0000000000c1',
+    model_id: 'gpt-test',
+    scope: WebDiscoveryScopeSchema.parse({ interests: ['volunteers'] }),
+    input_hash: 'c'.repeat(64),
+  };
+  let state = 'searching';
+  const web: AutopilotWeb = {
+    accept: async () => null,
+    start: async () => ({ id: '00000000-0000-4000-8000-0000000000d3' }),
+    read: async () =>
+      ({
+        id: '00000000-0000-4000-8000-0000000000d3',
+        version: 1,
+        state,
+        explanation: 'The search stopped (test).',
+        proposals: [],
+      }) as unknown as WebDiscovery,
+    isActive: () => true,
+    resume: async () => null,
+    cancel: async () => null,
+  };
+  const runner = new AutopilotRunner(h.store, web, {
+    pollMs: 5,
+    onWait: () => h.worker.settle(),
+  });
+  const p = h.policy(['research', 'evidence', 'model_work', 'selection'], {
+    data_classes: ['public', 'synthetic'],
+  });
+  const own = {
+    ...h.body(h.config({ research })),
+    routine_policy: {
+      kind: 'new' as const,
+      policy: { ...p, summary_seen: routinePolicySummary(p) },
+    },
+  };
+  const policyOf = async (id: string) =>
+    (await h.store.listRoutinePolicies(owner, h.ws.id)).find(
+      (v) => v.policy.id === id,
+    )!.policy;
+  // Cancelled while its search runs.
+  const a = await runner.start(owner, h.ws.id, await h.run(null), own);
+  await until(
+    async () =>
+      !!(await h.store.getAutopilot(owner, h.ws.id, a.id)).steps[0]?.child,
+  );
+  const cancelled = await runner.cancel(owner, h.ws.id, a.id, {
+    reason: 'Test stop.',
+  });
+  await runner.settled(a.id);
+  assert.ok(cancelled.approvals_ended_at);
+  const ended = await policyOf(cancelled.routine_policy_id!);
+  assert.equal(ended.status, 'revoked');
+  assert.match(String(ended.revoke_reason), /\(cancelled\)/);
+  // A failed step (no retries allowed): its approvals end, and Continue is refused.
+  state = 'failed';
+  const b = await runner.start(owner, h.ws.id, await h.run(null), own);
+  await runner.settled(b.id);
+  const failed = await h.store.getAutopilot(owner, h.ws.id, b.id);
+  assert.equal(failed.outcome, 'failed', failed.explanation);
+  assert.ok(failed.approvals_ended_at);
+  assert.equal((await policyOf(failed.routine_policy_id!)).status, 'revoked');
+  await rejects(
+    'INVALID_TRANSITION',
+    runner.retry(owner, h.ws.id, b.id, { expected_version: failed.version }),
+    /routine approvals made for this autopilot ended/,
+  );
+});
+
+test('review 1 L-2: a plan refusal is read by its code, not its words', () => {
+  const refused = (code: string, text: string) =>
+    new ContractError(
+      'ACCESS_DENIED',
+      'This plan request is not admitted.',
+      [text],
+      [{ code, text }],
+    );
+  assert.equal(
+    refusalKind(
+      refused(
+        'caps_not_accepted',
+        'The owner has not accepted the current caps and allowed work (request, daily, time and output caps; data and task classes).',
+      ),
+    ),
+    'connection',
+  );
+  assert.equal(
+    refusalKind(
+      refused(
+        'daily_cap_reached',
+        'The studio daily request cap for this connection is reached.',
+      ),
+    ),
+    'daily_cap',
+  );
+  assert.equal(
+    refusalKind(refused('cap_reached', 'The per-run request cap is reached.')),
+    'run_cap',
+  );
+  assert.equal(
+    autopilotNextSteps({
+      state: 'finished',
+      outcome: 'needs_authority',
+      steps: [
+        {
+          stage: 'explore',
+          state: 'stopped',
+          stop_kind: 'connection',
+        } as never,
+      ],
+    })[0]?.kind,
+    'models',
+  );
+});
+
+test('review 1 L-3: a whole process that cannot fit under what is left of the per-run cap is refused at the start', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  class Room extends ConnectionStore {
+    override async planRunRoom() {
+      return { per_run: 10, used: 4, daily_left: 50 };
+    }
+  }
+  const runner = new AutopilotRunner(new Room(h.db.pool), null, { pollMs: 5 });
+  const c = h.config({
+    resource_setup: {
+      kind: 'subscription',
+      connection_id: '00000000-0000-4000-8000-0000000000c1',
+      model_id: 'm',
+      settings_hash: 'a'.repeat(64),
+      max_output_chars: 16000,
+    },
+  });
+  await rejects(
+    'LIMIT_EXCEEDED',
+    runner.start(owner, h.ws.id, await h.run(), h.body(c)),
+    /has 6 of the plan connection's 10 requests per run left, and a whole process needs at least 8/,
+  );
+  assert.equal((await h.store.listAutopilots(owner, h.ws.id)).length, 0);
+});
+
+test('review 1 L-4: a discovery a person runs gets no cited-claim links, even with Gather evidence on', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.store.saveAutopilotSettings(owner, h.ws.id, {
+    expected_version: 0,
+    values: { ...OFF, gather_evidence: true, max_extra_searches: 1 },
+  });
+  await h.seed();
+  const cited = await h.db.pool.query(
+    `select 1 from entity_links where workspace_id = $1 and rationale like 'Cited by P%'`,
+    [h.ws.id],
+  );
+  assert.equal(cited.rowCount, 0);
 });

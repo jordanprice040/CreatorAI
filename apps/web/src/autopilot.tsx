@@ -563,7 +563,8 @@ export function Autopilot({
                   {owner &&
                     a.state === 'finished' &&
                     a.outcome &&
-                    AUTOPILOT_RETRYABLE.includes(a.outcome) &&
+                    (AUTOPILOT_RETRYABLE.includes(a.outcome) ||
+                      autopilotContinuable(a).ok) &&
                     (() => {
                       const can = autopilotContinuable(a);
                       return can.ok ? (

@@ -190,7 +190,14 @@ check(true, 'the stopped card shows Allow “Break ties” and continue');
 await allow.first().scrollIntoViewIfNeeded();
 await page.screenshot({ path: join(out, '01-stopped-card-allow.png') });
 const panel = page.getByText('When the autopilot would stop');
-await panel.first().scrollIntoViewIfNeeded();
+// Review 1 N-4: put the panel's heading at the top so its switches are in the screenshot.
+await panel.first().evaluate((e) => e.scrollIntoView({ block: 'start' }));
+check(
+  await page
+    .getByRole('checkbox', { name: /Accept quote-checked web claims/ })
+    .isVisible(),
+  'the panel shows its switches, the quote-checked claims switch included',
+);
 check(
   (await page.getByText('Hands-off is off.').count()) > 0,
   'Hands-off starts off',
@@ -229,7 +236,7 @@ check(
 await page
   .getByText('When the autopilot would stop')
   .first()
-  .scrollIntoViewIfNeeded();
+  .evaluate((e) => e.scrollIntoView({ block: 'start' }));
 await page.screenshot({ path: join(out, '03-settings-panel-hands-off.png') });
 
 // Automate the rest offers a new run.

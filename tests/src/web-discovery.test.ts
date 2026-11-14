@@ -1379,6 +1379,23 @@ test('P-12: an autopilot adds quote-checked claims only with the owner’s setti
     waiting.explanation,
     /setting “Accept quote-checked web claims” is off/,
   );
+  // Review 1 L-6: a search the autopilot started is its own even when a plain call admits it
+  // (a restarted studio or a later sweep has no autopilot on its context). The stamp's foreign
+  // key needs a real autopilot, so this test sets it with triggers off on one client.
+  const c = await h.db.pool.connect();
+  try {
+    await c.query(`set session_replication_role = replica`);
+    await c.query(
+      'update web_discoveries set autopilot_id = $1 where id = $2',
+      [auto.autopilot.id, d.id],
+    );
+  } finally {
+    await c.query(`set session_replication_role = origin`);
+    c.release();
+  }
+  const stamped = await h.store.admitWebClaimsByPolicy(owner, h.ws.id, d.id);
+  assert.equal(stamped.admitted, 0);
+  assert.match(stamped.note ?? '', /Accept quote-checked web claims/);
   // The owner turns it on: the autopilot accepts the observation (the inference still waits).
   await h.store.saveAutopilotSettings(owner, h.ws.id, {
     expected_version: 0,

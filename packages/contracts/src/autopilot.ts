@@ -82,34 +82,35 @@ export const AutopilotOutcomeSchema = z.enum([
 ]);
 export type AutopilotOutcome = z.infer<typeof AutopilotOutcomeSchema>;
 
-/** Outcomes a person can continue from (the stopped step is tried again). */
 /**
- * P-11 (ADR-0100): the stops that wait for a person's input; routine approvals made for the
- * autopilot stay (within their own scope and end time) only through these. Any other end, a
- * failed step included, ends them.
+ * P-11 (ADR-0100): whether an autopilot that finished like this ends the routine approvals made
+ * for it. They stay only while it waits for a person's input (a stop Continue can pick up); a
+ * final result, a cancel or a failed step (after any retries its settings allow) ends them.
  */
-export const AUTOPILOT_PAUSES: readonly AutopilotOutcome[] = [
-  'needs_person',
-  'needs_authority',
-  'limit_reached',
-];
-/** Whether an autopilot that finished like this ends the routine approvals made for it. */
 export function autopilotEndsApprovals(
   a: Pick<Autopilot, 'state' | 'outcome' | 'steps'>,
 ): boolean {
   return (
     a.state === 'finished' &&
-    (!a.outcome ||
-      !AUTOPILOT_PAUSES.includes(a.outcome) ||
-      !autopilotContinuable(a).ok)
+    (a.outcome === 'failed' || !autopilotContinuable(a).ok)
   );
 }
 
+/** Outcomes a person can continue from (the stopped step is tried again). */
 export const AUTOPILOT_RETRYABLE: readonly AutopilotOutcome[] = [
   'needs_person',
   'needs_authority',
   'limit_reached',
   'failed',
+];
+/**
+ * ADR-0100 (review 1 M-1): thin evidence and a first option that cannot be advanced end with
+ * these outcomes, but a setting covers them and a person can add evidence or scores, so they are
+ * stops Continue (and Allow and continue) can pick up.
+ */
+const SETTLED_BUT_COVERED: readonly AutopilotOutcome[] = [
+  'insufficient_evidence',
+  'no_eligible_option',
 ];
 
 export const AutopilotStepStateSchema = z.enum([
@@ -367,7 +368,11 @@ export function autopilotContinuable(
       reason:
         'The routine approvals made for this autopilot ended when it stopped; start a new one.',
     };
-  if (!a.outcome || !AUTOPILOT_RETRYABLE.includes(a.outcome))
+  const covered =
+    !!a.outcome &&
+    SETTLED_BUT_COVERED.includes(a.outcome) &&
+    !!SETTING_FOR_STOP[a.steps.at(-1)?.stop_kind ?? 'other'];
+  if (!a.outcome || (!AUTOPILOT_RETRYABLE.includes(a.outcome) && !covered))
     return {
       ok: false,
       reason: `An autopilot that ended ${(a.outcome ?? 'running').replaceAll('_', ' ')} cannot continue; start a new one.`,
@@ -624,6 +629,14 @@ const NEXT: Record<AutopilotStopKind, Omit<AutopilotNext, 'setting'>[]> = {
       label: 'Raise the per-run cap',
       detail:
         'Models and connections › Change caps; accept the changed caps, then continue.',
+    },
+  ],
+  connection: [
+    {
+      kind: 'models',
+      label: 'Fix the connection',
+      detail:
+        'Models and connections: the connection says what it needs (for example accepting its caps); then continue.',
     },
   ],
   daily_cap: [

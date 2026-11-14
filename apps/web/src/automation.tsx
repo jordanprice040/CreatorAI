@@ -3,6 +3,7 @@ import {
   AUTOMATION_LEVEL_TEXT,
   AUTOMATION_SELECTION_ACTIONS,
   AUTOPILOT_RETRYABLE,
+  autopilotContinuable,
   AUTOPILOT_MIN_CALLS,
   AutopilotConfigSchema,
   AutopilotSchema,
@@ -66,10 +67,11 @@ export function currentLevel(
   runId: string,
   automations: readonly RunAutomation[],
   /** Newest first, as the server lists them. */
-  autopilots: readonly Pick<
+  autopilots: readonly (Pick<
     Autopilot,
     'run_id' | 'state' | 'config' | 'outcome' | 'automation_id'
-  >[],
+  > &
+    Partial<Pick<Autopilot, 'steps' | 'approvals_ended_at'>>)[],
 ): { level: AutomationLevel; note: string } {
   const standing = automations.find(
     (a) => a.run_id === runId && a.state === 'active',
@@ -84,7 +86,9 @@ export function currentLevel(
   if (
     latest &&
     (latest.state === 'running' ||
-      (latest.outcome !== null && AUTOPILOT_RETRYABLE.includes(latest.outcome)))
+      (latest.outcome !== null &&
+        (AUTOPILOT_RETRYABLE.includes(latest.outcome) ||
+          autopilotContinuable({ ...latest, steps: latest.steps ?? [] }).ok)))
   ) {
     // An autopilot a selection level started that is still working or waiting after the level
     // ended: the run is Manual now (review L-3, review 2 N-1).

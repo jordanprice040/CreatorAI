@@ -3550,7 +3550,11 @@ alter table autopilots drop constraint autopilots_stage_check;
 alter table autopilots add constraint autopilots_stage_check check (stage in ('research','explore',
  'brief','discover','assess','select','proposal','spec','gather'));
 -- P-11: the routine approvals made for this autopilot when it started, which end with it.
-alter table autopilots add column routine_policy_id uuid references routine_policies(id);
+alter table routine_policies add constraint routine_policies_workspace_id_key
+ unique (workspace_id, id);
+alter table autopilots add column routine_policy_id uuid;
+alter table autopilots add constraint autopilots_routine_policy_fk
+ foreign key (workspace_id, routine_policy_id) references routine_policies (workspace_id, id);
 alter table autopilots add column approvals_ended_at timestamptz;
 alter table autopilots add constraint autopilots_approvals_ended_check
  check (approvals_ended_at is null or routine_policy_id is not null);
@@ -3560,6 +3564,12 @@ alter table web_discovery_claims add constraint web_discovery_claims_admitted_vi
  check (admitted_via in ('owner','routine_policy','autopilot'));
 alter table web_discovery_claims add constraint web_discovery_claims_autopilot_admission_check
  check (admitted_via <> 'autopilot' or admission_id is not null);
+create index web_discovery_claims_by_autopilot_claim on web_discovery_claims (claim_id)
+ where admitted_via = 'autopilot';
+-- P-12 (review 1 L-6): the autopilot that started a web search, so the hold holds on a resume.
+alter table web_discoveries add column autopilot_id uuid;
+alter table web_discoveries add constraint web_discoveries_autopilot_fk
+ foreign key (workspace_id, autopilot_id) references autopilots (workspace_id, id);
 `,
   },
 ];

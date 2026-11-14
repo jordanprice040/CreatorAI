@@ -1698,12 +1698,22 @@ export class WorkflowStore extends BudgetStore {
     const alternatives: DiscoveryResult['catalog_records']['alternatives'] = [];
     // ADR-0100: with the owner's "Gather evidence when it is thin" on, each option is linked to
     // the packet claims its proposal cited, so an assessment reads them.
+    // Review 1 L-4: only for a discovery an autopilot ran (a step records it), never one a
+    // person started by hand, and never on a study run, whose conditions stay as frozen.
     const linkCited =
       (
         await c.query(
-          `select 1 from autopilot_settings
-            where workspace_id = $1 and (settings->>'gather_evidence')::boolean`,
-          [ws],
+          `select 1 from autopilot_settings s
+            where s.workspace_id = $1 and (s.settings->>'gather_evidence')::boolean
+              and exists (select 1 from autopilots a where a.workspace_id = $1
+                and a.steps @> $2::jsonb)
+              and not exists (select 1 from study_attempts x where x.workspace_id = $1
+                and x.run_id = $3)`,
+          [
+            ws,
+            JSON.stringify([{ child: { kind: 'workflow', id: wf.id } }]),
+            wf.run_id,
+          ],
         )
       ).rowCount === 1;
     for (const p of result.proposals) {

@@ -397,7 +397,7 @@ export function autopilotChoice(
       outcome: 'needs_person',
       kind: 'tie',
       reason: clip(
-        `${firstTie.map((c) => `“${c.alternative.title}”`).join(' and ')} tie for first${worst ? ' by the worst case' : ' on suitability'}; a tie is not broken by a rule. Choose one under Decide and continue: the autopilot goes on with your choice.`,
+        `${firstTie.map((c) => `“${c.alternative.title}”`).join(' and ')} tie for first${worst ? ' by the worst case' : ' on suitability'}; the autopilot breaks ties only when you allow it (Break ties). Choose one under Decide and continue: the autopilot goes on with your choice.`,
       ),
     };
   const leader = order[0]!;

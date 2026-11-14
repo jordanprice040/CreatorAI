@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   AutopilotSchema,
   AutopilotSettingsSchema,
@@ -27,23 +27,36 @@ export function AllowAndContinue({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // Review 1 N-3: the settings version this card was shown with, so the server refuses the
+  // request if someone changed the settings since.
+  const [seen, setSeen] = useState<number | null>(null);
+  useEffect(() => {
+    let live = true;
+    const read = () =>
+      void api(AutopilotSettingsSchema, `${base}/autopilot-settings`)
+        .then((s) => live && setSeen(s.version))
+        .catch(() => live && setSeen(null));
+    read();
+    // Settings saved on this page are shown at once, so the card reads them again.
+    window.addEventListener(AUTOPILOT_SETTINGS_CHANGED, read);
+    return () => {
+      live = false;
+      window.removeEventListener(AUTOPILOT_SETTINGS_CHANGED, read);
+    };
+  }, [base, a.version]);
   const allow = a.next?.find((n) => n.kind === 'allow_and_continue');
   if (!allow?.setting || a.state !== 'finished') return null;
 
   async function go() {
-    if (!allow?.setting) return;
+    if (!allow?.setting || seen === null) return;
     setBusy(true);
     setError('');
     try {
-      const s = await api(
-        AutopilotSettingsSchema,
-        `${base}/autopilot-settings`,
-      );
       await api(AutopilotSchema, `${base}/autopilots/${a.id}/allow`, {
         csrf: session.csrf_token,
         body: {
           expected_version: a.version,
-          settings_version: s.version,
+          settings_version: seen,
           setting: allow.setting,
         },
       });
@@ -62,7 +75,7 @@ export function AllowAndContinue({
         <button
           type="button"
           className="secondary"
-          disabled={busy}
+          disabled={busy || seen === null}
           onClick={() => void go()}
         >
           {busy ? 'Allowing…' : allow.label}

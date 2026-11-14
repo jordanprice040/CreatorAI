@@ -2841,6 +2841,7 @@ export { WebDiscoveryRunner, stepId, answerJson } from './web-discovery.js';
 export {
   AutopilotRunner,
   autopilotKey,
+  refusalKind,
   webResearch,
   type AutopilotWeb,
 } from './autopilot.js';

@@ -14,3 +14,5 @@ Results (all PASS):
 - At 390 px wide there is no horizontal scroll (`05-phone-settings.png`); no console errors.
 
 The first pass showed each switch's checkbox on its own line and the level text still saying an ethics gate only the model cleared "always" stops; both were fixed and the walk run again on a fresh database.
+
+Review 1 (N-4): the walk now puts the panel's heading at the top before screenshots 02 and 03, so the switches are in view, and checks that the "Accept quote-checked web claims" switch is visible. Run again on a fresh `creator_autopilot_walk` database after the review 1 fixes: every check PASS.

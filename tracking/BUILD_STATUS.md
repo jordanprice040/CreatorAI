@@ -17,6 +17,8 @@ Checked in the cloud container on PostgreSQL 16: `pnpm typecheck`, `pnpm format:
 
 P-11 and P-12 (Jordan's UX decisions, added before review): routine approvals made with an autopilot end when it finishes, fails or is cancelled, and stay while it waits for a person; approvals the run already had keep their terms. Quote-checked web claims an autopilot finds wait for a person unless the owner turns on **Accept quote-checked web claims** (off by default, not part of Hands-off); the autopilot stops for them with Allow and continue, and each one it accepts is labelled “Accepted by autopilot · quote check only” in packets, Decide and proposal references. Three new tests (both store rules mutation-checked). Rechecked: `pnpm typecheck`, `pnpm format:check`, `pnpm test` with the database (1181 tests: 1147 pass, 29 skipped, the 5 known PowerShell-wrapper failures).
 
+Review 1 fixes (no High; M-1, L-1 to L-8 and the eight nits, all fixed; ADR-0100 amendment). Six new tests (M-1, L-2, L-3, L-4, L-7 in `autopilot.test.ts`; the L-6 stamp in the P-12 store test, mutation-checked); the L-5 linking test updated. Rechecked: `pnpm typecheck`, `pnpm format:check`, `pnpm test` with the database (1186 tests: 1152 pass, 29 skipped, the 5 known PowerShell-wrapper failures), and the walk again on a fresh throwaway database.
+
 Limits: web search for evidence runs only on a ChatGPT plan connection; the fixture's identical ratings cannot show a tie broken; Whole process still stops a software option at the spec.
 
 ## November 12 update — full codebase audit and its fixes (L-1, L-2, N-1..N-7)

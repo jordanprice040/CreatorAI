@@ -84,3 +84,7 @@ Unit tests for the new rules: the worst-case choice, the tie order, the close-ra
 
 - **P-11, run approvals end with the autopilot.** Routine approvals made with an autopilot end when it finishes, fails or is cancelled. While it waits for your input they stay, within their own scope and end time. Approvals the run already had keep their own terms.
 - **P-12, quote-checked web claims.** A new setting, **Accept quote-checked web claims**, off by default and not part of Hands-off. Off: claims an autopilot's web search checked only by their quotes wait for you, and the autopilot stops for them with “Allow … and continue”. On: the autopilot uses them, and each carries “Accepted by autopilot · quote check only” wherever it informs discovery, assessment or a proposal, next to its quotes and pages.
+
+## Fixed after review 1
+
+Every finding of the first review is fixed; the list is in ADR-0100's review 1 amendment in `tracking/DECISIONS.md`. In short: a stop at too little evidence or no eligible option now offers Allow and continue and keeps the autopilot's approvals while it waits; a run without room for a whole process is refused at the start; plan refusals are read by their code, with a new "connection" stop that points to Models and connections; approvals also end on a cancel while running or a failed step; and the autopilot links only claims backed by fetched sources on public data.

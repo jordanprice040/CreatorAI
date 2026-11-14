@@ -899,6 +899,12 @@ export class AutopilotStore extends WebDiscoveryStore {
     wsIn: string,
     problemIn: string,
     only: readonly string[] | null,
+    /**
+     * Review 1 L-5: the autopilot's data class. On public or synthetic data it links only claims
+     * supported by sources that were all fetched from the web, never one resting on a file, a
+     * note, or nothing, that may have been recorded for another project.
+     */
+    dataClass: string = 'public',
   ): Promise<{ claim_id: string; to_id: string; to_title: string }[]> {
     const ctx = normalize(ctxIn);
     const ws = uuid(wsIn);
@@ -936,10 +942,18 @@ export class AutopilotStore extends WebDiscoveryStore {
       const claims = (
         (
           await c.query(
-            `select id, version, title, body from entities
-              where workspace_id = $1 and kind = 'claim' and status = 'active'
-              order by created_at desc, id desc limit 500`,
-            [ws],
+            `select e.id, e.version, e.title, e.body from entities e
+              where e.workspace_id = $1 and e.kind = 'claim' and e.status = 'active'
+                and ($2::boolean or (exists (
+                  select 1 from claim_support cs where cs.claim_id = e.id
+                    and cs.stance = 'supports' and cs.retracted_at is null)
+                  and not exists (
+                  select 1 from claim_support cs where cs.claim_id = e.id
+                    and cs.stance = 'supports' and cs.retracted_at is null
+                    and not exists (select 1 from source_retrievals r
+                      where r.source_id = cs.source_id and r.state = 'fetched'))))
+              order by e.created_at desc, e.id desc limit 500`,
+            [ws, dataClass !== 'public' && dataClass !== 'synthetic'],
           )
         ).rows as Row[]
       ).map((r) => ({
