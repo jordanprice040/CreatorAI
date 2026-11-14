@@ -85,9 +85,38 @@ export type StudioFacts = {
   artifacts: number;
   /** ADR-0082: proposals in the workspace, for the first-run path; absent when unread. */
   proposals?: number;
+  /**
+   * UX pass P-2: selections recorded (active problems with one) and where the newest sends
+   * the path: a spec for software, a proposal for a non-code choice, or neither. Absent when
+   * unread, and then the Path keeps to the software route as before.
+   */
+  selection?: SelectionFacts;
   /** Model plan connections; null when not checked (fixture workspaces). */
   planConnections: number | null;
 };
+
+/** Where the newest selection sends the main path (UX pass P-2). */
+export type SelectionFacts = {
+  count: number;
+  /** null when no selection is recorded yet. */
+  route: 'software' | 'non_code' | 'none' | null;
+  /** For a non-code route, the proposal the path is about; null when none is saved yet. */
+  proposal: {
+    title: string;
+    /** Required sections not written yet. */
+    unknownCore: number;
+    /** The newest review of its current version says ready. */
+    reviewed: boolean;
+    /** The newest review of its current version asks for changes. */
+    revise: boolean;
+  } | null;
+};
+
+/** The newest selection's route, when one is recorded and was read. */
+const routeOf = (f: StudioFacts) => f.selection?.route ?? null;
+/** A selection is recorded (or, when selections were not read, a spec stands for one). */
+const selected = (f: StudioFacts) =>
+  f.specs > 0 || (f.selection?.count ?? 0) > 0;
 
 /**
  * Workflow steps that block and that failed, from the overview's exact per-state counts. The
@@ -162,11 +191,20 @@ export function pipelineStep(f: StudioFacts): Step {
       text: 'Score the proposed options: open Projects › Decide and use Score an option for each one.',
       action: { view: 'compare' },
     };
-  if (f.specs === 0)
+  if (!selected(f))
     return {
       tone: 'next',
       text: 'Record a selection under Projects › Decide. A software choice then gets a spec under Projects › Build (Write a spec); a non-code choice is written up under Projects › Proposals.',
       action: { view: 'compare' },
+    };
+  const route = routeOf(f);
+  if (route === 'non_code') return proposalStep(f);
+  if (route === 'none') return NO_ROUTE_STEP;
+  if (f.specs === 0)
+    return {
+      tone: 'next',
+      text: 'Write a spec for the option your selection chose to build: Projects › Build, Write a spec.',
+      action: { view: 'build' },
     };
   if (f.frozenSpecs === 0)
     return {
@@ -181,6 +219,48 @@ export function pipelineStep(f: StudioFacts): Step {
       action: { view: 'build' },
     };
   return productStep(f);
+}
+
+/** The newest selection advanced nothing to a spec or a proposal: the path ends there. */
+const NO_ROUTE_STEP: Step = {
+  tone: 'clear',
+  text: 'Your newest selection chose no option to build and none to write up as a proposal (it deferred, rejected, kept researching or sent software to validation). Gather more evidence, or record another selection under Projects › Decide when you want to go on.',
+  action: { view: 'compare' },
+};
+
+/**
+ * UX pass P-2: the non-code branch after a selection. Write the proposal, finish its required
+ * sections, then review it; a proposal whose current version is reviewed as ready finishes the
+ * path. The review is about the document; it does not show that the plan works.
+ */
+function proposalStep(f: StudioFacts): Step {
+  const p = f.selection?.proposal ?? null;
+  const proposals = { view: 'proposals' } as const;
+  if (!p)
+    return {
+      tone: 'next',
+      text: 'Write up the option your selection recommended: Projects › Proposals, Start a proposal.',
+      action: proposals,
+    };
+  if (p.unknownCore > 0)
+    return {
+      tone: 'next',
+      text: `Finish the proposal “${p.title}”: ${plural(p.unknownCore, 'required section')} ${p.unknownCore === 1 ? 'is' : 'are'} still Unknown yet. Write ${p.unknownCore === 1 ? 'it' : 'them'}, or use Draft the missing sections and accept the drafts you agree with.`,
+      action: proposals,
+    };
+  if (!p.reviewed)
+    return {
+      tone: 'next',
+      text: p.revise
+        ? `Revise the proposal “${p.title}” from its review, then review the new version.`
+        : `Review the proposal “${p.title}” under Projects › Proposals: mark it ready, or ask for changes.`,
+      action: proposals,
+    };
+  return {
+    tone: 'clear',
+    text: `This idea's path is finished: the proposal “${p.title}” is reviewed as ready. Carrying it out happens outside the studio; start a new discovery when you want another idea.`,
+    action: { view: 'submit' },
+  };
 }
 
 /** Where the latest product stands, and the one thing to do about it. */
@@ -404,7 +484,7 @@ export function nextStep(view: StepView, f: StudioFacts): Step {
           tone: 'next',
           text: 'Score the options below: assess them automatically, or score one yourself.',
         };
-      if (f.specs === 0 && f.scorecards > 0)
+      if (!selected(f) && f.scorecards > 0)
         return {
           tone: 'next',
           text: 'Record a selection below. A software choice then gets a spec under Projects › Build (Write a spec); a non-code choice is written up under Projects › Proposals.',
@@ -488,6 +568,7 @@ export function nextStep(view: StepView, f: StudioFacts): Step {
           text: 'A proposal starts from a recommended option, and no discovery has recorded problems yet.',
           action: { view: 'submit' },
         };
+      if (routeOf(f) === 'non_code') return proposalStep(f);
       return {
         tone: 'next',
         text: 'Write up a recommended non-code option as a proposal below. Software options go to a spec under Build instead.',
@@ -585,61 +666,95 @@ export function pathStages(f: StudioFacts): {
 } {
   const p = f.product;
   const built = p !== null && p.current && p.build === 'verified';
-  const list: { key: string; label: string; done: boolean; view: StepView }[] =
-    [
-      {
-        key: 'evidence',
-        label: 'Evidence',
-        done: f.claims > 0,
-        view: 'evidence',
-      },
-      {
-        key: 'discovery',
-        label: 'Discovery',
-        done: f.problems > 0,
-        view: 'submit',
-      },
-      {
-        key: 'scores',
-        label: 'Scores',
-        // Mirrors pipelineStep: scoring is due only while options exist and none is scored.
-        done: f.problems > 0 && !(f.alternatives > 0 && f.scorecards === 0),
-        view: 'compare',
-      },
-      {
-        key: 'spec',
-        label: 'Selection and spec',
-        done: f.specs > 0,
-        view: 'compare',
-      },
-      {
-        key: 'freeze',
-        label: 'Freeze',
-        done: f.frozenSpecs > 0,
-        view: 'scores',
-      },
-      {
-        key: 'review',
-        label: 'Humility review',
-        done: f.frozenSpecs > 0 && f.reviewed,
-        view: 'build',
-      },
-      { key: 'build', label: 'Build', done: built, view: 'build' },
-      {
-        key: 'package',
-        label: 'Package',
-        done: built && p !== null && p.packaged,
-        view: 'build',
-      },
-      {
-        key: 'try',
-        label: 'Try',
-        // Trying means recording feedback on the newest package; the step after it (revise, or
-        // nothing) is the path's closing line rather than another stage.
-        done: built && p !== null && p.packaged && (p.feedback?.total ?? 0) > 0,
-        view: 'gallery',
-      },
-    ];
+  const route = routeOf(f);
+  type Row = { key: string; label: string; done: boolean; view: StepView };
+  const head: Row[] = [
+    {
+      key: 'evidence',
+      label: 'Evidence',
+      done: f.claims > 0,
+      view: 'evidence',
+    },
+    {
+      key: 'discovery',
+      label: 'Discovery',
+      done: f.problems > 0,
+      view: 'submit',
+    },
+    {
+      key: 'scores',
+      label: 'Scores',
+      // Mirrors pipelineStep: scoring is due only while options exist and none is scored.
+      done: f.problems > 0 && !(f.alternatives > 0 && f.scorecards === 0),
+      view: 'compare',
+    },
+    {
+      key: 'selection',
+      label: 'Selection',
+      done: selected(f),
+      view: 'compare',
+    },
+  ];
+  // UX pass P-2: the path branches after Selection. A non-code choice goes to Proposal and
+  // Review; a selection that advanced nothing ends there; software (and a path whose
+  // selections were not read) goes on to Spec, Freeze, Humility review, Build, Package, Try.
+  const proposal = f.selection?.proposal ?? null;
+  const branch: Row[] =
+    route === 'non_code'
+      ? [
+          {
+            key: 'proposal',
+            label: 'Proposal',
+            done: proposal !== null && proposal.unknownCore === 0,
+            view: 'proposals',
+          },
+          {
+            key: 'proposal_review',
+            label: 'Review',
+            done:
+              proposal !== null &&
+              proposal.unknownCore === 0 &&
+              proposal.reviewed,
+            view: 'proposals',
+          },
+        ]
+      : route === 'none'
+        ? []
+        : [
+            { key: 'spec', label: 'Spec', done: f.specs > 0, view: 'build' },
+            {
+              key: 'freeze',
+              label: 'Freeze',
+              done: f.frozenSpecs > 0,
+              view: 'scores',
+            },
+            {
+              key: 'review',
+              label: 'Humility review',
+              done: f.frozenSpecs > 0 && f.reviewed,
+              view: 'build',
+            },
+            { key: 'build', label: 'Build', done: built, view: 'build' },
+            {
+              key: 'package',
+              label: 'Package',
+              done: built && p !== null && p.packaged,
+              view: 'build',
+            },
+            {
+              key: 'try',
+              label: 'Try',
+              // Trying means recording feedback on the newest package; the step after it
+              // (revise, or nothing) is the path's closing line rather than another stage.
+              done:
+                built &&
+                p !== null &&
+                p.packaged &&
+                (p.feedback?.total ?? 0) > 0,
+              view: 'gallery',
+            },
+          ];
+  const list = [...head, ...branch];
   // Stages are done in order: a later record does not count past an earlier gap.
   // When every stage is done the path is finished and no stage is current.
   const current = list.findIndex((s) => !s.done);
@@ -680,7 +795,12 @@ export function pathStages(f: StudioFacts): {
       label: s.label,
       view: s.view,
       state: 'later',
-      text: stageNeeds(s.key, f)?.text ?? null,
+      text:
+        stageNeeds(s.key, f)?.text ??
+        // Before any selection the route is not known yet; say where each choice goes.
+        (s.key === 'spec' && !selected(f)
+          ? 'a software choice at Selection. A non-code choice goes to Proposal and Review instead.'
+          : null),
     };
   });
   return { stages, step, finished };
@@ -711,7 +831,20 @@ export function pathBanner(f: StudioFacts): {
   view: StepView;
 } {
   const { stages, step, finished } = pathStages(f);
-  if (finished)
+  if (finished) {
+    const route = routeOf(f);
+    if (route === 'non_code')
+      return {
+        tone: 'clear',
+        text: 'The main path is finished: the proposal is reviewed as ready.',
+        view: 'path',
+      };
+    if (route === 'none')
+      return {
+        tone: 'next',
+        text: 'Record another selection: the last one advanced no option.',
+        view: 'compare',
+      };
     return step.tone === 'next'
       ? {
           tone: 'next',
@@ -723,6 +856,7 @@ export function pathBanner(f: StudioFacts): {
           text: 'The main path is finished for this product.',
           view: 'path',
         };
+  }
   const s = stages.find((x) => x.state !== 'done' && x.state !== 'skipped')!;
   if (s.state === 'blocked')
     return {

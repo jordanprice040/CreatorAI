@@ -7,6 +7,7 @@ import {
   PROPOSAL_SECTION_MAX,
   SUITABILITY_RUBRIC,
   type HumilityBody,
+  draftMarkText,
   type ProposalBody,
   type ProposalCheck,
   type ProposalChecks,
@@ -784,8 +785,11 @@ export function proposalMarkdown(m: MarkdownInput): string {
   for (const k of PROPOSAL_SECTIONS) {
     const s = m.body.sections[k];
     out.push(`## ${PROPOSAL_SECTION_LABELS[k]}`, '');
-    if (s.state === 'unknown') out.push('**Unknown.**');
+    if (s.state === 'unknown') out.push('**Unknown yet.**');
     else if (s.state === 'not_applicable') out.push('**Not applicable.**');
+    // ADR-0101: text that started as a model draft says so, with the model.
+    if (s.state === 'written' && s.draft)
+      out.push(`_${inlineText(draftMarkText(s.draft))}._`, '');
     const text = sectionMarkdown(s.text);
     if (text) out.push(...(s.state === 'written' ? [] : ['']), text);
     if (s.claims.length)

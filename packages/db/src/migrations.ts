@@ -3576,6 +3576,81 @@ alter table workflows add constraint workflows_autopilot_fk
 `,
   },
   {
+    // ADR-0101 (UX pass P-5): "Draft the missing sections" on a saved proposal. Each press is
+    // one row: the version drafted, the sections asked, exactly what was sent under which fixed
+    // instructions, the reply and the drafts the studio could read. It changes once, from
+    // pending to its outcome, except that redacting the proposal clears its words. Version 64:
+    // #193 holds 63; the other UX pass area threads hold 65 to 67.
+    version: 64,
+    name: 'proposal_section_drafts',
+    sql: `
+create table proposal_section_drafts (
+ id uuid primary key,
+ workspace_id uuid not null,
+ proposal_id uuid not null,
+ proposal_version integer not null check (proposal_version > 0),
+ client_id uuid not null,
+ state text not null check (state in ('pending','completed','failed','refused')),
+ connection_id uuid not null references plan_connections(id),
+ connection_kind text not null check (connection_kind in ('chatgpt_plan','claude_code')),
+ fixture boolean not null,
+ model_id text not null,
+ logical_operation_id uuid not null unique,
+ plan_request_id uuid references plan_requests(id),
+ instructions_version text not null,
+ instructions_hash char(64) not null,
+ sections jsonb not null check (jsonb_typeof(sections) = 'array'),
+ sections_sent integer not null check (sections_sent >= 0),
+ input text not null,
+ input_hash char(64) not null,
+ text text,
+ output_hash char(64),
+ draft_values jsonb not null default '{}' check (jsonb_typeof(draft_values) = 'object'),
+ dropped integer not null default 0 check (dropped >= 0),
+ reason text check (reason is null or length(reason) <= 2000),
+ requested_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ finished_at timestamptz,
+ redacted_at timestamptz,
+ foreign key (workspace_id, proposal_id) references entities (workspace_id, id),
+ foreign key (proposal_id, proposal_version) references entity_versions (entity_id, version),
+ unique (proposal_id, client_id),
+ unique (workspace_id, id),
+ check ((state = 'completed') = (output_hash is not null)),
+ check (state <> 'completed' or text is not null),
+ check ((state = 'pending') = (finished_at is null))
+);
+create unique index proposal_section_drafts_one_pending on proposal_section_drafts (proposal_id)
+ where state = 'pending';
+create index proposal_section_drafts_by_proposal
+ on proposal_section_drafts (workspace_id, proposal_id, created_at desc);
+create function proposal_section_drafts_settle_once() returns trigger language plpgsql as $$
+begin
+ -- Redacting the proposal clears the words once; hashes, ids and the outcome stay.
+ if tg_op = 'UPDATE' and old.redacted_at is null and new.redacted_at is not null
+   and old.state <> 'pending' and new.state = old.state
+   and (to_jsonb(new) - array['input','text','draft_values','redacted_at'])
+     is not distinct from (to_jsonb(old) - array['input','text','draft_values','redacted_at'])
+ then
+   return new;
+ end if;
+ -- A draft finishing after its proposal was redacted is recorded without its words.
+ if tg_op = 'DELETE' or old.state <> 'pending' or new.state = 'pending'
+   or (to_jsonb(new) - array['state','plan_request_id','text','output_hash','draft_values',
+         'dropped','reason','finished_at','input','redacted_at'])
+      is distinct from (to_jsonb(old) - array['state','plan_request_id','text','output_hash',
+         'draft_values','dropped','reason','finished_at','input','redacted_at'])
+ then
+   raise exception 'proposal section drafts change only once, from pending to their outcome'
+     using errcode = 'P0001';
+ end if;
+ return new;
+end $$;
+create trigger proposal_section_drafts_settle_once before update or delete
+ on proposal_section_drafts for each row execute function proposal_section_drafts_settle_once();
+`,
+  },
+  {
     // ADR-0105 (B1): build (recipe) qualifications as records earned in Qualify, per connection,
     // model and pair of role prompts, replacing the list in source code. Each attempt is one
     // build in the studio's qualification harness; its plan requests name the attempt, whose

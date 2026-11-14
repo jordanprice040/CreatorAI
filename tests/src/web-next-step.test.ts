@@ -447,6 +447,7 @@ test("the Path tab marks stages done in order and agrees with the what's-next li
       'done',
       'done',
       'done',
+      'done',
       'next',
       'later',
       'later',
@@ -455,7 +456,7 @@ test("the Path tab marks stages done in order and agrees with the what's-next li
     ],
   );
   assert.equal(step.text, pipelineStep(unfrozen).text);
-  assert.equal(stages[4]!.view, 'scores');
+  assert.equal(stages[5]!.view, 'scores');
   // A later record does not count past an earlier gap: unscored options stop at Scores.
   const unscored = pathStages({ ...done, scorecards: 0 }).stages;
   assert.equal(unscored.find((s) => s.state !== 'done')?.key, 'scores');
@@ -575,7 +576,7 @@ test('packaging needs no budget or pricing, and skipped scoring is not shown as 
 
 type MoreRules = Omit<Rules, 'pathStages'> & {
   pathStages: (f: Facts) => {
-    stages: { key: string; state: string }[];
+    stages: { key: string; state: string; text: string | null; view: string }[];
     step: Step;
     finished: boolean;
   };
@@ -740,4 +741,121 @@ test('Try names an earlier open stage instead of "All clear" (PR #101 review L-3
   assert.deepEqual(gallery, pathStages(unreviewed).step);
   assert.match(gallery.text, /humility review/);
   assert.notEqual(gallery.tone, 'clear');
+});
+
+// UX pass P-2: the Path branches after Selection.
+const atSelection: Facts = {
+  ...done,
+  specs: 0,
+  frozenSpecs: 0,
+  reviewed: false,
+  product: null,
+  artifacts: 0,
+};
+const chose = (
+  route: string | null,
+  proposal: Facts | null = null,
+  count = 1,
+): Facts => ({
+  ...atSelection,
+  selection: { count, route, proposal },
+});
+const proposalFacts = (p: Facts = {}) => ({
+  title: 'Use csvkit',
+  unknownCore: 0,
+  reviewed: false,
+  revise: false,
+  ...p,
+});
+
+test('a non-code selection branches the Path to Proposal and Review, and it finishes (P-2)', async () => {
+  const { pathStages, nextStep, pathBanner } =
+    await load<MoreRules>('next-rules.ts');
+  const keys = (f: Facts) =>
+    pathStages(f).stages.map((s) => `${s.key}:${s.state}`);
+  // No proposal yet: Proposal is next and opens Proposals; no build stages are shown.
+  assert.deepEqual(keys(chose('non_code')), [
+    'evidence:done',
+    'discovery:done',
+    'scores:done',
+    'selection:done',
+    'proposal:next',
+    'proposal_review:later',
+  ]);
+  const start = pathStages(chose('non_code'));
+  assert.equal(start.step.action?.view, 'proposals');
+  assert.match(start.step.text, /Start a proposal/);
+  // Required sections still unknown: the step counts them and offers the model draft.
+  const unknown = pathStages(
+    chose('non_code', proposalFacts({ unknownCore: 5 })),
+  );
+  assert.match(unknown.step.text, /5 required sections are still Unknown yet/);
+  assert.match(unknown.step.text, /Draft the missing sections/);
+  assert.equal(unknown.finished, false);
+  // Complete but not reviewed: Review is next; a "revise" review says to revise first.
+  const review = pathStages(chose('non_code', proposalFacts()));
+  assert.deepEqual(
+    review.stages.slice(-2).map((s) => s.state),
+    ['done', 'next'],
+  );
+  assert.match(review.step.text, /^Review the proposal/);
+  assert.match(
+    pathStages(chose('non_code', proposalFacts({ revise: true }))).step.text,
+    /^Revise the proposal/,
+  );
+  // Reviewed as ready: the path is finished, and every line agrees.
+  const finished = chose('non_code', proposalFacts({ reviewed: true }));
+  const end = pathStages(finished);
+  assert.equal(end.finished, true);
+  assert.ok(end.stages.every((s) => s.state === 'done'));
+  assert.match(end.step.text, /path is finished/);
+  assert.deepEqual(nextStep('path', finished), end.step);
+  assert.deepEqual(nextStep('proposals', finished), end.step);
+  assert.deepEqual(pathBanner(finished), {
+    tone: 'clear',
+    text: 'The main path is finished: the proposal is reviewed as ready.',
+    view: 'path',
+  });
+  // A reviewed version with required sections unknown again (a later revision) is not done.
+  assert.equal(
+    pathStages(
+      chose('non_code', proposalFacts({ reviewed: true, unknownCore: 1 })),
+    ).finished,
+    false,
+  );
+});
+
+test('a software selection goes on to Spec, and a selection that advanced nothing ends the Path (P-2)', async () => {
+  const { pathStages, pathBanner } = await load<MoreRules>('next-rules.ts');
+  // Software: Selection is done once recorded, and Spec is next on Build.
+  const sw = pathStages(chose('software'));
+  const spec = sw.stages.find((s) => s.key === 'spec')!;
+  assert.equal(sw.stages.find((s) => s.key === 'selection')?.state, 'done');
+  assert.equal(spec.state, 'next');
+  assert.equal(spec.view, 'build');
+  assert.match(spec.text ?? '', /Write a spec/);
+  assert.equal(sw.stages.at(-1)?.key, 'try');
+  // Nothing advanced: no stages after Selection, the path ends with a clear note.
+  const none = pathStages(chose('none'));
+  assert.equal(none.stages.at(-1)?.key, 'selection');
+  assert.equal(none.finished, true);
+  assert.equal(none.step.tone, 'clear');
+  assert.match(none.step.text, /chose no option to build/);
+  assert.deepEqual(pathBanner(chose('none')), {
+    tone: 'next',
+    text: 'Record another selection: the last one advanced no option.',
+    view: 'compare',
+  });
+  // Before any selection, Selection is next and Spec says where each choice goes.
+  const before = pathStages(chose(null, null, 0));
+  assert.equal(before.stages.find((s) => s.key === 'selection')?.state, 'next');
+  assert.match(
+    before.stages.find((s) => s.key === 'spec')?.text ?? '',
+    /non-code choice goes to Proposal and Review/,
+  );
+  // Selections not read (older facts): a spec still stands for a selection, as before.
+  assert.equal(
+    pathStages(done).stages.find((s) => s.key === 'selection')?.state,
+    'done',
+  );
 });

@@ -173,6 +173,18 @@ async function readFacts(
       : null,
     artifacts: artifacts.length,
     ...(proposals ? { proposals: proposals.length } : {}),
+    selection: {
+      count: overview.selections.count,
+      route: overview.selections.latest?.route ?? null,
+      proposal: overview.selections.latest?.proposal
+        ? {
+            title: overview.selections.latest.proposal.title,
+            unknownCore: overview.selections.latest.proposal.unknown_core,
+            reviewed: overview.selections.latest.proposal.reviewed,
+            revise: overview.selections.latest.proposal.revise,
+          }
+        : null,
+    },
     planConnections: plans ? plans.length : null,
   };
 }

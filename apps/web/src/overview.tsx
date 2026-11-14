@@ -2,6 +2,7 @@ import {
   ActivityPageSchema,
   DecisionSchema,
   OverviewSchema,
+  type Overview,
   WorkflowDetailSchema,
   WorkflowSchema,
   z,
@@ -35,6 +36,18 @@ const LIVE = [
   'paused_operator',
   'reconciling',
 ];
+
+/** UX pass P-2: where the newest selection sends the path, for the Monitor tile. */
+const ROUTE_TEXT = {
+  software: 'software, to a spec',
+  non_code: 'non-code, to a proposal',
+  none: 'no option advanced',
+  unset: 'none yet',
+} as const;
+const proposalCount = (o: Overview) => {
+  const n = o.records.find((r) => r.kind === 'proposal')?.active ?? 0;
+  return `${n} ${n === 1 ? 'proposal' : 'proposals'}`;
+};
 
 /** Run monitor: what is running, what waits for a person, what it costs, what just happened. */
 export function Overview({
@@ -133,6 +146,17 @@ export function Overview({
                   in flight ·{' '}
                   <Money nano={o.budget.unknown} fixture={fixture} inButton />{' '}
                   held unknown · {o.budget.denied_calls} calls refused
+                </small>
+              </button>
+              <button className="tile" onClick={() => open('compare')}>
+                <strong>{o.selections.count}</strong>
+                <span>
+                  {o.selections.count === 1 ? 'selection' : 'selections'}{' '}
+                  recorded
+                </span>
+                <small>
+                  {proposalCount(o)} · newest:{' '}
+                  {ROUTE_TEXT[o.selections.latest?.route ?? 'unset']}
                 </small>
               </button>
               <button className="tile" onClick={() => open('evidence')}>
