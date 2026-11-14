@@ -4,7 +4,7 @@
 
 What now works (no migration or ADR): a build whose acceptance cases the worker could not run (no WSL2, a lost run, cleanup pending) stops at once with the worker's reason and keeps its candidate, instead of spending its repair rounds on the same patch and stopping with "Patch changes nothing". Building again (after a new approval) carries on from that kept candidate: when the builder submits the candidate's own content, the candidate is reviewed and tested afresh. Build's Start build form opens on the run the spec was frozen in. The P-1 finding's guess (retrying from `task.head`) was not the cause; see `tracking/evidence/p1-build-retry/README.md`.
 
-Checked: the UI walk through Build on a throwaway studio with the test-double worker (start, approve, start again, Package, Try; and the worker-blocked path to Try), the 390 px Build check (one serious target-size on the fresh state on this branch alone, fixed by PR #192's text-button size; 0 with #192 merged), `pnpm typecheck`, `pnpm format:check`, `pnpm test:db` (TEST_RESULTS). Not covered: the real WSL2 worker (the live walk on Jordan's PC).
+Checked: the UI walk through Build on a throwaway studio with the test-double worker (start, approve, start again, Package, Try; and the worker-blocked path to Try), the 390 px Build check (one serious target-size on the fresh state on this branch alone, fixed by PR #192's text-button size; 0 with #192 merged), `pnpm typecheck`, `pnpm format:check`, `pnpm test:db` on PostgreSQL 16 (1173 tests: 1139 pass, 29 skipped, the 5 known PowerShell-wrapper failures). Not covered: the real WSL2 worker (the live walk on Jordan's PC).
 
 ## November 12 update — full codebase audit and its fixes (L-1, L-2, N-1..N-7)
 
