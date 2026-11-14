@@ -3534,6 +3534,48 @@ create unique index autopilots_one_per_trigger on autopilots (automation_id, tri
 `,
   },
   {
+    // ADR-0100: the owner's autopilot settings (one versioned row per workspace; every change is
+    // audited) and the "gather more evidence" step an autopilot takes when they allow it.
+    version: 63,
+    name: 'autopilot_settings',
+    sql: `
+create table autopilot_settings (
+ workspace_id uuid primary key references workspaces(id),
+ settings jsonb not null check (jsonb_typeof(settings) = 'object'),
+ version integer not null check (version >= 1),
+ updated_by uuid not null references actors(id),
+ updated_at timestamptz not null default clock_timestamp()
+);
+alter table autopilots drop constraint autopilots_stage_check;
+alter table autopilots add constraint autopilots_stage_check check (stage in ('research','explore',
+ 'brief','discover','assess','select','proposal','spec','gather'));
+-- P-11: the routine approvals made for this autopilot when it started, which end with it.
+alter table routine_policies add constraint routine_policies_workspace_id_key
+ unique (workspace_id, id);
+alter table autopilots add column routine_policy_id uuid;
+alter table autopilots add constraint autopilots_routine_policy_fk
+ foreign key (workspace_id, routine_policy_id) references routine_policies (workspace_id, id);
+alter table autopilots add column approvals_ended_at timestamptz;
+alter table autopilots add constraint autopilots_approvals_ended_check
+ check (approvals_ended_at is null or routine_policy_id is not null);
+-- P-12: a quote-checked web claim the autopilot accepted under the owner's setting.
+alter table web_discovery_claims drop constraint web_discovery_claims_admitted_via_check;
+alter table web_discovery_claims add constraint web_discovery_claims_admitted_via_check
+ check (admitted_via in ('owner','routine_policy','autopilot'));
+alter table web_discovery_claims add constraint web_discovery_claims_autopilot_admission_check
+ check (admitted_via <> 'autopilot' or admission_id is not null);
+create index web_discovery_claims_by_autopilot_claim on web_discovery_claims (claim_id)
+ where admitted_via = 'autopilot';
+-- P-12 (review 1 L-6): the autopilot that started a web search, so the hold holds on a resume.
+alter table web_discoveries add column autopilot_id uuid;
+alter table web_discoveries add constraint web_discoveries_autopilot_fk
+ foreign key (workspace_id, autopilot_id) references autopilots (workspace_id, id);
+alter table workflows add column autopilot_id uuid;
+alter table workflows add constraint workflows_autopilot_fk
+ foreign key (workspace_id, autopilot_id) references autopilots (workspace_id, id);
+`,
+  },
+  {
     // ADR-0101 (UX pass P-5): "Draft the missing sections" on a saved proposal. Each press is
     // one row: the version drafted, the sections asked, exactly what was sent under which fixed
     // instructions, the reply and the drafts the studio could read. It changes once, from

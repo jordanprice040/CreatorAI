@@ -98,6 +98,8 @@ const COUNTED = [
   'autopilots',
   // ADR-0099: automation levels set on runs.
   'run_automations',
+  // ADR-0100: the owner's autopilot settings.
+  'autopilot_settings',
   // ADR-0101: model drafts of a proposal's missing sections.
   'proposal_section_drafts',
 ] as const;

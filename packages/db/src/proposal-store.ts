@@ -21,6 +21,7 @@ import {
   type ScorecardBody,
   type Selection,
   type StoredEntity,
+  AUTOPILOT_QUOTE_CHECK_LABEL,
 } from '@creator/contracts';
 import {
   draftProposal,
@@ -432,7 +433,13 @@ export class ProposalStore extends CatalogStore {
         statement:
           status === 'redacted'
             ? '(redacted)'
-            : String((r.body as Row | null)?.statement ?? r.title).slice(
+            : `${
+                base.evidence
+                  .get(id)
+                  ?.labels.includes(AUTOPILOT_QUOTE_CHECK_LABEL)
+                  ? `${AUTOPILOT_QUOTE_CHECK_LABEL}: `
+                  : ''
+              }${String((r.body as Row | null)?.statement ?? r.title)}`.slice(
                 0,
                 2000,
               ),

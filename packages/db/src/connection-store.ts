@@ -3787,14 +3787,52 @@ export class ConnectionStore extends AutomationStore {
       throw new ContractError(
         'ACCESS_DENIED',
         role === 'r01_exploration'
-          ? 'Exploration route is not ready.'
+          ? "Exploration can't start on this connection now."
           : role === 'r08_assessment'
-            ? 'Assessment route is not ready.'
-            : 'Discovery route is not ready.',
+            ? "Assessment can't start on this connection now."
+            : "Discovery can't start on this connection now.",
         unique.map((x) => x.text),
         unique,
       );
     }
+  }
+
+  /**
+   * ADR-0100: plan requests this run has used on the connection, its per-run cap, and what the
+   * daily cap leaves, so an autopilot sizes each step from what is actually left.
+   */
+  async planRunRoom(
+    ctxIn: CommandContext,
+    ws: string,
+    connectionId: string,
+    runId: string,
+  ): Promise<{ per_run: number; used: number; daily_left: number }> {
+    return this.tx((c) =>
+      this.planRunRoomIn(c, ctxIn, ws, connectionId, runId),
+    );
+  }
+  /**
+   * `planRunRoom` on a transaction the caller holds (round 3 nit: the autopilot's start check
+   * reads it on the start's own connection instead of opening a second one). Reads only; a
+   * refusal is thrown before any statement fails, so the caller's transaction stays usable.
+   */
+  async planRunRoomIn(
+    c: PoolClient,
+    ctxIn: CommandContext,
+    ws: string,
+    connectionId: string,
+    runId: string,
+  ): Promise<{ per_run: number; used: number; daily_left: number }> {
+    const ctx = normalize(ctxIn);
+    await this.role(c, uuid(ws), ctx.actorId, false);
+    const conn = await this.#connection(c, uuid(ws), uuid(connectionId));
+    const usage = await this.#usage(c, conn.id, uuid(runId), null);
+    const caps = conn.settings.caps;
+    return {
+      per_run: caps.responses.max_requests_per_run,
+      used: usage.run_requests,
+      daily_left: Math.max(0, dailyCap(caps, usage) - usage.last_24h_requests),
+    };
   }
 
   /**

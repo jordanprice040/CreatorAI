@@ -7,6 +7,28 @@ What now works: after a selection, Projects › Path follows the choice. A non-c
 Checked: `pnpm typecheck`, `pnpm format:check`, `pnpm test:db` on PostgreSQL 16 (see SESSION_HANDOFF for counts), new tests `proposal-section-drafts` (overview route and proposal progress; owner, chat and records rules; version and section checks; replay; marks checked by the studio; export labels; audit without words; settle-once; redaction) and `web-proposal-drafts`, plus new Path cases in `web-next-step`. Browser walk `tracking/evidence/p2-p5-path-proposals/walk.mjs` with a fake `claude`. No live model call.
 
 Open: the autopilot requesting the draft waits for #193. Independent review in a separate thread.
+## November 14 update — more automation for the autopilot (ADR-0100, migration 63)
+
+Jordan's November 14 asks: an opt-in way for the autopilot to go on by itself at stops, automatic evidence gathering and claim linking when evidence is thin, a hands-off mode that recovers from most stops, and a clear next step whenever automation waits. Plan with the full stop map (23 stops, 6 that stay hard stops): `docs/AUTOPILOT_MORE_AUTOMATION_PLAN_2026-11-14.md`.
+
+What now works (schema 63):
+
+- **When the autopilot would stop** under How much is automated: the owner's per-workspace autopilot settings (gather evidence with up to 3 extra web searches, choose with unknown ratings by the worst case, break ties by a fixed order, keep the leader of a close ranking, try the next candidate, retry a failed step up to 2 times, and, per Jordan's decision, choose when only the model cleared ethics). All off by default; **Turn on Hands-off** turns on every one except the ethics switch. Versioned, owner only, audited.
+- Every stop now records its kind. A stopped card offers **Allow “…” and continue** when a setting covers that kind of stop: one request turns that setting on and continues, refused if either changed since it was read. The read lists the other next steps for each kind of stop, and **Start a new autopilot** when it cannot continue.
+- Thin evidence: the autopilot links suggested claims (up to 3 per problem or option, as the Autopilot actor, marked suggested), searches the web on a plan connection (public data only, inside the run's approvals and the autopilot's call limit), and explores, assesses or chooses again, in bounded rounds. With the setting on, the claims a discovery proposal cited are linked to its option.
+- An ethics gate only the model cleared: with the owner's setting on, the autopilot chooses it, and the selection, proposal and audit entry say “Ethics checked by the model only: look at it.”
+- Each fallback is recorded on its step with the setting and settings version that allowed it.
+- Fixes from the November 14 live runs: the autopilot sizes child work to the plan connection's per-run request cap and what the run has already used (K-9), with a clear message; "Assessment/Exploration/Discovery can't start on this connection now" replaces "route is not ready"; Automate the rest can start on a new run made for it.
+
+Checked in the cloud container on PostgreSQL 16: `pnpm typecheck`, `pnpm format:check`, `pnpm test` with the database (1178 tests: 1144 pass, 29 skipped, the 5 known PowerShell-wrapper failures) and `pnpm test:dev-safety` (19 pass, 3 skipped). Nine new ADR-0100 tests in `tests/src/autopilot.test.ts`. Browser walk on a throwaway database: [evidence](evidence/autopilot-settings/README.md). No live run and no model call (a live run on the dev studio needs Jordan's typed OK and the dev studio upgraded to schema 63).
+
+P-11 and P-12 (Jordan's UX decisions, added before review): routine approvals made with an autopilot end when it finishes, fails or is cancelled, and stay while it waits for a person; approvals the run already had keep their terms. Quote-checked web claims an autopilot finds wait for a person unless the owner turns on **Accept quote-checked web claims** (off by default, not part of Hands-off); the autopilot stops for them with Allow and continue, and each one it accepts is labelled “Accepted by autopilot · quote check only” in packets, Decide and proposal references. Three new tests (both store rules mutation-checked). Rechecked: `pnpm typecheck`, `pnpm format:check`, `pnpm test` with the database (1181 tests: 1147 pass, 29 skipped, the 5 known PowerShell-wrapper failures).
+
+Review 1 fixes (no High; M-1, L-1 to L-8 and the eight nits, all fixed; ADR-0100 amendment). Six new tests (M-1, L-2, L-3, L-4, L-7 in `autopilot.test.ts`; the L-6 stamp in the P-12 store test, mutation-checked); the L-5 linking test updated. Rechecked: `pnpm typecheck`, `pnpm format:check`, `pnpm test` with the database (1186 tests: 1152 pass, 29 skipped, the 5 known PowerShell-wrapper failures), and the walk again on a fresh throwaway database.
+
+Re-review 2 fixes (two Lows, six nits, all fixed; ADR-0100 amendment): Allow and continue is offered only when it changes a setting, and a stop the autopilot can no longer get past ends it and its approvals; the start check adds up each step's need from the config (5 types + research on 10 requests is refused); connection-setup refusals come first; the room check runs inside the idempotent start; workflows an autopilot starts are stamped. New tests for L-1, L-2, N-1, N-2, N-4 and N-5. Rechecked: `pnpm typecheck`, `pnpm format:check`, `pnpm test` with the database (1190 tests: 1156 pass, 29 skipped, the 5 known PowerShell-wrapper failures).
+
+Limits: web search for evidence runs only on a ChatGPT plan connection; the fixture's identical ratings cannot show a tie broken; Whole process still stops a software option at the spec.
 
 ## November 14 update — final UX pass P-1 (build after approval) and P-10 (build run default)
 

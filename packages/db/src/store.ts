@@ -1167,7 +1167,8 @@ export class Store {
             to.kind,
             to.version,
             req.rationale,
-            ctx.actorId,
+            // ADR-0100: a link an autopilot made is asserted by the Autopilot agent.
+            recordedActor(ctx),
           ],
         );
       } catch (error) {
