@@ -1,0 +1,22 @@
+{
+  "when": "2026-11-14T11:53:59.171Z",
+  "steps": [
+    "seeded fixture problem 71a4da28 with a selection that recommends the existing tool",
+    "connected a fake `claude` as the chat model (studio records allowed)",
+    "Path after a non-code selection: Record evidence: Done · Set up a budget: Done · Discover problems and options: Done · Score an option: Done · Choose what to do with it: Next · Evidence: Done · Discovery: Done · Scores: Done · Selection: Done · Proposal: Next · Review: Later",
+    "screenshot 01-path-proposal-next.png",
+    "saved version 1 from the records (required sections Unknown yet)",
+    "screenshot 02-draft-panel.png",
+    "draft outcome: claude-test-model drafted 4 of 8 sections Nov 14, 2026, 11:53 AM. Each shows under its section; use the ones you agree with, then save. Fixture connection: the text is canned, not a model’s.",
+    "screenshot 03-drafts-under-sections.png",
+    "used the Objectives and Methods drafts; Ethics stays Unknown yet with the model’s note",
+    "saved version 2 with “Used model drafts: Objectives, Methods …”",
+    "screenshot 04-preview-labels.png",
+    "Path after version 2: Evidence: Done · Discovery: Done · Scores: Done · Selection: Done · Proposal: Next · Review: Later",
+    "screenshot 05-path-finish-proposal.png",
+    "Monitor shows “1 selection recorded · 1 proposal · newest: non-code, to a proposal”",
+    "phone width horizontal overflow on Proposals: false",
+    "screenshot 06-phone.png",
+    "console errors: 0"
+  ]
+}

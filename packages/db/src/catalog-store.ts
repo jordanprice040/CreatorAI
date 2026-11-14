@@ -1,6 +1,8 @@
 import type { PoolClient } from 'pg';
 import {
   z,
+  CORE_PROPOSAL_SECTIONS,
+  PROPOSAL_KINDS,
   SearchQuerySchema,
   StoredKindSchema,
   parse,
@@ -1097,6 +1099,7 @@ export class CatalogStore extends SelectionStore {
            from research_sources where workspace_id = $1`,
         [ws],
       );
+      const selections = await this.overviewSelections(c, ws);
       const b = budget.rows[0] as Row;
       const money = (v: unknown) => BigInt(String(v)).toString();
       const s = sources.rows[0] as Row;
@@ -1151,9 +1154,111 @@ export class CatalogStore extends SelectionStore {
           count: Number(s.n),
           last_fetched_at: s.last === null ? null : iso(s.last),
         },
+        selections,
         generated_at: new Date().toISOString(),
       };
     });
+  }
+
+  /**
+   * UX pass P-2: how many active problems have a selection, and where the newest selection
+   * sends the main path (a spec for software, a proposal for a non-code choice, or neither),
+   * with that proposal's progress. Computed on read; nothing here is stored.
+   */
+  private async overviewSelections(
+    c: PoolClient,
+    ws: string,
+  ): Promise<Overview['selections']> {
+    const active = `join entities p on p.workspace_id = s.workspace_id and p.id = s.problem_id
+        and p.kind = 'problem' and p.status = 'active'`;
+    const count = await c.query(
+      `select count(distinct s.problem_id) as n from selections s ${active}
+        where s.workspace_id = $1`,
+      [ws],
+    );
+    const latest = (
+      await c.query(
+        `select s.id, s.problem_id, s.dispositions, s.created_at from selections s ${active}
+          where s.workspace_id = $1 order by s.created_at desc, s.id desc limit 1`,
+        [ws],
+      )
+    ).rows[0] as Row | undefined;
+    const n = Number(count.rows[0]?.n ?? 0);
+    if (!latest) return { count: n, latest: null };
+    const dispositions = (latest.dispositions ?? []) as {
+      alternative: { id: string };
+      disposition: string;
+    }[];
+    const ids = dispositions.map((d) => String(d.alternative.id).toLowerCase());
+    const kinds = new Map(
+      (
+        await c.query(
+          `select id::text as id, body->>'kind' as kind from entities
+            where workspace_id = $1 and id = any($2::uuid[]) and kind = 'alternative'`,
+          [ws, ids],
+        )
+      ).rows.map((r: Row) => [
+        String(r.id).toLowerCase(),
+        String(r.kind ?? ''),
+      ]),
+    );
+    const nonCode = dispositions
+      .filter(
+        (d) =>
+          (d.disposition === 'recommend_alternative' ||
+            d.disposition === 'proceed_to_validation') &&
+          (PROPOSAL_KINDS as readonly string[]).includes(
+            kinds.get(String(d.alternative.id).toLowerCase()) ?? '',
+          ),
+      )
+      .map((d) => String(d.alternative.id).toLowerCase());
+    const route = dispositions.some((d) => d.disposition === 'select_for_build')
+      ? ('software' as const)
+      : nonCode.length > 0
+        ? ('non_code' as const)
+        : ('none' as const);
+    let proposal: NonNullable<Overview['selections']['latest']>['proposal'] =
+      null;
+    if (route === 'non_code') {
+      const row = (
+        await c.query(
+          `select e.id, e.version, e.title, e.body,
+             (select r.verdict from proposal_reviews r
+               where r.workspace_id = e.workspace_id and r.proposal_id = e.id
+                 and r.proposal_version = e.version
+               order by r.created_at desc, r.id desc limit 1) as verdict
+             from entities e
+            where e.workspace_id = $1 and e.kind = 'proposal' and e.status = 'active'
+              and lower(e.body->'alternative'->>'id') = any($2::text[])
+            order by e.updated_at desc, e.id desc limit 1`,
+          [ws, nonCode],
+        )
+      ).rows[0] as Row | undefined;
+      if (row) {
+        const sections = ((row.body as { sections?: unknown } | null)
+          ?.sections ?? {}) as Record<string, { state?: string }>;
+        proposal = {
+          id: String(row.id),
+          version: Number(row.version),
+          title: String(row.title).slice(0, 500),
+          unknown_core: CORE_PROPOSAL_SECTIONS.filter(
+            (k) => sections[k]?.state !== 'written',
+          ).length,
+          reviewed: row.verdict === 'ready',
+          revise: row.verdict === 'revise',
+        };
+      }
+    }
+    return {
+      count: n,
+      latest: {
+        id: String(latest.id),
+        problem_id: String(latest.problem_id),
+        created_at: iso(latest.created_at),
+        route,
+        proposal,
+      },
+    };
   }
 
   /**

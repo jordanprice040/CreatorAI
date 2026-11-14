@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   CORE_PROPOSAL_SECTIONS,
   PROPOSAL_KINDS,
+  draftMarkText,
   PROPOSAL_SECTIONS,
   PROPOSAL_SECTION_LABELS,
   PROPOSAL_SECTION_MAX,
@@ -39,6 +40,16 @@ import {
 import { firstNeeding } from './fold-state.js';
 import { Routine, WhatWillHappen } from './routine.js';
 import { useViewMode } from './view-mode.js';
+import {
+  DraftMissing,
+  SectionDraftOffer,
+  useSectionDrafts,
+} from './proposal-drafts.js';
+import {
+  draftOffers,
+  draftReason,
+  newlyDrafted,
+} from './proposal-draft-rules.js';
 import {
   FOLDED_PROPOSAL_SECTIONS,
   foldedSectionsSummary,
@@ -436,6 +447,7 @@ export function Proposals({
           base={base}
           session={session}
           writer={writer}
+          owner={workspace.role === 'owner'}
           start={draft.draft}
           detail={null}
           foldChoices={[sectionChoices, setSectionChoices]}
@@ -453,6 +465,7 @@ export function Proposals({
           base={base}
           session={session}
           writer={writer}
+          owner={workspace.role === 'owner'}
           id={focus}
           changed={list.refresh}
           foldChoices={[sectionChoices, setSectionChoices]}
@@ -466,6 +479,7 @@ function ProposalView({
   base,
   session,
   writer,
+  owner,
   id,
   changed,
   foldChoices,
@@ -473,6 +487,7 @@ function ProposalView({
   base: string;
   session: SessionInfo;
   writer: boolean;
+  owner: boolean;
   id: string;
   changed: () => void;
   foldChoices: FoldChoices;
@@ -499,6 +514,7 @@ function ProposalView({
           base={base}
           session={session}
           writer={writer}
+          owner={owner}
           start={null}
           detail={d.data}
           foldChoices={foldChoices}
@@ -570,6 +586,7 @@ function ProposalEditor({
   base,
   session,
   writer,
+  owner,
   start,
   detail,
   pickVersion,
@@ -579,6 +596,7 @@ function ProposalEditor({
   base: string;
   session: SessionInfo;
   writer: boolean;
+  owner: boolean;
   /** A fresh draft (not saved yet), or null when editing a saved proposal. */
   start: ProposalDraft | null;
   detail: ProposalDetail | null;
@@ -611,14 +629,23 @@ function ProposalEditor({
   );
   const offered: { relation: string; evidence: ClaimEvidence }[] =
     claims.data ?? [];
+  // ADR-0101 (UX pass P-5): model drafts of the current version's unknown sections.
+  const draftable = !!detail && !older && detail.proposal.status === 'active';
+  const drafts = useSectionDrafts(base, draftable ? detail!.proposal.id : null);
+  const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
+  const offers = editable
+    ? draftOffers(drafts.data ?? [], body.sections, dismissed)
+    : {};
   const setSection = (
     k: ProposalSection,
     patch: Partial<ProposalBody['sections'][ProposalSection]>,
   ) => {
-    setBody((b) => ({
-      ...b,
-      sections: { ...b.sections, [k]: { ...b.sections[k], ...patch } },
-    }));
+    setBody((b) => {
+      const next = { ...b.sections[k], ...patch };
+      // Only written text can come from a model draft.
+      if (next.state !== 'written') delete next.draft;
+      return { ...b, sections: { ...b.sections, [k]: next } };
+    });
     // A section being edited stays open once it no longer needs attention.
     sectionFolds.set(k, true);
   };
@@ -626,6 +653,10 @@ function ProposalEditor({
     title !== initial.title ||
     JSON.stringify(body) !== JSON.stringify(initial.body);
 
+  const usedDrafts = newlyDrafted(initial.body.sections, body.sections).map(
+    (k) => PROPOSAL_SECTION_LABELS[k as ProposalSection],
+  );
+  const defaultReason = draftReason(usedDrafts);
   async function save(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -642,7 +673,7 @@ function ProposalEditor({
                 expected_version: detail.proposal.version,
                 title,
                 body,
-                reason: reason.trim() || 'Edited',
+                reason: reason.trim() || defaultReason,
               },
             },
           )
@@ -729,6 +760,12 @@ function ProposalEditor({
               {s.claims.length > 0
                 ? ` · ${s.claims.length} cited claim${s.claims.length === 1 ? '' : 's'}`
                 : ''}
+              {s.state === 'written' && s.draft ? ' · model draft' : ''}
+              {offers[k] && s.state !== 'written'
+                ? offers[k]!.value.state === 'written'
+                  ? ' · a model draft is waiting'
+                  : ' · the model could not draft it'
+                : ''}
             </small>
             {s.text.trim() && (
               <span className="fold-line small">
@@ -743,6 +780,33 @@ function ProposalEditor({
             {PROPOSAL_SECTION_LABELS[k]}
             {core ? ' · required' : null}
           </legend>
+          {s.state === 'written' && s.draft && (
+            <p className="small model-draft-mark">
+              Started as a model draft by {s.draft.model_id}, which you chose to
+              use. Saving keeps that label
+              {s.draft.edited ? ' (marked as edited)' : ''}; the studio notes
+              whether the text was changed.
+            </p>
+          )}
+          {offers[k] && (
+            <SectionDraftOffer
+              offer={offers[k]}
+              section={k}
+              editable={editable}
+              use={() => {
+                const o = offers[k]!;
+                if (o.value.state !== 'written') return;
+                setSection(k, {
+                  state: 'written',
+                  text: o.value.text,
+                  draft: { id: o.draft, model_id: o.model, edited: false },
+                });
+              }}
+              dismiss={() =>
+                setDismissed((d) => new Set(d).add(`${offers[k]!.draft}:${k}`))
+              }
+            />
+          )}
           <label>
             State{' '}
             <select
@@ -926,13 +990,31 @@ function ProposalEditor({
           label={detail ? `checks of v${v} as saved` : 'checks of this draft'}
         />
       )}
+      {draftable && writer && !preview && (
+        <DraftMissing
+          base={base}
+          session={session}
+          detail={detail!}
+          owner={owner}
+          dirty={dirty}
+          drafts={drafts}
+          drafted={drafts.refresh}
+        />
+      )}
       {preview ? (
         <div className="proposal-preview">
           {PROPOSAL_SECTIONS.map((k) => (
             <section key={k}>
               <h3>{PROPOSAL_SECTION_LABELS[k]}</h3>
               {body.sections[k].state === 'written' ? (
-                <Markdown text={body.sections[k].text} />
+                <>
+                  {body.sections[k].draft && (
+                    <p className="small">
+                      <em>{draftMarkText(body.sections[k].draft!)}.</em>
+                    </p>
+                  )}
+                  <Markdown text={body.sections[k].text} />
+                </>
               ) : (
                 <p className="small">
                   <strong>{STATE_TEXT[body.sections[k].state]}.</strong>{' '}
@@ -1053,7 +1135,7 @@ function ProposalEditor({
                   ? [
                       {
                         label: 'What changed',
-                        value: reason.trim() || 'Edited',
+                        value: reason.trim() || defaultReason,
                         source: reason.trim() ? 'written here' : 'default',
                       },
                     ]

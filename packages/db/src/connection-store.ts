@@ -103,6 +103,15 @@ import {
   usageOffStatement,
   CLAUDE_CODE_MIN_VERSION,
   claudeCodeVersionSupported,
+  PROPOSAL_DRAFT_INSTRUCTIONS,
+  PROPOSAL_DRAFT_INSTRUCTIONS_VERSION,
+  PROPOSAL_DRAFT_OUTPUT_MAX,
+  PROPOSAL_SECTIONS,
+  ProposalSectionDraftRequestSchema,
+  proposalDraftInput,
+  readSectionDrafts,
+  type ProposalSectionDraft,
+  type ProposalSectionDraftState,
 } from '@creator/contracts';
 import {
   BUILD_ROLE_PROMPTS,
@@ -131,6 +140,7 @@ import {
   type WebDiscoveryBinding,
 } from './web-discovery-gates.js';
 import { usageSummary } from './usage-summary.js';
+import { toSectionDraft } from './proposal-store.js';
 import {
   CHAT_ANSWER_STALE_POINT,
   chatAnswers,
@@ -676,6 +686,8 @@ export class ConnectionStore extends AutomationStore {
   readonly #liveChatAnswers = new Set<string>();
   /** ADR-0096: fills this studio process is still waiting on. */
   readonly #liveChatFills = new Set<string>();
+  /** ADR-0101: proposal drafts this process is still waiting on. */
+  readonly #liveSectionDrafts = new Set<string>();
   /**
    * ADR-0064: plan requests this studio process admitted and has not settled yet. The owner
    * cannot close one of these from the app, whatever its age: its result can still come back.
@@ -2670,6 +2682,280 @@ export class ConnectionStore extends AutomationStore {
       });
     } finally {
       this.#liveChatFills.delete(fillId);
+    }
+  }
+
+  /**
+   * ADR-0101 (UX pass P-5): records one "Draft the missing sections" press on a saved
+   * proposal and works out exactly what will be sent. Owner only, on the owner's chat model
+   * (Chat answers on, and studio records allowed to go, since the proposal is a studio
+   * record); the chat admission rules and daily limit apply when it is sent. Only sections a
+   * model may draft (`PROPOSAL_DRAFTABLE_SECTIONS`) that are unknown in the version read may be
+   * asked for. A retried press (same `client_id`) or a draft still on its way returns that
+   * draft. Nothing is sent here, and nothing in the proposal changes.
+   */
+  async beginProposalSectionDraft(
+    ctxIn: CommandContext,
+    ws: string,
+    proposalId: string,
+    raw: unknown,
+  ): Promise<{
+    draft: ProposalSectionDraft;
+    replay: boolean;
+    input: string;
+    logical_operation_id: string;
+    connection_id: string;
+  }> {
+    const ctx = normalize(ctxIn);
+    const req = parse(ProposalSectionDraftRequestSchema, raw);
+    const pid = uuid(proposalId);
+    // Read outside the write: the version, its sections, titles and references.
+    const detail = await this.proposalDetail(ctx, ws, pid);
+    const begun = await this.tx(async (c) => {
+      await this.requireOwner(c, uuid(ws), ctx.actorId);
+      const cur = (
+        await c.query(
+          `select id, version, status from entities
+            where workspace_id = $1 and id = $2 and kind = 'proposal' for update`,
+          [uuid(ws), pid],
+        )
+      ).rows[0] as Row | undefined;
+      if (!cur) throw fail('NOT_FOUND', 'Proposal not found.');
+      // A draft left pending by a studio that stopped mid-request is closed as failed.
+      await c.query(
+        `update proposal_section_drafts ca set state = 'failed', finished_at = clock_timestamp(),
+           reason = 'The studio stopped before this draft was recorded. Nothing more is known about it.'
+         where ca.proposal_id = $1 and ca.state = 'pending'
+           and ca.created_at < ${CHAT_ANSWER_STALE_POINT}
+           and not (ca.id = any($2::uuid[]))`,
+        [pid, [...this.#liveSectionDrafts]],
+      );
+      const prior = (
+        await c.query(
+          `select * from proposal_section_drafts where proposal_id = $1
+             and (client_id = $2 or state = 'pending')
+           order by (client_id = $2) desc limit 1`,
+          [pid, req.client_id],
+        )
+      ).rows[0] as Row | undefined;
+      if (prior)
+        return {
+          draft: toSectionDraft(prior),
+          replay: true,
+          input: String(prior.input),
+          logical_operation_id: String(prior.logical_operation_id),
+          connection_id: String(prior.connection_id),
+        };
+      if (cur.status !== 'active')
+        throw fail(
+          'INVALID_TRANSITION',
+          `A ${String(cur.status)} proposal cannot be drafted.`,
+        );
+      if (
+        Number(cur.version) !== req.version ||
+        detail.proposal.version !== req.version
+      )
+        throw fail(
+          'VERSION_CONFLICT',
+          'The proposal has a newer version; read it again before drafting.',
+        );
+      const body = detail.proposal.body;
+      const written = req.sections.filter(
+        (k) => body.sections[k].state !== 'unknown',
+      );
+      if (written.length)
+        throw fail(
+          'INVALID_TRANSITION',
+          `Only sections that are still unknown are drafted (${written.join(', ')} ${written.length === 1 ? 'is' : 'are'} not).`,
+        );
+      const settings = await chatSettings(c, uuid(ws));
+      if (!settings.enabled || !settings.connection_id || !settings.model_id)
+        throw fail(
+          'ACCESS_DENIED',
+          'Drafting uses your chat model, and Chat answers are turned off. The owner can turn them on in Models and connections.',
+        );
+      if (!settings.include_snapshot)
+        throw fail(
+          'ACCESS_DENIED',
+          'Drafting sends this proposal and its cited claims to your chat model, and your chat setting keeps studio records in the studio. Allow studio records in Chat answers (Models and connections) to draft, or write the sections yourself.',
+        );
+      const conn = await this.#connection(c, uuid(ws), settings.connection_id);
+      const room =
+        conn.settings.caps.responses.max_input_chars -
+        PROPOSAL_DRAFT_INSTRUCTIONS.length;
+      const built =
+        room < 500
+          ? null
+          : proposalDraftInput({
+              title: detail.proposal.title,
+              summary: body.summary,
+              problem_title: detail.problem_title,
+              response: body.response.replaceAll('_', ' '),
+              option_title: detail.option_title,
+              written: PROPOSAL_SECTIONS.filter(
+                (k) =>
+                  body.sections[k].state === 'written' &&
+                  body.sections[k].text.trim(),
+              ).map((k) => ({ key: k, text: body.sections[k].text })),
+              references: detail.checks.references.map((r) => ({
+                label: r.label,
+                statement: r.statement,
+              })),
+              asked: req.sections,
+              maxChars: room,
+            });
+      if (!built)
+        throw fail(
+          'INVALID_CONTRACT',
+          `The connection's input limit (${conn.settings.caps.responses.max_input_chars} characters) cannot hold the drafting instructions, the proposal's header and references, so nothing was sent. Write the sections yourself, or raise the limit in Models and connections.`,
+        );
+      const id = randomUUID();
+      const op = randomUUID();
+      const { rows } = await c.query(
+        `insert into proposal_section_drafts (id, workspace_id, proposal_id, proposal_version,
+           client_id, state, connection_id, connection_kind, fixture, model_id,
+           logical_operation_id, instructions_version, instructions_hash, sections,
+           sections_sent, input, input_hash, requested_by)
+         values ($1,$2,$3,$4,$5,'pending',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+         returning *`,
+        [
+          id,
+          uuid(ws),
+          pid,
+          req.version,
+          req.client_id,
+          conn.id,
+          conn.kind,
+          conn.fixture,
+          settings.model_id,
+          op,
+          PROPOSAL_DRAFT_INSTRUCTIONS_VERSION,
+          createHash('sha256')
+            .update(PROPOSAL_DRAFT_INSTRUCTIONS)
+            .digest('hex'),
+          JSON.stringify(req.sections),
+          built.sections_sent,
+          built.input,
+          createHash('sha256').update(built.input).digest('hex'),
+          ctx.actorId,
+        ],
+      );
+      await this.append(c, ctx, {
+        workspaceId: uuid(ws),
+        action: 'proposal.section_draft_requested',
+        subjectKind: 'proposal',
+        subjectId: pid,
+        subjectVersion: req.version,
+        contentHash: canonicalHash({ input: built.input }),
+        // Ids, route and section keys only; the words stay with the draft.
+        payload: {
+          draft_id: id,
+          connection_id: conn.id,
+          model_id: settings.model_id,
+          sections: req.sections,
+        },
+      });
+      return {
+        draft: toSectionDraft(rows[0] as Row),
+        replay: false,
+        input: built.input,
+        logical_operation_id: op,
+        connection_id: conn.id,
+      };
+    });
+    if (!begun.replay) this.#liveSectionDrafts.add(begun.draft.id);
+    return begun;
+  }
+
+  /** ADR-0101: records how a pending draft ended, with the drafts the studio could read. */
+  async finishProposalSectionDraft(
+    ctxIn: CommandContext,
+    ws: string,
+    draftId: string,
+    outcome: {
+      state: Exclude<ProposalSectionDraftState, 'pending'>;
+      plan_request_id: string | null;
+      text: string | null;
+      reason: string | null;
+    },
+  ): Promise<ProposalSectionDraft> {
+    const ctx = normalize(ctxIn);
+    try {
+      return await this.tx(async (c) => {
+        const cur = (
+          await c.query(
+            `select d.*, e.status as proposal_status from proposal_section_drafts d
+               join entities e on e.workspace_id = d.workspace_id and e.id = d.proposal_id
+              where d.workspace_id = $1 and d.id = $2 for update of d`,
+            [uuid(ws), uuid(draftId)],
+          )
+        ).rows[0] as Row | undefined;
+        if (!cur) throw fail('NOT_FOUND', 'Draft not found.');
+        if (cur.state !== 'pending') return toSectionDraft(cur);
+        const reply =
+          outcome.state === 'completed' ? (outcome.text ?? '') : null;
+        const asked = (cur.sections ?? []) as ProposalSectionDraft['sections'];
+        const read =
+          reply === null
+            ? { values: {}, dropped: 0, readable: true }
+            : readSectionDrafts(
+                reply.slice(0, PROPOSAL_DRAFT_OUTPUT_MAX),
+                asked,
+              );
+        const n = Object.keys(read.values).length;
+        const reason =
+          reply === null
+            ? (outcome.reason?.slice(0, 2000) ?? null)
+            : !read.readable
+              ? 'The reply was not the JSON the studio asked for, so nothing was drafted.'
+              : n === 0
+                ? `The model drafted nothing${read.dropped ? ` (${read.dropped} ${read.dropped === 1 ? 'draft was' : 'drafts were'} left out)` : ''}.`
+                : read.dropped
+                  ? `${read.dropped} ${read.dropped === 1 ? 'draft was' : 'drafts were'} left out: not a section asked for, empty or too long.`
+                  : null;
+        // The proposal was redacted while this draft was on its way: keep the outcome, not the words.
+        const redacted = cur.proposal_status === 'redacted';
+        const { rows } = await c.query(
+          `update proposal_section_drafts set state = $2, plan_request_id = $3, text = $4,
+             output_hash = $5, draft_values = $6, dropped = $7, reason = $8,
+             finished_at = clock_timestamp(),
+             input = case when $9 then '' else input end,
+             redacted_at = case when $9 then clock_timestamp() else null end
+           where id = $1 returning *`,
+          [
+            cur.id,
+            outcome.state,
+            outcome.plan_request_id || null,
+            reply === null ? null : redacted ? '' : reply,
+            reply === null
+              ? null
+              : createHash('sha256').update(reply).digest('hex'),
+            JSON.stringify(redacted ? {} : read.values),
+            read.dropped,
+            reason,
+            redacted,
+          ],
+        );
+        await this.append(c, ctx, {
+          workspaceId: uuid(ws),
+          action: 'proposal.section_drafted',
+          subjectKind: 'proposal',
+          subjectId: String(cur.proposal_id),
+          subjectVersion: Number(cur.proposal_version),
+          contentHash: canonicalHash({ state: outcome.state, text: reply }),
+          payload: {
+            draft_id: String(cur.id),
+            state: outcome.state,
+            model_id: String(cur.model_id),
+            plan_request_id: outcome.plan_request_id || null,
+            drafted: Object.keys(read.values),
+            dropped: read.dropped,
+          },
+        });
+        return toSectionDraft(rows[0] as Row);
+      });
+    } finally {
+      this.#liveSectionDrafts.delete(draftId);
     }
   }
 

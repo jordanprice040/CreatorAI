@@ -1,5 +1,13 @@
 # Build status — November 10, 2026
 
+## November 14 update — UX pass P-2 (Path branches) and P-5 (draft the missing sections) (ADR-0101, migration 64)
+
+What now works: after a selection, Projects › Path follows the choice. A non-code choice goes to Proposal and Review and finishes when the proposal's current version is complete and reviewed as ready; a selection that advanced nothing ends at Selection; software goes on to Spec, Freeze, Humility review, Build, Package and Try. The overview reports selections and the newest route, shown on Monitor › Overview. On Proposals, the owner can press **Draft the missing sections** on a saved proposal: the chat model drafts the unknown plan sections, each draft shows under its section as a model draft, and a person uses or dismisses each one; a saved section that came from a draft carries the model's name in the page, preview and export. Unsupported facts stay "Unknown yet".
+
+Checked: `pnpm typecheck`, `pnpm format:check`, `pnpm test:db` on PostgreSQL 16 (see SESSION_HANDOFF for counts), new tests `proposal-section-drafts` (overview route and proposal progress; owner, chat and records rules; version and section checks; replay; marks checked by the studio; export labels; audit without words; settle-once; redaction) and `web-proposal-drafts`, plus new Path cases in `web-next-step`. Browser walk `tracking/evidence/p2-p5-path-proposals/walk.mjs` with a fake `claude`. No live model call.
+
+Open: the autopilot requesting the draft waits for #193. Independent review in a separate thread.
+
 ## November 14 update — final UX pass P-1 (build after approval) and P-10 (build run default)
 
 What now works (no migration or ADR): a build whose acceptance cases the worker could not run (no WSL2, a lost run, cleanup pending) stops at once with the worker's reason and keeps its candidate, instead of spending its repair rounds on the same patch and stopping with "Patch changes nothing". Building again (after a new approval) carries on from that kept candidate: when the builder submits the candidate's own content, the candidate is reviewed and tested afresh. Build's Start build form opens on the run the spec was frozen in. The P-1 finding's guess (retrying from `task.head`) was not the cause; see `tracking/evidence/p1-build-retry/README.md`.

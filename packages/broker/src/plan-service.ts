@@ -8,6 +8,9 @@ import {
   isQualified,
   type ChatAnswer,
   type ChatActionFill,
+  type ProposalSectionDraft,
+  PROPOSAL_DRAFT_INSTRUCTIONS,
+  PROPOSAL_DRAFT_OUTPUT_MAX,
   CHAT_FILL_INSTRUCTIONS,
   CHAT_FILL_OUTPUT_MAX,
   type PlanConnection,
@@ -1239,6 +1242,93 @@ export class PlanConnectionService {
       };
     }
     return this.deps.store.finishChatActionFill(ctx, ws, f.id, settled);
+  }
+
+  /**
+   * ADR-0101 (UX pass P-5): "Draft the missing sections" on a saved proposal. The store
+   * records what will be sent; the request goes to the chat model under exactly the chat
+   * answer's admission (owner's switch, connection, model, daily chat limit, private data
+   * allowed). The reply becomes model drafts beside the sections; the proposal changes only
+   * when a person uses a draft and saves a new version.
+   */
+  async proposalSectionDraft(
+    ctx: CommandContext,
+    ws: string,
+    proposalId: string,
+    body: unknown,
+  ): Promise<ProposalSectionDraft> {
+    const begun = await this.deps.store.beginProposalSectionDraft(
+      ctx,
+      ws,
+      proposalId,
+      body,
+    );
+    if (begun.replay) return begun.draft;
+    const f = begun.draft;
+    let settled: {
+      state: 'completed' | 'failed' | 'refused';
+      plan_request_id: string | null;
+      text: string | null;
+      reason: string | null;
+    };
+    let admitted = false;
+    const who = f.connection_kind === 'claude_code' ? 'Claude' : 'ChatGPT';
+    try {
+      const r = await this.invoke(ctx, ws, {
+        connection_id: begun.connection_id,
+        purpose: 'chat',
+        model_id: f.model_id,
+        task_class: null,
+        data_class: 'private_approved',
+        run_id: null,
+        instructions: PROPOSAL_DRAFT_INSTRUCTIONS,
+        input: begun.input,
+        logical_operation_id: begun.logical_operation_id,
+        max_output_chars: PROPOSAL_DRAFT_OUTPUT_MAX,
+        onAdmitted: () => {
+          admitted = true;
+        },
+      });
+      const o = r.outcome;
+      if (o.kind === 'completed')
+        settled = {
+          state: 'completed',
+          plan_request_id: r.request_id || null,
+          text: o.text,
+          reason: null,
+        };
+      else if (o.kind === 'rejected' && PRE_DISPATCH_REASONS.has(o.reason_code))
+        settled = {
+          state: 'refused',
+          plan_request_id: r.request_id || null,
+          text: null,
+          reason: `${o.message} (${o.reason_code})`,
+        };
+      else
+        settled = {
+          state: 'failed',
+          plan_request_id: r.request_id || null,
+          text: null,
+          reason:
+            o.kind === 'rejected'
+              ? `${who} refused it after receiving the text: ${o.message} (${o.reason_code})`
+              : `${o.message} (${o.reason_code})`,
+        };
+    } catch (e) {
+      const details = e instanceof ContractError ? [...e.details] : [];
+      settled = {
+        state: admitted ? 'failed' : 'refused',
+        plan_request_id: null,
+        text: null,
+        reason:
+          details.length > 0
+            ? details.join(' ')
+            : e instanceof Error
+              ? e.message
+              : 'The request was not admitted.',
+      };
+    }
+    return this.deps.store.finishProposalSectionDraft(ctx, ws, f.id, settled);
   }
 
   /**
