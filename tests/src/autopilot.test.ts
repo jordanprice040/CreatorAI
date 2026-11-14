@@ -2,7 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { readFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import {
+  AUTOPILOT_SETTINGS_DEFAULT,
+  MODEL_ONLY_ETHICS_NOTE,
+  autopilotMaySearch,
+  autopilotNextSteps,
+  autopilotRoutinePolicy,
+  handsOff,
+  isHandsOff,
+  settingIsOn,
+  settingOn,
   AUTOPILOT_MIN_CALLS,
   AutopilotConfigSchema,
   AutopilotSchema,
@@ -33,6 +43,7 @@ import {
   personChoice,
   pickExplored,
   refusalOutcome,
+  suggestClaims,
 } from '@creator/domain';
 import { FixtureAdapter } from '@creator/broker';
 import { AUTOPILOT_ACTOR_ID, ConnectionStore } from '@creator/db';
@@ -41,6 +52,7 @@ import {
   DEFAULT_OWNER_ACTOR_ID,
   autopilotKey,
   createApi,
+  refusalKind,
   type AutopilotWeb,
 } from '@creator/api';
 import { discoverySetup, owner } from './discovery-harness.js';
@@ -1055,6 +1067,7 @@ test('review 2 L-1: the end time stops the step’s workflow on every path; a ch
   const cancelled: string[] = [];
   let stopping: { id: string } | null = null;
   const web: AutopilotWeb = {
+    accept: async () => null,
     start: async () => {
       const cur = await h.store.getAutopilot(owner, h.ws.id, stopping!.id);
       await h.store.cancelAutopilot(owner, h.ws.id, cur.id, {});
@@ -1590,6 +1603,7 @@ test('searching the web first: needs research and evidence covered; its outcome 
   const started: unknown[] = [];
   const outcome = { state: 'done', explanation: 'Read 2 pages.' };
   const web: AutopilotWeb = {
+    accept: async () => null,
     start: async (_ctx, _ws, _run, body) => {
       started.push(body);
       return { id: '00000000-0000-4000-8000-0000000000d1' };
@@ -1775,6 +1789,7 @@ test('review 3: the end time passing while a step waits cancels the web search a
   // Web search: the search never finishes; the end time passes during a wait.
   const cancelled: string[] = [];
   const web: AutopilotWeb = {
+    accept: async () => null,
     start: async () => ({ id: '00000000-0000-4000-8000-0000000000e1' }),
     read: async (_c, _w, id) =>
       ({ id, version: 1, state: 'searching' }) as unknown as WebDiscovery,
@@ -1933,4 +1948,1129 @@ test('review 4 N-1: a choice made at another shortlist size is checked at that s
   assert.equal(later.outcome, 'proposal', later.explanation);
   assert.equal(later.steps[0]!.child!.id, selection.id);
   assert.equal(later.steps[0]!.option!.id, target.alternative.id);
+});
+
+// ---- ADR-0100: the owner's autopilot settings and planned fallbacks ----------------------------
+
+const OFF = AUTOPILOT_SETTINGS_DEFAULT;
+const ranged = (lower: number, upper: number) => ({
+  lower: score(lower),
+  upper: score(upper),
+});
+
+test('ADR-0100: settings let the choice rule go past a stop, and the request it makes passes the selection checks', () => {
+  // Unknown ratings: stop by default; with the worst case, the best lower end is chosen.
+  const unknowns = report([
+    cand('a', 'use_existing', null, {
+      range: ranged(2, 5),
+      unknown_criteria: ['maintenance_burden'],
+    }),
+    cand('b', 'change_process', 1, { range: ranged(3, 3) }),
+  ]);
+  const stop = autopilotChoice(unknowns, OFF);
+  assert.ok(!stop.ok);
+  assert.equal(stop.kind, 'unknown_ratings');
+  assert.deepEqual(
+    stop.options?.map((o) => o.id),
+    ['a'],
+  );
+  const worst = autopilotChoice(unknowns, {
+    ...OFF,
+    choose_with_unknowns: true,
+  });
+  assert.ok(worst.ok);
+  assert.equal(worst.option.id, 'b');
+  assert.equal(worst.fallbacks[0]!.setting, 'choose_with_unknowns');
+  assert.ok(worst.request.override_reason);
+  const check = checkSelection(unknowns, worst.request);
+  assert.deepEqual(check.invalid, []);
+  assert.equal(check.override_reason_missing, false);
+  // A partly scored option whose worst case is best is chosen past a fully scored one; the
+  // request names the override (the fully scored one ranks above it).
+  const past = report([
+    cand('a', 'use_existing', null, {
+      range: ranged(4, 5),
+      unknown_criteria: ['stakeholder_acceptability'],
+    }),
+    cand('b', 'change_process', 1, { range: ranged(3, 3) }),
+  ]);
+  const p = autopilotChoice(past, { ...OFF, choose_with_unknowns: true });
+  assert.ok(p.ok);
+  assert.equal(p.option.id, 'a');
+  assert.equal(checkSelection(past, p.request).override_reason_missing, false);
+
+  // A tie: stops by default; break_ties uses the opportunity rank.
+  const tie = report(
+    [cand('a', 'use_existing', 1), cand('b', 'change_process', 1)],
+    [cand('a', 'use_existing', 2), cand('b', 'change_process', 1)],
+  );
+  const t1 = autopilotChoice(tie, OFF);
+  assert.ok(!t1.ok);
+  assert.equal(t1.kind, 'tie');
+  const t2 = autopilotChoice(tie, { ...OFF, break_ties: true });
+  assert.ok(t2.ok);
+  assert.equal(t2.option.id, 'b');
+  assert.match(t2.fallbacks[0]!.note, /fixed order/);
+  // A tie the fixed order cannot separate still stops.
+  const flat = autopilotChoice(
+    report([cand('a', 'use_existing', 1), cand('b', 'change_process', 1)]),
+    { ...OFF, break_ties: true },
+  );
+  assert.ok(!flat.ok);
+  assert.equal(flat.kind, 'tie');
+
+  // A close ranking: kept with keep_close_leader.
+  const close = report(
+    [cand('a', 'use_existing', 1), cand('b', 'change_process', 2)],
+    [],
+    true,
+  );
+  const c1 = autopilotChoice(close, OFF);
+  assert.ok(!c1.ok);
+  assert.equal(c1.kind, 'close_ranking');
+  const c2 = autopilotChoice(close, { ...OFF, keep_close_leader: true });
+  assert.ok(c2.ok);
+  assert.equal(c2.option.id, 'a');
+
+  // A blocked first option: the next one the rule may advance, with an override reason.
+  const blocked = report([
+    cand('a', 'use_existing', 1, {
+      gates: {
+        ethics_access: 'unresolved',
+        discovery: 'candidate',
+        humility: 'not_applicable',
+        blocked: { recommend_alternative: ['The ethics gate is open.'] },
+      },
+    }),
+    cand('b', 'change_process', 2),
+  ]);
+  const b1 = autopilotChoice(blocked, OFF);
+  assert.ok(!b1.ok);
+  assert.equal(b1.kind, 'gate_blocked');
+  const b2 = autopilotChoice(blocked, { ...OFF, next_candidate: true });
+  assert.ok(b2.ok);
+  assert.equal(b2.option.id, 'b');
+  assert.ok(b2.request.override_reason);
+  assert.equal(
+    b2.request.dispositions.find((d) => d.alternative.id === 'a')!.disposition,
+    'defer',
+  );
+  assert.equal(
+    checkSelection(blocked, b2.request).override_reason_missing,
+    false,
+  );
+  // A decline ranked first is the honest result, never skipped.
+  const decline = autopilotChoice(
+    report([cand('a', 'decline', 1), cand('b', 'change_process', 2)]),
+    { ...OFF, next_candidate: true },
+  );
+  assert.ok(!decline.ok);
+  assert.equal(decline.outcome, 'no_eligible_option');
+
+  // Hands-off turns on every fallback except the ethics switch.
+  const h = handsOff(OFF);
+  assert.equal(h.choose_model_ethics, false);
+  assert.ok(isHandsOff(h));
+  assert.equal(
+    handsOff({ ...OFF, choose_model_ethics: true }).choose_model_ethics,
+    true,
+  );
+  assert.deepEqual(settingOn(OFF, 'gather_evidence'), {
+    ...OFF,
+    gather_evidence: true,
+    max_extra_searches: 1,
+  });
+});
+
+test('ADR-0100: steps are sized from what is left of the per-run cap; next steps name the setting', () => {
+  const base = {
+    stage: 'assess' as const,
+    route: 'subscription' as const,
+    timeout_ms: 60_000,
+    per_run: 10,
+    remaining: 30,
+    seconds_left: 3600,
+    width: 2,
+  };
+  const ok = autopilotChildLimits({ ...base, per_run_used: 6 });
+  assert.ok(ok.ok);
+  assert.equal(ok.calls, 4);
+  const capped = autopilotChildLimits({ ...base, per_run_used: 8 });
+  assert.ok(!capped.ok);
+  assert.equal(capped.kind, 'run_cap');
+  assert.match(
+    capped.reason,
+    /used 8 of the plan connection's 10 requests per run/,
+  );
+  assert.equal(capped.final, undefined);
+
+  // The exploration's next candidate, then none left.
+  const r = {
+    candidates: [
+      { ref: 'E1', title: 'one', disposition: 'candidate', claims: [] },
+      { ref: 'E2', title: 'dup', disposition: 'duplicate', claims: [] },
+      { ref: 'E3', title: 'three', disposition: 'candidate', claims: [] },
+    ],
+  } as unknown as ExplorationResult;
+  const second = pickExplored(r, 1);
+  assert.ok(second.ok);
+  assert.equal(second.ref, 'E3');
+  assert.equal(pickExplored(r, 2).ok, false);
+
+  const stopped = (kind: AutopilotStep['stop_kind']) => ({
+    state: 'finished' as const,
+    outcome: 'needs_person' as const,
+    steps: [{ ...step('select', 'stopped'), stop_kind: kind }],
+  });
+  const tie = autopilotNextSteps(stopped('tie'));
+  assert.equal(tie[0]!.kind, 'allow_and_continue');
+  assert.equal(tie[0]!.setting, 'break_ties');
+  assert.ok(tie.some((n) => n.kind === 'decide'));
+  // A stop no setting covers offers its own next step only.
+  const cap = autopilotNextSteps({
+    ...stopped('run_cap'),
+    outcome: 'limit_reached',
+  });
+  assert.deepEqual(
+    cap.map((n) => n.kind),
+    ['models'],
+  );
+  // Continue cannot get past a spec: no allow, and a new autopilot is suggested.
+  const spec = autopilotNextSteps({
+    state: 'finished',
+    outcome: 'needs_person',
+    steps: [
+      { ...step('spec', 'stopped'), stop_kind: 'spec', no_retry: 'Yours.' },
+    ],
+  });
+  assert.ok(!spec.some((n) => n.kind === 'allow_and_continue'));
+  assert.ok(spec.some((n) => n.kind === 'spec'));
+});
+
+test('ADR-0100: a web search the settings allow is covered by the run’s approvals only on a plan route with public data', () => {
+  const c = AutopilotConfigSchema.parse({
+    resource_setup: {
+      kind: 'subscription',
+      connection_id: '00000000-0000-4000-8000-0000000000c1',
+      model_id: 'm',
+      settings_hash: 'a'.repeat(64),
+      max_output_chars: 16000,
+    },
+    data_class: 'public',
+    limits: { max_calls: 30, ends_at: inHours(2) },
+  });
+  assert.deepEqual(autopilotRoutinePolicy(c, null).stages, [
+    'model_work',
+    'selection',
+  ]);
+  assert.deepEqual(
+    autopilotRoutinePolicy(c, null, { gatherSearch: true }).stages,
+    ['evidence', 'model_work', 'research', 'selection'],
+  );
+  assert.equal(
+    autopilotMaySearch({ ...c, data_class: 'private_approved' }, true),
+    false,
+  );
+  assert.equal(
+    autopilotMaySearch(
+      { ...c, start: { stage: 'select', problem: { id: 'p', version: 1 } } },
+      true,
+    ),
+    false,
+  );
+});
+
+test('ADR-0100: the server copy of the claim suggestion rule matches the web’s', async () => {
+  const source = readFileSync('apps/web/src/claim-suggest.ts', 'utf8');
+  const start = source.indexOf('export type SuggestableClaim');
+  const end = source.indexOf(
+    "/** Whether a claim's title or statement contains",
+  );
+  const server = readFileSync('packages/domain/src/claim-suggest.ts', 'utf8');
+  // Same rule, apart from the server's generic claim type.
+  const norm = (s: string) =>
+    s
+      .replace('<C extends SuggestableClaim>', '')
+      .replace('claims: readonly C[]', 'claims: readonly SuggestableClaim[]')
+      .replace('): C[] {', '): SuggestableClaim[] {')
+      .trim();
+  assert.equal(
+    norm(server.slice(server.indexOf('export type SuggestableClaim'))),
+    norm(source.slice(start, end)),
+  );
+  assert.deepEqual(
+    suggestClaims({ title: 'csvkit statistics' }, [
+      { id: 'a', title: 'csvkit csvstat', text: 'per-column statistics' },
+      { id: 'b', title: 'OpenRefine', text: 'needs Java' },
+    ]).map((x) => x.id),
+    ['a'],
+  );
+});
+
+test('ADR-0100: only the owner saves the settings, by named version, audited; an autopilot never does', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  const s0 = await h.store.autopilotSettings(owner, h.ws.id);
+  assert.equal(s0.version, 0);
+  assert.deepEqual(s0.values, AUTOPILOT_SETTINGS_DEFAULT);
+  assert.equal(s0.can_change, true);
+  const s1 = await h.store.saveAutopilotSettings(owner, h.ws.id, {
+    expected_version: 0,
+    values: handsOff(OFF),
+  });
+  assert.equal(s1.version, 1);
+  assert.ok(isHandsOff(s1.values));
+  await rejects(
+    'VERSION_CONFLICT',
+    h.store.saveAutopilotSettings(owner, h.ws.id, {
+      expected_version: 0,
+      values: OFF,
+    }),
+  );
+  await rejects(
+    'HUMAN_ONLY_DENIED',
+    h.store.saveAutopilotSettings(
+      { ...owner, autopilot: { id: '00000000-0000-4000-8000-0000000000e1' } },
+      h.ws.id,
+      { expected_version: 1, values: OFF },
+    ),
+  );
+  const audit = await h.db.pool.query(
+    `select payload from audit_events where action = 'autopilot_settings.saved'
+      and workspace_id = $1`,
+    [h.ws.id],
+  );
+  assert.equal(audit.rowCount, 1);
+  assert.equal(audit.rows[0].payload.after.gather_evidence, true);
+});
+
+test('ADR-0100: discovery links the claims each option cites; a tie stop offers Allow and continue, which saves the setting and continues in one step', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  // Gathering evidence on (no searches: this autopilot uses an API route) links cited claims.
+  await h.store.saveAutopilotSettings(owner, h.ws.id, {
+    expected_version: 0,
+    values: { ...OFF, gather_evidence: true, max_extra_searches: 1 },
+  });
+  const runId = await h.run();
+  const a = await h.start(runId);
+  assert.equal(a.outcome, 'needs_person', a.explanation);
+  const last = a.steps.at(-1)!;
+  assert.equal(last.stop_kind, 'tie');
+  const view = h.runner.with(a);
+  assert.equal(view.next?.[0]?.setting, 'break_ties');
+  // Each option's cited packet claims now support it (the assessor reads them).
+  const problem = a.steps.find((s) => s.stage === 'discover')!.problem!;
+  const cited = await h.db.pool.query(
+    `select l.to_id from entity_links l
+       join entity_links o on o.from_id = l.to_id and o.to_id = $2 and o.relation = 'derived_from'
+      where l.workspace_id = $1 and l.relation = 'supports' and l.to_kind = 'alternative'
+        and l.rationale like 'Cited by P%'`,
+    [h.ws.id, problem.id],
+  );
+  assert.ok(cited.rowCount! > 0, 'options got their cited claims');
+
+  // A stale settings version is refused and changes nothing.
+  await rejects(
+    'VERSION_CONFLICT',
+    h.runner.allowAndContinue(owner, h.ws.id, a.id, {
+      expected_version: a.version,
+      settings_version: 7,
+      setting: 'break_ties',
+    }),
+  );
+  // A setting this stop does not name is refused.
+  await rejects(
+    'INVALID_CONTRACT',
+    h.runner.allowAndContinue(owner, h.ws.id, a.id, {
+      expected_version: a.version,
+      settings_version: 1,
+      setting: 'choose_model_ethics',
+    }),
+  );
+  assert.equal((await h.store.autopilotSettings(owner, h.ws.id)).version, 1);
+  const b = await h.runner.allowAndContinue(owner, h.ws.id, a.id, {
+    expected_version: a.version,
+    settings_version: 1,
+    setting: 'break_ties',
+  });
+  assert.equal(b.state, 'running');
+  await h.runner.settled(a.id);
+  const s = await h.store.autopilotSettings(owner, h.ws.id);
+  assert.equal(s.version, 2);
+  assert.equal(s.values.break_ties, true);
+  const cont = await h.db.pool.query(
+    `select payload from audit_events where action = 'autopilot.continued' and subject_id = $1`,
+    [a.id],
+  );
+  assert.equal(cont.rows[0].payload.allowed, 'break_ties');
+  // The fixture rates every option the same, so the fixed order cannot separate them either.
+  const c = await h.store.getAutopilot(owner, h.ws.id, a.id);
+  assert.equal(c.steps.at(-1)!.stop_kind, 'tie', c.explanation);
+  assert.match(c.explanation, /fixed order/);
+});
+
+test('ADR-0100: with the owner’s ethics setting on, the autopilot chooses past model-only ethics and flags it on the selection and proposal', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  await h.store.setGateRule(owner, h.ws.id, {
+    expected_version: 0,
+    mode: 'model',
+  });
+  const runId = await h.run();
+  const a = await h.start(runId);
+  const problem = a.steps[2]!.problem!;
+  const rep = await h.store.selectionReport(owner, h.ws.id, problem.id);
+  const target = rep.suitability.candidates.find(
+    (c) => c.alternative.kind === 'use_existing',
+  )!;
+  await personScores(
+    h,
+    problem.id,
+    (c) => c.alternative.id !== target.alternative.id,
+    1,
+  );
+  await h.store.saveAutopilotSettings(owner, h.ws.id, {
+    expected_version: 0,
+    values: { ...OFF, choose_model_ethics: true },
+  });
+  await h.runner.retry(owner, h.ws.id, a.id, { expected_version: a.version });
+  await h.runner.settled(a.id);
+  const b = await h.store.getAutopilot(owner, h.ws.id, a.id);
+  assert.equal(b.outcome, 'proposal', b.explanation);
+  const sel = (await h.store.listSelections(owner, h.ws.id, problem.id)).find(
+    (x) => x.current,
+  )!;
+  assert.ok(sel.autopilot_id);
+  assert.ok(sel.rationale.startsWith(MODEL_ONLY_ETHICS_NOTE));
+  const chosen = b.steps.find(
+    (s) => s.stage === 'select' && s.state === 'done',
+  )!;
+  assert.equal(chosen.fallback?.setting, 'choose_model_ethics');
+  const decisions = await h.store.listDecisions(owner, h.ws.id, { runId });
+  assert.equal(decisions.length, 0, 'no ethics question was asked');
+  const recorded = await h.db.pool.query(
+    `select payload from audit_events where action = 'selection.recorded' and subject_id = $1`,
+    [sel.id],
+  );
+  assert.equal(recorded.rows[0].payload.model_only_ethics, true);
+  const proposal = b.steps.at(-1)!.child!;
+  const made = await h.store.getEntity(owner, h.ws.id, proposal.id);
+  assert.match(
+    (made.entity.body as { summary: string }).summary,
+    /^Ethics checked by the model only/,
+  );
+});
+
+test('ADR-0100: thin evidence gathers with the explorer’s questions up to the search limit, then stops saying what it tried; the autopilot’s links are its own', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  // No claims at all: exploration finds no candidate.
+  const started: { scope: { question: string | null } }[] = [];
+  let n = 0;
+  const web: AutopilotWeb = {
+    accept: async () => null,
+    start: async (_ctx, _ws, _run, body) => {
+      started.push(body as never);
+      return { id: `00000000-0000-4000-8000-0000000000f${++n}` };
+    },
+    read: async (_c, _w, id) =>
+      ({
+        id,
+        version: 1,
+        state: 'done',
+        explanation: 'Read 1 page.',
+        proposals: [{ decision: 'admitted', check: 'verified' }],
+      }) as unknown as WebDiscovery,
+    isActive: () => true,
+    resume: async () => null,
+    cancel: async () => null,
+  };
+  const runner = new AutopilotRunner(h.store, web, {
+    pollMs: 5,
+    onWait: () => h.worker.settle(),
+  });
+  // An API route cannot search the web: the stop says so instead of gathering.
+  await h.store.saveAutopilotSettings(owner, h.ws.id, {
+    expected_version: 0,
+    values: { ...handsOff(OFF), max_extra_searches: 2 },
+  });
+  const runId = await h.run();
+  const a = await runner.start(owner, h.ws.id, runId, h.body(h.config()));
+  await runner.settled(a.id);
+  const done = await h.store.getAutopilot(owner, h.ws.id, a.id);
+  assert.equal(done.outcome, 'insufficient_evidence', done.explanation);
+  assert.equal(done.steps.at(-1)!.stop_kind, 'thin_evidence');
+  assert.match(
+    done.explanation,
+    /could not gather more evidence: Web search runs only on a ChatGPT plan connection/,
+  );
+  assert.equal(started.length, 0);
+  // With a search route (the autopilot's own research connection), it gathers once per allowed
+  // search, then stops with what it tried. A search adds what the run's approvals admit (the
+  // stand-in admits one claim each time, but records none, so exploring finds nothing again).
+  const research = {
+    connection_id: '00000000-0000-4000-8000-0000000000c1',
+    model_id: 'gpt-test',
+    scope: WebDiscoveryScopeSchema.parse({ interests: ['volunteers'] }),
+    input_hash: 'c'.repeat(64),
+  };
+  const full = h.policy(['research', 'evidence', 'model_work', 'selection'], {
+    data_classes: ['public', 'synthetic'],
+  });
+  const runId2 = await h.run(full);
+  const b = await runner.start(
+    owner,
+    h.ws.id,
+    runId2,
+    h.body(
+      h.config({
+        research,
+        explore: { ...h.config().explore, interests: ['volunteers'] },
+      }),
+    ),
+  );
+  await runner.settled(b.id);
+  const g = await h.store.getAutopilot(owner, h.ws.id, b.id);
+  const gathers = g.steps.filter((s) => s.stage === 'gather');
+  assert.equal(
+    gathers.length,
+    2,
+    JSON.stringify(g.steps.map((s) => [s.stage, s.state, s.note])),
+  );
+  assert.ok(gathers.every((s) => s.calls === 2 && s.request?.question));
+  assert.equal(started.length, 3, 'the research step and two gather searches');
+  const explores = g.steps.filter((s) => s.stage === 'explore');
+  assert.ok(explores.every((s) => s.state === 'stopped'));
+  assert.equal(explores[0]!.fallback?.setting, 'gather_evidence');
+  assert.equal(explores.at(-1)!.stop_kind, 'thin_evidence');
+  assert.equal(g.outcome, 'insufficient_evidence');
+  assert.match(g.explanation, /2 of the 2 extra web searches/);
+  // Every step has its own key, including the second exploration.
+  const keys = g.steps.map((s) => s.key).filter(Boolean);
+  assert.equal(new Set(keys).size, keys.length);
+});
+
+test('ADR-0100: linking suggested claims is the autopilot’s, audited, and never repeats a link', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  const runId = await h.run();
+  const a = await h.start(runId);
+  const problem = a.steps.find((s) => s.stage === 'discover')!.problem!;
+  const rep = await h.store.selectionReport(owner, h.ws.id, problem.id);
+  const opt = rep.suitability.candidates[0]!.alternative;
+  // A recorded claim that names the option, with no source fetched from the web behind it.
+  const note = await h.store.createEntity(owner, h.ws.id, {
+    kind: 'claim',
+    title: `${opt.title} works for this`,
+    body: {
+      statement: `${opt.title} handles the problem well.`,
+      basis: 'observation',
+      uncertainty: 'test',
+    },
+  });
+  const ap = { ...owner, autopilot: { id: a.id } };
+  // Review 1 L-5: on public or synthetic data it is never linked unattended.
+  const pub = await h.store.autopilotLinkClaims(
+    ap,
+    h.ws.id,
+    problem.id,
+    [opt.id],
+    'synthetic',
+  );
+  assert.ok(pub.every((m) => m.claim_id !== note.id));
+  // An autopilot on approved private data may link it.
+  const made = await h.store.autopilotLinkClaims(
+    ap,
+    h.ws.id,
+    problem.id,
+    [opt.id],
+    'approved_private',
+  );
+  assert.ok(made.some((m) => m.to_id === opt.id && m.claim_id === note.id));
+  const again = await h.store.autopilotLinkClaims(
+    ap,
+    h.ws.id,
+    problem.id,
+    [opt.id],
+    'approved_private',
+  );
+  assert.equal(again.filter((m) => m.to_id === opt.id).length, 0);
+  // Re-review 2 N-5: on public data, a claim backed only by sources fetched from the web is
+  // linked. The new claim takes a copy of a seeded support whose page was fetched.
+  const opt2 = rep.suitability.candidates[1]!.alternative;
+  const backed = await h.store.createEntity(owner, h.ws.id, {
+    kind: 'claim',
+    title: `${opt2.title} works for this`,
+    body: {
+      statement: `${opt2.title} handles the problem well.`,
+      basis: 'observation',
+      uncertainty: 'test',
+    },
+  });
+  const support = (
+    await h.db.pool.query(
+      `select cs.id, cs.link_id, cs.claim_id from claim_support cs
+        where cs.workspace_id = $1 and cs.stance = 'supports' and cs.retracted_at is null
+          and exists (select 1 from source_retrievals r
+            where r.source_id = cs.source_id and r.state = 'fetched')
+        limit 1`,
+      [h.ws.id],
+    )
+  ).rows[0] as { id: string; link_id: string; claim_id: string };
+  const linkId = randomUUID();
+  await h.db.pool.query(
+    `insert into entity_links select (jsonb_populate_record(null::entity_links,
+       to_jsonb(l) || jsonb_build_object('id', $2::uuid)
+         || case when l.from_id = $3::uuid
+              then jsonb_build_object('from_id', $4::uuid, 'from_version', 1)
+              else jsonb_build_object('to_id', $4::uuid, 'to_version', 1) end)).*
+       from entity_links l where l.id = $1`,
+    [support.link_id, linkId, support.claim_id, backed.id],
+  );
+  await h.db.pool.query(
+    `insert into claim_support select (jsonb_populate_record(null::claim_support,
+       to_jsonb(cs) || jsonb_build_object('id', $2::uuid, 'claim_id', $3::uuid,
+         'claim_version', 1, 'link_id', $4::uuid))).*
+       from claim_support cs where cs.id = $1`,
+    [support.id, randomUUID(), backed.id, linkId],
+  );
+  const linked = await h.store.autopilotLinkClaims(
+    ap,
+    h.ws.id,
+    problem.id,
+    [opt2.id],
+    'public',
+  );
+  assert.ok(
+    linked.some((m) => m.to_id === opt2.id && m.claim_id === backed.id),
+    JSON.stringify(linked),
+  );
+  const row = await h.db.pool.query(
+    `select asserted_by, rationale from entity_links where to_id = $1 and rationale like 'Its title%'`,
+    [opt.id],
+  );
+  assert.equal(row.rows[0].asserted_by, AUTOPILOT_ACTOR_ID);
+});
+
+test('P-12: a web search whose claims wait for a person stops the autopilot; Allow accepts them and goes on without searching again', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  const research = {
+    connection_id: '00000000-0000-4000-8000-0000000000c1',
+    model_id: 'gpt-test',
+    scope: WebDiscoveryScopeSchema.parse({ interests: ['volunteers'] }),
+    input_hash: 'c'.repeat(64),
+  };
+  const c = h.config({ research });
+  let accepted = 0;
+  const started: unknown[] = [];
+  const web: AutopilotWeb = {
+    accept: async () => {
+      accepted += 1;
+      return null;
+    },
+    start: async (_ctx, _ws, _run, body) => {
+      started.push(body);
+      return { id: '00000000-0000-4000-8000-0000000000d2' };
+    },
+    read: async () =>
+      ({
+        id: '00000000-0000-4000-8000-0000000000d2',
+        version: 1,
+        state: 'done',
+        explanation: 'Read 2 pages.',
+        proposals: [
+          {
+            decision: accepted ? 'admitted' : 'pending',
+            check: 'verified',
+            basis: 'observation',
+          },
+          { decision: 'pending', check: 'verified', basis: 'inference' },
+        ],
+      }) as unknown as WebDiscovery,
+    isActive: () => true,
+    resume: async () => null,
+    cancel: async () => null,
+  };
+  const runner = new AutopilotRunner(h.store, web, {
+    pollMs: 5,
+    onWait: () => h.worker.settle(),
+  });
+  const runId = await h.run(
+    h.policy(['research', 'evidence', 'model_work', 'selection'], {
+      data_classes: ['public', 'synthetic'],
+    }),
+  );
+  const a = await runner.start(owner, h.ws.id, runId, h.body(c));
+  await runner.settled(a.id);
+  const stopped = runner.with(await h.store.getAutopilot(owner, h.ws.id, a.id));
+  assert.equal(stopped.outcome, 'needs_person', stopped.explanation);
+  assert.equal(stopped.steps.length, 1, 'held before exploring');
+  assert.equal(stopped.steps[0]!.stop_kind, 'claims_held');
+  assert.match(
+    stopped.explanation,
+    /1 claim whose only check is that the quotes were found/,
+  );
+  assert.equal(stopped.next?.[0]?.setting, 'accept_quote_checked_claims');
+  assert.equal(accepted, 0);
+  // Hands-off leaves this switch as it was.
+  assert.equal(handsOff(OFF).accept_quote_checked_claims, false);
+  assert.ok(
+    isHandsOff({ ...handsOff(OFF), accept_quote_checked_claims: true }),
+  );
+
+  await runner.allowAndContinue(owner, h.ws.id, a.id, {
+    expected_version: stopped.version,
+    settings_version: 0,
+    setting: 'accept_quote_checked_claims',
+  });
+  await runner.settled(a.id);
+  const b = await h.store.getAutopilot(owner, h.ws.id, a.id);
+  assert.equal(
+    (await h.store.autopilotSettings(owner, h.ws.id)).values
+      .accept_quote_checked_claims,
+    true,
+  );
+  assert.equal(accepted, 1);
+  assert.equal(started.length, 1, 'no second search');
+  assert.equal(b.steps[1]!.stage, 'research');
+  assert.equal(b.steps[1]!.state, 'done');
+  assert.match(
+    b.steps[1]!.note,
+    /Went on from the earlier web search: 1 claim added/,
+  );
+  assert.equal(b.steps[2]!.stage, 'explore');
+});
+
+test('P-11: approvals made with an autopilot end when it ends, stay while it waits for a person, and approvals the run had keep their terms', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  const p = h.policy();
+  const own = {
+    ...h.body(h.config()),
+    routine_policy: {
+      kind: 'new' as const,
+      policy: { ...p, summary_seen: routinePolicySummary(p) },
+    },
+  };
+  const runId = await h.run(null);
+  const a = await h.runner.start(owner, h.ws.id, runId, own);
+  await h.runner.settled(a.id);
+  const tie = await h.store.getAutopilot(owner, h.ws.id, a.id);
+  assert.equal(tie.outcome, 'needs_person', tie.explanation);
+  assert.ok(tie.routine_policy_id);
+  assert.equal(tie.approvals_ended_at, null, 'kept while it waits for you');
+  const policyOf = async (id: string) =>
+    (await h.store.listRoutinePolicies(owner, h.ws.id)).find(
+      (v) => v.policy.id === id,
+    )!.policy;
+  assert.equal((await policyOf(tie.routine_policy_id!)).status, 'active');
+  // The owner chooses; Continue goes on to a proposal, and its own approvals end with it.
+  const problem = tie.steps.find((x) => x.stage === 'discover')!.problem!;
+  await ownerChooses(h, runId, problem.id);
+  await h.runner.retry(owner, h.ws.id, a.id, { expected_version: tie.version });
+  await h.runner.settled(a.id);
+  const done = await h.store.getAutopilot(owner, h.ws.id, a.id);
+  assert.equal(done.outcome, 'proposal', done.explanation);
+  assert.ok(done.approvals_ended_at);
+  const ended = await policyOf(tie.routine_policy_id!);
+  assert.equal(ended.status, 'revoked');
+  assert.match(
+    String(ended.revoke_reason),
+    /autopilot they were made for ended \(proposal\)/,
+  );
+  // A finished autopilot whose approvals ended cannot continue, and says why.
+  const can = autopilotContinuable({
+    ...tie,
+    approvals_ended_at: new Date().toISOString(),
+  });
+  assert.ok(
+    !can.ok &&
+      /routine approvals made for this autopilot ended/.test(can.reason),
+  );
+
+  // Approvals the run already had are not the autopilot's: they keep their own terms.
+  const runId2 = await h.run();
+  const b = await h.start(
+    runId2,
+    h.config({ start: { stage: 'assess', problem } }),
+  );
+  assert.equal(b.state, 'finished', b.explanation);
+  assert.equal(b.routine_policy_id, null);
+  assert.equal(b.approvals_ended_at, null);
+  const kept = (await h.store.listRoutinePolicies(owner, h.ws.id)).find(
+    (v) => v.policy.run_id === runId2,
+  )!.policy;
+  assert.equal(kept.status, 'active');
+});
+
+test('review 1 M-1: a thin-evidence stop offers Allow and continue and keeps the autopilot’s own approvals while it waits', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  // No claims at all: exploration finds no candidate.
+  const p = h.policy();
+  const runId = await h.run(null);
+  const a = await h.runner.start(owner, h.ws.id, runId, {
+    ...h.body(h.config()),
+    routine_policy: {
+      kind: 'new' as const,
+      policy: { ...p, summary_seen: routinePolicySummary(p) },
+    },
+  });
+  await h.runner.settled(a.id);
+  const thin = h.runner.with(await h.store.getAutopilot(owner, h.ws.id, a.id));
+  assert.equal(thin.outcome, 'insufficient_evidence', thin.explanation);
+  assert.equal(thin.steps.at(-1)!.stop_kind, 'thin_evidence');
+  assert.ok(autopilotContinuable(thin).ok);
+  assert.equal(thin.next?.[0]?.setting, 'gather_evidence');
+  assert.equal(thin.approvals_ended_at, null, 'it waits for you');
+  await h.runner.allowAndContinue(owner, h.ws.id, a.id, {
+    expected_version: thin.version,
+    settings_version: 0,
+    setting: 'gather_evidence',
+  });
+  await h.runner.settled(a.id);
+  const b = await h.store.getAutopilot(owner, h.ws.id, a.id);
+  // It explored again; an API route cannot search the web, so it says so and waits again.
+  assert.equal(b.steps.filter((s) => s.stage === 'explore').length, 2);
+  assert.match(b.explanation, /could not gather more evidence/);
+  const s = await h.store.autopilotSettings(owner, h.ws.id);
+  assert.equal(s.values.gather_evidence, true);
+  assert.ok(s.values.max_extra_searches >= 1);
+  // Re-review 2 L-1: with the setting on and no way to search, Continue would only stop here
+  // again. The stop is final: the approvals end and a new autopilot is offered, not Allow.
+  const read = await h.runner.withNext(owner, h.ws.id, b);
+  assert.ok(b.steps.at(-1)!.no_retry, 'final');
+  assert.ok(b.approvals_ended_at, 'its approvals ended');
+  assert.ok(!read.next?.some((n) => n.kind === 'allow_and_continue'));
+  assert.ok(read.next?.some((n) => n.kind === 'new_autopilot'));
+  await rejects(
+    'INVALID_TRANSITION',
+    h.runner.allowAndContinue(owner, h.ws.id, a.id, {
+      expected_version: b.version,
+      settings_version: s.version,
+      setting: 'gather_evidence',
+    }),
+  );
+  assert.equal(
+    (await h.store.autopilotSettings(owner, h.ws.id)).version,
+    s.version,
+    'no settings version saved for nothing',
+  );
+});
+
+test('re-review 2 L-1: a setting already on is not offered again, and an Allow that would change nothing is refused', async (t) => {
+  // The next steps leave out Allow when the owner's settings already have it on.
+  const tie = {
+    state: 'finished' as const,
+    outcome: 'needs_person' as const,
+    steps: [{ stage: 'select', state: 'stopped', stop_kind: 'tie' } as never],
+  };
+  assert.equal(autopilotNextSteps(tie, OFF)[0]?.kind, 'allow_and_continue');
+  assert.ok(
+    !autopilotNextSteps(tie, { ...OFF, break_ties: true }).some(
+      (n) => n.kind === 'allow_and_continue',
+    ),
+  );
+  assert.ok(settingIsOn({ ...OFF, retry_failed: 2 }, 'retry_failed'));
+  assert.ok(!settingIsOn({ ...OFF, gather_evidence: true }, 'gather_evidence'));
+  // The store refuses an Allow of a setting that is already on (a stale card or a direct call).
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  const runId = await h.run();
+  const a = await h.start(runId);
+  if (a.steps.at(-1)?.stop_kind !== 'tie') return; // The fixture's tie is what this needs.
+  await h.store.saveAutopilotSettings(owner, h.ws.id, {
+    expected_version: 0,
+    values: { ...OFF, break_ties: true },
+  });
+  await rejects(
+    'INVALID_TRANSITION',
+    h.runner.allowAndContinue(owner, h.ws.id, a.id, {
+      expected_version: a.version,
+      settings_version: 1,
+      setting: 'break_ties',
+    }),
+    /already on/,
+  );
+  const next = await h.runner.withNext(owner, h.ws.id, a);
+  assert.ok(!next.next?.some((n) => n.kind === 'allow_and_continue'));
+  assert.ok(
+    next.next?.some((n) => n.kind === 'continue' || n.kind === 'decide'),
+  );
+});
+
+test('review 1 L-7: an autopilot’s own approvals end when it is cancelled while running and when a step fails, and Continue is then refused', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  const research = {
+    connection_id: '00000000-0000-4000-8000-0000000000c1',
+    model_id: 'gpt-test',
+    scope: WebDiscoveryScopeSchema.parse({ interests: ['volunteers'] }),
+    input_hash: 'c'.repeat(64),
+  };
+  let state = 'searching';
+  const web: AutopilotWeb = {
+    accept: async () => null,
+    start: async () => ({ id: '00000000-0000-4000-8000-0000000000d3' }),
+    read: async () =>
+      ({
+        id: '00000000-0000-4000-8000-0000000000d3',
+        version: 1,
+        state,
+        explanation: 'The search stopped (test).',
+        proposals: [],
+      }) as unknown as WebDiscovery,
+    isActive: () => true,
+    resume: async () => null,
+    cancel: async () => null,
+  };
+  const runner = new AutopilotRunner(h.store, web, {
+    pollMs: 5,
+    onWait: () => h.worker.settle(),
+  });
+  const p = h.policy(['research', 'evidence', 'model_work', 'selection'], {
+    data_classes: ['public', 'synthetic'],
+  });
+  const own = {
+    ...h.body(h.config({ research })),
+    routine_policy: {
+      kind: 'new' as const,
+      policy: { ...p, summary_seen: routinePolicySummary(p) },
+    },
+  };
+  const policyOf = async (id: string) =>
+    (await h.store.listRoutinePolicies(owner, h.ws.id)).find(
+      (v) => v.policy.id === id,
+    )!.policy;
+  // Cancelled while its search runs.
+  const a = await runner.start(owner, h.ws.id, await h.run(null), own);
+  await until(
+    async () =>
+      !!(await h.store.getAutopilot(owner, h.ws.id, a.id)).steps[0]?.child,
+  );
+  const cancelled = await runner.cancel(owner, h.ws.id, a.id, {
+    reason: 'Test stop.',
+  });
+  await runner.settled(a.id);
+  assert.ok(cancelled.approvals_ended_at);
+  const ended = await policyOf(cancelled.routine_policy_id!);
+  assert.equal(ended.status, 'revoked');
+  assert.match(String(ended.revoke_reason), /\(cancelled\)/);
+  // A failed step (no retries allowed): its approvals end, and Continue is refused.
+  state = 'failed';
+  const b = await runner.start(owner, h.ws.id, await h.run(null), own);
+  await runner.settled(b.id);
+  const failed = await h.store.getAutopilot(owner, h.ws.id, b.id);
+  assert.equal(failed.outcome, 'failed', failed.explanation);
+  assert.ok(failed.approvals_ended_at);
+  assert.equal((await policyOf(failed.routine_policy_id!)).status, 'revoked');
+  await rejects(
+    'INVALID_TRANSITION',
+    runner.retry(owner, h.ws.id, b.id, { expected_version: failed.version }),
+    /routine approvals made for this autopilot ended/,
+  );
+});
+
+test('review 1 L-2: a plan refusal is read by its code, not its words', () => {
+  const refused = (code: string, text: string) =>
+    new ContractError(
+      'ACCESS_DENIED',
+      'This plan request is not admitted.',
+      [text],
+      [{ code, text }],
+    );
+  assert.equal(
+    refusalKind(
+      refused(
+        'caps_not_accepted',
+        'The owner has not accepted the current caps and allowed work (request, daily, time and output caps; data and task classes).',
+      ),
+    ),
+    'connection',
+  );
+  assert.equal(
+    refusalKind(
+      refused(
+        'daily_cap_reached',
+        'The studio daily request cap for this connection is reached.',
+      ),
+    ),
+    'daily_cap',
+  );
+  assert.equal(
+    refusalKind(refused('cap_reached', 'The per-run request cap is reached.')),
+    'run_cap',
+  );
+  // Re-review 2 N-1: a connection that is not set up is named first, whatever else is used up.
+  assert.equal(
+    refusalKind(
+      new ContractError(
+        'ACCESS_DENIED',
+        'This plan request is not admitted.',
+        ['Caps not accepted.', 'The daily request cap is reached.'],
+        [
+          {
+            code: 'daily_cap_reached',
+            text: 'The daily request cap is reached.',
+          },
+          { code: 'caps_not_accepted', text: 'Caps not accepted.' },
+        ],
+      ),
+    ),
+    'connection',
+  );
+  assert.equal(
+    autopilotNextSteps({
+      state: 'finished',
+      outcome: 'needs_authority',
+      steps: [
+        {
+          stage: 'explore',
+          state: 'stopped',
+          stop_kind: 'connection',
+        } as never,
+      ],
+    })[0]?.kind,
+    'models',
+  );
+});
+
+test('review 1 L-3: a whole process that cannot fit under what is left of the per-run cap is refused at the start', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  class Room extends ConnectionStore {
+    override async planRunRoomIn() {
+      return { per_run: 10, used: 4, daily_left: 50 };
+    }
+  }
+  const runner = new AutopilotRunner(new Room(h.db.pool), null, { pollMs: 5 });
+  const c = h.config({
+    resource_setup: {
+      kind: 'subscription',
+      connection_id: '00000000-0000-4000-8000-0000000000c1',
+      model_id: 'm',
+      settings_hash: 'a'.repeat(64),
+      max_output_chars: 16000,
+    },
+  });
+  await rejects(
+    'LIMIT_EXCEEDED',
+    runner.start(owner, h.ws.id, await h.run(), h.body(c)),
+    /has 6 of the plan connection's 10 requests per run left, and a whole process needs at least 11/,
+  );
+  assert.equal((await h.store.listAutopilots(owner, h.ws.id)).length, 0);
+});
+
+test('re-review 2 L-2: the start check counts what each step needs from the config: 5 response types and research on 10 requests cannot start', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  let checked = 0;
+  class Fresh extends ConnectionStore {
+    override async planRunRoomIn() {
+      checked += 1;
+      return { per_run: 10, used: 0, daily_left: 50 };
+    }
+  }
+  const runner = new AutopilotRunner(new Fresh(h.db.pool), null, {
+    pollMs: 5,
+  });
+  const conn = '00000000-0000-4000-8000-0000000000c1';
+  const plan = {
+    kind: 'subscription' as const,
+    connection_id: conn,
+    model_id: 'm',
+    settings_hash: 'a'.repeat(64),
+    max_output_chars: 16000,
+  };
+  const research = {
+    connection_id: conn,
+    model_id: 'm',
+    scope: WebDiscoveryScopeSchema.parse({ interests: ['volunteers'] }),
+    input_hash: 'c'.repeat(64),
+  };
+  // The live run 2 case: explore 2 + discovery (5 types + 2) + assessment 2 + research 2 = 13.
+  await rejects(
+    'LIMIT_EXCEEDED',
+    runner.start(
+      owner,
+      h.ws.id,
+      await h.run(),
+      h.body(h.config({ resource_setup: plan, research })),
+    ),
+    /has 10 of the plan connection's 10 requests per run left, and a whole process needs at least 13/,
+  );
+  // Two response types and no research need 8, which fits: the start goes on to its other checks.
+  const two = h.config({
+    resource_setup: plan,
+    perspectives: ['software', 'process_change'],
+    excluded: (['existing_tool', 'human_led', 'hybrid'] as const).map(
+      (perspective) => ({ perspective, reason: 'Not in this test.' }),
+    ),
+  });
+  const other = await runner
+    .start(owner, h.ws.id, await h.run(), h.body(two))
+    .then(
+      () => null,
+      (e: unknown) => e,
+    );
+  assert.doesNotMatch(String(other), /whole process needs/);
+  assert.equal(checked, 2, String(other));
+});
+
+test('re-review 2 N-2: a repeated start the idempotency key recorded returns the autopilot without checking room again', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  const runId = await h.run();
+  const ctx = { ...owner, idempotencyKey: 'autopilot-start-repeat-1' };
+  const body = h.body(h.config());
+  let checks = 0;
+  const first = await h.store.startAutopilot(
+    ctx,
+    h.ws.id,
+    runId,
+    body,
+    async () => {
+      checks += 1;
+    },
+  );
+  const again = await h.store.startAutopilot(
+    ctx,
+    h.ws.id,
+    runId,
+    body,
+    async () => {
+      checks += 1;
+      throw new Error('the room check ran on a repeated start');
+    },
+  );
+  assert.equal(again.id, first.id);
+  assert.equal(checks, 1);
+  await h.store.cancelAutopilot(owner, h.ws.id, first.id, {
+    expected_version: (await h.store.getAutopilot(owner, h.ws.id, first.id))
+      .version,
+    reason: 'Test.',
+  });
+});
+
+test('review 1 L-4: a discovery a person runs gets no cited-claim links, even with Gather evidence on', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.store.saveAutopilotSettings(owner, h.ws.id, {
+    expected_version: 0,
+    values: { ...OFF, gather_evidence: true, max_extra_searches: 1 },
+  });
+  await h.seed();
+  const cited = await h.db.pool.query(
+    `select 1 from entity_links where workspace_id = $1 and rationale like 'Cited by P%'`,
+    [h.ws.id],
+  );
+  assert.equal(cited.rowCount, 0);
 });

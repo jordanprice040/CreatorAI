@@ -255,7 +255,7 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   STORAGE_UNAVAILABLE: 503,
 };
 const RECORD_ROUTE =
-  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|routine-policies|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|proposals|specs|search|library|destination|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback|terminals|route-registries|route-policies|route-benchmarks|route-promotions|route-decisions|context-capabilities|context-index|context-packs|context-handoffs|context-calls|context-cache|context-batches|context-evaluations|context-usage|saved-queries|semantic-search|audit-questions|audit-plans|lineage-verify|members|exploration-preview|web-discoveries|web-discovery-preview|autopilots|automations)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|build-approvals|routine-policy|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|source-searches|support|evidence|discoveries|explorations|exploration-packet|assessments|assessment-packet|assessment-preview|explored-briefs|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|manifest|compare|feedback|previews|terminals|guide|stop|decide|revision|benchmark|benchmark-results|advance|rollback|call|outcomes|escalate|compact|compactions|invalidate|poll|run|link|lineage-graph|lineage-export|research-plan|remove|explanation|reviews|files|runbook|web-discoveries|admit|dismiss|autopilots|continue|automation))?)?)?)?$/;
+  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|routine-policies|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|proposals|specs|search|library|destination|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback|terminals|route-registries|route-policies|route-benchmarks|route-promotions|route-decisions|context-capabilities|context-index|context-packs|context-handoffs|context-calls|context-cache|context-batches|context-evaluations|context-usage|saved-queries|semantic-search|audit-questions|audit-plans|lineage-verify|members|exploration-preview|web-discoveries|web-discovery-preview|autopilots|automations|autopilot-settings)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|build-approvals|routine-policy|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|source-searches|support|evidence|discoveries|explorations|exploration-packet|assessments|assessment-packet|assessment-preview|explored-briefs|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|manifest|compare|feedback|previews|terminals|guide|stop|decide|revision|benchmark|benchmark-results|advance|rollback|call|outcomes|escalate|compact|compactions|invalidate|poll|run|link|lineage-graph|lineage-export|research-plan|remove|explanation|reviews|files|runbook|web-discoveries|admit|dismiss|autopilots|continue|automation|allow))?)?)?)?$/;
 
 export function createApi(
   env: Record<string, string | undefined> = {},
@@ -2350,18 +2350,26 @@ export function createApi(
       );
     } else if (collection === 'autopilots' && autopilot) {
       // ADR-0092 (P13): read, stop and continue autopilots.
-      if (!item && method === 'GET')
+      if (!item && method === 'GET') {
+        const settings = await store
+          .autopilotSettings(ctx, ws)
+          .catch(() => null);
         return send(
           200,
           (
             await store.listAutopilots(ctx, ws, url.searchParams.get('run'))
-          ).map((a) => autopilot.with(a)),
+          ).map((a) => autopilot.with(a, settings?.values)),
           false,
         );
+      }
       if (item && !action && method === 'GET')
         return send(
           200,
-          autopilot.with(await store.getAutopilot(ctx, ws, item)),
+          await autopilot.withNext(
+            ctx,
+            ws,
+            await store.getAutopilot(ctx, ws, item),
+          ),
           false,
         );
       if (item && method === 'POST' && action === 'cancel')
@@ -2374,6 +2382,23 @@ export function createApi(
         return send(
           200,
           await autopilot.retry(ctx, ws, item, await readJson(req)),
+          true,
+        );
+      // ADR-0100: turn on the setting this stop names and continue, in one request.
+      if (item && method === 'POST' && action === 'allow')
+        return send(
+          200,
+          await autopilot.allowAndContinue(ctx, ws, item, await readJson(req)),
+          true,
+        );
+    } else if (collection === 'autopilot-settings' && !item) {
+      // ADR-0100: the owner's autopilot settings for this workspace.
+      if (method === 'GET')
+        return send(200, await store.autopilotSettings(ctx, ws), false);
+      if (method === 'POST')
+        return send(
+          200,
+          await store.saveAutopilotSettings(ctx, ws, await readJson(req)),
           true,
         );
     } else if (collection === 'automations' && autopilot) {
@@ -2831,6 +2856,7 @@ export { WebDiscoveryRunner, stepId, answerJson } from './web-discovery.js';
 export {
   AutopilotRunner,
   autopilotKey,
+  refusalKind,
   webResearch,
   type AutopilotWeb,
 } from './autopilot.js';

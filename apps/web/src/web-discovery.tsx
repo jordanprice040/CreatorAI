@@ -18,6 +18,7 @@ import {
   type WebDiscoveryPreview,
   type WebLead,
   type Workspace,
+  AUTOPILOT_QUOTE_CHECK_LABEL,
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
 import { Status, useLoad } from './ui.js';
@@ -887,7 +888,7 @@ function Proposal({
       {p.decision !== 'pending' && (
         <p className="small">
           {p.decision === 'admitted'
-            ? `Added${p.admitted_via === 'routine_policy' ? ' by your routine policy' : ''}`
+            ? `Added${p.admitted_via === 'routine_policy' ? ' by your routine policy' : p.admitted_via === 'autopilot' ? `: ${AUTOPILOT_QUOTE_CHECK_LABEL}` : ''}`
             : 'Dismissed'}
           {p.decided_at ? ` ${when(p.decided_at)}` : ''}
         </p>

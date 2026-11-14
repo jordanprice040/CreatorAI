@@ -1207,6 +1207,43 @@ export class OversightStore extends Store {
     );
     return revised;
   }
+  /**
+   * P-11 (ADR-0100): ends routine approvals made for one autopilot when it ends, in the caller's
+   * transaction, in the oversight lock order (run, policy, grant, then the audit log). Approvals
+   * already revoked, used up or expired are left as they are.
+   */
+  protected async endRoutinePolicyIn(
+    c: PoolClient,
+    ctx: CommandContext,
+    ws: string,
+    policyId: string,
+    reason: string,
+  ): Promise<boolean> {
+    const found = await c.query(
+      'select run_id from routine_policies where workspace_id = $1 and id = $2',
+      [ws, policyId],
+    );
+    if (!found.rows[0]) return false;
+    await this.lockRun(c, ws, String(found.rows[0].run_id));
+    const { rows } = await c.query(
+      'select * from routine_policies where id = $1 for update',
+      [policyId],
+    );
+    const policy = toRoutinePolicy(rows[0] as Row);
+    if (policy.status !== 'active') return false;
+    const grant = await this.lockGrant(
+      c,
+      ws,
+      policy.grant_id,
+      policy.grant_version,
+    );
+    if (grant.status !== 'active') return false;
+    await this.writeGrant(c, ctx, grant, 'grant.revoked', {
+      status: 'revoked',
+      revoke_reason: reason.slice(0, 500),
+    });
+    return true;
+  }
   async revokeRoutinePolicy(
     ctx: CommandContext,
     ws: string,

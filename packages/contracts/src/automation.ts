@@ -193,9 +193,10 @@ export function selectionRoutinePolicy(
 export function restRoutinePolicy(
   c: AutopilotConfig,
   maxTotalNanoUsd: string | null,
+  opts: { gatherSearch?: boolean } = {},
 ): RoutinePolicyInput {
   return {
-    ...autopilotRoutinePolicy(c, maxTotalNanoUsd),
+    ...autopilotRoutinePolicy(c, maxTotalNanoUsd, opts),
     rationale:
       'Set up with Automate the rest: the steps its autopilot takes on this run, nothing else.',
   };

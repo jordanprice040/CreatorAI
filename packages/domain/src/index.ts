@@ -41,3 +41,4 @@ export * from './marketing.js';
 export * from './portfolio.js';
 export * from './plan-admission.js';
 export * from './autopilot.js';
+export * from './claim-suggest.js';
