@@ -114,7 +114,8 @@ function thirdPartyLicenses(): Plugin {
             !entry.includes('\\node_modules\\')
           )
             return;
-          d = dirname(entry);
+          // Forward slashes, so rootOf() also finds the package root on Windows.
+          d = dirname(entry).replace(/\\/g, '/');
         } catch {
           return;
         }
