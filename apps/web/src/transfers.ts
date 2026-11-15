@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { FILE_MAX_BYTES_DEFAULT, bytesText } from '@creator/contracts';
 import { STUDIO_CHANGED } from './oversight.js';
 
 // ADR-0072 (P05): uploads in progress, shown in the transfer tray on every page. The workspace
@@ -132,14 +133,18 @@ function send(t: Internal) {
     } else
       patch(t.id, {
         state: 'failed',
-        error: body.error?.message ?? `The upload failed (${xhr.status}).`,
+        error:
+          body.error?.message ??
+          oversized(t.size) ??
+          `The upload failed (${xhr.status}).`,
       });
     pump();
   };
   xhr.onerror = () => {
     patch(t.id, {
       state: 'failed',
-      error: 'The connection was lost. Retry to send it again.',
+      error:
+        oversized(t.size) ?? 'The connection was lost. Retry to send it again.',
     });
     pump();
   };
@@ -149,6 +154,21 @@ function send(t: Internal) {
   };
   patch(t.id, { state: 'uploading', loaded: 0, error: '', xhr });
   xhr.send(t.file);
+}
+
+/** The refusal for a file over the limit, naming the limit (live check follow-up 2). */
+function tooLarge(size: number, limit: number) {
+  return `This file is ${bytesText(size)}; the studio accepts files up to ${bytesText(limit)} each.`;
+}
+
+/**
+ * Live check follow-up 3: a proxy in front of the studio can turn the studio's early refusal
+ * of an oversized upload into a bare 502 or a dropped connection. When the file is over the
+ * limit as far as this tab knows (the default when the Files page has not said), say so.
+ */
+function oversized(size: number): string | null {
+  const limit = knownLimit ?? FILE_MAX_BYTES_DEFAULT;
+  return size > limit ? tooLarge(size, limit) : null;
 }
 
 export function startUploads(
@@ -176,7 +196,7 @@ export function startUploads(
         size: file.size,
         loaded: 0,
         state: tooBig ? 'failed' : 'queued',
-        error: tooBig ? 'This file is larger than the studio accepts.' : '',
+        error: tooBig ? tooLarge(file.size, limit) : '',
         fileId: '',
         fileName: '',
         versionOf: to.versionOf ?? null,

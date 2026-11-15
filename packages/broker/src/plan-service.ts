@@ -11,6 +11,9 @@ import {
   type ProposalSectionDraft,
   PROPOSAL_DRAFT_INSTRUCTIONS,
   PROPOSAL_DRAFT_OUTPUT_MAX,
+  SPEC_DRAFT_INSTRUCTIONS,
+  SPEC_DRAFT_OUTPUT_MAX,
+  type SpecDraft,
   CHAT_FILL_INSTRUCTIONS,
   CHAT_FILL_OUTPUT_MAX,
   type PlanConnection,
@@ -33,6 +36,7 @@ import type {
   ConnectionStore,
   PlanObservation,
   WebDiscoveryBinding,
+  SpecDraftBinding,
 } from '@creator/db';
 import {
   OFFICIAL_PLAN_ENDPOINTS,
@@ -213,6 +217,8 @@ export interface InvokeRequest {
    * checks it against the attempt under lock instead of a run and build approval.
    */
   recipe_attempt_id?: string;
+  /** ADR-0107: this request is a spec draft's one request, covered by the owner's press. */
+  spec_draft?: SpecDraftBinding;
 }
 
 export class PlanConnectionService {
@@ -713,6 +719,7 @@ export class PlanConnectionService {
         : undefined,
       r.web_discovery,
       r.recipe_attempt_id,
+      r.spec_draft,
     );
     if (admitted.admission)
       return {
@@ -1232,6 +1239,37 @@ export class PlanConnectionService {
   }
 
   /**
+   * ADR-0107 (B2): Draft the spec, Add an edge case or Explain this case on Build › Write a
+   * spec. The store records what will be sent; the request goes to a model qualified for
+   * drafting specs as one specification task outside any run, covered only by the owner's
+   * press. The reply becomes a draft beside the form; no spec changes until the person saves it.
+   */
+  async specDraft(
+    ctx: CommandContext,
+    ws: string,
+    body: unknown,
+  ): Promise<SpecDraft> {
+    const begun = await this.deps.store.beginSpecDraft(ctx, ws, body);
+    if (begun.replay) return begun.draft;
+    const f = begun.draft;
+    const settled = await this.#chatOnce(ctx, ws, {
+      connection_id: begun.connection_id,
+      connection_kind: f.connection_kind,
+      model_id: f.model_id,
+      instructions: SPEC_DRAFT_INSTRUCTIONS,
+      input: begun.input,
+      logical_operation_id: begun.logical_operation_id,
+      max_output_chars: SPEC_DRAFT_OUTPUT_MAX,
+      task: {
+        task_class: 'specification',
+        data_class: begun.data_class,
+        spec_draft: { draft_id: f.id },
+      },
+    });
+    return this.deps.store.finishSpecDraft(ctx, ws, f.id, settled);
+  }
+
+  /**
    * One chat-purpose request a store has already recorded (a card fill, a proposal's section
    * drafts), and how it settled: refused when nothing left the studio, failed once it was
    * admitted (review 1 N-4: shared, so the two stay in step).
@@ -1247,6 +1285,12 @@ export class PlanConnectionService {
       input: string;
       logical_operation_id: string;
       max_output_chars: number;
+      /** ADR-0107: a task request (a spec draft) instead of a chat answer. */
+      task?: {
+        task_class: 'specification';
+        data_class: 'synthetic' | 'public' | 'private_approved';
+        spec_draft: SpecDraftBinding;
+      };
     },
   ): Promise<{
     state: 'completed' | 'failed' | 'refused';
@@ -1259,11 +1303,12 @@ export class PlanConnectionService {
     try {
       const r = await this.invoke(ctx, ws, {
         connection_id: p.connection_id,
-        purpose: 'chat',
+        purpose: p.task ? 'task' : 'chat',
         model_id: p.model_id,
-        task_class: null,
-        data_class: 'private_approved',
+        task_class: p.task?.task_class ?? null,
+        data_class: p.task?.data_class ?? 'private_approved',
         run_id: null,
+        ...(p.task ? { spec_draft: p.task.spec_draft } : {}),
         instructions: p.instructions,
         input: p.input,
         logical_operation_id: p.logical_operation_id,
@@ -1574,7 +1619,13 @@ export class PlanConnectionService {
                 )
               : 'provider_error';
           let json: unknown = null;
-          if (text !== null && c.output_format === 'json')
+          // ADR-0107: a spec draft reply is read as the drafting page reads it (a fenced JSON
+          // object counts), so the grader takes the text itself.
+          if (
+            text !== null &&
+            c.output_format === 'json' &&
+            c.check.kind !== 'spec_cases_contract'
+          )
             try {
               json = parseRoleAnswer(text, wrapping).json;
             } catch {

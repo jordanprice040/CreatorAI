@@ -486,6 +486,51 @@ export const BenchmarkCheckSchema = z.discriminatedUnion('kind', [
     forbidden_refs: z.array(z.string().max(20)).max(20),
   }),
   /**
+   * ADR-0107 (B2): a drafted spec and its suggested cases for a command-line program the studio
+   * knows exactly. The reply is read as a spec draft; after the studio's held-out pick, its own
+   * case checks must find no error, there must be at least `min_cases` cases, every case must
+   * pass the reference program, and at least `min_caught` of the known-broken programs must fail
+   * a case. The programs are the studio's own (packages/domain spec-cases.ts) and run in
+   * process; the drafted cases are only their arguments and input.
+   */
+  z.strictObject({
+    kind: z.literal('spec_cases_contract'),
+    role_version: short,
+    program: z.string().regex(/^[a-z0-9-]{1,40}$/),
+    request: z.strictObject({
+      problem: z.strictObject({
+        title: short,
+        statement: z.string().min(1).max(2000),
+        affected_group: short,
+      }),
+      option: z.strictObject({
+        title: short,
+        rationale: z.string().min(1).max(2000),
+        tradeoffs: z.array(short).min(1).max(20),
+      }),
+    }),
+    mutants: z
+      .array(z.string().regex(/^[a-z0-9-]{1,40}\/[a-z0-9-]{1,40}$/))
+      .min(1)
+      .max(12),
+    min_cases: z.number().int().min(1).max(60),
+    min_caught: z.number().int().min(1).max(12),
+    /**
+     * The frozen behaviour of this program and the grader (review 1 of PR #206, L-2): a hash
+     * over the outputs of the reference and every broken version on fixed probe inputs and the
+     * grades of fixed probe replies. A change to the programs or the grading changes it, so
+     * the old benchmark stops grading and stops admitting drafts until spec-cases-v2.
+     */
+    fingerprint: hash,
+    /**
+     * The source of the programs, the grader and the case readers (review 2 of PR #206, N-2):
+     * sha256 of packages/domain/src/spec-cases.ts and the frozen region of
+     * packages/contracts/src/spec-draft.ts, line endings as LF. The sources are not shipped, so
+     * a test holds it, as B1's FREEZE.json holds its scorer.
+     */
+    source_sha256: hash,
+  }),
+  /**
    * T12 reviewer (ADR-0048): the answer binds the case's candidate and frozen hashes and gives
    * the expected verdict; approve needs no findings, changes_requested at least one.
    */
@@ -611,6 +656,18 @@ export const BenchmarkManifestSchema = z
             message: 'Discovery check task class/output format mismatch.',
           });
       }
+    for (const c of b.cases)
+      if (
+        c.check.kind === 'spec_cases_contract' &&
+        (b.task_class !== 'specification' ||
+          c.output_format !== 'json' ||
+          c.check.min_caught > c.check.mutants.length)
+      )
+        ctx.addIssue({
+          code: 'custom',
+          message:
+            'Spec cases check: specification task class, JSON output, and no more catches than broken programs.',
+        });
     for (const c of b.cases)
       if (
         c.check.kind === 'assessment_contract' &&
