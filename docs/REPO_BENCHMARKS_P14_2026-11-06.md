@@ -267,7 +267,8 @@ blank and comment lines, a trailing `\r`, first-record spelling, lowercased tie 
 10 studio cases (6 held out), 22 extended cases, 11 listed known mistakes each caught by the cases
 named for it. Caps: 2 repairs, 6 requests, 6,000 output tokens, 120 s, synthetic. Pass bar and records
 in its `expectations.json`; how the Build page shows a repair round, and its test-double run, in
-`tracking/evidence/b3-build-page/README.md`. Live result (reported from the run on November 14, 2026 Eastern, dev studio on Jordan's
+`tracking/evidence/b3-build-page/README.md`. Live result (November 14, 2026 Eastern; records in
+`tracking/evidence/p14-benchmarks/RESULTS_REPAIR_V1_2026-11-14.json`; dev studio on Jordan's
 PC, `plan_roles`, gpt-6-astra): **3 of 3 verified, no attempt needed a repair**, so a live repair
 round was not observed (decision D: that is the result). 2 requests each, 6 in total, $0; grader
 10/10 and 22/22 extended for each package. Details in the B3 evidence README.
