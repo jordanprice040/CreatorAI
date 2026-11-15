@@ -37,9 +37,11 @@ export function PathView({
     <section className="panel">
       <h2>Path</h2>
       <p className="small">
-        The main path for the idea you worked on most recently, from evidence to
-        a product you can try. Each step happens on its own tab; this list shows
-        where you are and what each step needs.
+        The main path for the idea you worked on most recently. After Selection
+        it branches: software goes on to a spec, a build and a product you can
+        try; a non-code choice goes to a proposal and its review. Each step
+        happens on its own tab; this list shows where you are and what each step
+        needs.
       </p>
       <ol className="path-stages">
         {stages.map((s, i) => (

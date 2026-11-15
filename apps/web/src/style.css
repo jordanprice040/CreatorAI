@@ -3889,4 +3889,42 @@ pre.commands {
 }
 .build-results p {
   margin: 0;
+/* ADR-0101 (UX pass P-5): model drafts of a proposal's missing sections. */
+.proposal-drafts {
+  margin: 1rem 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.proposal-drafts h3 {
+  margin-top: 0.25rem;
+}
+.draft-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  border: 0;
+  padding: 0;
+  margin: 0.5rem 0;
+}
+.model-draft {
+  margin: 0.5rem 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px dashed var(--border-strong);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent-soft);
+}
+.model-draft-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.model-draft-mark {
+  margin: 0.25rem 0;
+}
+.sent-input {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 16rem;
+  overflow: auto;
 }

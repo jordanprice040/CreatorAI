@@ -1012,6 +1012,16 @@ export class Store {
          where workspace_id = $1 and entity_id = $2`,
         [ws, entityId],
       );
+      // ADR-0101: a proposal's model drafts hold its words (what was sent and the reply).
+      if (current.kind === 'proposal')
+        await c.query(
+          `update proposal_section_drafts set input = '', draft_values = '{}',
+             text = case when text is null then null else '' end,
+             redacted_at = clock_timestamp()
+           where workspace_id = $1 and proposal_id = $2 and state <> 'pending'
+             and redacted_at is null`,
+          [ws, entityId],
+        );
       const hash = canonicalHash({
         kind: current.kind,
         redacted_from: current.content_hash,

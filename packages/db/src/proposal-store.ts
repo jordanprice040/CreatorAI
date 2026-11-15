@@ -4,6 +4,8 @@ import {
   CreateProposalRequestSchema,
   HumilityBodySchema,
   PROPOSAL_KINDS,
+  PROPOSAL_SECTIONS,
+  ProposalDraftValueSchema,
   ProposalReviewRequestSchema,
   ReviseProposalRequestSchema,
   parse,
@@ -13,6 +15,7 @@ import {
   type ProposalDetail,
   type ProposalDraft,
   type ProposalReview,
+  type ProposalSectionDraft,
   type ProposalSummary,
   type ResponseExplanation,
   type ScorecardBody,
@@ -46,6 +49,43 @@ import {
 } from './store.js';
 
 const SOFTWARE = ['build', 'hybrid'];
+
+/** ADR-0101: one "Draft the missing sections" record as the page reads it. */
+export const toSectionDraft = (r: Row): ProposalSectionDraft => {
+  const values: ProposalSectionDraft['values'] = {};
+  for (const [k, v] of Object.entries(
+    (r.draft_values as Record<string, unknown> | null) ?? {},
+  )) {
+    const ok = ProposalDraftValueSchema.safeParse(v);
+    if (ok.success) values[k as keyof typeof values] = ok.data;
+  }
+  return {
+    id: String(r.id),
+    proposal_id: String(r.proposal_id),
+    proposal_version: Number(r.proposal_version),
+    state: String(r.state) as ProposalSectionDraft['state'],
+    connection_kind: String(r.connection_kind),
+    fixture: Boolean(r.fixture),
+    model_id: String(r.model_id),
+    sections: (r.sections ?? []) as ProposalSectionDraft['sections'],
+    values,
+    dropped: Number(r.dropped ?? 0),
+    reason:
+      r.reason === null || r.reason === undefined ? null : String(r.reason),
+    sent:
+      r.state === 'refused' || r.redacted_at
+        ? null
+        : {
+            instructions_version: String(r.instructions_version),
+            instructions_hash: String(r.instructions_hash),
+            input: String(r.input),
+            sections_sent: Number(r.sections_sent ?? 0),
+          },
+    requested_by: String(r.requested_by),
+    created_at: iso(r.created_at),
+    finished_at: r.finished_at ? iso(r.finished_at) : null,
+  };
+};
 type Kind = ProposalBody['response'];
 const isProposalKind = (k: string): k is Kind =>
   (PROPOSAL_KINDS as readonly string[]).includes(k);
@@ -479,7 +519,10 @@ export class ProposalStore extends CatalogStore {
             'The option, its problem or the selection changed since this draft was made; start a fresh draft.',
           );
         await this.checkCitations(c, ws, req.body);
-        const body = validateBody('proposal', req.body);
+        const body = validateBody(
+          'proposal',
+          await this.markDrafts(c, ws, null, req.body),
+        );
         const e = await this.insertEntity(
           c,
           ctx,
@@ -549,7 +592,10 @@ export class ProposalStore extends CatalogStore {
           'A revision keeps the proposal’s problem, option and selection; start a new proposal for a different one.',
         );
       await this.checkCitations(c, ws, req.body);
-      const body = validateBody('proposal', req.body);
+      const body = validateBody(
+        'proposal',
+        await this.markDrafts(c, ws, proposalId, req.body),
+      );
       const hash = contentHashOf('proposal', req.title, body);
       if (hash === current.content_hash)
         throw fail(
@@ -568,6 +614,83 @@ export class ProposalStore extends CatalogStore {
       });
     });
     return this.proposalDetail(ctx, ws, proposalId);
+  }
+
+  /**
+   * ADR-0101: a section's draft mark names a completed draft of this proposal that drafted
+   * that section. The model and whether the text was edited are set here from the draft
+   * record, so the page cannot claim a person wrote model text, or the reverse.
+   */
+  private async markDrafts(
+    c: PoolClient,
+    ws: string,
+    proposalId: string | null,
+    body: ProposalBody,
+  ): Promise<ProposalBody> {
+    const marked = PROPOSAL_SECTIONS.filter((k) => body.sections[k].draft);
+    if (!marked.length) return body;
+    if (!proposalId)
+      throw fail(
+        'INVALID_CONTRACT',
+        'A new proposal has no model drafts yet; save it first, then draft its missing sections.',
+      );
+    const ids = [
+      ...new Set(marked.map((k) => body.sections[k].draft!.id.toLowerCase())),
+    ];
+    const rows = (
+      await c.query(
+        `select id::text as id, model_id, draft_values, state from proposal_section_drafts
+          where workspace_id = $1 and proposal_id = $2 and id = any($3::uuid[])`,
+        [ws, proposalId, ids],
+      )
+    ).rows as Row[];
+    const sections = { ...body.sections };
+    for (const k of marked) {
+      const mark = sections[k].draft!;
+      const row = rows.find((r) => r.id === mark.id.toLowerCase());
+      const value = ProposalDraftValueSchema.safeParse(
+        (row?.draft_values as Record<string, unknown> | undefined)?.[k],
+      );
+      if (
+        !row ||
+        row.state !== 'completed' ||
+        !value.success ||
+        value.data.state !== 'written'
+      )
+        throw fail(
+          'INVALID_CONTRACT',
+          `The model draft named for “${k.replaceAll('_', ' ')}” is not a draft of that section for this proposal.`,
+        );
+      sections[k] = {
+        ...sections[k],
+        draft: {
+          id: mark.id.toLowerCase(),
+          model_id: String(row.model_id),
+          edited: sections[k].text.trim() !== value.data.text.trim(),
+        },
+      };
+    }
+    return { ...body, sections };
+  }
+
+  /** ADR-0101: the newest model drafts of a proposal's missing sections. */
+  async listProposalSectionDrafts(
+    ctx: CommandContext,
+    ws: string,
+    proposalId: string,
+  ): Promise<ProposalSectionDraft[]> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    proposalId = uuid(proposalId);
+    return this.tx(async (c) => {
+      await this.role(c, ws, ctx.actorId, false);
+      const { rows } = await c.query(
+        `select * from proposal_section_drafts where workspace_id = $1 and proposal_id = $2
+          order by created_at desc, id desc limit 20`,
+        [ws, proposalId],
+      );
+      return rows.map((r) => toSectionDraft(r as Row));
+    });
   }
 
   async listProposals(

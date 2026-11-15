@@ -72,14 +72,33 @@ export const PROPOSAL_MAX_BODY_BYTES = 131072;
 /** Distinct claims one proposal may cite; every one gets a reference label (review L-7). */
 export const PROPOSAL_MAX_CITED_CLAIMS = 60;
 
+/** A section's mark that its text started as a model draft (ADR-0101). */
+export const SectionDraftMarkSchema = z.strictObject({
+  /** The draft record the text came from. */
+  id,
+  /** Set by the studio from the draft record, not by the page. */
+  model_id: z.string().max(120),
+  /** Set by the studio: the saved text differs from the draft's text. */
+  edited: z.boolean(),
+});
+export type SectionDraftMark = z.infer<typeof SectionDraftMarkSchema>;
+
 export const ProposalSectionBodySchema = z
   .strictObject({
     /** written: the text is the section. unknown: not known yet (the text says what is missing). */
     state: z.enum(['written', 'unknown', 'not_applicable']),
     text: z.string().trim().max(PROPOSAL_SECTION_MAX),
     claims: z.array(ref).max(20),
+    /** ADR-0101: the text started as this model draft, which a person chose to use. */
+    draft: SectionDraftMarkSchema.optional(),
   })
   .superRefine((s, ctx) => {
+    if (s.draft && s.state !== 'written')
+      ctx.addIssue({
+        code: 'custom',
+        path: ['draft'],
+        message: 'Only a written section can come from a model draft.',
+      });
     if (s.state !== 'unknown' && !s.text)
       ctx.addIssue({
         code: 'custom',

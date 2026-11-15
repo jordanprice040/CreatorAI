@@ -100,6 +100,8 @@ const COUNTED = [
   'run_automations',
   // ADR-0100: the owner's autopilot settings.
   'autopilot_settings',
+  // ADR-0101: model drafts of a proposal's missing sections.
+  'proposal_section_drafts',
 ] as const;
 
 /** Splits the password out so it reaches pg tools by environment, never by argv or logs. */
