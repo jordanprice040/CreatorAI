@@ -797,7 +797,6 @@ test('ADR-0115: leading invented tool-call lines are dropped by default and reco
     wrapping: 'one_json_fence',
     mode: 'invoke_lines_then_json_fence',
   });
-  // A plan frozen on one fence (the v5 recipe benchmarks) stops on the same answer.
   // A one-fence answer under a one-fence plan records that mode.
   const fencedStrict = await go(
     (j) => `\`\`\`json\n${j}\n\`\`\``,
@@ -807,6 +806,7 @@ test('ADR-0115: leading invented tool-call lines are dropped by default and reco
     wrapping: 'one_json_fence',
     mode: 'one_json_fence',
   });
+  // A plan frozen on one fence (the v5 recipe benchmarks) stops on the same answer.
   const strict = await go(H4, 'one_json_fence');
   assert.deepEqual(strict.roles, ['builder']);
   assert.equal(strict.result.state, 'checkpoint');
