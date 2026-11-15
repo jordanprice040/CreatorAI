@@ -3,6 +3,7 @@ import type { PoolClient } from 'pg';
 import {
   CancelRunRequestSchema,
   CritiqueOutputSchema,
+  cutText,
   DiscoveryTaskContextSchema,
   EvidencePacketSchema,
   ExplorationPacketSchema,
@@ -19,6 +20,7 @@ import {
   type DiscoveryTaskContext,
   type DiscoveryTaskKind,
   type EvidencePacket,
+  type CatalogEntry,
   type ExplorationCatalogEntry,
   type ExplorationPacket,
   type ExplorerOutput,
@@ -47,6 +49,7 @@ import {
   PROMPT_HASH,
   ROLE_VERSION,
   canonicalHash,
+  catalogBeyondNote,
   catalogMatches,
   checkDiscoveryOutput,
   checkExplorationOutput,
@@ -200,6 +203,20 @@ export interface DiscoveryWorkflowContext {
   excluded: { perspective: ResponseType; reason: string }[];
   max_revisions: number;
   constraints: string[];
+  /**
+   * Every record fetched for the catalog, when the packet had no room for some (review 1 of
+   * #202, L-3): the duplicate check reads these. Never sent to the model.
+   */
+  duplicates_against?: Omit<CatalogEntry, 'ref'>[];
+}
+
+/**
+ * Re-review N-2: the explanation cut to leave room for a note after it, so a long explanation
+ * never cuts the note off (both within the 1,200-character limit).
+ */
+export function withNote(explanation: string, note: string | null): string {
+  if (!note) return cutText(explanation, 1200);
+  return `${cutText(explanation, Math.max(0, 1200 - note.length - 1))} ${note}`.trim();
 }
 
 /** Exploration workflow context (ADR-0065): the packet and its bound hash. */
@@ -315,6 +332,8 @@ function discoveryTaskContext(
       kind,
       label: discoveryLabel(task, d.perspectives),
     })),
+    // The skeptic can only cite the packet's own refs (K1…), so it is told about entries in the
+    // packet; the app's duplicate check reads every fetched record (`duplicates_against`, L-3).
     catalog_matches:
       a.kind === 'skeptic'
         ? inputs.flatMap(({ task }) =>
@@ -1166,6 +1185,7 @@ export class WorkflowStore extends BudgetStore {
           ),
           stopped_insufficient:
             plan.terminal.outcome === 'insufficient_evidence',
+          catalog: discovery.duplicates_against,
         });
         const catalog_records =
           plan.terminal.state === 'succeeded'
@@ -1180,7 +1200,10 @@ export class WorkflowStore extends BudgetStore {
             : { problem: null, alternatives: [] };
         result = {
           outcome: plan.terminal.outcome,
-          explanation: plan.terminal.explanation,
+          explanation: withNote(
+            plan.terminal.explanation,
+            catalogBeyondNote(discovery.packet),
+          ),
           synthesis: null,
           critiques: [],
           fixture: wf.fixture,

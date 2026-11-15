@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import {
   PLAN_REQUEST_TIMEOUT_MAX_MS,
+  EvidencePacketSchema,
   SearchBriefBodySchema,
   StartDiscoveryRequestSchema,
   WORKFLOW_WALL_MAX_SECONDS,
@@ -14,7 +15,10 @@ import {
 } from '@creator/contracts';
 import {
   DISCOVERY_SCENARIOS,
+  MAX_PACKET_CHARS,
   assessSufficiency,
+  buildPacket,
+  catalogBeyondNote,
   canonicalHash,
   catalogMatches,
   checkDiscoveryOutput,
@@ -26,6 +30,7 @@ import {
   type DiscoveryView,
   type DispositionTask,
 } from '@creator/domain';
+import { withNote } from '@creator/db';
 
 // Pure discovery rules (T07); these run without PostgreSQL.
 
@@ -613,4 +618,187 @@ test('independence problems are reported when a first proposal could read anothe
   );
   // Without a skeptic pass nothing becomes a candidate.
   assert.ok(result.proposals.every((x) => x.disposition !== 'candidate'));
+});
+
+const packetEvidence = (statements: string[]) =>
+  statements.map((statement, n) => ({
+    claim: {
+      claim: {
+        id: randomUUID(),
+        version: 1,
+        title: `Claim ${n + 1}`,
+        statement,
+        basis: 'observation' as const,
+      },
+      status: 'supported' as const,
+      labels: [],
+      explanation: '',
+      independent_origins: 1,
+      contrary_origins: 0,
+      max_age_days: 180,
+      rows: [],
+    },
+    bears_on: ['problem' as const],
+  }));
+const packetBrief = {
+  id: randomUUID(),
+  version: 1,
+  content_hash: 'a'.repeat(64),
+  title: 'Prior authorization',
+  body: brief,
+};
+// 40 records with full-length summaries, as in a workspace that has been used for a while.
+const fullCatalog = Array.from({ length: 40 }, (_, i) => ({
+  id: randomUUID(),
+  kind: 'alternative' as const,
+  version: 1,
+  title: `Recorded option ${i + 1} for a problem the studio already has`.padEnd(
+    200,
+    '.',
+  ),
+  summary: 'A rationale that fills the summary to its cap. '
+    .repeat(9)
+    .slice(0, 400),
+}));
+const now = new Date('2026-11-14T00:00:00Z');
+
+test('live run 2026-11-14: a large catalog gets only the room the brief and claims leave, cut before any entry is left out, and what is left out is counted', () => {
+  const evidence = packetEvidence(
+    [1, 2].map((n) =>
+      `Practice staff spend hours on prior authorization ${n}. `.repeat(20),
+    ),
+  );
+  const p = buildPacket({
+    brief: packetBrief,
+    evidence,
+    catalog: fullCatalog,
+    max_age_days: 180,
+    now,
+  });
+  assert.ok(JSON.stringify(p).length <= MAX_PACKET_CHARS);
+  assert.equal(p.claims.length, 2, 'every claim is kept');
+  // N-2: the entries did not all fit at full length, so every one is cut first.
+  assert.ok(p.catalog.length > 0);
+  assert.ok(p.catalog.every((c) => c.title.length <= 160));
+  assert.ok(p.catalog.every((c) => c.summary.length <= 200));
+  assert.equal(p.catalog_beyond_limit ?? 0, 40 - p.catalog.length);
+  assert.deepEqual(
+    p.catalog.map((c) => c.ref),
+    p.catalog.map((_, i) => `K${i + 1}`),
+  );
+  EvidencePacketSchema.parse(p);
+  // Under a tighter limit some are left out: the kept ones are the newest that fit.
+  const tight = buildPacket({
+    brief: packetBrief,
+    evidence,
+    catalog: fullCatalog,
+    max_age_days: 180,
+    now,
+    limit: 9_000,
+  });
+  assert.ok(JSON.stringify(tight).length <= 9_000);
+  assert.ok(tight.catalog.length > 0 && tight.catalog.length < 40);
+  assert.equal(tight.catalog_beyond_limit, 40 - tight.catalog.length);
+  assert.equal(tight.catalog[0]!.id, fullCatalog[0]!.id);
+  assert.match(
+    catalogBeyondNote(tight) ?? '',
+    /left out of what the designers saw for lack of room; app rules still checked every proposal/,
+  );
+  // A small catalog fits whole, uncut, and says nothing about leaving entries out.
+  const small = buildPacket({
+    brief: packetBrief,
+    evidence,
+    catalog: fullCatalog.slice(0, 3),
+    max_age_days: 180,
+    now,
+  });
+  assert.equal(small.catalog.length, 3);
+  assert.equal(small.catalog[0]!.summary.length, 400);
+  assert.equal('catalog_beyond_limit' in small, false);
+  assert.equal(catalogBeyondNote(small), null);
+});
+
+test('review 1 of #202 L-4: packet cuts never split an emoji into a lone surrogate', () => {
+  const p = buildPacket({
+    brief: packetBrief,
+    evidence: packetEvidence(['a'.repeat(1999) + '😀 and more']),
+    catalog: [],
+    max_age_days: 180,
+    now,
+  });
+  const st = p.claims[0]!.statement;
+  assert.equal(st.length, 1999);
+  assert.doesNotMatch(st, /[\uD800-\uDBFF]$/);
+});
+
+test('review 1 of #202 L-3: a proposal duplicating a record the packet had no room for is still a duplicate', () => {
+  const p = packet([claim('C1', ['problem'], 'supported')]);
+  const hash = canonicalHash(p);
+  const locate = {
+    ...task('locate', 0),
+    context: ctx({ packet_hash: hash }),
+    context_hash: 'e'.repeat(64),
+    output_hash: 'f'.repeat(64),
+    output: fixture('locate', p, ctx()),
+  };
+  const c = ctx({
+    packet_hash: hash,
+    perspective: 'process_change',
+    proposal: 'P1',
+    inputs: [
+      {
+        task_id: locate.id,
+        output_hash: locate.output_hash,
+        kind: 'locate' as const,
+        label: 'locator',
+      },
+    ],
+  });
+  const proposal = fixture('propose', p, c) as ProposalOutput;
+  const designer = {
+    ...task('propose', 0),
+    context: c,
+    context_hash: canonicalHash(c),
+    output_hash: 'a'.repeat(64),
+    output: proposal,
+  } as DispositionTask;
+  const left = {
+    id: randomUUID(),
+    kind: 'alternative' as const,
+    version: 1,
+    title: proposal.title,
+    summary: proposal.mechanism,
+  };
+  const dispose = (catalog?: (typeof left)[]) =>
+    disposeDiscovery({
+      packet: p,
+      packet_hash: hash,
+      perspectives: ['process_change'],
+      excluded: [],
+      tasks: [locate as DispositionTask, designer],
+      stopped_insufficient: false,
+      catalog,
+    }).proposals[0]!;
+  assert.notEqual(dispose().disposition, 'duplicate', 'not in the packet');
+  const dup = dispose([left]);
+  assert.equal(dup.disposition, 'duplicate');
+  assert.equal(dup.duplicate_of?.id, left.id);
+});
+
+test('third review of #202 N-2: withNote keeps the note whole within 1,200 characters and never splits an emoji', () => {
+  const note =
+    '3 recorded problems, ideas or options were left out of what the designers saw for lack of room; app rules still checked every proposal against them for duplicates.';
+  const long = withNote('x'.repeat(1500), note);
+  assert.ok(long.length <= 1200);
+  assert.ok(long.endsWith(` ${note}`), 'the note is kept whole');
+  // An emoji straddling the explanation's cut is dropped whole.
+  const room = 1200 - note.length - 1;
+  const emoji = withNote('y'.repeat(room - 1) + '😀 rest', note);
+  assert.ok(emoji.length <= 1200);
+  assert.ok(emoji.endsWith(` ${note}`));
+  assert.doesNotMatch(emoji, /[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
+  assert.doesNotMatch(emoji, /(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/);
+  // Without a note the explanation is only cut; a short one is unchanged.
+  assert.equal(withNote('Done.', null), 'Done.');
+  assert.equal(withNote('z'.repeat(1300), null).length, 1200);
 });

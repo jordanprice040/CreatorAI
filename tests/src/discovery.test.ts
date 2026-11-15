@@ -385,3 +385,71 @@ test('start requests: exclusions, a non-software option, brief shape, human-only
   assert.equal(c1.status, 'insufficient');
   assert.equal(packet.packet.sufficiency.verdict, 'insufficient');
 });
+
+test('re-review of #202 N-4: a proposal duplicating a record the packet had no room for is marked duplicate, and the result says records were left out', async (t) => {
+  const s = await discoverySetup(t, new Recording());
+  if (!s) return;
+  const base = scenario('software');
+  const known = base.catalog[0]!;
+  // Same words, repeated to full length, so the entry is as large as the others once cut.
+  const pad = (text: string, n: number) =>
+    Array.from({ length: Math.ceil(n / text.length) + 1 }, () => text)
+      .join(' ')
+      .slice(0, n);
+  const runId = await s.run();
+  const seeded = await s.seed({ ...base, catalog: [] }, runId);
+  // The duplicate is the oldest of 40 records, so it is fetched but left out of the packet.
+  const dup = await s.store.createEntity(owner, s.ws.id, {
+    kind: 'idea',
+    title: pad(known.title, 200),
+    body: { summary: pad(known.summary, 400), uncertainty: 'Test entry.' },
+  });
+  for (let i = 0; i < 39; i += 1)
+    await s.store.createEntity(owner, s.ws.id, {
+      kind: 'idea',
+      title: pad(
+        `Unrelated recorded idea number ${i + 1} about warehouse pallets`,
+        200,
+      ),
+      body: {
+        summary: pad(
+          `Forklift scheduling notes ${i + 1} for a distribution centre`,
+          400,
+        ),
+        uncertainty: 'Test entry.',
+      },
+    });
+  const started = await s.store.startDiscovery(
+    owner,
+    s.ws.id,
+    runId,
+    s.request(base, seeded),
+  );
+  const { rows } = await s.db.pool.query(
+    'select context from workflows where id = $1',
+    [started.workflow.id],
+  );
+  const context = rows[0]!.context as {
+    packet: { catalog: { id: string }[]; catalog_beyond_limit?: number };
+    duplicates_against?: { id: string; title: string }[];
+  };
+  assert.ok(context.packet.catalog_beyond_limit, 'some records were left out');
+  assert.ok(!context.packet.catalog.some((c) => c.id === dup.id));
+  assert.equal(context.duplicates_against?.length, 40);
+  assert.ok(context.duplicates_against!.some((c) => c.id === dup.id));
+  assert.equal(
+    context.duplicates_against!.find((c) => c.id === dup.id)!.title.length,
+    200,
+    'stored at full length',
+  );
+  await s.worker.settle();
+  const detail = await s.store.getWorkflow(owner, s.ws.id, started.workflow.id);
+  const r = result(detail);
+  const process = byType(r, 'process_change');
+  assert.equal(process.disposition, 'duplicate');
+  assert.equal(process.duplicate_of?.id, dup.id);
+  assert.match(
+    detail.workflow.result?.explanation ?? '',
+    /recorded problems, ideas or options were left out of what the designers saw for lack of room; app rules still checked every proposal against them for duplicates\./,
+  );
+});

@@ -520,6 +520,19 @@ export class Store {
       );
   }
 
+  /**
+   * Whether a keyed command committed in this workspace: its receipt is written in the same
+   * transaction as the command (PR #202, third review N-1). The autopilot asks this when a start
+   * threw, so a start that committed and then failed a later read keeps its calls set aside.
+   */
+  async commandCommitted(ws: string, key: string): Promise<boolean> {
+    const { rows } = await this.pool.query(
+      'select 1 from command_receipts where workspace_id = $1 and idempotency_key = $2',
+      [uuid(ws), key],
+    );
+    return rows.length > 0;
+  }
+
   /** Replays a stored response for a repeated idempotency key, or rejects a changed request. */
   protected async idempotent<T>(
     ws: string,
