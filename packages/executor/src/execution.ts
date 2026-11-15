@@ -25,6 +25,7 @@ import {
   sha,
 } from './contracts.js';
 import {
+  BUILD_CASE_MAX_MS,
   RunInputSchema,
   type BuildRecipe,
   type RunInput,
@@ -57,8 +58,17 @@ const WEB_RECIPE = fileURLToPath(
 const WEB_POLICY =
   'wsl2-bwrap-systemd/1;recipe=static-web/1;uid=1000;net=loopback-only;mem=1GiB;swap=0;pids=512;cpu=100%;time=60s;lease=5s;work=64MiB;tmp=256MiB;log=64KiB;file=8MiB;browser=chrome-headless-shell-156.0.8078.47';
 const RECIPES = {
-  'python-build/1': { file: RECIPE, policy: POLICY, launchMs: 40000 },
-  'static-web/1': { file: WEB_RECIPE, policy: WEB_POLICY, launchMs: 90000 },
+  // ADR-0109: the build's time limit counts each case at this length (BUILD_CASE_MAX_MS).
+  'python-build/1': {
+    file: RECIPE,
+    policy: POLICY,
+    launchMs: BUILD_CASE_MAX_MS['python-build/1'],
+  },
+  'static-web/1': {
+    file: WEB_RECIPE,
+    policy: WEB_POLICY,
+    launchMs: BUILD_CASE_MAX_MS['static-web/1'],
+  },
 } as const satisfies Record<BuildRecipe, unknown>;
 function wslPath(p: string): string {
   const full = resolve(p);

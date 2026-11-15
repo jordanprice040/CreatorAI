@@ -53,6 +53,7 @@ export const BuildProgressSchema = z.object({
     z.object({
       round: z.number(),
       builder: z.enum(['writing', 'answered', 'failed']).nullable(),
+      parts: z.number().optional(),
       refused: z
         .object({ reason: z.string(), details: z.array(z.string()) })
         .nullable(),

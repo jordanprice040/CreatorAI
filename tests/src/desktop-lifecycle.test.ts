@@ -185,7 +185,7 @@ test(
       authorize: async () => ({ test_port: true }),
       call: async (_run, r) => {
         const value = JSON.parse(buildFixtureAnswer(r.input)!);
-        if (r.input[0]!.text.startsWith('builder/1:'))
+        if (r.input[0]!.text.startsWith('builder/2:'))
           value.submission.changes[0].content = source;
         else {
           const packet = JSON.parse(r.input[1]!.text);

@@ -14,7 +14,7 @@ if (!out) throw new Error('usage: author-fence-benchmarks.mjs <out-dir>');
 const root = resolve(import.meta.dirname, '../config/connections/benchmarks');
 
 const COPIES = [
-  ['t12-builder-v1', 't12-builder-v3'],
+  ['t12-builder-v2', 't12-builder-v3'],
   ['t12-reviewer-v2', 't12-reviewer-v3'],
 ];
 const NOTE =

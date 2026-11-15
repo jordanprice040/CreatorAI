@@ -609,7 +609,7 @@ test('plan roles send builder and reviewer as fresh plan requests and never touc
   );
   assert.ok(seen.every((x) => x.timeout_ms <= 120000));
   // The reviewer packet carries no builder summary or conversation.
-  assert.ok(!seen[1]!.input.includes('builder/1'));
+  assert.ok(!seen[1]!.input.includes('builder/2'));
   const assigned = s.spec.tasks.find((x) => x.key === 'T1')!.acceptance;
   for (const c of frozenCases(s.spec, assigned).filter((c) => c.held_out))
     for (const x of seen)

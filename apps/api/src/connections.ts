@@ -118,7 +118,11 @@ export async function planBuildRolesReady(
       'INVALID_CONFIG',
       'The ChatGPT plan service is not configured.',
     );
-  return { blockers: await service.buildRolesReady(ctx, ws, connectionId, b) };
+  return {
+    blockers: await service.buildRolesReady(ctx, ws, connectionId, b),
+    // ADR-0109 review L-5: the input cap a build's later parts must fit.
+    max_input_chars: await service.buildRoleInputCap(ctx, ws, connectionId),
+  };
 }
 /** Codex turns per build in this process; the per-build request cap is the durable limit. */
 const codexTurns = new Map<string, number>();

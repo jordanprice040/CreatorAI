@@ -2,9 +2,10 @@
 // BuildSupervisor on synthetic checklist tasks with a recording plan-role port, so every case
 // carries the exact packet T12 sends. It never dispatches a model; scripted answers stand in
 // only to reach the reviewer packet. Expected checks are fixed here before any result.
-// Usage: pnpm build:code && node scripts/author-plan-role-benchmarks.mjs <out-dir> [reviewer-v<N>]
-// With reviewer-v<N>, only a new reviewer version is authored (same cases and expected
-// verdicts, current prompt); the builder benchmark and earlier versions stay frozen.
+// Usage: pnpm build:code && node scripts/author-plan-role-benchmarks.mjs <out-dir> [reviewer-v<N>|builder-v<N>]
+// With reviewer-v<N> (or builder-v<N>), only a new version of that role's benchmark is authored
+// (same cases and expected checks, current prompt and packet); the other role's benchmark and
+// earlier versions stay frozen. ADR-0109 authored t12-builder-v2 for the builder/2 prompt.
 import { mkdir, mkdtemp, rm, writeFile, access } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -27,10 +28,11 @@ import { BenchmarkManifestSchema } from '../packages/contracts/dist/index.js';
 
 const out = process.argv[2];
 const only = process.argv[3];
-if (!out || (only !== undefined && !/^reviewer-v[2-9]$/.test(only)))
+if (!out || (only !== undefined && !/^(reviewer|builder)-v[2-9]$/.test(only)))
   throw new Error(
-    'usage: author-plan-role-benchmarks.mjs <out-dir> [reviewer-v<N>]',
+    'usage: author-plan-role-benchmarks.mjs <out-dir> [reviewer-v<N>|builder-v<N>]',
   );
+const onlyRole = only?.split('-')[0];
 
 const ITEMS = '["inspect", "build", "review", "verify"]';
 const flagSpec = (key, name, flag, statement, stdout, heldOut) => ({
@@ -273,17 +275,19 @@ try {
   }
   const provenance = (what) =>
     `Synthetic checklist tasks authored offline on ${new Date().toISOString().slice(0, 10)} by scripts/author-plan-role-benchmarks.mjs for ADR-0048. ${what} Packets are the exact T12 packets; expected checks were fixed before any model result. Measures only these synthetic tasks, not general coding or review quality.`;
-  const reviewerName = only ? `t12-${only}` : 't12-reviewer-v1';
+  const reviewerName =
+    onlyRole === 'reviewer' ? `t12-${only}` : 't12-reviewer-v1';
+  const builderName = onlyRole === 'builder' ? `t12-${only}` : 't12-builder-v1';
   const manifests = {
-    't12-builder-v1.json': {
+    [`${builderName}.json`]: {
       format: 'route-benchmark/1',
-      name: 't12-builder-v1',
+      name: builderName,
       fixture: false,
       task_class: 'patch_build',
       data_class: 'synthetic',
       cases: builderCases,
       provenance: provenance(
-        'Each answer is applied to the reviewed template and every frozen case runs in the WSL worker.',
+        `Each answer is applied to the reviewed template and every frozen case runs in the WSL worker.${onlyRole === 'builder' ? ` Same cases and checks as t12-builder-v1, re-authored for the ${BUILD_ROLE_PROMPTS.builder.split(':')[0]} prompt and packet (ADR-0109: parts and edits); an answer must be complete in one part.` : ''}`,
       ),
     },
     [`${reviewerName}.json`]: {
@@ -294,11 +298,12 @@ try {
       data_class: 'synthetic',
       cases: reviewerCases,
       provenance: provenance(
-        `Two candidates are correct (approve with no findings) and two break a stated acceptance check (changes requested).${only ? ` Same cases and expected verdicts as t12-reviewer-v1, re-authored for the ${BUILD_ROLE_PROMPTS.reviewer.split(':')[0]} prompt (ADR-0049) after v1 failed its live qualification.` : ''}`,
+        `Two candidates are correct (approve with no findings) and two break a stated acceptance check (changes requested).${onlyRole === 'reviewer' ? ` Same cases and expected verdicts as t12-reviewer-v1, re-authored for the ${BUILD_ROLE_PROMPTS.reviewer.split(':')[0]} prompt (ADR-0049) after v1 failed its live qualification.` : ''}`,
       ),
     },
   };
-  if (only) delete manifests['t12-builder-v1.json'];
+  if (onlyRole === 'reviewer') delete manifests[`${builderName}.json`];
+  if (onlyRole === 'builder') delete manifests[`${reviewerName}.json`];
   await mkdir(out, { recursive: true });
   for (const [name, m] of Object.entries(manifests)) {
     BenchmarkManifestSchema.parse(m);

@@ -86,6 +86,7 @@ test('ADR-0110: only build-role benchmarks may accept a fence, and earlier versi
   const reviewer = bench('t12-reviewer-v2');
   assert.equal('answer_wrapping' in reviewer, false);
   assert.equal('answer_wrapping' in bench('t12-builder-v1'), false);
+  assert.equal('answer_wrapping' in bench('t12-builder-v2'), false);
   assert.throws(
     () =>
       BenchmarkManifestSchema.parse({
@@ -104,7 +105,7 @@ test('ADR-0110: only build-role benchmarks may accept a fence, and earlier versi
 
 test('ADR-0110: t12-builder-v3 and t12-reviewer-v3 are their sources plus the fence marker', () => {
   for (const [from, to, role] of [
-    ['t12-builder-v1', 't12-builder-v3', 'builder'],
+    ['t12-builder-v2', 't12-builder-v3', 'builder'],
     ['t12-reviewer-v2', 't12-reviewer-v3', 'reviewer'],
   ] as const) {
     const a = bench(from);
@@ -130,6 +131,7 @@ test('ADR-0110 review 1 N-4: the frozen T12 role benchmarks and their fence copi
     Object.fromEntries(
       [
         't12-builder-v1',
+        't12-builder-v2',
         't12-builder-v3',
         't12-reviewer-v2',
         't12-reviewer-v3',
@@ -138,8 +140,11 @@ test('ADR-0110 review 1 N-4: the frozen T12 role benchmarks and their fence copi
     {
       't12-builder-v1':
         '52bf28770fa925a3d23befc448e605a92c7af65f6be2a4150c787ba5825ea85a',
+      't12-builder-v2':
+        '251df38aedb739f5f5e5c4f3f3256142d7d10f8bb561fbc26d94f8ebd6ab60f7',
+      // Re-cut from t12-builder-v2 (builder/2) after #207 merged, before any record (ADR-0110).
       't12-builder-v3':
-        '3342fac6e8b908b2512adbe7df2178a502aadb6c63afa6418ff929a8b8744032',
+        '77f056a6770b50a201c3e44a0b8e5b5fe7c6c629a851cc0d0e1beccdce1698e1',
       't12-reviewer-v2':
         'a9ecee41b38f4e54222cec6cd49b0bb0a03adf36b778b48bf19bdb3b556d7bea',
       't12-reviewer-v3':

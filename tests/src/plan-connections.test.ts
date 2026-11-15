@@ -2247,6 +2247,12 @@ test('build-role plan requests need the exact role prompt, a qualification and a
     'Model m is not qualified for patch_build (the T12 builder) under its current prompt.',
   ]);
   assert.match((await ready(human))[0]!, /human-only/);
+  // ADR-0109 review L-5: the build reads the connection's input cap at its preflight.
+  const detail = await s.store.planConnectionDetail(owner, ws.id, conn.id);
+  assert.equal(
+    await service.buildRoleInputCap(owner, ws.id, conn.id),
+    detail.connection.settings.caps.responses.max_input_chars,
+  );
   // A frozen study assignment keeps its adopted route.
   const studyRun = await entity('human_in_loop', 'human_in_loop');
   const studyId = randomUUID();
@@ -2343,7 +2349,7 @@ test('build-role plan requests need the exact role prompt, a qualification and a
   // The studio states what the one approval covers; the caller cannot word it.
   assert.equal(
     decision.options.find((o) => o.id === 'approve')!.consequence,
-    `One approval covers this whole build (builder and reviewer on the ChatGPT plan via connection "${conn.label}" (${conn.id.slice(0, 8)}) with model m): its repair rounds and builder and reviewer requests, up to 0 repair rounds and 2 requests (never more than 2 and 6).`,
+    `One approval covers this whole build (builder and reviewer on the ChatGPT plan via connection "${conn.label}" (${conn.id.slice(0, 8)}) with model m): its repair rounds and builder and reviewer requests, up to 0 repair rounds and 2 requests (never more than 5 and 20).`,
   );
   // Review M-1: a one-time approval admits only a build within the scope it showed. A build
   // with another route or more requests or repair rounds is not covered by it: it asks for
@@ -2748,6 +2754,13 @@ test('a one-time build approval goes only to a build it covers, preferring the e
       'clamped to the grant',
     );
   }
+  // ADR-0109 (B4): the raised caps (20 requests, 5 repair rounds) fit the approval records
+  // (migration 68); a build stating more is refused before anything is written.
+  const widest = await approve({ request_limit: 20, max_repairs: 5 });
+  assert.equal(widest.approval?.request_limit, 20);
+  assert.equal(widest.approval?.max_repairs, 5);
+  await assert.rejects(approve({ request_limit: 21 }));
+  await assert.rejects(approve({ max_repairs: 6 }));
   assert.equal(await status(genericGrant), 'active');
   // The matching leftover one-time approval is still taken by the build it describes.
   const broker = await approve({

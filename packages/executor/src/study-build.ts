@@ -86,6 +86,8 @@ export function studyBuildPorts(
     },
     // ADR-0054 leaves frozen study conditions as they were: one admission per round.
     perRoundAdmission: true,
+    // ADR-0109: and the builder/1 prompt and one-part answer they were frozen with.
+    legacyBuilder: true,
     authorize: async (plan) => {
       const s = await read();
       const admission = checked(

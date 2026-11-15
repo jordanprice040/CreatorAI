@@ -4,12 +4,16 @@ import { randomUUID } from 'node:crypto';
 import {
   BUILD_ROLE_PROMPTS,
   BUILD_ROLE_TASK_CLASSES,
+  LEGACY_BUILDER_PROMPT,
   frozenBrowserCases,
   frozenCases,
   taskHashes,
 } from '@creator/domain';
 import {
   z,
+  BUILD_APPROVAL_MAX_REPAIRS,
+  BUILD_APPROVAL_MAX_REQUESTS,
+  MAX_BUILD_CASES,
   SpecBodySchema,
   BrokerCallResultSchema,
   type BrokerCallRequest,
@@ -29,6 +33,7 @@ import {
   isBrowserCase,
   qaCaseSchema,
   type Binding,
+  type Changes,
   type Execution,
   type QaCase,
 } from './contracts.js';
@@ -41,6 +46,12 @@ import { ExecutionSupervisor } from './execution.js';
 import { canonical, fileAt, jsonWrite, readJson, withLock } from './files.js';
 import { git, head, clean, safeTree } from './git.js';
 import { readBuildProgress, type BuildProgress } from './build-progress.js';
+import {
+  ANSWER_RULES,
+  RoundDraft,
+  builderV2Schema,
+  type BuilderV2Answer,
+} from './builder-answer.js';
 
 export const buildPlanSchema = z.strictObject({
   format: z.literal('build-plan/1'),
@@ -49,13 +60,14 @@ export const buildPlanSchema = z.strictObject({
   pricing_snapshot_id: id,
   humility_review: z.strictObject({ id, version: z.number().int().positive() }),
   data_class: z.enum(['synthetic', 'public', 'private_approved']),
-  max_repairs: z.number().int().min(0).max(2),
-  max_calls: z.number().int().min(2).max(6),
+  // ADR-0109 (B4): owner caps, raised from 2 repair rounds and 6 requests.
+  max_repairs: z.number().int().min(0).max(BUILD_APPROVAL_MAX_REPAIRS),
+  max_calls: z.number().int().min(2).max(BUILD_APPROVAL_MAX_REQUESTS),
   // Up to 120 s only on the plan route (plan_roles); broker builds keep the 60 s bound.
   timeout_ms: z.number().int().min(100).max(120000),
   max_output_tokens: z.number().int().min(100).max(16000),
   deadline: z.iso.datetime(),
-  cases: z.array(qaCaseSchema).min(1).max(10),
+  cases: z.array(qaCaseSchema).min(1).max(MAX_BUILD_CASES),
   // ADR-0042: present means the ChatGPT-plan Codex builder on that connection; absent means
   // the broker builder, so existing plan hashes are unchanged.
   codex_plan_builder: z
@@ -68,6 +80,7 @@ export const buildPlanSchema = z.strictObject({
     .optional(),
 });
 export type BuildPlan = z.infer<typeof buildPlanSchema>;
+/** The builder/1 answer: one part, whole files. Frozen study builds keep it (ADR-0109). */
 export const builderSchema = z.strictObject({
   summary: z.string().max(2000),
   submission: changesSchema.nullable(),
@@ -110,6 +123,11 @@ export interface BuildPorts {
    * does not change a study condition.
    */
   perRoundAdmission?: boolean;
+  /**
+   * ADR-0109: frozen study builds keep the builder/1 prompt, packet and one-part answer they
+   * were frozen with. Every other build uses builder/2 (parts and edits).
+   */
+  legacyBuilder?: boolean;
   call(runId: string, request: BrokerCallRequest): Promise<BrokerCallResult>;
   /** ChatGPT-plan Codex builder (ADR-0042). Review and QA still use the paths above. */
   codexBuilder?(
@@ -150,6 +168,11 @@ export interface BuildPorts {
     run_id: string;
     data_class: BuildPlan['data_class'];
   }): Promise<string[]>;
+  /**
+   * ADR-0109 review L-5: the plan connection's per-request input cap (instructions plus input),
+   * read before the build starts; a later part that would not fit refuses its round.
+   */
+  planRoleInputCap?(target: { connection_id: string }): Promise<number>;
 }
 /** What one build approval covers (ADR-0054); the ports bind it to the product's frozen spec. */
 export interface BuildApprovalScope {
@@ -173,7 +196,11 @@ export const planRoleResultSchema = z.strictObject({
   fixture: z.boolean(),
 });
 export type PlanRoleResult = z.infer<typeof planRoleResultSchema>;
-const PROMPTS = BUILD_ROLE_PROMPTS;
+/** The role prompts a build sends: builder/2, or builder/1 for a frozen study build. */
+const promptsFor = (legacy: boolean | undefined) =>
+  legacy
+    ? { ...BUILD_ROLE_PROMPTS, builder: LEGACY_BUILDER_PROMPT }
+    : BUILD_ROLE_PROMPTS;
 /**
  * ADR-0076: the scoped patch tool's rules, sent to the builder as packet data (not in the
  * qualified role prompt) so a builder can follow them, and repeated with any refusal.
@@ -223,6 +250,11 @@ export const BROKER_ROLE_CONTEXT_MAX = 20_000;
  * maximum for that cap.
  */
 export const PLAN_ROLE_CONTEXT_MAX = 200_000;
+/**
+ * The task files a broker build may send (unchanged). ADR-0109: plan-role and Codex builds are
+ * bounded by the role packet ceiling above and, on the plan route, the connection's input cap.
+ */
+export const BROKER_FILES_MAX = 14_000;
 
 /** One QA case passed: this exact commit ran to completion with the frozen output and exit. */
 export function qaPassed(execution: Execution, commit: string, c: QaCase) {
@@ -326,6 +358,8 @@ export class BuildSupervisor {
   ): Promise<BuildOutcome> {
     const plan = checked(buildPlanSchema, raw);
     checked(sha, expected);
+    const legacy = ports.legacyBuilder === true;
+    const PROMPTS = promptsFor(legacy);
     if (plan.plan_roles && plan.codex_plan_builder)
       throw new Error(
         'A build uses the plan roles or the Codex builder, not both',
@@ -473,13 +507,22 @@ export class BuildSupervisor {
           const content = await readFile(await fileAt(tree, name), 'utf8');
           map.push({ path: name, hash: digest(content), content });
         }
-        if (Buffer.byteLength(JSON.stringify(map)) > 14000)
+        const filesMax =
+          plan.plan_roles || plan.codex_plan_builder
+            ? PLAN_ROLE_CONTEXT_MAX
+            : BROKER_FILES_MAX;
+        if (Buffer.byteLength(JSON.stringify(map)) > filesMax)
           throw new Error(
             'Task file context exceeds bounded packet; narrow task',
           );
         return map;
       };
-      const invoke = async (role: keyof typeof PROMPTS, data: unknown) => {
+      // ADR-0109: each call's intent names its round, and a builder call its part of the round.
+      const invoke = async (
+        role: keyof typeof BUILD_ROLE_PROMPTS,
+        data: unknown,
+        at: { round: number; part?: number },
+      ) => {
         await active();
         if (calls >= plan.max_calls) throw new Error('Build call cap reached');
         if (Date.parse(plan.deadline) - Date.now() < 100)
@@ -524,6 +567,7 @@ export class BuildSupervisor {
           };
           await jsonWrite(join(dir, `call-${calls}-intent.json`), {
             role,
+            ...at,
             route: 'chatgpt_plan_responses',
             target: plan.plan_roles,
             task_class: BUILD_ROLE_TASK_CLASSES[role],
@@ -561,6 +605,7 @@ export class BuildSupervisor {
         }
         await jsonWrite(join(dir, `call-${calls}-intent.json`), {
           role,
+          ...at,
           request,
           context_hash: digest(text),
         });
@@ -583,6 +628,8 @@ export class BuildSupervisor {
       let lastReview: unknown = null;
       // Candidates this build has sent to review and QA.
       const judged = new Set<string>();
+      /** The plan connection's input cap, read before the builder is sent (review L-5). */
+      let inputCap: number | null = null;
       try {
         if (plan.plan_roles) {
           // Both roles must be admissible before the grant is used or the builder is sent.
@@ -593,7 +640,13 @@ export class BuildSupervisor {
             run_id: plan.run_id,
             data_class: plan.data_class,
           });
-          await jsonWrite(join(dir, 'plan-roles-preflight.json'), { blockers });
+          inputCap = ports.planRoleInputCap
+            ? await ports.planRoleInputCap(plan.plan_roles)
+            : null;
+          await jsonWrite(join(dir, 'plan-roles-preflight.json'), {
+            blockers,
+            input_cap: inputCap,
+          });
           if (blockers.length)
             throw new Error(`Plan roles are not ready: ${blockers.join(' ')}`);
         }
@@ -613,7 +666,7 @@ export class BuildSupervisor {
           max_repairs: plan.max_repairs,
           expires_at: plan.deadline,
         };
-        for (let cycle = 0; cycle <= plan.max_repairs; cycle++) {
+        rounds: for (let cycle = 0; cycle <= plan.max_repairs; cycle++) {
           repairs = cycle;
           await active();
           // ADR-0054: one approval per build, asked before the first round. Later rounds rely
@@ -624,14 +677,6 @@ export class BuildSupervisor {
               await ports.authorize(plan, scope),
             );
           await active();
-          const builderPacket = {
-            ...packet,
-            candidate: commit,
-            files: await files(),
-            patch_rules: PATCH_RULES,
-            qa_runtime: qaRuntimeOf(recipe),
-            feedback,
-          };
           // ADR-0076: a submission the patch contract or scoped tool refuses changes nothing; the
           // reason goes back to the builder as feedback and the round counts as a repair.
           const refuse = async (reason: string, details: readonly string[]) => {
@@ -645,69 +690,179 @@ export class BuildSupervisor {
                 ? { refused_patch: refusal }
                 : { refused_patch: refusal, previous_review: lastReview };
           };
-          let answer: unknown;
-          if (plan.codex_plan_builder) {
-            if (!ports.codexBuilder)
-              throw new Error('Codex plan builder is not configured');
-            // Full audit L-11: the Codex packet gets the same runaway ceiling as plan roles,
-            // not just the API's 1 MiB body allowance.
-            const codexPacket = {
-              ...builderPacket,
-              allowed_tools: ['apply_patch in the task workspace'],
-            };
-            const codexText = JSON.stringify(codexPacket);
-            if (codexText.length > PLAN_ROLE_CONTEXT_MAX)
-              throw new Error(
-                `Codex builder context exceeds bounded packet (${codexText.length} > ${PLAN_ROLE_CONTEXT_MAX} characters)`,
-              );
-            await jsonWrite(join(dir, `codex-${cycle}-intent.json`), {
-              candidate: commit,
-              context_hash: digest(codexText),
-            });
-            answer = await ports.codexBuilder(
-              {
-                ...plan.codex_plan_builder,
-                build_id: buildId,
-                run_id: plan.run_id,
-                data_class: plan.data_class,
-              },
-              codexPacket,
-            );
-            await jsonWrite(join(dir, `codex-${cycle}-outcome.json`), answer);
+          const current = await files();
+          // ADR-0109: a builder/2 round may come in parts. Nothing is applied until its last
+          // part; a crash or a refused part leaves the candidate exactly as it was.
+          const draft = new RoundDraft(current);
+          let patch: Changes;
+          for (let part = 1; ; part++) {
             await active();
-          } else answer = await invoke('builder', builderPacket);
-          const admitted = builderSchema.safeParse(answer);
-          if (
-            !admitted.success &&
-            admitted.error.issues.every((i) => i.path[0] === 'submission')
-          ) {
-            await refuse(
-              'The submission does not satisfy the patch contract',
-              admitted.error.issues.map(
-                (i) => `${i.path.join('.')}: ${i.message}`,
-              ),
-            );
-            continue;
-          }
-          // Any other malformed answer is not a patch; it stops the build as before.
-          const built = checked(builderSchema, answer);
-          if (!built.submission)
-            throw new Error(
-              `Builder blocked: ${built.blocker ?? 'no submitted patch'}`,
-            );
-          if (built.submission.expected_commit !== commit) {
-            await refuse('Builder submitted stale commit', [
-              `submission.expected_commit must equal the candidate ${commit}`,
-            ]);
-            continue;
+            // One request always stays for this round's reviewer.
+            const further = Math.max(0, plan.max_calls - calls - 2);
+            const builderPacket = {
+              ...packet,
+              candidate: commit,
+              // Review L-2: a path an earlier part changed travels once, in round.staged.
+              files: current.filter((f) => !draft.has(f.path)),
+              patch_rules: PATCH_RULES,
+              qa_runtime: qaRuntimeOf(recipe),
+              ...(legacy
+                ? {}
+                : {
+                    answer_rules: ANSWER_RULES,
+                    round: {
+                      part,
+                      further_parts_allowed: plan.codex_plan_builder
+                        ? 0
+                        : further,
+                      staged: draft.view(),
+                    },
+                  }),
+              feedback,
+            };
+            let answer: unknown;
+            if (plan.codex_plan_builder) {
+              if (!ports.codexBuilder)
+                throw new Error('Codex plan builder is not configured');
+              // Full audit L-11: the Codex packet gets the same runaway ceiling as plan roles,
+              // not just the API's 1 MiB body allowance.
+              const codexPacket = {
+                ...builderPacket,
+                allowed_tools: ['apply_patch in the task workspace'],
+              };
+              const codexText = JSON.stringify(codexPacket);
+              if (codexText.length > PLAN_ROLE_CONTEXT_MAX)
+                throw new Error(
+                  `Codex builder context exceeds bounded packet (${codexText.length} > ${PLAN_ROLE_CONTEXT_MAX} characters)`,
+                );
+              await jsonWrite(join(dir, `codex-${cycle}-intent.json`), {
+                candidate: commit,
+                context_hash: digest(codexText),
+              });
+              answer = await ports.codexBuilder(
+                {
+                  ...plan.codex_plan_builder,
+                  build_id: buildId,
+                  run_id: plan.run_id,
+                  data_class: plan.data_class,
+                },
+                codexPacket,
+              );
+              await jsonWrite(join(dir, `codex-${cycle}-outcome.json`), answer);
+              await active();
+            } else {
+              // Review L-2: a later part whose packet no longer fits the role-packet bound is
+              // the round's size, not a fault: the round is refused with advice and nothing
+              // from it is applied. (A first part that does not fit stops the build as before:
+              // the task's own files are too large.) Review L-5: on the plan route the
+              // connection's input cap, which counts the builder prompt too, binds when smaller.
+              const ceiling = plan.plan_roles
+                ? PLAN_ROLE_CONTEXT_MAX
+                : BROKER_ROLE_CONTEXT_MAX;
+              const room =
+                inputCap === null
+                  ? ceiling
+                  : Math.min(ceiling, inputCap - PROMPTS.builder.length);
+              const size = JSON.stringify(builderPacket).length;
+              if (part > 1 && size > room) {
+                await refuse(
+                  room < ceiling
+                    ? `Part ${part} of this round would send ${size} characters, more than the connection's input limit leaves after the builder prompt (${room} of ${inputCap}), so none of the round was applied`
+                    : `Part ${part} of this round would send ${size} characters, more than a request may carry (${room}), so none of the round was applied`,
+                  [
+                    'Change fewer or smaller files per round, use edits instead of whole files, or finish in fewer parts.',
+                  ],
+                );
+                continue rounds;
+              }
+              answer = await invoke('builder', builderPacket, {
+                round: cycle,
+                part,
+              });
+            }
+            const admitted = (
+              legacy ? builderSchema : builderV2Schema
+            ).safeParse(answer);
+            if (
+              !admitted.success &&
+              admitted.error.issues.every((i) => i.path[0] === 'submission')
+            ) {
+              await refuse(
+                'The submission does not satisfy the patch contract',
+                admitted.error.issues.map(
+                  (i) => `${i.path.join('.')}: ${i.message}`,
+                ),
+              );
+              continue rounds;
+            }
+            // Any other malformed answer is not a patch; it stops the build as before.
+            // A builder/1 answer is a one-part builder/2 answer without edits.
+            const built: BuilderV2Answer = legacy
+              ? checked(builderSchema, answer)
+              : checked(builderV2Schema, answer);
+            if (!built.submission)
+              throw new Error(
+                `Builder blocked: ${built.blocker ?? 'no submitted patch'}`,
+              );
+            if (built.submission.expected_commit !== commit) {
+              await refuse('Builder submitted stale commit', [
+                `submission.expected_commit must equal the candidate ${commit}`,
+              ]);
+              continue rounds;
+            }
+            try {
+              draft.add(built.submission.changes);
+            } catch (e) {
+              if (!(e instanceof PatchRefusedError)) throw e;
+              await refuse(
+                part > 1
+                  ? `Part ${part} of this round was refused, so none of the round was applied: ${e.message}`
+                  : e.message,
+                [],
+              );
+              continue rounds;
+            }
+            const complete =
+              !('complete' in built.submission) ||
+              built.submission.complete !== false;
+            await jsonWrite(join(dir, `part-${cycle}-${part}.json`), {
+              part,
+              complete,
+              changes: built.submission.changes.map((c) => ({
+                path: c.path,
+                before_hash: c.before_hash,
+                ...('edits' in c
+                  ? { edits: c.edits.length }
+                  : {
+                      after_hash: c.content === null ? null : digest(c.content),
+                    }),
+              })),
+            });
+            if (complete) {
+              patch = { expected_commit: commit, changes: draft.changes() };
+              break;
+            }
+            if (plan.codex_plan_builder || further <= 0) {
+              await refuse(
+                plan.codex_plan_builder
+                  ? 'The Codex builder answers a round in one part; complete false is refused'
+                  : 'The builder asked for another part, but no request is left for one this round, so none of the round was applied',
+                [
+                  'Send the whole change in one answer when round.further_parts_allowed is 0, using edits to keep it short.',
+                ],
+              );
+              continue rounds;
+            }
           }
           await active();
           let submitted: { commit: string; changed_files: string[] };
           try {
+            // A round whose parts change nothing is the empty patch the tool refuses.
+            if (!patch.changes.length) throw new NoChangePatchError();
             submitted = await this.products.apply(
               product,
               taskId,
-              built.submission,
+              patch,
               p.binding,
             );
           } catch (e) {
@@ -738,18 +893,22 @@ export class BuildSupervisor {
           // Deliberately excludes builder summaries, prior reviews and QA results.
           const review = checked(
             reviewSchema,
-            await invoke('reviewer', {
-              ...packet,
-              candidate: commit,
-              files: await files(),
-              diff: await git(tree, [
-                'diff',
-                '--no-ext-diff',
-                '--no-textconv',
-                `${task.base_commit}..${commit}`,
-                '--',
-              ]),
-            }),
+            await invoke(
+              'reviewer',
+              {
+                ...packet,
+                candidate: commit,
+                files: await files(),
+                diff: await git(tree, [
+                  'diff',
+                  '--no-ext-diff',
+                  '--no-textconv',
+                  `${task.base_commit}..${commit}`,
+                  '--',
+                ]),
+              },
+              { round: cycle },
+            ),
           );
           if (
             review.candidate !== commit ||

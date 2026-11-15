@@ -50,7 +50,7 @@ Jordan's decision H: qualify the Claude route as builder and reviewer.
 | H3. Web page benchmark `p15-small-signup-v5`, 3 builds                   | Models › Qualify building           | 6 / 24                    |
 | H4. Larger Python benchmark `p14-larger-ledgercheck-v5`, 3 builds        | same                                | 6 / 36                    |
 
-Update November 15 (ADR-0110): H1 ran and failed `t12-builder-v1` 1 of 3 held out (record `7c054251`) because two answers were wrapped in a code fence. A rerun uses `t12-builder-v3` and `t12-reviewer-v3`, which accept exactly one fence around the answer, and needs Jordan's fresh typed OK.
+Update November 15 (ADR-0110): H1 ran and failed `t12-builder-v1` 1 of 3 held out (record `7c054251`) because two answers were wrapped in a code fence. A rerun uses `t12-builder-v3` (builder/2, same cases as `t12-builder-v2`) and `t12-reviewer-v3`, which accept exactly one fence around the answer, and needs Jordan's fresh typed OK. Packet A's builder step is now `t12-builder-v2` or v3 too, since builder/1 no longer admits.
 
 About 20 Claude plan requests typical, at most 68. They count against the Claude subscription's own
 limits; with extra usage off nothing is billed. Only the owner's own signed-in `claude -p` on the
