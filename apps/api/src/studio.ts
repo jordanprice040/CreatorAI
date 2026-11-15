@@ -18,6 +18,7 @@ import {
   migrate,
   migrations,
   restoreBackup,
+  takeStudioLock,
 } from '@creator/db';
 import { APP_PORTS, APP_PORT_ENV } from '@creator/domain';
 import { createApi } from './index.js';
@@ -577,6 +578,15 @@ export async function serveStudio(
       'The installed UI is missing; reinstall the app.',
     );
   });
+  // ADR-0108: one studio per database (review 1 M-1), e.g. a dev studio pointed at it.
+  const taken = await takeStudioLock(
+    input.database_url,
+    `desktop app, web port ${PORTS.web}, process ${process.pid}`,
+  );
+  if (!taken.held) {
+    emit({ event: 'error', code: 'STUDIO_RUNNING', message: taken.message });
+    return 7;
+  }
   const env: Record<string, string> = {
     CREATOR_DATABASE_URL: input.database_url,
     CREATOR_PRODUCTS_ROOT: input.products_root,
@@ -615,6 +625,7 @@ export async function serveStudio(
       web.listening ? web.close(() => r()) : r(),
     );
     await api.close();
+    await taken.lock.release();
   };
   try {
     await listen(api.server, PORTS.api);

@@ -20,17 +20,24 @@ Open [the app](http://127.0.0.1:5273). The API is on
 [port 4410](http://127.0.0.1:4410/api/health); private previews use 4420.
 All bind to loopback. These development ports differ from the installed desktop
 app's 5173/4310/4320 (ADR-0108), so a dev studio and the installed app can run
-side by side.
+side by side. In one browser they share a sign-in slot: the session cookie is
+kept per host (127.0.0.1), not per port, so signing in to one studio there signs
+you out of the other (no access crosses between their databases). The installed
+app's window has its own browser profile and is not affected. Two studios on the
+same database are refused, whatever their ports.
 
 If another program holds one of the default development ports, `pnpm dev` names
 it (for example `Port 4410 is already in use by node.exe (process 1234).`) and
 moves that piece to the next free port for this run, printing the new address.
 It never moves when you set the port yourself (`CREATOR_WEB_PORT`,
 `CREATOR_API_PORT`, `CREATOR_PREVIEW_PORT`), with OIDC sign-in (its redirect
-address is fixed), or with `CREATOR_PORT_FALLBACK=off`. If another Creator Agent
+address is fixed), or with `CREATOR_PORT_FALLBACK=off` (also `false`, `0` or `no`). If another Creator Agent
 studio already answers there, it stops instead of starting a second studio on the
 same database. Browser settings saved for one address do not carry over to
-another, and `pnpm cli` needs `CREATOR_API_URL` when the API moved. `pnpm dev:api`
+another, and `pnpm cli` needs `CREATOR_API_URL` when the API moved (the printed
+login command includes it). With a database configured, `pnpm dev` refuses to
+start while another studio uses that database, and stops if the database cannot
+be reached. `pnpm dev:api`
 on its own never moves (`dev:web` would not follow); it names the holder. Ctrl+C stops development processes. Web edits hot reload;
 restart after backend/contracts changes. No Docker, Temporal or provider key is
 needed for the stateless fixture demo. That demo saves nothing.

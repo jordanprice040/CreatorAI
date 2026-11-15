@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { createServer } from 'node:net';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { RESERVED_PORTS, defaultPorts } from '@creator/domain';
 
@@ -9,6 +10,9 @@ import { RESERVED_PORTS, defaultPorts } from '@creator/domain';
  */
 const run = promisify(execFile);
 const LOOKUP_MS = 3000;
+/** Windows tools by absolute path, as elsewhere in the studio, never by search path. */
+const system32 = (name: string) =>
+  join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', name);
 
 export type PortHolder = { pid: number; name: string | null };
 
@@ -51,16 +55,19 @@ export async function portHolder(port: number): Promise<PortHolder | null> {
   const opts = { timeout: LOOKUP_MS, windowsHide: true } as const;
   try {
     if (process.platform === 'win32') {
-      const { stdout } = await run('netstat', ['-ano', '-p', 'TCP'], opts);
-      const { stdout: v6 } = await run(
-        'netstat',
-        ['-ano', '-p', 'TCPv6'],
-        opts,
-      ).catch(() => ({ stdout: '' }));
-      const pid = pidFromNetstat(`${stdout}\n${v6}`, port);
+      // At most two lookups of up to 3 s each (the two netstat calls run together), so a
+      // PORT_IN_USE report waits no more than about 6 s, well inside the shell's wait.
+      const netstat = system32('netstat.exe');
+      const [v4, v6] = await Promise.all([
+        run(netstat, ['-ano', '-p', 'TCP'], opts),
+        run(netstat, ['-ano', '-p', 'TCPv6'], opts).catch(() => ({
+          stdout: '',
+        })),
+      ]);
+      const pid = pidFromNetstat(`${v4.stdout}\n${v6.stdout}`, port);
       if (pid === null) return null;
       const { stdout: tasks } = await run(
-        'tasklist',
+        system32('tasklist.exe'),
         ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'],
         opts,
       ).catch(() => ({ stdout: '' }));
@@ -127,7 +134,7 @@ const VARS: Record<Role, string> = {
 };
 const LABEL: Record<Role, string> = {
   api: 'API',
-  preview: 'private previews',
+  preview: 'private preview origin',
   web: 'web app',
 };
 /** How far past its default a development port may move. */
@@ -169,10 +176,14 @@ export async function planDevPorts(
   const defaults = defaultPorts(env);
   const oidc =
     env.CREATOR_AUTH_MODE === 'oidc' || env.CREATOR_OIDC_ISSUER !== undefined;
+  const setting = (env.CREATOR_PORT_FALLBACK ?? 'on').trim().toLowerCase();
+  if (!['on', 'off', 'true', 'false', '1', '0', 'yes', 'no'].includes(setting))
+    throw new PortPlanError(
+      'CREATOR_PORT_FALLBACK must be on or off (or true/false, 1/0, yes/no).',
+    );
+  const fallbackOff = ['off', 'false', '0', 'no'].includes(setting);
   const fallback =
-    !oidc &&
-    env.CREATOR_PORT_FALLBACK !== 'off' &&
-    env.CREATOR_DEPLOYMENT_MODE !== 'hosted';
+    !oidc && !fallbackOff && env.CREATOR_DEPLOYMENT_MODE !== 'hosted';
   const chosen = new Map<Role, number>();
   const busy: { role: Role; port: number }[] = [];
   for (const role of ['api', 'preview', 'web'] as const) {
@@ -196,7 +207,7 @@ export async function planDevPorts(
         ? `${VARS[role]} asks for it`
         : oidc
           ? 'OIDC sign-in redirects to a fixed address'
-          : 'CREATOR_PORT_FALLBACK=off';
+          : `CREATOR_PORT_FALLBACK=${env.CREATOR_PORT_FALLBACK}`;
       throw new PortPlanError(
         `${portInUseText(port, await probe.holder(port))} The ${LABEL[role]} cannot move because ${why}. Close that program, or set ${VARS[role]} to a free port.`,
       );

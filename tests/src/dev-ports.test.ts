@@ -90,7 +90,27 @@ test('an explicit port, OIDC sign-in or the off switch keeps the port and names 
   );
   await assert.rejects(
     planDevPorts({ CREATOR_PORT_FALLBACK: 'off' }, probe([4420])),
-    refused(/private previews cannot move because CREATOR_PORT_FALLBACK=off/),
+    refused(
+      /private preview origin cannot move because CREATOR_PORT_FALLBACK=off/,
+    ),
+  );
+});
+
+test('the off switch takes the usual spellings and refuses anything else', async () => {
+  for (const off of ['OFF', 'false', '0', 'no', ' Off '])
+    await assert.rejects(
+      planDevPorts({ CREATOR_PORT_FALLBACK: off }, probe([4410])),
+      refused(/cannot move because CREATOR_PORT_FALLBACK=/),
+    );
+  for (const on of ['on', 'TRUE', '1', 'yes'])
+    assert.equal(
+      (await planDevPorts({ CREATOR_PORT_FALLBACK: on }, probe([4410]))).env
+        .CREATOR_API_PORT,
+      '4411',
+    );
+  await assert.rejects(
+    planDevPorts({ CREATOR_PORT_FALLBACK: 'maybe' }, probe([])),
+    refused(/CREATOR_PORT_FALLBACK must be on or off/),
   );
 });
 
@@ -148,4 +168,40 @@ test('a real listener is busy and, where the system can tell, held by this proce
   const holder = await portHolder(port);
   if (holder) assert.equal(holder.pid, process.pid);
   else t.diagnostic('no lsof/netstat here: the holder is "another program"');
+});
+
+test('a paired worker sends the owner to the web app in front of its API', async () => {
+  const { approvalOrigin } = (await import(
+    new URL('../../apps/desktop/worker.mjs', import.meta.url).href
+  )) as {
+    approvalOrigin(api: string, hosted: boolean, web?: string): string;
+  };
+  assert.equal(
+    approvalOrigin('http://127.0.0.1:4310', false),
+    'http://127.0.0.1:5173',
+  );
+  assert.equal(
+    approvalOrigin('http://127.0.0.1:4410', false),
+    'http://127.0.0.1:5273',
+  );
+  // A moved dev API answers the approval page itself, unless its web app is named.
+  assert.equal(
+    approvalOrigin('http://127.0.0.1:4411', false),
+    'http://127.0.0.1:4411',
+  );
+  assert.equal(
+    approvalOrigin('http://127.0.0.1:4411', false, 'http://127.0.0.1:5274/x'),
+    'http://127.0.0.1:5274',
+  );
+  assert.throws(() =>
+    approvalOrigin('http://127.0.0.1:4410', false, 'http://example.org'),
+  );
+  assert.equal(
+    approvalOrigin(
+      'https://api.example.org',
+      true,
+      'https://studio.example.org',
+    ),
+    'https://studio.example.org',
+  );
 });

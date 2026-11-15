@@ -44,3 +44,4 @@ export type {
   NextRecipeAttempt,
   RecipeRoom,
 } from './recipe-qualification-store.js';
+export * from './studio-lock.js';

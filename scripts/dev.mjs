@@ -6,6 +6,8 @@ import {
   portHolder,
   portInUseText,
 } from '../apps/api/dist/ports.js';
+import { databaseUrl, takeStudioLock } from '../packages/db/dist/index.js';
+import { DEV_PORTS } from '../packages/domain/dist/index.js';
 import { requireSupportedNode } from './runtime.mjs';
 import { inferenceNotice } from './dev-status.mjs';
 
@@ -26,8 +28,39 @@ Object.assign(process.env, ports.env);
 for (const line of ports.moved) console.warn(line);
 if (ports.moved.length)
   console.warn(
-    'Browser settings saved for the usual address do not carry over to a moved web port. `pnpm cli` needs CREATOR_API_URL when the API moved.',
+    'Browser settings saved for the usual address do not carry over to a moved web port.',
   );
+
+// ADR-0108: one studio per database, whatever ports it uses (review 1 M-1). Held until exit.
+let studioLock = null;
+const dbUrl = databaseUrl(process.env.CREATOR_DATABASE_URL);
+if (dbUrl) {
+  const taken = await takeStudioLock(
+    dbUrl,
+    `pnpm dev, web port ${ports.env.CREATOR_WEB_PORT}, process ${process.pid}`,
+  ).catch((e) => ({
+    held: false,
+    message: `Could not reach the database to check that no other studio uses it (${e.message}). Start the database, then run this again.`,
+  }));
+  if (!taken.held) {
+    console.error(taken.message);
+    process.exit(1);
+  }
+  studioLock = taken.lock;
+}
+const release = async () => {
+  await studioLock?.release();
+  studioLock = null;
+};
+
+/** The CLI defaults to the dev API port; name any other one (review 1 N-1). */
+function cliPrefix(apiPort) {
+  if (apiPort === DEV_PORTS.api) return '';
+  const url = `http://127.0.0.1:${apiPort}`;
+  return process.platform === 'win32'
+    ? `$env:CREATOR_API_URL='${url}'; `
+    : `CREATOR_API_URL=${url} `;
+}
 
 const {
   server: api,
@@ -74,7 +107,7 @@ try {
     authMode === 'oidc'
       ? 'Sign-in: OIDC (open the web page and choose Sign in).'
       : loginCode
-        ? `Sign-in (local development, this run only): http://${config.host}:${config.web_port}/#login=${loginCode}\n  or: pnpm cli login ${loginCode}`
+        ? `Sign-in (local development, this run only): http://${config.host}:${config.web_port}/#login=${loginCode}\n  or: ${cliPrefix(config.api_port)}pnpm cli login ${loginCode}`
         : 'Sign-in: development code from CREATOR_DEV_LOGIN_CODE.',
   );
 } catch (error) {
@@ -86,10 +119,12 @@ try {
   );
   await close();
   await web?.close();
+  await release();
   process.exitCode = 1;
 }
 for (const signal of ['SIGINT', 'SIGTERM'])
   process.on(signal, async () => {
     await close();
     await web?.close();
+    await release();
   });

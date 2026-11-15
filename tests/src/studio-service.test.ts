@@ -15,7 +15,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import pg from 'pg';
-import { migrationChecksum, migrations } from '@creator/db';
+import { migrationChecksum, migrations, takeStudioLock } from '@creator/db';
 import {
   guardOwnership,
   inspectDatabase,
@@ -424,6 +424,22 @@ test('an occupied port is reported, never shared, and nothing else starts servin
   assert.equal(await s.exit, 5);
   await assert.rejects(get(4310, '/api/health'));
   assert.equal((await get(5173, '/')).body, 'not the studio');
+});
+
+test('a database another studio holds is refused before any port is taken (ADR-0108)', async (t) => {
+  const fresh = await freshDatabase(t);
+  if (!fresh) return;
+  const dir = await home();
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const other = await takeStudioLock(fresh.url, 'pnpm dev, web port 5273');
+  assert.ok(other.held);
+  t.after(() => (other.held ? other.lock.release() : undefined));
+  const s = studio('serve', input(fresh.url, dir));
+  const e = await s.next('error', 60000);
+  assert.equal(e.code, 'STUDIO_RUNNING');
+  assert.match(String(e.message), /\(pnpm dev, web port 5273\)/);
+  assert.equal(await s.exit, 7);
+  await assert.rejects(get(4310, '/api/health'));
 });
 
 test('unreachable database is an actionable error, not a crash loop', async () => {
