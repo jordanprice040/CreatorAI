@@ -4,7 +4,7 @@
 
 What now works: `config/recipe-benchmarks/p14-xl-v1` is written and frozen. It is a stock and order simulator CLI, a package of 11 named modules (the reference is 13 Python files, about 600 lines). It has 25 studio cases (11 held out), 28 extended held-out cases and a package structure rule. The studio loads it with its own limits: 20 requests, 3 repair rounds, a 2-hour attempt and an input floor of 120,000 characters. Qualify building offers it beside the v5 benchmarks. A pass lifts no label (ADR-0112 is unchanged).
 
-CHECKS_PLACEHOLDER
+Checked in the cloud container on a throwaway PostgreSQL 16 database: `pnpm typecheck` and `pnpm format:check` pass. Full `pnpm test:db` at 172e2a9: 1369 tests, 1335 pass, 29 skipped, and only the 5 known PowerShell-wrapper failures. New `tests/src/p14-xl.test.ts` checks the freeze and limits, runs the reference against all 53 cases, checks that each of the 22 known-failure edits is caught by the cases listed for it, and covers the structure bar and that no label is lifted. GitHub Actions jobs were refused for billing.
 
 Not done: no live run (3 attempts, up to 120 plan requests, needs Jordan's typed OK, an input cap of at least 120,000, and room under the daily and per-run caps), and no review yet.
 
