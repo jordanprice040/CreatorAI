@@ -18,6 +18,7 @@ import {
   ContractError,
 } from '@creator/contracts';
 import {
+  APP_PORT_ENV,
   fixtureAssignment,
   fixtureId,
   canonicalHash,
@@ -342,6 +343,23 @@ test('result success cannot replace missing evidence or unknown usage with fixtu
 });
 test('service configuration rejects unknown modes/live/invalid ports and binds loopback locally', () => {
   assert.equal(serviceConfig({}).host, '127.0.0.1');
+  // ADR-0108: a local run defaults to the dev range; the installed app pins its own ports and
+  // a hosted deployment keeps them.
+  const local = serviceConfig({});
+  assert.deepEqual(
+    [local.web_port, local.api_port, local.preview_port],
+    [5273, 4410, 4420],
+  );
+  const pinned = serviceConfig({ ...APP_PORT_ENV });
+  assert.deepEqual(
+    [pinned.web_port, pinned.api_port, pinned.preview_port],
+    [5173, 4310, 4320],
+  );
+  const hosted = serviceConfig({
+    CREATOR_DEPLOYMENT_MODE: 'hosted',
+    CREATOR_LISTEN_HOST: '0.0.0.0',
+  });
+  assert.deepEqual([hosted.api_port, hosted.preview_port], [4310, 4320]);
   // X06: hosted is an explicit mode; its own checks live in deploymentConfig.
   assert.equal(
     serviceConfig({
@@ -358,7 +376,12 @@ test('service configuration rejects unknown modes/live/invalid ports and binds l
     { CREATOR_LIVE_ENABLED: 'true' },
     { CREATOR_API_PORT: 'NaN' },
     { CREATOR_API_PORT: '65536' },
-    { CREATOR_API_PORT: '5173' },
+    { CREATOR_API_PORT: '5273' },
+    {
+      CREATOR_DEPLOYMENT_MODE: 'hosted',
+      CREATOR_LISTEN_HOST: '0.0.0.0',
+      CREATOR_API_PORT: '5173',
+    },
   ])
     assert.throws(
       () => serviceConfig(env),

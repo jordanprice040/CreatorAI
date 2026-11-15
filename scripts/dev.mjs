@@ -1,9 +1,33 @@
 import { createServer } from 'vite';
 import { createApi } from '../apps/api/dist/index.js';
+import {
+  PortPlanError,
+  planDevPorts,
+  portHolder,
+  portInUseText,
+} from '../apps/api/dist/ports.js';
 import { requireSupportedNode } from './runtime.mjs';
 import { inferenceNotice } from './dev-status.mjs';
 
 requireSupportedNode();
+
+// ADR-0108: choose every port before anything starts, so the API, previews, the web app and
+// its /api proxy agree. A default port an unrelated program holds moves; another studio,
+// an explicit port or OIDC sign-in stops here with the holder named instead.
+let ports;
+try {
+  ports = await planDevPorts(process.env);
+} catch (error) {
+  if (!(error instanceof PortPlanError)) throw error;
+  console.error(error.message);
+  process.exit(1);
+}
+Object.assign(process.env, ports.env);
+for (const line of ports.moved) console.warn(line);
+if (ports.moved.length)
+  console.warn(
+    'Browser settings saved for the usual address do not carry over to a moved web port. `pnpm cli` needs CREATOR_API_URL when the API moved.',
+  );
 
 const {
   server: api,
@@ -54,7 +78,12 @@ try {
         : 'Sign-in: development code from CREATOR_DEV_LOGIN_CODE.',
   );
 } catch (error) {
-  console.error(error.message);
+  // A port can still be taken between the check and the listen.
+  console.error(
+    error.code === 'EADDRINUSE' && error.port
+      ? portInUseText(error.port, await portHolder(error.port))
+      : error.message,
+  );
   await close();
   await web?.close();
   process.exitCode = 1;

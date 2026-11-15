@@ -295,6 +295,13 @@ test('installed studio: new studio, serve, sign in, record survives quit and rel
 
   const first = studio('serve', base);
   await first.next('ready', 60000);
+  // ADR-0108: the API itself accepts the window's origin on the app's fixed ports, not the
+  // dev defaults a plain local run would use.
+  assert.equal(
+    (await get(4310, '/api/health', { Origin: 'http://127.0.0.1:5173' }))
+      .status,
+    200,
+  );
   for (const port of [5173, 4310, 4320]) {
     const nonce = randomBytes(32).toString('hex');
     const r = await get(port, '/__creator/ownership', {
@@ -405,6 +412,15 @@ test('an occupied port is reported, never shared, and nothing else starts servin
   const e = await s.next('error', 60000);
   assert.equal(e.code, 'PORT_IN_USE');
   assert.equal(e.port, 5173);
+  // ADR-0108: the message names the holder (this test process) where the system can tell.
+  const said = String(e.message);
+  if (!said.endsWith('in use by another program.'))
+    assert.match(
+      said,
+      new RegExp(
+        `^Port 5173 is already in use by .*process ${process.pid}\\)?\\.$`,
+      ),
+    );
   assert.equal(await s.exit, 5);
   await assert.rejects(get(4310, '/api/health'));
   assert.equal((await get(5173, '/')).body, 'not the studio');

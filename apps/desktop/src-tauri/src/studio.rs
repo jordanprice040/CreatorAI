@@ -592,7 +592,7 @@ impl Supervisor {
                     let (title, hint) = match code {
                         "PORT_IN_USE" => (
                             "A studio port is in use",
-                            format!("{message} Close the other Creator Agent or development studio (ports 5173, 4310 and 4320), then choose Retry."),
+                            format!("{message} Creator Agent always uses ports 5173, 4310 and 4320. Close that program (or another copy of Creator Agent, or a development studio started before it moved to 5273, 4410 and 4420), then choose Retry."),
                         ),
                         "DATABASE_UNAVAILABLE" if external => {
                             retry_db = true;

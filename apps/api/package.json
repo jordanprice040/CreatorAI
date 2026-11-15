@@ -11,6 +11,10 @@
     "./studio": {
       "types": "./dist/studio.d.ts",
       "default": "./dist/studio.js"
+    },
+    "./ports": {
+      "types": "./dist/ports.d.ts",
+      "default": "./dist/ports.js"
     }
   },
   "dependencies": {
