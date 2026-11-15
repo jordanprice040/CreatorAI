@@ -277,6 +277,22 @@ const clipWords = (s: string, n: number) => {
   return `${(space > n * 0.6 ? cut.slice(0, space) : cut).trimEnd()}…`;
 };
 
+/**
+ * Live rerun 3 (November 15): sensitivity scenarios are named by criterion key ("without
+ * evidence_support"); a note says them in words ("evidence support is left out").
+ */
+export function scenarioWords(scenarios: readonly { name: string }[]): string {
+  const said = scenarios.slice(0, 4).map(({ name }) => {
+    const m = /^(without|double) (.+)$/.exec(name);
+    if (!m) return name.replaceAll('_', ' ');
+    const what = m[2]!.replaceAll('_', ' ');
+    return m[1] === 'without' ? `${what} is left out` : `${what} counts double`;
+  });
+  return said.length > 1
+    ? `${said.slice(0, -1).join(', ')} or ${said.at(-1)}`
+    : (said[0] ?? '');
+}
+
 /** How a choice reads after "cannot be …". */
 const DISPOSITION_PASSIVE: Partial<Record<string, string>> = {
   select_for_build: 'selected for build',
@@ -440,22 +456,14 @@ export function autopilotChoice(
       outcome: 'needs_person',
       kind: 'close_ranking',
       reason: clip(
-        `“${leader.alternative.title}” ranks first, but not when the weights change (${unstable
-          .slice(0, 4)
-          .map((s) => s.name)
-          .join(
-            ', ',
-          )}). A close ranking is a judgment for a person: choose under Decide and continue, and the autopilot goes on with your choice.`,
+        `“${leader.alternative.title}” ranks first, but not when the weights change (${scenarioWords(unstable)}). A close ranking is a judgment for a person: choose under Decide and continue, and the autopilot goes on with your choice.`,
       ),
     };
   if (unstable.length)
     fallbacks.push({
       setting: 'keep_close_leader',
       instead_of: 'close_ranking',
-      note: `Kept the leader under the owner's weights although the leader changes under ${unstable
-        .slice(0, 4)
-        .map((s) => s.name)
-        .join(', ')}.`,
+      note: `Kept the leader under the owner's weights, although another option leads when ${scenarioWords(unstable)}.`,
     });
   // Why an option cannot be advanced now, or null when it can.
   const why = (

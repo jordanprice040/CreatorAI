@@ -40,6 +40,7 @@ import {
   DISCOVERY_SCENARIOS,
   autopilotChildLimits,
   autopilotChoice,
+  scenarioWords,
   autopilotProblem,
   checkSelection,
   notAdmitted,
@@ -397,7 +398,7 @@ test('the choice rule advances only a clear, stable, unblocked first place; ever
   assert.ok(
     !unstable.ok &&
       unstable.outcome === 'needs_person' &&
-      /double cost/.test(unstable.reason),
+      /cost counts double/.test(unstable.reason),
   );
   const unscored = autopilotChoice(report([cand('a', 'use_existing', null)]));
   assert.ok(
@@ -3788,4 +3789,18 @@ test('live rerun 3: gathering counts the unknown ratings it asked about', () => 
   ];
   assert.equal(unknownCount('unknown_ratings', rows), 3);
   assert.equal(unknownCount('gate_blocked', rows), null);
+});
+
+test('live rerun 3: weight scenarios read in words, not criterion keys', () => {
+  assert.equal(
+    scenarioWords([{ name: 'without evidence_support' }]),
+    'evidence support is left out',
+  );
+  assert.equal(
+    scenarioWords([
+      { name: 'without evidence_support' },
+      { name: 'double maintenance_burden' },
+    ]),
+    'evidence support is left out or maintenance burden counts double',
+  );
 });

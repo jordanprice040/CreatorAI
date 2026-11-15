@@ -14,7 +14,7 @@ These fix the findings in `/mnt/project-files/reviews/LIVE_AUTOPILOT_RERUN_205_2
 Checked in the cloud container on a throwaway PostgreSQL 16 database:
 - `pnpm typecheck` and `pnpm format:check`.
 - `autopilot.test.ts` and `web-discovery.test.ts`: 79/79 pass.
-- Full `pnpm test:db`: RESULT3.
+- Full `pnpm test:db` on 74e2ed5: 1324 tests, 1290 pass, 29 skipped, the 5 known PowerShell-wrapper failures. Weight-scenario notes now read in words ("evidence support is left out", `scenarioWords`), after the continued run's choose note showed "changes under without evidence_support". The continued run (Jordan's typed OK) then finished autopilot e8b36bd9 with a proposal: "Human-led handoff diagnosis before selecting an intervention" (recommend alternative), 28 calls for 28 plan requests, $0 new spend.
 
 Not covered end to end: the retry check against a plan connection whose usage is exhausted, and the stalled-gather rule. Both are tested through their pure helpers only.
 
