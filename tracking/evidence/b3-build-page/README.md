@@ -134,11 +134,10 @@ decision D that is the result; nothing was re-run. 6 plan requests in total (0 â
 | 3       | verified; 2 requests, 0 repairs, 46 s; 4/4 + 6/6 | src/main.py, 65 lines | 10/10, 22/22; 0.029 s, 11.7 MB          |
 
 Reviewer approved each with no findings; `compare-spec` passed for each; no patch was refused.
-**Reported, not yet recorded in this repository:** the figures above come from the session on
-Jordan's PC. Its records (`tracking/evidence/p14-benchmarks/RESULTS_REPAIR_V1_2026-11-14.json`,
-two screenshots and the Windows notes under `live/`) are a local commit on Jordan's PC
-(branch `claude/project-thread-48x3x8`, `0616a077`, in `C:\dev\creator_agent_main`), waiting for
-his OK to push; full per-attempt files stay under `.creator\p14-benchmarks\repair-v1\`.
+Records (written on Jordan's PC, commit `0616a077`, pushed with his typed OK on November 15):
+`tracking/evidence/p14-benchmarks/RESULTS_REPAIR_V1_2026-11-14.json`, and under `live/` two
+screenshots and `WINDOWS_EXPORT_START_2026-11-15.md`. Full per-attempt files stay on his PC under
+`.creator\p14-benchmarks\repair-v1\`.
 
 Seen on the live Build page: the verified view read as intended ("4 you can seeâ€¦ 6 hidden", the
 approval's coverage, "2 model requests of 6 used", the archive name in the run steps). Not seen
