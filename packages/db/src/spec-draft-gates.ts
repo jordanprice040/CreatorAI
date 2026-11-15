@@ -71,6 +71,31 @@ export const toSpecDraft = (r: Row): SpecDraft => {
   };
 };
 
+/** spec-cases-v1's pass bar, set by the server (review 2 of PR #206, L-1): all 5 held out. */
+export const SPEC_CASES_MIN_HELD_OUT = 5;
+export const SPEC_CASES_FLOOR = { numerator: 1, denominator: 1 } as const;
+
+/**
+ * A qualification start's pass bar, with spec-cases-v1's fixed by the server whatever the
+ * request said; other benchmarks keep theirs.
+ */
+export function specCasesBar<
+  T extends {
+    manifest: unknown;
+    min_held_out_cases: number;
+    floor: { numerator: number; denominator: number };
+  },
+>(req: T): T {
+  const expected = specCasesManifestHash();
+  return expected && canonicalHash(req.manifest) === expected
+    ? {
+        ...req,
+        min_held_out_cases: SPEC_CASES_MIN_HELD_OUT,
+        floor: { ...SPEC_CASES_FLOOR },
+      }
+    : req;
+}
+
 let bundled: string | null | undefined;
 /**
  * The hash of the bundled spec-cases-v1 file, read once per process (the file is frozen); null
@@ -106,11 +131,19 @@ export function currentForSpecDraftRole(r: Row): boolean {
     cases?: { input?: { role: string; text: string }[]; check?: unknown }[];
   };
   const expected = specCasesManifestHash();
+  // Review 2 of PR #206, L-1: the pass bar is the row's, not the manifest's, so it must be the
+  // one the server sets for spec-cases-v1 (every held-out program, all five of them). Only the
+  // bar is checked, never the results: a failed run under this bar still counts as the newest.
+  const floor = r.floor as { numerator?: unknown; denominator?: unknown };
   if (
     !expected ||
     r.manifest_hash !== expected ||
     !manifest?.cases?.length ||
-    canonicalHash(manifest) !== expected
+    canonicalHash(manifest) !== expected ||
+    !(Number(r.min_held_out_cases) >= SPEC_CASES_MIN_HELD_OUT) ||
+    !floor ||
+    Number(floor.numerator) !== Number(floor.denominator) ||
+    !(Number(floor.denominator) >= 1)
   )
     return false;
   return manifest.cases.every((item) => {

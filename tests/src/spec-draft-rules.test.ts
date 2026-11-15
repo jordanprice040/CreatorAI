@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import ts from 'typescript';
 import {
   BenchmarkManifestSchema,
@@ -29,7 +30,7 @@ import {
   gradeSpecCases,
   canonicalHash,
 } from '@creator/domain';
-import { currentForSpecDraftRole } from '@creator/db';
+import { currentForSpecDraftRole, specCasesBar } from '@creator/db';
 
 // spec-fields.ts has no imports, so it loads without a browser (as in web-spec-form.test.ts).
 type Draft = Record<string, any>;
@@ -395,8 +396,37 @@ test('spec-cases-v1 is current: every case runs under the spec draft instruction
     task_class: 'specification',
     manifest: m,
     manifest_hash: canonicalHash(m),
+    min_held_out_cases: 5,
+    floor: { numerator: 1, denominator: 1 },
   });
   assert.equal(currentForSpecDraftRole(row(manifest)), true);
+  // Review 2 of PR #206, L-1: the row's pass bar must be the server's (every held-out program,
+  // all five); a lowered floor or held-out minimum never admits.
+  for (const bar of [
+    { floor: { numerator: 0, denominator: 1 } },
+    { floor: { numerator: 1, denominator: 5 } },
+    { floor: { numerator: 4, denominator: 5 } },
+    { floor: null },
+    { min_held_out_cases: 3 },
+  ])
+    assert.equal(
+      currentForSpecDraftRole({ ...row(manifest), ...bar }),
+      false,
+      JSON.stringify(bar),
+    );
+  // The server sets that bar whatever a start asked for; other benchmarks keep theirs.
+  const asked = {
+    manifest,
+    min_held_out_cases: 3,
+    floor: { numerator: 0, denominator: 1 },
+  };
+  assert.deepEqual(specCasesBar(asked), {
+    manifest,
+    min_held_out_cases: 5,
+    floor: { numerator: 1, denominator: 1 },
+  });
+  const other = { ...asked, manifest: { ...manifest, name: 'other' } };
+  assert.deepEqual(specCasesBar(other), other);
   // A changed prompt, a changed request or an older check stops admitting drafts.
   const changed = structuredClone(manifest);
   changed.cases[0]!.input[0]!.text += ' Be brief.';
@@ -430,6 +460,32 @@ test('spec-cases-v1 is current: every case runs under the spec draft instruction
     assert.equal(k.fingerprint, specCasesFingerprint(k.program), k.program);
   }
   assert.equal(specCasesFingerprint('nope'), null);
+  // Review 2 of PR #206, N-2: the programs', grader's and case readers' source is frozen too
+  // (not shipped, so held here): a change to it needs spec-cases-v2.
+  const src = (p: string) =>
+    readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8').replace(
+      /\r\n/g,
+      '\n',
+    );
+  const draftSrc = src('packages/contracts/src/spec-draft.ts');
+  const region = draftSrc.slice(
+    draftSrc.indexOf('// spec-cases-v1 frozen source: begin.'),
+    draftSrc.indexOf('// spec-cases-v1 frozen source: end.'),
+  );
+  assert.ok(region.includes('export function readSpecDraft('));
+  assert.ok(region.includes('export function specCaseProblems('));
+  assert.ok(region.includes('export function pickHeldOut('));
+  const source = createHash('sha256')
+    .update(src('packages/domain/src/spec-cases.ts'))
+    .update('\0')
+    .update(region)
+    .digest('hex');
+  for (const c of manifest.cases)
+    assert.equal(
+      (c.check as SpecCasesCheck).source_sha256,
+      source,
+      'spec-cases-v1 source changed: write spec-cases-v2',
+    );
   assert.equal(
     currentForSpecDraftRole({
       ...row(manifest),

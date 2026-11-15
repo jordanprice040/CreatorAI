@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import {
+  CREDITS_OFF_STATEMENT,
   ContractError,
   SPEC_DRAFT_INSTRUCTIONS,
   SpecDraftedMarkSchema,
@@ -19,6 +20,7 @@ import {
   fixtureScorecards,
 } from '@creator/domain';
 import { ConnectionStore, type CommandContext } from '@creator/db';
+import { freshDatabase } from './pg-harness.js';
 import { FixtureAdapter, PlanConnectionService } from '@creator/broker';
 import { discoverySetup, owner } from './discovery-harness.js';
 import { FAKE_MODEL as MODEL, connect, fakeHost } from './proposal-harness.js';
@@ -197,17 +199,20 @@ test('spec drafts: qualified route only, owner press only, one specification tas
       case_index: null,
       ...over,
     });
-  const qualify = async (manifest: Record<string, unknown>) =>
+  const qualify = async (
+    manifest: Record<string, unknown>,
+    floor = { numerator: 1, denominator: 1 },
+  ) =>
     s.db.pool.query(
       `insert into plan_qualifications (id,connection_id,model_id,task_class,manifest,manifest_hash,min_held_out_cases,floor,state,development,held_out,created_by,decided_at)
-       values ($1,$2,$3,'specification',$4,$5,3,$6,'qualified',$7,$7,$8,clock_timestamp())`,
+       values ($1,$2,$3,'specification',$4,$5,5,$6,'qualified',$7,$7,$8,clock_timestamp())`,
       [
         randomUUID(),
         conn.id,
         MODEL,
         JSON.stringify(manifest),
         canonicalHash(manifest),
-        JSON.stringify({ numerator: 1, denominator: 1 }),
+        JSON.stringify(floor),
         JSON.stringify({ total: 5, passed: 5 }),
         owner.actorId,
       ],
@@ -233,6 +238,9 @@ test('spec drafts: qualified route only, owner press only, one specification tas
     check: { ...c.check, mutants: c.check.mutants.slice(0, 1), min_caught: 1 },
   }));
   await qualify(weak);
+  assert.deepEqual((await store.specDraftRoutes(owner, s.ws.id)).routes, []);
+  // Review 2 of PR #206, L-1: nor does the bundled file under a lowered pass bar.
+  await qualify(bench('spec-cases-v1'), { numerator: 0, denominator: 1 });
   assert.deepEqual((await store.specDraftRoutes(owner, s.ws.id)).routes, []);
   await qualify(bench('spec-cases-v1'));
   // L-3: drafting is for command-line programs only.
@@ -520,4 +528,64 @@ test('spec drafts: qualified route only, owner press only, one specification tas
     [after.map((d) => d.id)],
   );
   assert.equal(words.rows[0].n, 0);
+});
+
+test('review 2 of PR #206, L-1: a start of spec-cases-v1 runs under the server’s pass bar, whatever the request asked for', async (t) => {
+  const db = await freshDatabase(t);
+  if (!db) return;
+  const store = new ConnectionStore(db.pool);
+  await store.ensureActor({
+    id: owner.actorId,
+    kind: 'human',
+    display_name: 'owner',
+  });
+  const w = await store.createWorkspace(owner, {
+    name: 'B2 real',
+    record_mode: 'real',
+  });
+  let c = await store.createPlanConnection(owner, w.id, {
+    label: 'ChatGPT plan',
+    settings: JSON.parse(
+      readFileSync(
+        new URL('../../config/connections/chatgpt-plan.json', import.meta.url),
+        'utf8',
+      ),
+    ),
+  });
+  await store.attestPlanCredits(owner, w.id, c.id, {
+    expected_version: c.version,
+    statement: CREDITS_OFF_STATEMENT,
+    checked_on: '2026-11-15',
+  });
+  c = (await store.planConnectionDetail(owner, w.id, c.id)).connection;
+  c = await store.acceptPlanCaps(owner, w.id, c.id, {
+    expected_version: c.version,
+    settings_hash: c.settings_hash,
+  });
+  await db.pool.query(
+    `insert into plan_model_access (connection_id, model_id, path, access, request_id)
+     values ($1, 'm', 'responses', 'verified', $2)`,
+    [c.id, randomUUID()],
+  );
+  // Every one of the five held-out programs must pass, even when a start asks for 0 of 1.
+  const started = await store.startPlanQualification(owner, w.id, c.id, {
+    expected_version: c.version,
+    model_id: 'm',
+    manifest: bench('spec-cases-v1'),
+    min_held_out_cases: 3,
+    floor: { numerator: 0, denominator: 1 },
+  });
+  assert.equal(started.min_held_out_cases, 5);
+  assert.deepEqual(started.floor, { numerator: 1, denominator: 1 });
+  // Other benchmarks keep the bar their start asked for.
+  const other = await store.startPlanQualification(owner, w.id, c.id, {
+    expected_version: (await store.planConnectionDetail(owner, w.id, c.id))
+      .connection.version,
+    model_id: 'm',
+    manifest: bench('summarization-synthetic-v1'),
+    min_held_out_cases: 3,
+    floor: { numerator: 2, denominator: 3 },
+  });
+  assert.equal(other.min_held_out_cases, 3);
+  assert.deepEqual(other.floor, { numerator: 2, denominator: 3 });
 });

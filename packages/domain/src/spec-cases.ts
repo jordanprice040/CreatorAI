@@ -719,6 +719,7 @@ export function specCasesFingerprint(program: string): string | null {
       min_cases: 4,
       min_caught: mutants.length - 1,
       fingerprint: '0'.repeat(64),
+      source_sha256: '0'.repeat(64),
     };
     const good = specCasesProbeReply(groups, p.run);
     const wrong = JSON.parse(good) as {

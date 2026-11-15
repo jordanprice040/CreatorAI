@@ -522,6 +522,13 @@ export const BenchmarkCheckSchema = z.discriminatedUnion('kind', [
      * the old benchmark stops grading and stops admitting drafts until spec-cases-v2.
      */
     fingerprint: hash,
+    /**
+     * The source of the programs, the grader and the case readers (review 2 of PR #206, N-2):
+     * sha256 of packages/domain/src/spec-cases.ts and the frozen region of
+     * packages/contracts/src/spec-draft.ts, line endings as LF. The sources are not shipped, so
+     * a test holds it, as B1's FREEZE.json holds its scorer.
+     */
+    source_sha256: hash,
   }),
   /**
    * T12 reviewer (ADR-0048): the answer binds the case's candidate and frozen hashes and gives

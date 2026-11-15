@@ -9,7 +9,8 @@
 // The file is frozen once written: never edit it; write spec-cases-v2 instead. Each case also
 // carries its program's fingerprint (the outputs of the reference and broken versions on probe
 // inputs and the grades of probe replies), so a changed program or grader stops it admitting.
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import {
   BenchmarkManifestSchema,
   SPEC_DRAFT_INSTRUCTIONS,
@@ -20,6 +21,22 @@ import {
   SPEC_BENCHMARK_PROGRAMS,
   specCasesFingerprint,
 } from '../packages/domain/dist/index.js';
+
+/** The frozen source (see `source_sha256` in contracts routing.ts); the test computes it too. */
+const read = (p) =>
+  readFileSync(new URL(`../${p}`, import.meta.url), 'utf8').replace(
+    /\r\n/g,
+    '\n',
+  );
+const draftSource = read('packages/contracts/src/spec-draft.ts');
+const begin = draftSource.indexOf('// spec-cases-v1 frozen source: begin.');
+const end = draftSource.indexOf('// spec-cases-v1 frozen source: end.');
+if (begin < 0 || end < begin) throw new Error('frozen source markers missing');
+const SOURCE_SHA256 = createHash('sha256')
+  .update(read('packages/domain/src/spec-cases.ts'))
+  .update('\0')
+  .update(draftSource.slice(begin, end))
+  .digest('hex');
 
 const SPLITS = [
   ['wordtally', 'development'],
@@ -69,6 +86,7 @@ const cases = SPLITS.map(([program, split]) => {
       min_cases: 4,
       min_caught: mutants.length - 1,
       fingerprint: specCasesFingerprint(program),
+      source_sha256: SOURCE_SHA256,
     },
   };
 });

@@ -41,7 +41,7 @@ export const SPEC_DRAFT_BODY_MAX = 15_000;
 /** An explanation or a "why this case" note. */
 export const SPEC_DRAFT_NOTE_MAX = 2000;
 
-export const SPEC_DRAFT_INSTRUCTIONS_VERSION = 'spec-draft-v1' as const;
+export const SPEC_DRAFT_INSTRUCTIONS_VERSION = 'spec-draft-v2' as const;
 /**
  * Fixed instructions for every spec draft; their version and hash are kept with each draft. A
  * specification qualification admits drafts only when every benchmark case's system message
@@ -242,6 +242,9 @@ export function draftedMarkText(m: SpecDraftedMark): string {
 }
 
 // ---- Reading a reply ---------------------------------------------------------------------
+// spec-cases-v1 frozen source: begin. Everything from here to the end marker is hashed into
+// the benchmark (`source_sha256`, with packages/domain/src/spec-cases.ts); a change to it
+// needs spec-cases-v2. Review 2 of PR #206, N-2.
 
 /** The first JSON object in a reply that has `key` (a code fence around it is tolerated). */
 function replyObject(
@@ -790,6 +793,7 @@ export function pickHeldOut(
   }
   return { content: c, picks };
 }
+// spec-cases-v1 frozen source: end.
 
 /** Content compared for `edited`: upkeep and held-out ticks are the person's routine choices. */
 export function draftComparable(c: SpecContent) {

@@ -22,7 +22,7 @@
       "max_output_tokens": 8000,
       "check": {
         "kind": "spec_cases_contract",
-        "role_version": "spec-draft-v1",
+        "role_version": "spec-draft-v2",
         "program": "wordtally",
         "request": {
           "problem": {
@@ -44,7 +44,8 @@
         ],
         "min_cases": 4,
         "min_caught": 3,
-        "fingerprint": "fe2836c92a02e2521c22857a3bf6c5cde149883a5e7c426da114ec542d7856b5"
+        "fingerprint": "fe2836c92a02e2521c22857a3bf6c5cde149883a5e7c426da114ec542d7856b5",
+        "source_sha256": "30245c4847238bc404c7777f9fb1b72b1d20703e411d7962a6e18c455ce2d06d"
       }
     },
     {
@@ -64,7 +65,7 @@
       "max_output_tokens": 8000,
       "check": {
         "kind": "spec_cases_contract",
-        "role_version": "spec-draft-v1",
+        "role_version": "spec-draft-v2",
         "program": "slug",
         "request": {
           "problem": {
@@ -86,7 +87,8 @@
         ],
         "min_cases": 4,
         "min_caught": 3,
-        "fingerprint": "a6bfdf2cdf622d40a57d8c513b90ba0c13b9f44d4468180ef932c18fb75f1df1"
+        "fingerprint": "a6bfdf2cdf622d40a57d8c513b90ba0c13b9f44d4468180ef932c18fb75f1df1",
+        "source_sha256": "30245c4847238bc404c7777f9fb1b72b1d20703e411d7962a6e18c455ce2d06d"
       }
     },
     {
@@ -106,7 +108,7 @@
       "max_output_tokens": 8000,
       "check": {
         "kind": "spec_cases_contract",
-        "role_version": "spec-draft-v1",
+        "role_version": "spec-draft-v2",
         "program": "roman",
         "request": {
           "problem": {
@@ -128,7 +130,8 @@
         ],
         "min_cases": 4,
         "min_caught": 3,
-        "fingerprint": "4506c56b4f4ac00c332b89a6223bb62ea620b85fc673d1d86d367636ee500945"
+        "fingerprint": "4506c56b4f4ac00c332b89a6223bb62ea620b85fc673d1d86d367636ee500945",
+        "source_sha256": "30245c4847238bc404c7777f9fb1b72b1d20703e411d7962a6e18c455ce2d06d"
       }
     },
     {
@@ -148,7 +151,7 @@
       "max_output_tokens": 8000,
       "check": {
         "kind": "spec_cases_contract",
-        "role_version": "spec-draft-v1",
+        "role_version": "spec-draft-v2",
         "program": "csvsum",
         "request": {
           "problem": {
@@ -170,7 +173,8 @@
         ],
         "min_cases": 4,
         "min_caught": 3,
-        "fingerprint": "c8e2bec39a3b944ac2aba236573544c80f382a7f49a7549425be89266c55a705"
+        "fingerprint": "c8e2bec39a3b944ac2aba236573544c80f382a7f49a7549425be89266c55a705",
+        "source_sha256": "30245c4847238bc404c7777f9fb1b72b1d20703e411d7962a6e18c455ce2d06d"
       }
     },
     {
@@ -190,7 +194,7 @@
       "max_output_tokens": 8000,
       "check": {
         "kind": "spec_cases_contract",
-        "role_version": "spec-draft-v1",
+        "role_version": "spec-draft-v2",
         "program": "dedupe",
         "request": {
           "problem": {
@@ -212,7 +216,8 @@
         ],
         "min_cases": 4,
         "min_caught": 3,
-        "fingerprint": "69371c8c3cc5837693fbece016a378d00746e7e0d4b9e49821a2c434319ec7ba"
+        "fingerprint": "69371c8c3cc5837693fbece016a378d00746e7e0d4b9e49821a2c434319ec7ba",
+        "source_sha256": "30245c4847238bc404c7777f9fb1b72b1d20703e411d7962a6e18c455ce2d06d"
       }
     },
     {
@@ -232,7 +237,7 @@
       "max_output_tokens": 8000,
       "check": {
         "kind": "spec_cases_contract",
-        "role_version": "spec-draft-v1",
+        "role_version": "spec-draft-v2",
         "program": "rle",
         "request": {
           "problem": {
@@ -254,7 +259,8 @@
         ],
         "min_cases": 4,
         "min_caught": 3,
-        "fingerprint": "b82eaee10df6138a751102ba6c67b589fb429f857500d5b3eeb41c355976b20a"
+        "fingerprint": "b82eaee10df6138a751102ba6c67b589fb429f857500d5b3eeb41c355976b20a",
+        "source_sha256": "30245c4847238bc404c7777f9fb1b72b1d20703e411d7962a6e18c455ce2d06d"
       }
     },
     {
@@ -274,7 +280,7 @@
       "max_output_tokens": 8000,
       "check": {
         "kind": "spec_cases_contract",
-        "role_version": "spec-draft-v1",
+        "role_version": "spec-draft-v2",
         "program": "grade",
         "request": {
           "problem": {
@@ -296,7 +302,8 @@
         ],
         "min_cases": 4,
         "min_caught": 3,
-        "fingerprint": "99373419378286bd2db8f8f80214877eba42500290baa76e02e99e932fb0473c"
+        "fingerprint": "99373419378286bd2db8f8f80214877eba42500290baa76e02e99e932fb0473c",
+        "source_sha256": "30245c4847238bc404c7777f9fb1b72b1d20703e411d7962a6e18c455ce2d06d"
       }
     },
     {
@@ -316,7 +323,7 @@
       "max_output_tokens": 8000,
       "check": {
         "kind": "spec_cases_contract",
-        "role_version": "spec-draft-v1",
+        "role_version": "spec-draft-v2",
         "program": "brackets",
         "request": {
           "problem": {
@@ -338,7 +345,8 @@
         ],
         "min_cases": 4,
         "min_caught": 3,
-        "fingerprint": "37d2da65c0bbd19621399d06b27351eda90c0fc35c53b87e53fc5583360e0e71"
+        "fingerprint": "37d2da65c0bbd19621399d06b27351eda90c0fc35c53b87e53fc5583360e0e71",
+        "source_sha256": "30245c4847238bc404c7777f9fb1b72b1d20703e411d7962a6e18c455ce2d06d"
       }
     }
   ],

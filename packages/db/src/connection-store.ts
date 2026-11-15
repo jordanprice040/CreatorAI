@@ -174,6 +174,7 @@ import { usageSummary } from './usage-summary.js';
 import {
   SPEC_DRAFT_TASK_CLASS,
   currentForSpecDraftRole,
+  specCasesBar,
   specDraftRequestGate,
   toSpecDraft,
   type SpecDraftBinding,
@@ -5342,6 +5343,8 @@ export class ConnectionStore extends AutomationStore {
     >,
     actorId: string,
   ): Promise<PlanQualification> {
+    // Review 2 of PR #206, L-1: the server sets spec-cases-v1's pass bar itself.
+    req = specCasesBar(req);
     const tc = req.manifest.task_class;
     const qid = randomUUID();
     try {
