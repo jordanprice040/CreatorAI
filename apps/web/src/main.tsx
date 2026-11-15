@@ -723,7 +723,7 @@ function App() {
               ws={workspace.id}
               open={(view) => open(view)}
             />
-            <PathView facts={facts} open={open} />
+            <PathView facts={facts} open={open} ws={workspace.id} />
           </>
         );
       case 'portfolio':

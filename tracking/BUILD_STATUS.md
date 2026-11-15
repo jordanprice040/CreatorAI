@@ -1,5 +1,13 @@
 # Build status — November 10, 2026
 
+## November 15 update — project report export (F3, ADR-0117, no migration)
+
+What now works: **Projects › Path** has **Download project report**, a Markdown file of the workspace built from its records alone (no model call, nothing stored, nothing audited as a change). It covers each problem's statement and affected users; its claims (and those backing its options) with evidence status, source, stance, freshness, quote and passage locator; every option, rejected and archived ones too, with rank, score, reviewer disagreements and gate concerns; every selection with dispositions, reasons and what would change them; humility reviews and their dissent; people's decisions and interventions and where work waited for a person; autopilot runs; specs with their freeze and checks (held-out cases counted, never shown); builds with QA and package checks, failures, limitations and feedback; proposals; requests and money from the budget records (unknown outcomes called out, not counted as zero); and limitations. Fixture workspaces are labelled throughout. Credentials and personal paths are removed with the runbook's redaction. Any member can download it; a non-member gets NOT_FOUND.
+
+Checked in the cloud container on a throwaway PostgreSQL 16 database: `pnpm typecheck` and `pnpm format:check` pass; `tests/src/project-report.test.ts` 3/3; full `pnpm test:db` 1367 tests: 1333 pass, 29 skipped, and only the 5 known PowerShell-wrapper failures; `pnpm test:dev-safety` 19 pass, 3 skipped.
+
+Not covered: builds that failed before a manifest was written, reviewer comments (manifests record only repairs), and claims not linked to a listed problem or option (counted only). No browser walk; the button is a plain download link checked by typecheck, and the route by the API test.
+
 ## November 15 update — autopilot fixes from the third live rerun (no migration or ADR)
 
 These fix the findings in `/mnt/project-files/reviews/LIVE_AUTOPILOT_RERUN_205_2026-11-15.md` (autopilot e8b36bd9 on main 42dce84).

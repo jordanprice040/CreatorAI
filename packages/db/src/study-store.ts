@@ -40,7 +40,7 @@ import {
   implementationTaskContext,
   taskHashes,
 } from '@creator/domain';
-import { RunbookStore } from './runbook-store.js';
+import { ProjectReportStore } from './project-report-store.js';
 import {
   ceilingRefusal,
   currentSpendLimits,
@@ -67,7 +67,7 @@ export function readEvaluationConfig(
   return evaluationConfig(JSON.parse(readFileSync(path, 'utf8')));
 }
 
-export class StudyStore extends RunbookStore {
+export class StudyStore extends ProjectReportStore {
   /** The reviewed evaluation configuration; record and budget gates read it, never callers. */
   evaluation: EvaluationConfig = readEvaluationConfig();
   protected async study(c: PoolClient, ws: string, studyId: string) {

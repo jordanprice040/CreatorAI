@@ -1,5 +1,9 @@
 # Session handoff — November 10, 2026
 
+## November 15 handoff — project report export (F3, ADR-0117)
+
+Branch `claude/project-thread-4xgt1f` from main f5728aa, no migration. Domain `packages/domain/src/project-report.ts`: input types (`ProjectReportInput` and the `Report*` records), `projectReportMarkdown(input)` (redacts every string with `redactText`, escapes with `inlineText`/`urlText`, returns redaction counts) and `projectReportFileName`. `DISPOSITION_WORDS` in `runbook.ts` is now exported. DB `packages/db/src/project-report-store.ts`: `ProjectReportStore extends RunbookStore` (and `StudyStore` now extends it), `projectReport(ctx, ws, now?)`, `REPORT_LIMITS`. It reads in one transaction after `role(…, false)`, then runs `selectionReport` per problem for rank, score, disagreements and gate concerns. API `apps/api/src/project-report.ts`: `PROJECT_REPORT_ROUTE` and `projectReportRoutes`, wired in `index.ts` beside the usage route. Web: `ProjectReportDownload` in `path.tsx`; `PathView` takes an optional `ws` (passed from `main.tsx`). No CSS changes. Tests in `tests/src/project-report.test.ts`: domain redaction, escaping and held-out counting; store end to end (option claims, rejected options, dissent, human decisions, freeze, a planted failed build, money against `budget_reservations`, no audit events written, viewer allowed, stranger NOT_FOUND); API download headers, 404 before membership, POST refused.
+
 ## November 15 handoff — autopilot fixes from the third live rerun
 
 Branch `claude/project-thread-77qqks`, restarted from main 42dce84 after #205 merged. No migration or ADR.
