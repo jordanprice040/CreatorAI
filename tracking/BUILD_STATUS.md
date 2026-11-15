@@ -16,7 +16,7 @@ Review 3 fix (November 15): an Office file whose local headers disagree with its
 
 Review 4 fix (November 15): an Office file whose ZIP end record or central directory can be read more than one way (a second end record hidden in the comment, entry counts that disagree, a directory holding more than its count) is refused as damaged; consistent ZIP64 size fields are accepted. Checked: typecheck, format, build, `pnpm test:db` (1260 tests: 1226 pass, 29 skipped, the 5 known PowerShell-wrapper failures), the walk (15 samples; Word, Excel and PowerPoint open, both bombs refused, 0 outside requests, 0 dialogs, 0 console errors). Main with #202 and #203 merged in.
 
-Review 5 fix (November 15): a part whose local header claims an uncompressed size other than 0 or the real one is refused, since SheetJS allocates that much before reading (a 4.9 KB workbook reached 3.2 GB). Checked: typecheck, format, build, `pnpm test:db` (RESULT5), the walk (WALK5). Main with #200 (migration 65) merged in.
+Review 5 fix (November 15): a part whose local header claims an uncompressed size other than 0 or the real one is refused, since SheetJS allocates that much before reading (a 4.9 KB workbook reached 3.2 GB). Checked: typecheck, format, build, `pnpm test:db` (1284 tests: 1250 pass, 29 skipped, the 5 known PowerShell-wrapper failures), the walk (15 samples; Word, Excel and PowerPoint open, both bombs refused, 0 outside requests, 0 dialogs, 0 console errors). Main with #200 (migration 65) merged in.
 
 Open: a walk in the installed app after merge.
 
