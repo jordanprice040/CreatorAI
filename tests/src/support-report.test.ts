@@ -372,6 +372,9 @@ test('review 5: random lower-case runs and CamelCase-shaped tokens are hidden at
     'OutOfBoundsWriteError',
     'MaxListenersExceededWarning',
     'NavigationTimeoutExceeded',
+    // Review 7 R7-N1.
+    'ByteLengthQueuingStrategy',
+    'NgZoneStableEvent',
     // R6-N1: a readable name joined to its value by "=".
     'DefaultEndpointsProtocol=https',
   ]) {

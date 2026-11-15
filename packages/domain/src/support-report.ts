@@ -317,7 +317,7 @@ function rarePairs(word: string): number {
   for (let i = 1; i < w.length; i++) {
     const a = w[i - 1]!;
     const b = w[i]!;
-    if (/[aeiou]/.test(a) || /[aeiou]/.test(b)) continue;
+    if (/[aeiouy]/.test(a) || /[aeiouy]/.test(b)) continue;
     if (!COMMON_PAIRS.has(a + b)) rare++;
   }
   return rare;
@@ -337,7 +337,10 @@ function readsAsName(alnum: string): boolean {
     } else {
       if (!(/^[A-Z]/.test(p) ? readsAsCapitalized(p) : readsAsWord(p)))
         return false;
-      if (!VOWELLESS.has(p.toLowerCase())) rare += rarePairs(p);
+      // A two-letter Capitalized prefix that is not a known word (Ng in NgZone) counts as
+      // one unusual pair (review 7 R7-N1).
+      if (/^[A-Z][a-z]$/.test(p) && !SHORT_WORDS.has(p.toLowerCase())) rare++;
+      else if (!VOWELLESS.has(p.toLowerCase())) rare += rarePairs(p);
       letters += p.length;
       vowels += p.replace(/[^aeiouy]/gi, '').length;
     }
@@ -351,7 +354,7 @@ function readsAsName(alnum: string): boolean {
 // consonants (Network, First, Strength) (review 6 R6-L1).
 function readsAsCapitalized(p: string): boolean {
   const w = p.toLowerCase();
-  if (VOWELLESS.has(w) || SHORT_WORDS.has(w)) return true;
+  if (VOWELLESS.has(w) || w.length === 2) return true;
   if (w.length < 3 || w.length > 14) return false;
   return /[aeiouy]/.test(w) && !/[^aeiouy]{5}/.test(w);
 }
