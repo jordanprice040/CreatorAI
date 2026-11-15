@@ -56,6 +56,10 @@ import {
   DEFAULT_OWNER_ACTOR_ID,
   autopilotKey,
   createApi,
+  cutWords,
+  fitNote,
+  gatherQuestion,
+  namesOf,
   refusalKind,
   type AutopilotWeb,
 } from '@creator/api';
@@ -805,16 +809,30 @@ test('an autopilot runs explore → brief → discover → assess, stops at a ti
   );
   // The fixture rates every option the same: a tie is never broken by a rule.
   assert.match(a.explanation, /tie for first on suitability/);
-  // Each step kept its exact request and key; the calls it set aside add up, within the limit.
+  // Each step kept its exact request and key; a finished step keeps only the calls its work
+  // used (live rerun, November 15), never more than it set aside, and they add up within the limit.
   for (const s of a.steps.filter((x) =>
     ['explore', 'discover', 'assess'].includes(x.stage),
   )) {
     assert.ok(s.request && s.key && s.child?.kind === 'workflow');
+    const detail = await h.store.getWorkflow(owner, h.ws.id, s.child.id);
+    const used = Math.max(
+      detail.usage.attempts,
+      detail.subscription_usage?.requests ?? 0,
+    );
     assert.equal(
-      (s.request.limits as { max_calls: number }).max_calls,
       s.calls,
+      Math.min(used, (s.request.limits as { max_calls: number }).max_calls),
     );
   }
+  assert.ok(
+    a.steps.some(
+      (s) =>
+        s.request?.limits &&
+        s.calls < (s.request.limits as { max_calls: number }).max_calls,
+    ),
+    'a step that used less than its worst case gave the rest back',
+  );
   assert.equal(
     a.calls_reserved,
     a.steps.reduce((n, s) => n + s.calls, 0),
@@ -1504,9 +1522,12 @@ test('an empty workspace ends as insufficient evidence; a tight call limit stops
     h.config({ limits: { max_calls: 8, ends_at: inHours(2) } }),
   );
   assert.equal(tight.outcome, 'limit_reached', tight.explanation);
+  // The exploration gives back the call it set aside but did not use (live rerun, November 15),
+  // so finding the problem and options fits; assessing them then does not.
+  assert.equal(tight.steps[0]!.calls, 1);
   assert.match(
     tight.explanation,
-    /Find the problem and options needs at least 7 model calls; the autopilot has 6 left/,
+    /Assess the options needs at least 3 model calls; the autopilot has 0 left/,
   );
   // Review L-3: its own call limit cannot be raised, so Continue is refused with what to do.
   assert.match(tight.steps.at(-1)!.no_retry ?? '', /start a new autopilot/);
@@ -1522,14 +1543,15 @@ test('an empty workspace ends as insufficient evidence; a tight call limit stops
     [
       ['explore', 'done'],
       ['brief', 'done'],
-      ['discover', 'stopped'],
+      ['discover', 'done'],
+      ['assess', 'stopped'],
     ],
   );
   // Nothing was started for the step that did not fit.
-  assert.equal(tight.steps[2]!.child, null);
+  assert.equal(tight.steps[3]!.child, null);
   const wfs = await h.store.listWorkflows(owner, h.ws.id, { runId });
-  assert.equal(wfs.length, 1, 'only the exploration ran');
-  assert.equal(tight.calls_reserved, 2);
+  assert.equal(wfs.length, 2, 'only the exploration and discovery ran');
+  assert.equal(tight.calls_reserved, 8);
 });
 
 test('stopping an autopilot cancels the workflow it is waiting on and keeps what was made', async (t) => {
@@ -3465,4 +3487,48 @@ test('re-review of #202 L-1: a stop note with an emoji across the cut stores wit
   assert.equal(note.length, 1199);
   assert.doesNotMatch(note, /[\uD800-\uDBFF]$/);
   assert.equal(b.explanation, note);
+});
+
+test('live rerun (November 15): notes are cut at a word, keep their ending, and name at most three options', () => {
+  // A short text is kept whole; a long one ends at a word with an ellipsis, within the limit.
+  assert.equal(cutWords('Short note.', 40), 'Short note.');
+  const long =
+    'Gathering evidence for Habit tracker and Weekly planning ritual';
+  const cut = cutWords(long, 30);
+  assert.ok(cut.length <= 30, cut);
+  assert.match(cut, /…$/);
+  assert.ok(long.startsWith(cut.slice(0, -1).trimEnd()));
+  assert.doesNotMatch(cut, /\bH…$/);
+  // The ending (what happens next) survives a long reason; the reason is cut instead.
+  const note = fitNote(
+    'x '.repeat(400).trim(),
+    'Gathering evidence, then assessing again.',
+    120,
+  );
+  assert.ok(note.length <= 120, String(note.length));
+  assert.match(note, /Gathering evidence, then assessing again\.$/);
+  // Up to three names, then a count of the rest.
+  assert.equal(namesOf(['A', 'B']), '“A”, “B”');
+  assert.equal(namesOf(['A', 'B', 'C', 'D', 'E']), '“A”, “B”, “C” and 2 more');
+  assert.equal(namesOf([]), '');
+  // A gather question names the unknowns, the option and the problem, within 300 characters.
+  assert.equal(
+    gatherQuestion(
+      { title: 'Shift swap board', unknown: ['effort', 'time_to_value'] },
+      'Volunteers miss shifts',
+    ),
+    'What evidence shows the effort and time to value of “Shift swap board” as a response to “Volunteers miss shifts”?',
+  );
+  assert.match(
+    gatherQuestion({ title: 'Board', unknown: [] }, 'P'),
+    /^What evidence bears on “Board”/,
+  );
+  assert.ok(
+    gatherQuestion({ title: 'x'.repeat(400), unknown: ['effort'] }, 'P')
+      .length <= 300,
+  );
+  assert.equal(
+    gatherQuestion(null, 'Volunteers miss shifts'),
+    'Volunteers miss shifts',
+  );
 });

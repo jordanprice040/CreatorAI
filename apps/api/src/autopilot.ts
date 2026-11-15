@@ -87,6 +87,49 @@ export function webResearch(
 
 const TERMINAL = new Set(['succeeded', 'failed', 'cancelled']);
 
+/** Cuts text at a word boundary with an ellipsis, never splitting a surrogate pair. */
+export function cutWords(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const cut = cutText(text, Math.max(0, max - 1));
+  const space = cut.lastIndexOf(' ');
+  return `${(space > max * 0.6 ? cut.slice(0, space) : cut).trimEnd()}…`;
+}
+
+/**
+ * Live rerun (November 15): a note made of a long reason and what happens next keeps the
+ * second part whole; the reason is shortened at a word instead.
+ */
+export function fitNote(head: string, tail: string, max: number): string {
+  const end = cutWords(tail, max);
+  const room = max - end.length - 1;
+  return room >= 20 ? `${cutWords(head, room)} ${end}` : end;
+}
+
+/** “A”, “B”, “C” and 2 more. */
+/**
+ * Live rerun (November 15): a bare option title brought back claims that did not touch the
+ * unknowns. The gather question names what is unknown, the option and the problem it is for.
+ */
+export function gatherQuestion(
+  option: { title: string; unknown: readonly string[] } | null,
+  problem: string,
+): string {
+  if (!option) return cutWords(problem, 300);
+  const unknown = option.unknown.map((x) => x.replaceAll('_', ' '));
+  return cutWords(
+    unknown.length
+      ? `What evidence shows the ${unknown.join(' and ')} of “${option.title}” as a response to “${problem}”?`
+      : `What evidence bears on “${option.title}” as a response to “${problem}”?`,
+    300,
+  );
+}
+
+export function namesOf(titles: string[], shown = 3): string {
+  const named = titles.slice(0, shown).map((t) => `“${cutWords(t, 80)}”`);
+  const more = titles.length - named.length;
+  return named.join(', ') + (more > 0 ? ` and ${more} more` : '');
+}
+
 const said = (e: unknown) =>
   e instanceof ContractError
     ? cutText([e.message, ...e.details].join(' '), 1000)
@@ -555,8 +598,10 @@ export class AutopilotRunner {
       }
       const r = await this.#run(ctx, ws, current, step, signal);
       if (signal.aborted) return;
-      const fresh = await this.store.getAutopilot(ctx, ws, id);
-      if (fresh.state !== 'running') return;
+      const read = await this.store.getAutopilot(ctx, ws, id);
+      if (read.state !== 'running') return;
+      // Live rerun (November 15): a finished step keeps only the calls it used.
+      const fresh = await this.#trimSpent(ctx, ws, read);
       if ('stop' in r) {
         await this.#finish(ctx, ws, fresh, r.stop);
         return;
@@ -586,6 +631,7 @@ export class AutopilotRunner {
       await this.store.advanceAutopilot(ctx, ws, id, fresh.version, {
         steps,
         stage: done.outcome ? fresh.stage : (next ?? fresh.stage),
+        calls_reserved: fresh.calls_reserved,
         explanation: done.note,
         ...(done.outcome ? { outcome: done.outcome } : {}),
       });
@@ -1331,15 +1377,17 @@ export class AutopilotRunner {
         a.config.data_class,
       );
       linked += made.length;
-      if (made.length)
-        notes.push(
-          `Linked ${made.length} recorded claim${made.length === 1 ? '' : 's'} whose text names ${[
-            ...new Set(made.map((m) => `“${m.to_title}”`)),
-          ]
-            .slice(0, 4)
-            .join(', ')}.`,
-        );
+      for (const m of made) linkedTo.add(m.to_title);
     };
+    // Live rerun (November 15): linking can run twice (before and after a search); the note
+    // says once, at the start, how many claims it linked in all.
+    const linkedTo = new Set<string>();
+    const linkNote = () =>
+      linked
+        ? [
+            `Linked ${linked} recorded claim${linked === 1 ? '' : 's'} whose text names ${namesOf([...linkedTo], 4)}.`,
+          ]
+        : [];
     await link();
     const after = await this.#afterHeld(ctx, ws, a);
     let held: { d: WebDiscovery; n: number } | null = null;
@@ -1411,7 +1459,7 @@ export class AutopilotRunner {
           outcome: 'insufficient_evidence',
           kind: 'thin_evidence',
           note: cutText(
-            `${req.reason} The autopilot gathered evidence but found nothing new. ${notes.join(' ')}`,
+            `${req.reason} The autopilot gathered evidence but found nothing new. ${[...linkNote(), ...notes].join(' ')}`,
             1200,
           ),
         },
@@ -1421,7 +1469,7 @@ export class AutopilotRunner {
       done: {
         request: { ...req, then, added },
         note: cutText(
-          `${notes.join(' ') || 'Nothing new was found.'} ${
+          `${[...linkNote(), ...notes].join(' ') || 'Nothing new was found.'} ${
             then === 'select' && req.then === 'assess'
               ? 'Nothing new to assess, so it goes on to choose.'
               : `Going back to ${AUTOPILOT_STAGE_LABEL[then].toLowerCase()}.`
@@ -1871,16 +1919,26 @@ export class AutopilotRunner {
           (strict.options ?? []).some((o) => o.id === c.alternative.id),
         );
         const first = rows[0];
-        const question = first
-          ? `${first.alternative.title}${first.unknown_criteria.length ? `: ${first.unknown_criteria.map((x) => x.replaceAll('_', ' ')).join(', ')}` : ''}`
-          : report.problem.title;
+        const question = gatherQuestion(
+          first
+            ? {
+                title: first.alternative.title,
+                unknown: first.unknown_criteria,
+              }
+            : null,
+          report.problem.title,
+        );
         return {
           redo: {
             fallback: this.#fb(
               settings,
               'gather_evidence',
               strict.kind,
-              `${strict.reason} Gathering evidence for ${rows.length ? rows.map((r) => `“${r.alternative.title}”`).join(', ') : 'the options'}, then assessing again.`,
+              fitNote(
+                strict.reason,
+                `Gathering evidence for ${namesOf(rows.map((r) => r.alternative.title)) || 'the options'}, then assessing again.`,
+                600,
+              ),
             ),
             then: {
               kind: 'gather',
@@ -2114,6 +2172,34 @@ export class AutopilotRunner {
   }
 
   /**
+   * Live rerun (November 15): a step sets aside its worst case before it starts (discovery 24,
+   * an assessment two per request), so a Hands-off autopilot ran out of its 40 calls after 18
+   * real requests. Once the step's workflow has finished, the step keeps what it used and gives
+   * back the rest. Anything still in flight or unresolved keeps the whole reservation, since an
+   * unknown outcome is not zero (invariant 5).
+   */
+  async #trimSpent(ctx: CommandContext, ws: string, a: Autopilot) {
+    const last = a.steps.at(-1);
+    if (!last || last.state !== 'running' || last.child?.kind !== 'workflow')
+      return a;
+    const detail = await this.store
+      .getWorkflow(ctx, ws, last.child.id)
+      .catch(() => null);
+    if (!detail || !TERMINAL.has(detail.workflow.state)) return a;
+    const plan = detail.subscription_usage;
+    if (detail.usage.in_flight || plan?.in_flight || plan?.unresolved) return a;
+    const used = Math.max(detail.usage.attempts, plan?.requests ?? 0);
+    if (used >= last.calls) return a;
+    return {
+      ...a,
+      steps: a.steps.map((s, i) =>
+        i === a.steps.length - 1 ? { ...s, calls: used } : s,
+      ),
+      calls_reserved: a.calls_reserved - (last.calls - used),
+    };
+  }
+
+  /**
    * ADR-0100: records a planned fallback instead of a stop. The step keeps the setting that
    * allowed it; `retry` leaves it stopped so the next pass tries it again, `skip` marks it
    * skipped, and `gather` adds the gather step (its key and the calls a search sets aside are
@@ -2203,7 +2289,7 @@ export class AutopilotRunner {
       steps,
       explanation: stop.note,
       outcome: stop.outcome,
-      ...(reserved !== a.calls_reserved ? { calls_reserved: reserved } : {}),
+      calls_reserved: reserved,
     });
   }
 }

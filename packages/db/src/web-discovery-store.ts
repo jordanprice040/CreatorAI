@@ -16,6 +16,8 @@ import {
   type WebLead,
   type WebSearchCall,
   AUTOPILOT_QUOTE_CHECK_LABEL,
+  ContractError,
+  cutText,
 } from '@creator/contracts';
 import {
   SCOUT_PROMPT,
@@ -36,6 +38,9 @@ import {
   type CommandContext,
   type Row,
 } from './store.js';
+
+/** Starts the claim count a discovery's explanation ends with (replaced on each pass). */
+const CLAIMS_MARK = 'Claims so far:';
 
 // ADR-0086 (P12): web discovery records. The runner (apps/api) drives the stages; every state
 // change goes through a guarded update here, so a cancel between two steps always wins and a
@@ -721,8 +726,10 @@ export class WebDiscoveryStore extends PortfolioStore {
           admitted += 1;
         } catch (err) {
           await c.query('rollback to savepoint web_claim');
+          // Only the studio's own refusals are shown as they are; anything else (a database
+          // error) is named plainly instead of quoting its internals.
           skipped.push(
-            `claim ${Number(r.ordinal) + 1}: ${err instanceof Error ? err.message : 'refused'}`,
+            `claim ${Number(r.ordinal) + 1}: ${err instanceof ContractError ? err.message : 'the studio could not record it'}`,
           );
         }
       }
@@ -739,10 +746,14 @@ export class WebDiscoveryStore extends PortfolioStore {
         ]
           .filter(Boolean)
           .join(' ');
+        // Live rerun (November 15): a later pass (the owner's setting turned on) replaces the
+        // earlier pass's claim count instead of adding to it, so the note never contradicts itself.
         await c.query(
-          `update web_discoveries set explanation = left(explanation || ' ' || $2, 1200),
+          `update web_discoveries set explanation = left(
+               coalesce(substring(explanation from '^(.*?) ${CLAIMS_MARK}'), explanation)
+                 || ' ${CLAIMS_MARK} ' || $2, 1200),
              version = version + 1, updated_at = clock_timestamp() where id = $1`,
-          [id, summary.slice(0, 600)],
+          [id, cutText(summary, 600)],
         );
       }
       return {
@@ -867,14 +878,24 @@ export class WebDiscoveryStore extends PortfolioStore {
     });
     const rationale = `From web discovery ${String(r.discovery_id)}; the studio found this quote word for word in the stored passage.`;
     let rows = 0;
-    for (const e of p.evidence) {
+    // Live rerun (November 15): one passage can hold two checked quotes for the same claim,
+    // but a claim version keeps one support row per passage (claim_support_active). The
+    // first quote from a passage is kept, supporting quotes before contrary ones.
+    const seen = new Set<string>();
+    const ordered = [
+      ...p.evidence.filter((e) => e.stance === 'supports'),
+      ...p.evidence.filter((e) => e.stance !== 'supports'),
+    ];
+    for (const e of ordered) {
       // The stored excerpt is checked again by addClaimSupportIn; the length rule here.
       if (
         !e.verified ||
         !e.passage_id ||
-        (e.stance === 'supports' && !webQuoteLongEnough(e.quote))
+        (e.stance === 'supports' && !webQuoteLongEnough(e.quote)) ||
+        seen.has(e.passage_id)
       )
         continue;
+      seen.add(e.passage_id);
       try {
         await this.addClaimSupportIn(c, ctx, ws, claim.id, {
           evidence: 'passage',

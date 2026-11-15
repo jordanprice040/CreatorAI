@@ -2923,6 +2923,10 @@ export { WebDiscoveryRunner, stepId, answerJson } from './web-discovery.js';
 export {
   AutopilotRunner,
   autopilotKey,
+  cutWords,
+  fitNote,
+  gatherQuestion,
+  namesOf,
   refusalKind,
   webResearch,
   type AutopilotWeb,

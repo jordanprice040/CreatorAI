@@ -1407,6 +1407,11 @@ test('P-12: an autopilot adds quote-checked claims only with the owner’s setti
   const ok = await h.store.admitWebClaimsByPolicy(auto, h.ws.id, d.id);
   assert.equal(ok.admitted, 1);
   const after = await h.store.getWebDiscovery(owner, h.ws.id, d.id);
+  // Live rerun (November 15): each pass replaces the last pass's claim count, so the
+  // explanation no longer says the claims wait because the setting is off.
+  assert.equal(after.explanation.split('Claims so far:').length, 2);
+  assert.doesNotMatch(after.explanation, /is off/);
+  assert.match(after.explanation, /The autopilot accepted 1 checked claim/);
   const added = after.proposals.find((x) => x.decision === 'admitted')!;
   assert.equal(added.admitted_via, 'autopilot');
   assert.ok(
@@ -1554,4 +1559,41 @@ test('re-review 2 N-4: a web search an autopilot starts is stamped with it throu
     [mine.id],
   );
   assert.equal(plain.rows[0].autopilot_id, null);
+});
+
+test('live rerun (November 15): two checked quotes from one passage add one support row, not a database error', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.qualify();
+  const runId = await h.run();
+  const d = await h.start(runId);
+  assert.equal(d.state, 'done');
+  const observation = d.proposals.find(
+    (p) => p.check === 'verified' && p.basis === 'observation',
+  )!;
+  // A second quote from the same passage, as the reading request can propose. (The stored
+  // proposal is otherwise immutable; the test edits it with triggers off on one connection.)
+  const c = await h.db.pool.connect();
+  try {
+    await c.query(`set session_replication_role = replica`);
+    await c.query(
+      `update web_discovery_claims set proposal = jsonb_set(proposal, '{evidence}',
+         (proposal->'evidence') || jsonb_build_array(proposal->'evidence'->0)) where id = $1`,
+      [observation.id],
+    );
+    await c.query(`set session_replication_role = origin`);
+  } finally {
+    c.release();
+  }
+  const after = await h.store.admitWebClaims(owner, h.ws.id, d.id, {
+    proposal_ids: [observation.id],
+  });
+  const added = after.proposals.find((x) => x.id === observation.id)!;
+  assert.equal(added.decision, 'admitted');
+  const rows = await h.db.pool.query(
+    'select passage_id from claim_support where claim_id = $1',
+    [added.claim_id],
+  );
+  const passages = rows.rows.map((r) => String(r.passage_id));
+  assert.equal(new Set(passages).size, passages.length);
 });
