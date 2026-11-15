@@ -1,71 +1,83 @@
-# Current implementation and verification — November 10, 2026
+# Current implementation and verification — November 15, 2026
 
 Creator Agent is an implemented local web/Windows evidence and product studio. This page
-describes main `e08e0a4` (PR #150, November 6); it does not describe a freshly installed release.
-Database schema: **49**. Runtime baseline: Node **22.23.4+ within 22.x**, or **24.22.2+ within
-24.x**; pnpm **11.25.0**. The installed app on Jordan's PC is still `f6e2ba0`, schema 41.
+describes main `f5728aa` (PR #211, November 15); it does not describe a freshly installed
+release. Database schema: **68**. Runtime baseline: Node **22.23.4+ within 22.x**, or
+**24.22.2+ within 24.x**; pnpm **11.25.0**. The installed app on Jordan's PC was upgraded on
+November 15 to `fdc7ce0` (schema 68: main with the PR #212 Windows build fix).
 
-Since the November 4 repairs, the [November 5 plan](CREATOR_AGENT_IMPLEMENTATION_PLAN_2026-11-05.md)
-packages P00–P09, P11 preparation, P14 and the first P15 slice have merged: activity links and
-newest-first lists, chat context choices, guided Discover, workspace files, named notes, previews
-until stopped, automatic assessments, "Why this response" and non-code proposals, tester accounts,
-frozen repository benchmarks and the `static-web/1` recipe. Package-by-package state, the latest
-checks and the open items are in [build status](../tracking/BUILD_STATUS.md). The matrix below was
-written on November 4 and predates those packages; the
-[capability matrix](CAPABILITY_MATRIX_2026-11-05.md) lists what kinds of product can be built.
+Package-by-package state, the latest checks and the open items are in
+[build status](../tracking/BUILD_STATUS.md); each change has its decision in
+[decisions](../tracking/DECISIONS.md). The [capability matrix](CAPABILITY_MATRIX_2026-11-05.md)
+lists what kinds of product can be built. The previous version of this page (main `e08e0a4`,
+November 6) is in the repository history.
+
+## What the studio does now
+
+- **Pages.** Chat, Projects (Path, Discover, Decide, Proposals, Scores and specs, Build, Try,
+  Launch), Autopilot, Sources, Monitor, Models and connections, and Settings. Standard view
+  folds routine settings and shows amounts in cents; Advanced view lists every tab and shows
+  exact amounts and ids (ADR-0103, ADR-0104). The theme is dark by default.
+- **Evidence.** Approved-site fetching with private-address and redirect checks, immutable
+  passages and claims a person accepts. **Search the web** (ADR-0086) finds new pages through
+  a qualified plan connection's own web search; the studio fetches them itself and turns only
+  quotes it can find on the page into draft claims.
+- **Discovery.** Theme drafts, explicit evidence packets, Explore for me from recorded claims,
+  discovery progress on Discover and Decide, and the discovery roles qualified in the app on
+  server-chosen benchmarks (ADR-0089).
+- **Decide.** Alternatives compared on the same evidence, assessments that read each option's
+  own claims (ADR-0091), the owner's gate checklist (ADR-0097), approvals in place (ADR-0102),
+  and selections with an override reason. A non-code choice goes to a proposal (ADR-0101).
+- **Autopilot and automation.** One bounded run from evidence to a proposal that stops where a
+  person must decide (ADR-0092), its own page (ADR-0111), automation levels (ADR-0099) and
+  opt-in autopilot settings for planned fallbacks (ADR-0100).
+- **Building.** Frozen specs, specs drafted by a qualified model and checked by a person
+  (ADR-0107), isolated builds for the Python CLI and `static-web/1` recipes, room for bigger
+  programs (builder/2, ADR-0109), independent review and QA, packages and Try. Building is
+  qualified per connection in the app (ADR-0105); larger Python builds are labelled
+  unqualified trials until their roles pass the larger benchmark (ADR-0112).
+- **Connections.** ChatGPT plan and Claude Code connections with daily caps, extra requests
+  when a cap runs out (ADR-0094), a workspace's own OpenAI API key in the desktop app
+  (ADR-0093), copying a connection's settings to another workspace (ADR-0095), and Chat
+  answers and card fill-ins from a plan (ADR-0096).
+- **Files.** Workspace files with inert viewers for PDF, Word, Excel, PowerPoint, ZIP and
+  code (ADR-0106).
+- **Money.** Exact-money reservations before every paid call, the $20 overall runtime ceiling,
+  per-run and per-model limits, and reconciliation of unknown outcomes.
 
 ## Capability and evidence matrix
 
-| Area                           | Implemented in source                                                                                                         | Verification and remaining boundary                                                                                             |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Local studio                   | React UI, API/CLI, PostgreSQL records, Windows desktop/service, protected sign-in                                             | Contract and Windows compilation evidence; fresh native installation/acceptance remains separate                                |
-| Connections and chat           | ChatGPT plan, dedicated Claude Code, bounded chat and request reconciliation                                                  | Synthetic/loopback contracts; dated live checks apply only to their recorded candidates and roles                               |
-| Budgets and permissions        | Exact-money reservations, runtime/run/model ceilings, scoped grants, pause/cancel, unknown-outcome reconciliation             | Database/concurrency checks; owner limits remain authoritative; no new spending or activation                                   |
-| Discovery and Explore for me   | Theme drafts, explicit evidence packets, alternative comparison, theme-free picks from recorded claims                        | Explore has no web search; reused locator qualification is not an independent exploration benchmark                             |
-| Evidence                       | Approved-site fetching, private-address/redirect checks, immutable passages, manually accepted claims                         | Source-fetch contracts; automatic search-to-claim drafting remains planned                                                      |
-| Build and delivery             | Frozen specs/tasks, isolated Python CLI builds, independent role review, QA, private preview, packages and feedback revisions | Fixture/contract and dated WSL evidence; this repair does not execute a fresh real WSL or installed-app acceptance              |
-| Search and operations          | Catalog/lineage, semantic and audit-query adapters, backups, health and recovery                                              | Implementation/contract evidence; individual CLI-only actions remain, and health is configuration rather than live verification |
-| GitHub                         | Scoped private-repository/branch/PR/check adapters and UI                                                                     | No new live repository verification or mutation                                                                                 |
-| Hosted, commerce and marketing | Deployment/OIDC, payment/entitlement/reinvestment and campaign adapters with test/fixture paths                               | Not activated by this candidate; separate owner decisions still apply                                                           |
-| Studies and thesis             | Frozen-condition machinery, exports and reproducible analysis                                                                 | Final participants, independent ratings, empirical conclusions and committee acceptance remain incomplete                       |
-
-## Repair and acceptance state as of November 4
-
-The [November 4 audit](CODEBASE_AUDIT_2026-11-04.md) is preserved as its original diagnosis.
-The [repair report](CODEBASE_REPAIRS_2026-11-04.md) records the changed candidate and executed
-checks for that earlier candidate. Claude's [independent review](CODEBASE_REPAIRS_INDEPENDENT_REVIEW_2026-11-04.md)
-found M1/L1 authentication races and L2/L3 evidence/handoff gaps. The [follow-up report](CODEBASE_AUTH_FOLLOWUP_2026-11-04.md)
-records their repairs. Claude's [follow-up review](CODEBASE_AUTH_FOLLOWUP_INDEPENDENT_REVIEW_2026-11-04.md)
-passed them with Lows F1/F2, which that thread then repaired at Jordan's request
-([F1/F2 repairs](CODEBASE_AUTH_F1F2_REPAIRS_2026-11-04.md), ADR-0068; not yet independently rechecked).
-Current verification: 742 full-suite passes, 27 explicit skips, zero failures (769 tests);
-22/22 current safety checks pass. TypeScript, web typecheck, formatting and whitespace
-checks pass.
-The four older open review items remain listed in [the handoff](../tracking/SESSION_HANDOFF.md).
-C54 and full
-product acceptance stay **partial**; no release, installation, provider call or study outcome
-is implied by successful compilation or fixture checks.
-
-Historical installed-app receipts include the October 29 schema-32 upgrade. The installed
-application was not inspected, migrated or replaced in this repair; current source schema 41
-must not be inferred to be its installed schema. See dated native receipts and the pilot log
-before choosing a supported upgrade/acceptance task.
+| Area                           | Implemented in source                                                                                                | Verification and remaining boundary                                                                                                                        |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Local studio                   | React UI, API/CLI, PostgreSQL records, Windows desktop/service, protected sign-in, Standard and Advanced views       | Contract checks and fixture browser walks; the installed app runs on Jordan's PC; fresh native installation acceptance is separate                         |
+| Connections and chat           | ChatGPT plan, Claude Code, OpenAI API key, daily caps and extra requests, Chat answers                               | Dated live qualifications apply only to their recorded connection, model and role prompt                                                                   |
+| Budgets and permissions        | Exact-money reservations, runtime/run/model ceilings, scoped grants, routine approvals, pause/cancel, reconciliation | Database and concurrency checks; owner limits stay authoritative                                                                                           |
+| Discovery and evidence         | Theme drafts, Explore for me, Search the web with checked quotes, automatic assessments, gate checklist              | Live discovery and web search ran on the dev studio at $0 on the plan connection; reused qualification is not an independent exploration benchmark         |
+| Autopilot                      | Durable bounded runs, automation levels, opt-in fallbacks, its own page                                              | Fixture walks and three live reruns on the dev studio, each with Jordan's typed OK                                                                         |
+| Build and delivery             | Frozen and model-drafted specs, isolated Python CLI and static web builds, builder/2, review, QA, packages, Try      | GPT-6 Astra qualified as builder on the installed app; the Claude route is qualified for small builds only; larger builds carry a trial label until a pass |
+| Search and operations          | Catalog, lineage, semantic and audit search, backups, health and recovery                                            | Implementation and contract evidence; health is configuration, not live verification                                                                       |
+| GitHub                         | Scoped private-repository/branch/PR/check adapters and UI                                                            | No live repository verification or change; the GitHub App (P32) comes after the UX pass                                                                    |
+| Hosted, commerce and marketing | Deployment/OIDC, test-mode payment/entitlement/funding and campaign adapters with fixture paths                      | Not activated; live payments and hosting are separate owner decisions after the app work                                                                   |
+| Studies and thesis             | Frozen-condition machinery, exports and reproducible analysis                                                        | Final participants, independent ratings, empirical conclusions and committee acceptance remain incomplete                                                  |
 
 ## Start and verify
 
 Follow [local development](LOCAL_DEVELOPMENT.md), then use [the product guide](CODE_AUDIT_AND_PRODUCT_GUIDE.md).
 `pnpm check` runs compilation, the regular tests, current development safety checks and formatting.
 `pnpm test:db` requires an explicitly configured disposable test server; visible skips do not
-establish database or real-isolation acceptance. Frozen helper replay is a separate
+establish database or real-isolation acceptance. In the cloud container five PowerShell-wrapper
+tests fail because PowerShell is not installed there. Frozen helper replay is a separate
 `pnpm test:historical-upgrade` gate requiring its original candidate/package.
 
-Next eligible (November 10): P10 and P16 are in progress; see
-[build status](../tracking/BUILD_STATUS.md) for the order after them. The November 4 line here
-("U02 focused independent recheck of the F1/F2 repairs") is superseded: that recheck passed.
-Do not automatically begin additions, a pilot, installation or release.
+Next (November 15): the whole-app UX pass, then the studio spending manager (S0) and the
+notifications inbox, toasts and Windows notifications (N1–N3), then the GitHub App (P32). See
+[build status](../tracking/BUILD_STATUS.md). Do not automatically begin additions, a pilot,
+installation or release.
 
 ## Historical status
 
-The previous page is preserved byte-for-byte in
-[the pre-repair status history](CURRENT_STATUS_HISTORY_2026-11-04.md).
-Dates, package identities, failures and original acceptance limits there remain historical evidence.
+The pre-repair page is preserved byte-for-byte in
+[the pre-repair status history](CURRENT_STATUS_HISTORY_2026-11-04.md). The November 4
+[audit](CODEBASE_AUDIT_2026-11-04.md), [repair report](CODEBASE_REPAIRS_2026-11-04.md) and
+[follow-up report](CODEBASE_AUTH_FOLLOWUP_2026-11-04.md) keep their original findings. Dates, package identities, failures
+and original acceptance limits there remain historical evidence.

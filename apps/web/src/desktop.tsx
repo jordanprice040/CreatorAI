@@ -66,30 +66,35 @@ export function DesktopDevices({
     <section className="panel">
       <h2>Devices and local workers</h2>
       <p>
-        Desktop sessions share studio records. Presence pairing grants no
-        execution authority. Execution-capable workers accept only exact
-        owner-submitted artifact jobs using the reviewed offline WSL sandbox.
+        A desktop window or a local worker on your computer joins this studio
+        here. Pairing only shows that a device is present; it can&apos;t run
+        anything. A worker paired to run checks accepts only the exact product
+        checks the owner submits, inside the reviewed offline WSL sandbox.
       </p>
       <p>
-        Closing a desktop window leaves a separately started worker running.
-        Shutdown asks it to stop on its next poll; revocation immediately denies
-        further authenticated polls. A stale last-seen time means presence is
-        unknown.
+        Closing a desktop window leaves a worker you started separately running.
+        Shutdown worker asks it to stop the next time it checks in; Revoke
+        refuses its next check-in at once. An old last-seen time means the
+        studio doesn&apos;t know whether the device is still there.
       </p>
       <p>
-        To pair a local worker, run{' '}
-        <code>node apps/desktop/worker.mjs pair {workspace.id}</code> and open
-        the approval link in your signed-in system browser.
+        To pair a local worker, run this, then open the approval link in your
+        signed-in system browser:
       </p>
+      <pre className="commands">
+        <code>node apps/desktop/worker.mjs pair {workspace.id}</code>
+      </pre>
       <p>
-        For execution, explicitly pair with{' '}
+        To let it run checks, pair it with this instead. PRODUCTS_ROOT must be
+        the same local product store this studio uses. Checks run in the fixed
+        20-second, 256 MiB sandbox; local compute is not metered, which
+        doesn&apos;t make it free.
+      </p>
+      <pre className="commands">
         <code>
           node apps/desktop/worker.mjs run {workspace.id} PRODUCTS_ROOT
         </code>
-        . PRODUCTS_ROOT must be the same local product store used by this
-        studio. Execution uses the fixed 20-second, 256 MiB sandbox; local
-        compute cost is unmetered, not zero.
-      </p>
+      </pre>
       <button className="secondary" onClick={() => data.reload()}>
         Refresh devices
       </button>

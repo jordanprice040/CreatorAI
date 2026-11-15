@@ -1,5 +1,9 @@
 # Session handoff — November 10, 2026
 
+## November 15 handoff — whole-app UX pass (Phase 2–3) and audit L-3 docs
+
+Branch `claude/project-thread-qdyhuq` from main f5728aa, no migration or ADR. Web: `style.css` (rules marked "Whole-app UX pass"), `overview.tsx` (`RunOf`, `runNames` in its load), `payments.tsx` (heading Sell), `desktop.tsx` (plain intro, `pre.commands`). Docs: `docs/CURRENT_STATUS.md`, `docs/CODE_AUDIT_AND_PRODUCT_GUIDE.md`, `README.md`. Evidence and the "left alone" list: `tracking/evidence/whole-app-ux-pass/` (with `row-align.mjs`). Next: independent review in a separate thread; then S0, N1–N3, P32 per the notifications plan.
+
 ## November 15 handoff — autopilot fixes from the third live rerun
 
 Branch `claude/project-thread-77qqks`, restarted from main 42dce84 after #205 merged. No migration or ADR.
