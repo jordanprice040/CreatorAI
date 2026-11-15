@@ -6,7 +6,9 @@ Branch `claude/project-thread-qj839l` from main 9f162d1. Migration 66 `file_kind
 
 Tests: new `web-file-viewers.test.ts`; new cases in `files-inspect.test.ts` (Office/ZIP, listing, UTF-16, mismatches) and `web-transfers.test.ts` (limit text, 502). `pnpm typecheck`, `pnpm format:check`, `pnpm build` pass; `pnpm test:db` on PostgreSQL 16: 1236 tests, 1202 pass, 29 skipped, the 5 known PowerShell-wrapper failures. Walk: `tracking/evidence/file-viewers/` (README, `make-samples.py`, `walk.mjs`, `walk.json`, screens) passes with 0 outside requests, 0 dialogs, 0 console errors.
 
-Not done: installed-app (WebView2) walk; Word bullet glyphs from Symbol fonts do not show (docx-preview limit); PowerPoint is an outline, not a slide render; files stored before migration 66 keep kind `other` (they open by extension). Next: independent review in a separate thread.
+Not done: installed-app (WebView2) walk; Word bullet glyphs from Symbol fonts do not show (docx-preview limit); PowerPoint is an outline, not a slide render; files stored before migration 66 keep kind `other` (they open by extension).
+
+Review 1 (`/mnt/project-files/reviews/PR201_FILE_VIEWERS_REVIEW_2026-11-15.md`: 1 H, 1 M, 5 L, 6 nits) fixed: `svgDataUrl` and `officeRefusal` (64 MiB a part, 256 MiB in all, unreadable ZIPs refused) in `file-viewer-rules.ts`; `files.tsx` refuses before Office viewers and draws SVG from `data:`; `pdf-view.tsx` frees canvases of far pages; `sheet-read.ts` + `sheet-worker.ts` (SheetJS in a module worker, `worker.format: 'es'`); `slides-view.tsx` sizes pictures from `zipEntries` before inflating, counts each part once, `dropped` per slide and deck; `vite.config.ts` `thirdPartyLicenses()` writes `dist/THIRD_PARTY_LICENSES.txt` and drops all quickjs files; `code-view.tsx` `original` (Copy the original); `docx-view.tsx` watches `data-theme`; SheetJS from `apps/web/vendor/xlsx-0.20.3.tgz` (same integrity). Walk gains `bomb.pptx`, `many-pages.pdf`, a repeated slide picture and open-as-page probes. Next: re-review in a separate thread.
 
 ## November 14 handoff — UX pass P-2 (Path branches) and P-5 (draft the missing sections) (ADR-0101, migration 64)
 

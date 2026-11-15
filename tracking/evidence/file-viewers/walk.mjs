@@ -4,7 +4,10 @@
 // text, Word pages in a sandboxed frame, spreadsheet sheets, slides, the ZIP listing, coloured
 // code, SVG drawn as a picture, UTF-16 text, the JSON mismatch flag. It records every request
 // the page makes: nothing may go anywhere but the studio, and no dialog may open (the samples
-// carry scripts, an outside link and an outside picture). Also 390 px width and console errors.
+// carry scripts, an outside link and an outside picture). Review L-5: the SVG's picture URL and a
+// slide picture's URL are also opened as their own pages, as "Open image in new tab" would, and
+// must not run as the studio or read its API. Also a compression bomb refused, PDF pages giving
+// back their canvases after scrolling, 390 px width and console errors.
 // Usage (after `pnpm build`, with a loopback test server whose role may CREATE DATABASE):
 //   python3 tracking/evidence/file-viewers/make-samples.py /tmp/fv-samples
 //   CREATOR_TEST_DATABASE_URL=postgres://... node tracking/evidence/file-viewers/walk.mjs /tmp/fv-samples
@@ -91,11 +94,51 @@ try {
     dialogs.push(d.message());
     void d.dismiss();
   });
+  // Requests made while a viewer's picture is opened as its own page (review L-5) are kept
+  // apart: that page is the file's own document, and what matters there is its origin.
+  let probing = null;
   ctx.on('request', (r) => {
     const u = r.url();
-    if (!u.startsWith(BASE) && !u.startsWith('data:') && !u.startsWith('blob:'))
+    if (probing) probing.push(u);
+    else if (
+      !u.startsWith(BASE) &&
+      !u.startsWith('data:') &&
+      !u.startsWith('blob:')
+    )
       outside.push(u);
   });
+  /** Opens a viewer-made picture URL as its own page, as "Open image in new tab" would. */
+  const openAsPage = async (url) => {
+    probing = [];
+    const tab = await ctx.newPage();
+    tab.on('dialog', (d) => void d.dismiss());
+    let result;
+    try {
+      await tab.goto(url, { timeout: 5000 }).catch((e) => e);
+      await tab.waitForTimeout(800);
+      result = {
+        origin: await tab.evaluate(() => location.origin).catch(() => 'none'),
+        title: await tab.title().catch(() => ''),
+        type: await tab.evaluate(() => document.contentType).catch(() => ''),
+        api: probing.filter((u) => u.startsWith(`${BASE}/api/`)).length,
+      };
+    } finally {
+      await tab.close();
+      probing = null;
+    }
+    // On the studio's origin only a raster picture is acceptable: it has nothing to run.
+    if (
+      result.title.startsWith(`RAN ${BASE}`) ||
+      (result.origin === BASE &&
+        !/^image\/(png|jpeg|gif|webp)$/.test(result.type))
+    )
+      throw new Error(
+        `a viewer URL opened as a studio page: ${JSON.stringify(result)}`,
+      );
+    if (/ \| 2\d\d/.test(result.title))
+      throw new Error(`a file's script read the studio API: ${result.title}`);
+    return result;
+  };
   const login = await page.request.post(`${BASE}/api/auth/dev-login`, {
     data: { code: CODE },
   });
@@ -153,7 +196,12 @@ try {
     .locator('.pdf-page .textLayer span', { hasText: 'Selectable text' })
     .waitFor();
   step(
-    `PDF: ${await page.locator('.pdf-bar').innerText().then((s) => s.replace(/\s+/g, ' '))}; text layer has “Selectable text on page one.”`,
+    `PDF: ${await page
+      .locator('.pdf-bar')
+      .innerText()
+      .then((s) =>
+        s.replace(/\s+/g, ' '),
+      )}; text layer has “Selectable text on page one.”`,
   );
   await page.getByRole('button', { name: 'Zoom in' }).click();
   await page.waitForTimeout(400);
@@ -193,29 +241,75 @@ try {
   await open('slots.xlsx');
   await page.locator('.sheet-grid table').waitFor();
   step(
-    `Excel: tabs ${await page.locator('.sheet-tabs [role=tab]').allInnerTexts()}; first row ${await page.locator('.sheet-grid tbody tr').first().innerText().then((s) => s.replace(/\s+/g, ' '))}`,
+    `Excel: tabs ${await page.locator('.sheet-tabs [role=tab]').allInnerTexts()}; first row ${await page
+      .locator('.sheet-grid tbody tr')
+      .first()
+      .innerText()
+      .then((s) => s.replace(/\s+/g, ' '))}`,
   );
   step(
-    `Excel row 2 (formula saved without a value): ${await page.locator('.sheet-grid tbody tr').nth(1).innerText().then((s) => s.replace(/\s+/g, ' '))}`,
+    `Excel row 2 (formula saved without a value): ${await page
+      .locator('.sheet-grid tbody tr')
+      .nth(1)
+      .innerText()
+      .then((s) => s.replace(/\s+/g, ' '))}`,
   );
   await shot('03-xlsx', detail());
   await page.getByRole('tab', { name: 'Notes' }).click();
   step(
-    `Excel Notes sheet: ${await page.locator('.sheet-grid').innerText().then((s) => s.replace(/\s+/g, ' '))}`,
+    `Excel Notes sheet: ${await page
+      .locator('.sheet-grid')
+      .innerText()
+      .then((s) => s.replace(/\s+/g, ' '))}`,
   );
 
   await open('pilot.pptx');
   await page.locator('.slide-card').first().waitFor();
   step(
-    `PowerPoint: ${await page.locator('.slide-card').count()} slides; titles ${await page.locator('.slide-card h4').allInnerTexts().then((a) => a.map((s) => s.replace(/\s+/g, ' ')).join(' | '))}; pictures ${await page.locator('.slide-card img').count()}`,
+    `PowerPoint: ${await page.locator('.slide-card').count()} slides; titles ${await page
+      .locator('.slide-card h4')
+      .allInnerTexts()
+      .then((a) =>
+        a.map((s) => s.replace(/\s+/g, ' ')).join(' | '),
+      )}; pictures ${await page.locator('.slide-card img').count()}`,
   );
   await shot('04-pptx', detail());
+  const slideSrc = await page
+    .locator('.slide-card img')
+    .first()
+    .getAttribute('src');
+  const slidePage = await openAsPage(slideSrc);
+  step(
+    `slide picture opened as its own page: ${slidePage.type} (a raster picture, nothing to run)`,
+  );
+
+  await open('bomb.pptx');
+  await page
+    .getByText('This file expands to more than the studio opens in the page')
+    .waitFor();
+  step('bomb.pptx (100 MiB part in a small file): refused before it is opened');
+
+  await open('many-pages.pdf');
+  await page.locator('.pdf-page canvas').first().waitFor();
+  await page.waitForTimeout(500);
+  const scroller = page.locator('.pdf-scroll');
+  for (let i = 0; i < 40; i++) {
+    await scroller.evaluate((el) => el.scrollBy(0, el.clientHeight));
+    await page.waitForTimeout(120);
+  }
+  await page.waitForTimeout(800);
+  const held = await page
+    .locator('.pdf-page canvas')
+    .evaluateAll((cs) => cs.filter((c) => c.width > 0).length);
+  const pages = await page.locator('.pdf-page').count();
+  step(
+    `PDF of ${pages} pages scrolled to the end: ${held} canvases still hold pixels`,
+  );
+  if (held > 20) throw new Error('PDF pages scrolled past kept their canvases');
 
   await open('bundle.zip');
   await page.locator('.archive-view table').waitFor();
-  step(
-    `ZIP: ${await page.locator('.archive-view > p').first().innerText()}`,
-  );
+  step(`ZIP: ${await page.locator('.archive-view > p').first().innerText()}`);
   await shot('05-zip', detail());
 
   await open('analysis.py');
@@ -236,6 +330,15 @@ try {
     .locator('.svg-view img')
     .evaluate((i) => i.complete && i.naturalWidth > 0);
   step(`SVG drawn as a picture: ${drawn}`);
+  const svgSrc = await page.locator('.svg-view img').getAttribute('src');
+  if (!svgSrc?.startsWith('data:image/svg+xml'))
+    throw new Error(
+      `the SVG picture is not a data: URL: ${svgSrc?.slice(0, 40)}`,
+    );
+  const asPage = await openAsPage(svgSrc);
+  step(
+    `SVG picture opened as its own page: origin ${asPage.origin}, ${asPage.type || 'nothing shown'}, title "${asPage.title}", ${asPage.api} studio API requests`,
+  );
   await shot('08-svg', detail());
   await page.getByLabel('Show SVG source').check();
   await page.locator('.code-body .hljs-tag').first().waitFor();
@@ -269,12 +372,17 @@ try {
   await page.locator('.pdf-view').scrollIntoViewIfNeeded();
   await shot('10-phone-pdf');
 
-  step(`requests outside the studio: ${outside.length}${outside.length ? ` (${outside.join(' | ')})` : ''}`);
-  step(`dialogs: ${dialogs.length}${dialogs.length ? ` (${dialogs.join(' | ')})` : ''}`);
+  step(
+    `requests outside the studio: ${outside.length}${outside.length ? ` (${outside.join(' | ')})` : ''}`,
+  );
+  step(
+    `dialogs: ${dialogs.length}${dialogs.length ? ` (${dialogs.join(' | ')})` : ''}`,
+  );
   step(
     `console errors: ${errors.length}${errors.length ? ` (${errors.join(' | ')})` : ''}`,
   );
-  if (outside.length || dialogs.length) throw new Error('a viewer was not inert');
+  if (outside.length || dialogs.length)
+    throw new Error('a viewer was not inert');
 } catch (e) {
   await page?.screenshot({
     path: join(tmpdir(), 'file-viewers-walk-failure.png'),

@@ -19,6 +19,9 @@ type Rules = {
   ): { id: string; label: string } | null;
   noViewerText(name: string): string;
   linesText(n: number): string;
+  officeRefusal(bytes: Uint8Array): string | null;
+  svgDataUrl(text: string): string;
+  OFFICE_PART_MAX_BYTES: number;
   KIND_TEXT: Record<string, string>;
 };
 const rules = () => loadWeb('file-viewer-rules.ts') as Promise<Rules>;
@@ -64,7 +67,7 @@ test('each kind opens its own viewer', async () => {
   assert.equal(r.KIND_TEXT.code, 'Code');
 });
 
-test('SVG is drawn as a picture only when it really is SVG', async () => {
+test('an .svg is drawn as a picture unless its upload was flagged as not SVG', async () => {
   const r = await rules();
   assert.equal(
     r.viewerFor(v('code', { media_type: 'image/svg+xml' }), 'logo.svg'),
@@ -117,4 +120,88 @@ test('code languages and their labels', async () => {
   assert.equal(r.codeLanguage('README', 'code'), null);
   assert.equal(r.linesText(1), '1 line');
   assert.equal(r.linesText(1204), '1,204 lines');
+});
+
+// Review H-1: the picture's URL is a data: URL of the exact text (UTF-8), never a blob: URL of
+// the studio's origin, so opening it in its own tab cannot run the SVG's scripts as the studio.
+test('SVG pictures come from a data: URL of the same text', async () => {
+  const r = await rules();
+  const text =
+    '<svg xmlns="http://www.w3.org/2000/svg"><text>日本語 ✓</text></svg>';
+  const url = r.svgDataUrl(text);
+  assert.match(url, /^data:image\/svg\+xml;base64,/);
+  assert.equal(
+    Buffer.from(url.slice(url.indexOf(',') + 1), 'base64').toString('utf8'),
+    text,
+  );
+  // Long files are encoded in pieces without overflowing the argument limit.
+  const big = `<svg>${'x'.repeat(300_000)}</svg>`;
+  assert.equal(
+    Buffer.from(r.svgDataUrl(big).split(',')[1]!, 'base64').length,
+    big.length,
+  );
+});
+
+/** A ZIP whose central directory declares these uncompressed sizes (no data is needed). */
+function declared(sizes: Record<string, number>, total?: number): Uint8Array {
+  const u16 = (n: number) => [n & 0xff, (n >> 8) & 0xff];
+  const u32 = (n: number) => [...u16(n & 0xffff), ...u16(n >>> 16)];
+  const local = [...u32(0x04034b50), ...new Array<number>(26).fill(0)];
+  const central: number[] = [];
+  let count = 0;
+  for (const [name, size] of Object.entries(sizes)) {
+    const n = Buffer.from(name);
+    central.push(...u32(0x02014b50), ...u16(20), ...u16(20), ...u16(0));
+    central.push(...u16(8), ...u32(0), ...u32(0), ...u32(100), ...u32(size));
+    central.push(...u16(n.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0));
+    central.push(...u32(0), ...u32(0), ...n);
+    count++;
+  }
+  const n = total ?? count;
+  const end = [
+    ...u32(0x06054b50),
+    ...u16(0),
+    ...u16(0),
+    ...u16(n),
+    ...u16(n),
+    ...u32(central.length),
+    ...u32(local.length),
+    ...u16(0),
+  ];
+  return new Uint8Array([...local, ...central, ...end]);
+}
+
+// Review L-1: an Office file whose parts would inflate past the bounds is refused before any
+// viewer inflates it.
+test('Office files that expand too far are refused before they are opened', async () => {
+  const r = await rules();
+  const MiB = 1024 * 1024;
+  assert.equal(r.OFFICE_PART_MAX_BYTES, 64 * MiB);
+  const ok = declared({
+    '[Content_Types].xml': 2000,
+    'ppt/presentation.xml': 5 * MiB,
+    'ppt/media/image1.png': 30 * MiB,
+  });
+  assert.equal(r.officeRefusal(ok), null);
+  // One part over 64 MiB (a 400 KB file holding a 400 MB slide).
+  assert.match(
+    r.officeRefusal(declared({ 'ppt/slides/slide1.xml': 400 * MiB })) ?? '',
+    /expands to more than the studio opens.*Download the original/,
+  );
+  // Parts each under the bound but over 256 MiB together.
+  const many: Record<string, number> = {};
+  for (let i = 0; i < 5; i++) many[`xl/worksheets/sheet${i}.xml`] = 60 * MiB;
+  assert.ok(r.officeRefusal(declared(many)));
+  // A size stored as ZIP64 (unknown here) is refused rather than trusted.
+  assert.ok(r.officeRefusal(declared({ 'word/document.xml': 0xffffffff })));
+  // More entries than the listing reads, and a directory that does not match its count.
+  const lots: Record<string, number> = {};
+  for (let i = 0; i < 5001; i++) lots[`p${i}`] = 1;
+  assert.ok(r.officeRefusal(declared(lots)));
+  assert.ok(r.officeRefusal(declared({ a: 1 }, 3)));
+  // Not a ZIP (an old .xls is a compound file): left to its viewer.
+  assert.equal(
+    r.officeRefusal(new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1])),
+    null,
+  );
 });

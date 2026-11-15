@@ -11,9 +11,9 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 // ADR-0106: PDFs drawn by pdf.js (Apache-2.0), bundled with the studio: the parser runs in its
 // own worker from the studio's own files, with character maps, fonts and decoders served next
-// to the app (vite.config.ts), never a CDN. A PDF's scripts and XFA forms never run, links and
-// form fields are not shown (no annotation layer). A text layer makes the
-// words selectable.
+// to the app (vite.config.ts), never a CDN. A PDF's scripts and XFA forms never run. Links and
+// form fields are drawn as they look on the page but cannot be used (no annotation layer). A
+// text layer makes the words selectable. Pages far from view free their canvases.
 
 GlobalWorkerOptions.workerSrc = workerUrl;
 const assets = `${import.meta.env.BASE_URL}pdfjs/`;
@@ -54,7 +54,17 @@ function PdfPage({
     return () => io.disconnect();
   }, []);
   useEffect(() => {
-    if (!near) return;
+    if (!near) {
+      // Review M-1: a page far from view gives back its pixels and text layer; the box keeps
+      // its size, and the page is drawn again when it comes back near.
+      const c = canvas.current;
+      if (c && c.width) {
+        c.width = 0;
+        c.height = 0;
+      }
+      text.current?.replaceChildren();
+      return;
+    }
     let stop = false;
     let task: { cancel: () => void } | null = null;
     let layer: TextLayer | null = null;
@@ -300,8 +310,9 @@ export function PdfView({ bytes, name }: { bytes: ArrayBuffer; name: string }) {
         ))}
       </div>
       <p className="small">
-        Drawn by the studio; the PDF’s own scripts, links and form fields are
-        switched off. Select text to copy it.
+        Drawn by the studio; the PDF’s own scripts are switched off, and its
+        links and form fields are drawn but cannot be used. Select text to copy
+        it.
       </p>
     </div>
   );

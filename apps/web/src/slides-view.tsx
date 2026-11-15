@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import JSZip from 'jszip';
-import { sniffImage } from '@creator/contracts';
+import { sniffImage, zipEntries } from '@creator/contracts';
 
 // ADR-0106: PowerPoint (.pptx) shown as an outline of its slides: each slide's title, text,
 // tables and pictures, in order, with the speaker notes. The studio reads the slide XML itself
@@ -16,12 +16,16 @@ export type Slide = {
   title: string;
   blocks: SlideBlock[];
   notes: string;
+  /** Pictures on this slide left out over the picture limit. */
+  dropped: number;
 };
 export type Deck = {
   slides: Slide[];
   /** Picture bytes by key, typed from their own bytes. */
   images: Map<string, Blob>;
   more: boolean;
+  /** Pictures left out because the pictures shown already reached IMAGE_MAX_BYTES. */
+  dropped: number;
 };
 
 const SLIDE_MAX = 300;
@@ -92,6 +96,14 @@ function rid(el: Element | undefined, name: string) {
 
 export async function readDeck(bytes: ArrayBuffer): Promise<Deck> {
   const zip = await JSZip.loadAsync(bytes);
+  // Review L-1/L-4: each part's size from the central directory, so a picture over the budget
+  // is skipped before it is inflated.
+  const sizes = new Map(
+    (zipEntries(new Uint8Array(bytes))?.entries ?? []).map((e) => [
+      e.name,
+      e.size,
+    ]),
+  );
   const presFile = zip.file('ppt/presentation.xml');
   if (!presFile) throw new Error('Not a presentation');
   const pres = xml(await presFile.async('string'));
@@ -99,6 +111,9 @@ export async function readDeck(bytes: ArrayBuffer): Promise<Deck> {
   const ids = all(pres, 'sldId');
   const images = new Map<string, Blob>();
   let imageBytes = 0;
+  let dropped = 0;
+  /** Each picture part once (a logo on every slide is read and counted once). */
+  const seen = new Map<string, 'shown' | 'over' | 'skip'>();
   const slides: Slide[] = [];
   for (const [i, id] of ids.slice(0, SLIDE_MAX).entries()) {
     const target = presRels.get(rid(id, 'id'));
@@ -107,7 +122,13 @@ export async function readDeck(bytes: ArrayBuffer): Promise<Deck> {
     const part = target.target;
     const doc = xml(await file.async('string'));
     const slideRels = await rels(zip, part);
-    const slide: Slide = { number: i + 1, title: '', blocks: [], notes: '' };
+    const slide: Slide = {
+      number: i + 1,
+      title: '',
+      blocks: [],
+      notes: '',
+      dropped: 0,
+    };
     const walk = async (tree: Element) => {
       for (const el of Array.from(tree.children)) {
         if (el.localName === 'grpSp') await walk(el);
@@ -125,13 +146,29 @@ export async function readDeck(bytes: ArrayBuffer): Promise<Deck> {
           const rel = slideRels.get(rid(blip, 'embed'));
           const media = rel && !rel.external ? zip.file(rel.target) : null;
           if (!media) continue;
-          const data = await media.async('uint8array');
-          const type = sniffImage(data);
-          if (!type || imageBytes + data.length > IMAGE_MAX_BYTES) continue;
-          imageBytes += data.length;
           const key = rel!.target;
-          if (!images.has(key))
-            images.set(key, new Blob([data as BlobPart], { type }));
+          let state = seen.get(key);
+          if (!state) {
+            const size = sizes.get(key);
+            if (size == null || imageBytes + size > IMAGE_MAX_BYTES)
+              state = 'over';
+            else {
+              const data = await media.async('uint8array');
+              const type = sniffImage(data);
+              if (type) {
+                imageBytes += data.length;
+                images.set(key, new Blob([data as BlobPart], { type }));
+              }
+              // Not a raster picture (a vector drawing): not shown and not counted.
+              state = type ? 'shown' : 'skip';
+            }
+            seen.set(key, state);
+          }
+          if (state === 'over') {
+            slide.dropped++;
+            dropped++;
+          }
+          if (state !== 'shown') continue;
           const alt = all(el, 'cNvPr')[0]?.getAttribute('descr') ?? '';
           slide.blocks.push({ type: 'image', key, alt });
         } else if (el.localName === 'graphicFrame') {
@@ -166,7 +203,7 @@ export async function readDeck(bytes: ArrayBuffer): Promise<Deck> {
     }
     slides.push(slide);
   }
-  return { slides, images, more: ids.length > SLIDE_MAX };
+  return { slides, images, more: ids.length > SLIDE_MAX, dropped };
 }
 
 export function SlidesView({ bytes }: { bytes: ArrayBuffer }) {
@@ -244,6 +281,14 @@ export function SlidesView({ bytes }: { bytes: ArrayBuffer }) {
             {s.blocks.length === 0 && !s.title && (
               <p className="small">No text or pictures on this slide.</p>
             )}
+            {s.dropped > 0 && (
+              <p className="small">
+                {s.dropped === 1
+                  ? '1 picture on this slide is'
+                  : `${s.dropped} pictures on this slide are`}{' '}
+                not shown: the pictures shown already reach the viewer’s limit.
+              </p>
+            )}
             {s.notes && (
               <details className="slide-notes">
                 <summary>Speaker notes</summary>
@@ -253,6 +298,15 @@ export function SlidesView({ bytes }: { bytes: ArrayBuffer }) {
           </li>
         ))}
       </ol>
+      {deck.dropped > 0 && (
+        <p className="small">
+          {deck.dropped === 1
+            ? '1 picture was'
+            : `${deck.dropped} pictures were`}{' '}
+          left out to keep the page light; download the original to see every
+          picture.
+        </p>
+      )}
       {deck.more && (
         <p className="small">
           Showing the first 300 slides; download for the rest.

@@ -83,7 +83,25 @@ s.shapes.add_picture(img, PI(1), PI(2), width=PI(3))
 tb = s.shapes.add_table(2, 2, PI(5), PI(2), PI(3), PI(1)).table
 tb.cell(0, 0).text = 'Before'; tb.cell(0, 1).text = 'After'
 tb.cell(1, 0).text = '16'; tb.cell(1, 1).text = '9'
+# The same picture again on the first slide (one media part used twice; review L-4).
+img.seek(0)
+pr.slides[0].shapes.add_picture(img, PI(7), PI(0.3), width=PI(1))
 pr.save(p('pilot.pptx'))
+
+# A small PowerPoint whose one extra part inflates to 100 MiB (review L-1): refused unopened.
+with zipfile.ZipFile(p('pilot.pptx')) as z:
+    parts = {n: z.read(n) for n in z.namelist()}
+with zipfile.ZipFile(p('bomb.pptx'), 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+    for n, b in parts.items():
+        z.writestr(n, b)
+    z.writestr('ppt/slides/slide99.xml', b' ' * (100 * 1024 * 1024))
+
+# Eighty pages, to check that pages scrolled past give back their canvases (review M-1).
+c = canvas.Canvas(p('many-pages.pdf'), pagesize=letter)
+for i in range(80):
+    c.setFont('Helvetica', 28); c.drawString(72, 700, f'Page {i + 1}')
+    c.showPage()
+c.save()
 
 c = canvas.Canvas(p('two-pages.pdf'), pagesize=letter)
 c.setFont('Helvetica-Bold', 22); c.drawString(72, 700, 'Clinic reminder pilot')
@@ -130,6 +148,6 @@ WEEKS = [Week(42, 7), Week(45, 4)]
 print(f"{sum(w.unused for w in WEEKS)} unused of {sum(w.booked for w in WEEKS)}")
 ''')
 open(p('page.html'), 'w').write('<!doctype html>\n<html>\n<body onload="alert(1)">\n  <h1 class="title">Hi</h1>\n  <script>fetch("http://127.0.0.1:9/html")</script>\n  <img src="http://127.0.0.1:9/img.png">\n</body>\n</html>\n')
-open(p('logo.svg'), 'w').write('<svg xmlns="http://www.w3.org/2000/svg" width="160" height="80" onload="alert(1)">\n  <script>fetch("http://127.0.0.1:9/svg")</script>\n  <rect width="160" height="80" rx="12" fill="#3c8c64"/>\n  <image href="http://127.0.0.1:9/svg-img.png" width="10" height="10"/>\n  <text x="80" y="48" font-size="22" text-anchor="middle" fill="white">SVG</text>\n</svg>\n')
+open(p('logo.svg'), 'w').write('<svg xmlns="http://www.w3.org/2000/svg" width="160" height="80" onload="alert(1)">\n  <script>fetch("http://127.0.0.1:9/svg");document.title="RAN "+location.origin;fetch("http://127.0.0.1:5183/api/broker/status",{credentials:"include"}).then(function(r){document.title+=" | "+r.status},function(){document.title+=" | blocked"})</script>\n  <rect width="160" height="80" rx="12" fill="#3c8c64"/>\n  <image href="http://127.0.0.1:9/svg-img.png" width="10" height="10"/>\n  <text x="80" y="48" font-size="22" text-anchor="middle" fill="white">SVG</text>\n</svg>\n')
 open(p('utf16.txt'), 'wb').write('﻿UTF-16 text: café, naïve, 日本語\r\nSecond line\r\n'.encode('utf-16-le'))
 open(p('broken.json'), 'w').write('{"a": 1,,}')

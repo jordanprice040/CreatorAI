@@ -131,6 +131,20 @@ export function DocxView({
     setFrameWidth(el.clientWidth);
     return () => ro.disconnect();
   }, [pages]);
+  // Review N-4: the page backdrop follows the studio's theme when it changes while open.
+  const [theme, setTheme] = useState(() =>
+    document.documentElement.getAttribute('data-theme'),
+  );
+  useEffect(() => {
+    const mo = new MutationObserver(() =>
+      setTheme(document.documentElement.getAttribute('data-theme')),
+    );
+    mo.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme'],
+    });
+    return () => mo.disconnect();
+  }, []);
   const zoom =
     fit && pages && frameWidth > 0
       ? Math.min(1, Math.max(0.3, (frameWidth - 20) / (pages.width + 32)))
@@ -143,7 +157,7 @@ export function DocxView({
         .trim() || '#6b7280';
     // Rounded so a resize redraws the frame only when the zoom really changes.
     return page(pages, backdrop, Math.round(zoom * 50) / 50);
-  }, [pages, zoom]);
+  }, [pages, zoom, theme]);
   if (error) return <p className="notice">{error}</p>;
   if (!pages) return <p className="small">Laying out the document…</p>;
   return (

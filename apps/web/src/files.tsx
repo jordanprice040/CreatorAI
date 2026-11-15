@@ -16,7 +16,13 @@ import { Markdown } from './markdown-view.js';
 import { MARKDOWN_MAX_CHARS } from './markdown.js';
 import { noteUploadLimit, startUploads } from './transfers.js';
 import type { Workspace } from '@creator/contracts';
-import { KIND_TEXT, noViewerText, viewerFor } from './file-viewer-rules.js';
+import {
+  KIND_TEXT,
+  noViewerText,
+  officeRefusal,
+  svgDataUrl,
+  viewerFor,
+} from './file-viewer-rules.js';
 import { useFileBytes } from './file-bytes.js';
 
 // ADR-0106: the heavier viewers load only when a file of their kind is opened.
@@ -633,6 +639,13 @@ function BinaryView({
   if (bytes.error) return <p className="error">{bytes.error}</p>;
   if (!bytes.data) return <p className="small">Reading the file…</p>;
   const data = bytes.data;
+  const refusal =
+    viewer === 'document' ||
+    viewer === 'spreadsheet' ||
+    viewer === 'presentation'
+      ? officeRefusal(new Uint8Array(data))
+      : null;
+  if (refusal) return <p className="notice">{refusal}</p>;
   return (
     <div className="file-view">
       <Suspense fallback={LOADING}>
@@ -714,14 +727,13 @@ function TextFileView({
 
 /**
  * An SVG drawn as an image: a browser never runs scripts, loads other files or follows links
- * in an SVG shown through <img>. Falls back to the source if it does not draw.
+ * in an SVG shown through <img>. Review H-1: the picture comes from a data: URL, never a blob:
+ * URL, because a blob: URL belongs to the studio's origin, so "Open image in new tab" would run
+ * the SVG's scripts as the studio. A data: URL has no origin of its own, and browsers refuse to
+ * open one as a page. Falls back to the source if it does not draw.
  */
 function SvgPicture({ text, name }: { text: string; name: string }) {
-  const url = useMemo(
-    () => URL.createObjectURL(new Blob([text], { type: 'image/svg+xml' })),
-    [text],
-  );
-  useEffect(() => () => URL.revokeObjectURL(url), [url]);
+  const url = useMemo(() => svgDataUrl(text), [text]);
   const [broken, setBroken] = useState(false);
   if (broken)
     return (
@@ -794,7 +806,12 @@ function TextView({
   if (kind === 'code' || kind === 'json' || kind === 'markdown')
     return (
       <Suspense fallback={<pre className="file-text">{rendered.pre}</pre>}>
-        <CodeView text={rendered.pre ?? ''} name={name} kind={kind} />
+        <CodeView
+          text={rendered.pre ?? ''}
+          name={name}
+          kind={kind}
+          original={text}
+        />
       </Suspense>
     );
   return <pre className="file-text">{rendered.pre}</pre>;

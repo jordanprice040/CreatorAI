@@ -15,7 +15,8 @@ function pdfjsAssets(): Plugin {
   const require = createRequire(import.meta.url);
   const root = dirname(require.resolve('pdfjs-dist/package.json'));
   const dirs = ['cmaps', 'iccs', 'standard_fonts', 'wasm'];
-  const keep = (name: string) => !name.startsWith('quickjs');
+  // Review N-2: also its licence files (LICENSE_QUICKJS, LICENSE_PDFJS_QUICKJS).
+  const keep = (name: string) => !/quickjs/i.test(name);
   const files = () =>
     dirs.flatMap((d) =>
       readdirSync(join(root, d))
@@ -66,8 +67,105 @@ function pdfjsAssets(): Plugin {
   };
 }
 
+/** The studio's file-viewer libraries, always listed (some reach the build only as assets or workers). */
+const VIEWER_PACKAGES = [
+  'pdfjs-dist',
+  'docx-preview',
+  'xlsx',
+  'jszip',
+  'lowlight',
+  'highlight.js',
+];
+
+/**
+ * Review L-3: the licence of every package bundled into the web app, collected from the module
+ * graph (plus the viewer libraries, which reach the build as assets or workers too) into
+ * THIRD_PARTY_LICENSES.txt next to index.html, so the app and the installed app ship them.
+ */
+function thirdPartyLicenses(): Plugin {
+  const require = createRequire(import.meta.url);
+  const rootOf = (id: string): string | null => {
+    const i = id.lastIndexOf('/node_modules/');
+    if (i < 0) return null;
+    const rest = id.slice(i + 14).split('/');
+    const n = rest[0]?.startsWith('@') ? 2 : 1;
+    return id.slice(0, i + 14) + rest.slice(0, n).join('/');
+  };
+  return {
+    name: 'creator-third-party-licenses',
+    apply: 'build',
+    generateBundle() {
+      const roots = new Set<string>();
+      for (const id of this.getModuleIds()) {
+        const r = rootOf(id.replace(/\\/g, '/').split('?')[0]!);
+        if (r) roots.add(r);
+      }
+      // The viewer libraries and, because some ship prebuilt bundles (JSZip carries pako), every
+      // package they depend on.
+      const walked = new Set<string>();
+      const add = (name: string, from: NodeRequire) => {
+        let d: string;
+        try {
+          // Some packages do not export ./package.json: walk up from their entry instead.
+          const entry = from.resolve(name);
+          // A Node built-in (readable-stream's "util") is not a bundled package.
+          if (
+            !entry.includes('/node_modules/') &&
+            !entry.includes('\\node_modules\\')
+          )
+            return;
+          d = dirname(entry);
+        } catch {
+          return;
+        }
+        while (rootOf(`${d}/x`) !== d && dirname(d) !== d) d = dirname(d);
+        if (walked.has(d)) return;
+        walked.add(d);
+        roots.add(d);
+        const deps = Object.keys(
+          JSON.parse(readFileSync(join(d, 'package.json'), 'utf8'))
+            .dependencies ?? {},
+        );
+        const req = createRequire(join(d, 'package.json'));
+        for (const dep of deps) add(dep, req);
+      };
+      for (const p of VIEWER_PACKAGES) add(p, require);
+      const blocks = new Map<string, string>();
+      for (const root of roots) {
+        let pkg: { name?: string; version?: string; license?: string };
+        try {
+          pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+        } catch {
+          continue;
+        }
+        if (!pkg.name || pkg.name.startsWith('@creator/')) continue;
+        const file = readdirSync(root).find((f) =>
+          /^(licen[cs]e|copying)(\.|$)/i.test(f),
+        );
+        const text = file
+          ? readFileSync(join(root, file), 'utf8').trim()
+          : `Licence: ${pkg.license ?? 'not stated'} (no licence file in the package).`;
+        blocks.set(
+          `${pkg.name}@${pkg.version ?? ''}`,
+          `${pkg.name} ${pkg.version ?? ''} (${pkg.license ?? 'licence not stated'})\n\n${text}`,
+        );
+      }
+      const body = [...blocks.keys()]
+        .sort()
+        .map((k) => blocks.get(k))
+        .join(`\n\n${'='.repeat(78)}\n\n`);
+      this.emitFile({
+        type: 'asset',
+        fileName: 'THIRD_PARTY_LICENSES.txt',
+        source: `Third-party software bundled with Creator Agent's web app.\n\n${'='.repeat(78)}\n\n${body}\n`,
+      });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [pdfjsAssets()],
+  plugins: [pdfjsAssets(), thirdPartyLicenses()],
+  worker: { format: 'es' },
   server: {
     host: config.host,
     port: config.web_port,

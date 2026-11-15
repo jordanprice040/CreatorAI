@@ -40,11 +40,15 @@ export function CodeView({
   text,
   name,
   kind,
+  original,
 }: {
   text: string;
   name: string;
   kind: string;
+  /** The file's own text when `text` was reformatted for reading (JSON); Copy copies it. */
+  original?: string;
 }) {
+  const formatted = original !== undefined && original !== text;
   const language = codeLanguage(name, kind);
   const [wrap, setWrap] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -66,6 +70,7 @@ export function CodeView({
       <div className="code-bar">
         <span className="small">
           {language ? language.label : 'Plain text'} · {linesText(lines)}
+          {formatted ? ' · formatted for reading' : ''}
           {language && !colour ? ' · too long to colour' : ''}
         </span>
         <label className="chip">
@@ -80,13 +85,13 @@ export function CodeView({
           type="button"
           className="text"
           onClick={() => {
-            void navigator.clipboard?.writeText(text).then(() => {
+            void navigator.clipboard?.writeText(original ?? text).then(() => {
               setCopied(true);
               setTimeout(() => setCopied(false), 1500);
             });
           }}
         >
-          {copied ? 'Copied' : 'Copy'}
+          {copied ? 'Copied' : formatted ? 'Copy the original' : 'Copy'}
         </button>
       </div>
       <div className={wrap ? 'code-scroll wrap' : 'code-scroll'} tabIndex={0}>
