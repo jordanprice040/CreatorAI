@@ -8,8 +8,9 @@ Branch `claude/project-thread-77qqks`, restarted from main 42dce84 after #205 me
 - **New stop kind:** `usage_limit`, with its next steps in contracts.
 - **Gather requests** carry `unknowns`.
 - **`#gathered`** returns `lastUnknowns`.
+- **Continue findability:** `apps/web/src/autopilot-waiting-rules.ts` (`waitingAutopilot`, `continueLabel`) and `autopilot-waiting.tsx`, rendered in `compare.tsx` after the gates. `autopilotContinuable(a, now)` refuses past `config.limits.ends_at`; `autopilotEndsApprovals` passes only state, outcome and steps. Tests in `tests/src/web-autopilot-waiting.test.ts` and `autopilot.test.ts`.
 
-Next: independent review in a separate thread. Autopilot e8b36bd9 waits for Jordan to confirm his ChatGPT usage reset before it continues.
+Next: independent review in a separate thread. Autopilot e8b36bd9 finished with a proposal after Jordan's typed OK.
 
 ## November 15 handoff — autopilot fixes from the live rerun (findings 1–7)
 

@@ -10,6 +10,7 @@ These fix the findings in `/mnt/project-files/reviews/LIVE_AUTOPILOT_RERUN_205_2
 - **Note length.** `fitNote` keeps at least two fifths of a note for its reason.
 - **Gather loop.** A gather round asked for after the unknown ratings did not shrink is not run; the choice goes to the person or the settings, and the stop says why (`unknownCount`, `unknowns` on the gather request).
 - **Search note.** The claim count reads on in lower case after "Claims so far:".
+- **Continue from Decide.** After confirming gates under Decide, Jordan could not find where to continue. Decide's options page now names the autopilot waiting on that problem and offers "Continue the autopilot from <stage>" there (`waitingAutopilot`, `WaitingAutopilot`). An autopilot past its end time no longer offers Continue anywhere (`autopilotContinuable` checks the end time; the store still refuses it with `EXPIRED`). Ending its routine approvals does not depend on the end time.
 
 Checked in the cloud container on a throwaway PostgreSQL 16 database:
 - `pnpm typecheck` and `pnpm format:check`.

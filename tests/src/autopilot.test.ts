@@ -607,6 +607,20 @@ test('a person’s choice under Decide carries the autopilot on; part-way starts
   assert.ok(
     !autopilotContinuable({ ...finished, outcome: 'proposal' as const }).ok,
   );
+  // Live rerun 3: an autopilot past its end time no longer offers Continue.
+  const ends = (iso: string) =>
+    ({ limits: { ends_at: iso } }) as unknown as AutopilotConfig;
+  const past = autopilotContinuable(
+    { ...finished, config: ends('2026-11-15T10:00:00.000Z') },
+    Date.parse('2026-11-15T10:00:00.000Z'),
+  );
+  assert.ok(!past.ok && /end time has passed/.test(past.reason));
+  assert.ok(
+    autopilotContinuable(
+      { ...finished, config: ends('2026-11-15T10:00:00.000Z') },
+      Date.parse('2026-11-15T09:59:59.000Z'),
+    ).ok,
+  );
   // Review N-2: fewer calls than the shortest path needs is refused up front.
   assert.equal(AUTOPILOT_MIN_CALLS, 8);
   const lim = autopilotChildLimits({

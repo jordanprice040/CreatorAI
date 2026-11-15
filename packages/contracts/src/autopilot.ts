@@ -94,7 +94,13 @@ export function autopilotEndsApprovals(
 ): boolean {
   return (
     a.state === 'finished' &&
-    (a.outcome === 'failed' || !autopilotContinuable(a).ok)
+    (a.outcome === 'failed' ||
+      // The end time is left out: an autopilot past it keeps its approvals until it ends.
+      !autopilotContinuable({
+        state: a.state,
+        outcome: a.outcome,
+        steps: a.steps,
+      }).ok)
   );
 }
 
@@ -361,9 +367,17 @@ export type Autopilot = z.infer<typeof AutopilotSchema>;
  */
 export function autopilotContinuable(
   a: Pick<Autopilot, 'state' | 'outcome' | 'steps'> &
-    Partial<Pick<Autopilot, 'approvals_ended_at'>>,
+    Partial<Pick<Autopilot, 'approvals_ended_at' | 'config'>>,
+  now = Date.now(),
 ): { ok: true } | { ok: false; reason: string } {
   if (a.state !== 'finished') return { ok: false, reason: 'It is running.' };
+  // Live rerun 3 (November 15): an old autopilot whose end time passed still showed Continue
+  // (the store refuses it); it says so instead, so only a live one offers Continue.
+  if (a.config && Date.parse(a.config.limits.ends_at) <= now)
+    return {
+      ok: false,
+      reason: 'Its end time has passed; start a new autopilot.',
+    };
   if (a.approvals_ended_at)
     return {
       ok: false,
