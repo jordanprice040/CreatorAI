@@ -184,6 +184,10 @@
   .palette-trigger kbd {
     display: none;
   }
+  /* Keyboard hints mean nothing on a touch screen (review 2). */
+  .palette-foot {
+    display: none;
+  }
   .palette {
     margin-top: 16px;
   }
