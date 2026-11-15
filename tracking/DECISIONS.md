@@ -123,6 +123,16 @@ Not covered: no live run yet (each needs Jordan's typed OK: `docs/BUILD_QUALIFIC
 
 Review 5 (two nits) fixed: the scorer label is `recipe-scorer/5` to match the fourth re-cut's scorer, and the freezes were re-cut for it.
 
+**Owner decision (November 15, 11:29 UTC): the Claude route is qualified for small builds only.** In the installed-app rerun (`tracking/evidence/recipe-qualifications/2026-11-15-rerun/`), claude-sonnet-5-5 qualified as builder and reviewer and on `p15-small-signup-v5`. It was not qualified on `p14-larger-ledgercheck-v5`: its first builder answer began with invented tool-call text (`<invoke name="note">…`) before the fenced patch, although the route runs with no tools. Jordan chose to keep the strict answer check. Nothing was changed and nothing is rerun. Note (PR #212 re-check 3): today the app does not enforce "small builds only". Python builds never carry the unqualified-trial label (`unqualifiedTrial` in `packages/contracts/src/web-recipe.ts`; they are admitted on qualified roles, which Claude now has), and `p14-larger-ledgercheck-v5` gates no build (`RECIPE_BENCHMARKS` lists only the static-web benchmarks). So a larger Python build on the Claude Code connection runs unlabelled; the limit is a written rule until the app enforces it. Rejected: tolerating leading tool-call text through new benchmark versions, and a builder prompt line saying there are no tools (that would mean requalifying every builder).
+
+Follow-up (Jordan, 11:30 UTC: he wants Claude for larger builds later). Proposed path, not started; each live step needs his typed OK:
+
+1. A new `answer_wrapping` mode for the plan route that drops only leading lines that are wholly `<invoke …>…</invoke>` or `</invoke>` before the one json fence. Any other text still fails. `call-N-answer-form.json` records the drop, and the plan request keeps the raw answer.
+2. New frozen versions (`t12-builder-v4`, `p14-larger-ledgercheck-v6`) that copy their sources' cases exactly and add only the marker. The v3/v5 versions and record `49fe5782` stay as they are; nothing is re-graded.
+3. Requalify Claude on `t12-builder-v4` and the v6 larger benchmark (about 4 + 6 to 18 requests, $0). This is a fresh run after a format-only change, not a retry of H4, and it is still decided by its first failure.
+
+A newer Claude model or Claude Code version would be qualified separately and might not need step 1.
+
 Rejected: keeping the v4 pass bars (the app cannot run them); a global switch per recipe (ADR-0078 L-9 still holds: a pass is per connection, model and prompt pair); running attempts as catalog runs (it would add runs, specs and products to the person's catalog); re-sending an interrupted attempt (it could double-count a verdict).
 
 ## ADR-0101 — The Path branches after Selection, and a proposal's missing sections can be drafted by the chat model (November 14, 2026)

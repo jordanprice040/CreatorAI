@@ -1,0 +1,29 @@
+{
+  "id": "0f4b173e-c15a-4b72-a9f7-49576263f99c",
+  "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+  "model_id": "gpt-6-astra",
+  "task_class": "independent_review",
+  "manifest_hash": "a9ecee41b38f4e54222cec6cd49b0bb0a03adf36b778b48bf19bdb3b556d7bea",
+  "min_held_out_cases": 3,
+  "floor": {
+    "numerator": 1,
+    "denominator": 1
+  },
+  "state": "qualified",
+  "development": {
+    "total": 1,
+    "passed": 1
+  },
+  "held_out": {
+    "total": 3,
+    "passed": 3
+  },
+  "reason": "3/3 held-out cases accepted against a floor of 1/1 (absolute, not baseline-relative).",
+  "created_by": "00000000-0000-4000-8000-000000000001",
+  "created_at": "2026-11-11T09:37:17.84Z",
+  "decided_at": "2026-11-11T09:37:43.359Z",
+  "prompt_current": true,
+  "admits_assessment": false,
+  "admits_discovery": false,
+  "admits_web_discovery": false
+}
