@@ -1,5 +1,11 @@
 # Build status — November 10, 2026
 
+## November 15 update — study effort timer (ADR-0122, migration 72)
+
+What now works: on the Study page, an assisted (`human_in_loop`) attempt times each intervention step. Opening "Record human intervention" starts the step; the box above the form shows active time, time waiting on the studio and time away, live; saving the intervention records them with it. "Measured on this attempt" totals the timed steps and counts unfinished ones. The study export carries `measured_effort` per attempt beside the reported minutes, labelled as the operator's timing (not participant data) for synthetic studies. The server refuses timing for other conditions, terminal or expired attempts, another person's step, a step already measured, or totals longer than the step lasted on its clock. Fixture/synthetic only; nothing live.
+
+CHECKS_PLACEHOLDER
+
 ## November 15 update — autopilot fixes from the third live rerun (no migration or ADR)
 
 These fix the findings in `/mnt/project-files/reviews/LIVE_AUTOPILOT_RERUN_205_2026-11-15.md` (autopilot e8b36bd9 on main 42dce84).

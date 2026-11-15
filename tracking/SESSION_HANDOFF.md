@@ -1,5 +1,9 @@
 # Session handoff — November 10, 2026
 
+## November 15 handoff — study effort timer (ADR-0122, migration 72)
+
+Branch `claude/project-thread-ydxhwr` from main f5728aa. Migration 72 (`study_effort_steps`, `study_effort_measures`, append-only); 69–71 are reserved by other milestones, so `assertSchemaCurrent` names them missing until they land. Contracts `study.ts`: `STUDY_EFFORT_TIMER_VERSION`, `STUDY_EFFORT_IDLE_MS`, `STUDY_EFFORT_CLOCK_SLACK_MS`, `StudyEffortSchema`, `StudyInterventionRequestSchema`, `StudyEffortStepSchema`. Store `study-store.ts`: `startEffortStep`, `effortSteps`, `#recordEffort` (inside `writeAttempt` for interventions), `effortOverrun`, export `measured_effort`. API: `apps/api/src/study-effort.ts` (`STUDY_EFFORT_ROUTE`, `studyEffortRoutes`), wired in `index.ts` without touching the big record regex. Web: `effort-timer.ts` (`EffortClock`, `effortText`), `study.tsx` (`EffortSummary`, timer in `InterventionEditor`), `study-effort.css`. Next: independent review in a separate thread. Follow-ups not done: measured effort for human-only work and the finish step; the analysis report reading measured timing.
+
 ## November 15 handoff — autopilot fixes from the third live rerun
 
 Branch `claude/project-thread-77qqks`, restarted from main 42dce84 after #205 merged. No migration or ADR.

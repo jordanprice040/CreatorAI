@@ -134,6 +134,7 @@ import {
 import { RecipeQualificationRunner } from './recipe-qualification.js';
 import { contextRoutes } from './context.js';
 import { searchRoutes } from './search.js';
+import { STUDY_EFFORT_ROUTE, studyEffortRoutes } from './study-effort.js';
 import {
   FILES_ROUTE,
   SERVER_REQUEST_MS,
@@ -791,7 +792,8 @@ export function createApi(
       TEAM_PROFILE_ROUTE.exec(url.pathname) ??
       GATE_RULE_ROUTE.exec(url.pathname) ??
       GATE_CHECKLIST_ROUTE.exec(url.pathname) ??
-      GATE_CONFIRM_ROUTE.exec(url.pathname);
+      GATE_CONFIRM_ROUTE.exec(url.pathname) ??
+      STUDY_EFFORT_ROUTE.exec(url.pathname);
     if (!match) return false;
     if (!store)
       throw new ContractError(
@@ -906,6 +908,20 @@ export function createApi(
         );
       throw new ContractError('NOT_FOUND', 'Unknown settings route.');
     }
+    if (
+      ws &&
+      item &&
+      STUDY_EFFORT_ROUTE.test(url.pathname) &&
+      (await studyEffortRoutes({
+        store,
+        ctx,
+        ws,
+        attemptId: item,
+        method,
+        send,
+      }))
+    )
+      return true;
     // The usage indicator (runbook step 9): read-only plan and API usage for one workspace.
     if (ws && USAGE_ROUTE.test(url.pathname)) {
       if (method === 'GET')

@@ -3,13 +3,20 @@ import {
   z,
   StudySummarySchema,
   StudyAttemptSchema,
+  StudyEffortStepSchema,
+  STUDY_EFFORT_IDLE_MS,
+  STUDY_EFFORT_TIMER_VERSION,
   type StudyAttempt,
+  type StudyEffort,
+  type StudyEffortStep,
   type StudySummary,
   type SessionInfo,
   type Workspace,
 } from '@creator/contracts';
 import { api, message } from './oversight.js';
 import { useOnShow } from './page-active.js';
+import { EffortClock, effortText, type EffortTotals } from './effort-timer.js';
+import './study-effort.css';
 
 const Entry = z.object({
   id: z.string(),
@@ -46,6 +53,37 @@ export function Studies({
   } | null>(null);
   const [expected, setExpected] = useState('');
   const [confirmStop, setConfirmStop] = useState(false);
+  // ADR-0122 (F13): the current intervention step's timer, and the attempt's timed steps.
+  const [step, setStep] = useState<StudyEffortStep | null>(null);
+  const [effortSteps, setEffortSteps] = useState<StudyEffortStep[]>([]);
+  const clock = useRef<EffortClock | null>(null);
+  const attemptPanel = useRef<HTMLDivElement | null>(null);
+  const [, setTick] = useState(0);
+  const timing = step !== null;
+  useEffect(() => {
+    if (!timing) return;
+    const now = () => performance.now();
+    const edited = () => clock.current?.edited(now());
+    const visibility = () =>
+      clock.current?.visibility(now(), document.visibilityState === 'visible');
+    const focus = () => clock.current?.focus(now(), true);
+    const blur = () => clock.current?.focus(now(), false);
+    const panel = attemptPanel.current;
+    for (const kind of ['input', 'keydown', 'change'] as const)
+      panel?.addEventListener(kind, edited);
+    document.addEventListener('visibilitychange', visibility);
+    window.addEventListener('focus', focus);
+    window.addEventListener('blur', blur);
+    const timer = window.setInterval(() => setTick((n) => n + 1), 1000);
+    return () => {
+      for (const kind of ['input', 'keydown', 'change'] as const)
+        panel?.removeEventListener(kind, edited);
+      document.removeEventListener('visibilitychange', visibility);
+      window.removeEventListener('focus', focus);
+      window.removeEventListener('blur', blur);
+      window.clearInterval(timer);
+    };
+  }, [timing]);
   /** Set once the person picks a study, so the automatic open never overrides them. */
   const picked = useRef(false);
 
@@ -87,16 +125,51 @@ export function Studies({
     setBusy(true);
     setError('');
     setNotice('');
+    // While a step is timed, a studio request in flight is the person's waiting time.
+    const timed = clock.current;
+    timed?.requestStarted(performance.now());
     try {
       await fn();
     } catch (e) {
       setError(message(e));
     } finally {
+      timed?.requestEnded(performance.now());
       setBusy(false);
     }
   }
+  function stopTiming() {
+    clock.current = null;
+    setStep(null);
+  }
+  async function loadEffort(attemptId: string) {
+    setEffortSteps(
+      await api(
+        z.array(StudyEffortStepSchema),
+        `${base}/study-attempts/${attemptId}/effort-steps`,
+      ),
+    );
+  }
+  async function startStep() {
+    if (!attempt || step) return;
+    const started = await api(
+      StudyEffortStepSchema,
+      `${base}/study-attempts/${attempt.id}/effort-steps`,
+      { body: {}, csrf: session.csrf_token },
+    );
+    clock.current = new EffortClock(
+      performance.now(),
+      {
+        visible: document.visibilityState === 'visible',
+        focused: document.hasFocus(),
+      },
+      STUDY_EFFORT_IDLE_MS,
+    );
+    setStep(started);
+    await loadEffort(attempt.id);
+  }
   async function openStudy(id: string) {
     setSelected(id);
+    stopTiming();
     setAttempt(null);
     setContext(null);
     if (!id) {
@@ -107,6 +180,9 @@ export function Studies({
     setAttempts(d.attempts);
   }
   async function openAttempt(a: StudyAttempt) {
+    // A step left open on another attempt stays on record as unfinished.
+    stopTiming();
+    setEffortSteps([]);
     setEntries(
       await api(z.array(Entry), `${base}/study-attempts/${a.id}/entries`),
     );
@@ -117,6 +193,7 @@ export function Studies({
     setContext(
       await api(z.unknown(), `${base}/study-attempts/${a.id}/context`),
     );
+    if (a.condition === 'human_in_loop') await loadEffort(a.id);
   }
   async function write(action: string, body: unknown) {
     if (!attempt) return;
@@ -256,7 +333,7 @@ export function Studies({
         ))}
       </ul>
       {attempt && (
-        <div className="panel">
+        <div className="panel" ref={attemptPanel}>
           <h3>
             {attempt.condition === 'human_only'
               ? 'Human-only workspace'
@@ -413,14 +490,42 @@ export function Studies({
             attempt.state === 'assigned' && (
               <InterventionEditor
                 busy={busy}
+                synthetic={attempt.synthetic}
+                timing={
+                  step && clock.current
+                    ? clock.current.totals(performance.now())
+                    : null
+                }
+                onOpen={() => void perform(startStep)}
                 save={(body) =>
                   perform(async () => {
-                    await write('interventions', body);
-                    setNotice('Intervention and reported effort saved.');
+                    const c = clock.current;
+                    const effort: StudyEffort | undefined =
+                      step && c
+                        ? {
+                            step_id: step.id,
+                            timer_version: STUDY_EFFORT_TIMER_VERSION,
+                            ...c.totals(performance.now()),
+                          }
+                        : undefined;
+                    await write('interventions', {
+                      ...(body as object),
+                      ...(effort ? { effort } : {}),
+                    });
+                    stopTiming();
+                    await loadEffort(attempt.id);
+                    setNotice(
+                      effort
+                        ? 'Intervention, reported effort and measured step time saved.'
+                        : 'Intervention and reported effort saved.',
+                    );
                   })
                 }
               />
             )}
+          {attempt.condition === 'human_in_loop' && effortSteps.length > 0 && (
+            <EffortSummary steps={effortSteps} synthetic={attempt.synthetic} />
+          )}
           <label>
             Reported waiting seconds
             <input
@@ -521,11 +626,39 @@ export function Studies({
   );
 }
 
+function EffortSummary({
+  steps,
+  synthetic,
+}: {
+  steps: StudyEffortStep[];
+  synthetic: boolean;
+}) {
+  const timed = steps.flatMap((s) => (s.measured ? [s.measured] : []));
+  const total = (k: keyof EffortTotals) =>
+    effortText(timed.reduce((n, m) => n + m[k], 0));
+  const open = steps.length - timed.length;
+  return (
+    <p className="study-effort-summary">
+      Measured on this attempt: {timed.length} timed{' '}
+      {timed.length === 1 ? 'step' : 'steps'} · active {total('active_ms')} ·
+      waiting on the studio {total('wait_ms')} · away {total('away_ms')}
+      {open > 0 && ` · ${open} unfinished`}
+      {synthetic && ' (synthetic: the operator, not a participant)'}
+    </p>
+  );
+}
+
 function InterventionEditor({
   busy,
+  synthetic,
+  timing,
+  onOpen,
   save,
 }: {
   busy: boolean;
+  synthetic: boolean;
+  timing: EffortTotals | null;
+  onOpen: () => void;
   save: (body: unknown) => Promise<void>;
 }) {
   const [fields, setFields] = useState({
@@ -550,8 +683,31 @@ function InterventionEditor({
     resulting_change: 'Resulting change',
   };
   return (
-    <details>
+    <details
+      onToggle={(e) => {
+        if (e.currentTarget.open && !timing) onOpen();
+      }}
+    >
       <summary>Record human intervention</summary>
+      <div className="study-effort">
+        <span>
+          {timing ? (
+            <>
+              <strong>Timing this step</strong> · active{' '}
+              {effortText(timing.active_ms)} · waiting on the studio{' '}
+              {effortText(timing.wait_ms)} · away {effortText(timing.away_ms)}
+            </>
+          ) : (
+            'Starting the step timer…'
+          )}
+        </span>
+        <span className="study-effort-note">
+          Active means this page is in front and you edited in the last minute.
+          Saving the intervention ends the step. The timer measures time only.
+          {synthetic &&
+            ' This is a synthetic study, so it times the operator testing the workflow, not a participant.'}
+        </span>
+      </div>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -610,7 +766,7 @@ function InterventionEditor({
           </select>
         </label>
         <label>
-          Active response minutes
+          Reported active response minutes
           <input
             type="number"
             min="0"
@@ -622,7 +778,7 @@ function InterventionEditor({
           />
         </label>
         <label>
-          Wait seconds
+          Reported wait seconds
           <input
             type="number"
             min="0"
