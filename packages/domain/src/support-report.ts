@@ -216,6 +216,8 @@ const RULES: Rule[] = [
         : m,
   },
   { re: /\bglpat-[A-Za-z0-9_-]{20,}/g, to: fixed(HIDDEN) },
+  { re: /\bhf_[A-Za-z0-9]{20,}/g, to: fixed(HIDDEN) },
+  { re: /\bkey-[A-Za-z0-9]{24,}/g, to: fixed(HIDDEN) },
   {
     re: /\b(?:sk|rk|pk)[-_](?:live|test|proj|ant|svcacct)?[-_]?[A-Za-z0-9_-]{16,}/g,
     to: fixed(HIDDEN),
@@ -259,37 +261,55 @@ const RULES: Rule[] = [
   },
 ];
 
-// Long opaque strings. Readable when every part between - / _ . is a word, a number, hex
-// (commits, hashes, uuids) or short: ids like task-<uuid>, model ids and branch names stay.
-// Shorter random runs are judged whole by how often the character class changes, which is
-// high for random keys and low for names like Migration2Store (review 2 R2-L4).
-const OPAQUE = /[A-Za-z0-9+/_.=-]{20,}/g;
+// Long opaque strings. A run is random when one of its parts (between - / _ . = +), or the
+// whole run of 20 or more characters, looks random: mixed letters and digits (either case)
+// or mixed case, not hex, and any of: the character class changes at least 40% of the time,
+// under 20% of the letters are vowels, five consonants in a row, or three separate groups of
+// digits. Words with a version number (PostgreSQL16TestServer), model ids, branch names,
+// kebab-case and SCREAMING_CASE names, hex (commits, hashes, uuids) stay readable
+// (review 3 R3-M1, R3-L1, R3-N1).
+const OPAQUE = /[A-Za-z0-9+/_.=-]{16,}/g;
 const classOf = (c: string) =>
-  /[0-9]/.test(c) ? 'd' : /[A-Z]/.test(c) ? 'u' : /[a-z]/.test(c) ? 'l' : 's';
+  /[0-9]/.test(c) ? 'd' : /[A-Z]/.test(c) ? 'u' : 'l';
 function looksRandom(run: string, min: number): boolean {
   const alnum = run.replace(/[^A-Za-z0-9]/g, '');
-  if (alnum.length < min) return false;
-  // Keys mix upper and lower case. Hex (commits, hashes, uuids), kebab-case and
-  // SCREAMING_CASE names do not, so they stay readable.
-  if (!/[A-Z]/.test(alnum) || !/[a-z]/.test(alnum)) return false;
+  if (alnum.length < min || /^[0-9a-f]+$/i.test(alnum)) return false;
+  const digits = /[0-9]/.test(alnum);
+  if (!digits && !(/[A-Z]/.test(alnum) && /[a-z]/.test(alnum))) return false;
   let changes = 0;
   for (let i = 1; i < alnum.length; i++)
     if (classOf(alnum[i]!) !== classOf(alnum[i - 1]!)) changes++;
-  // Random keys change class about every other character and have few vowels; CamelCase
-  // names and words with a version number (PostgreSQL16TestServer) change far less often
-  // and read like words.
-  const ratio = changes / (alnum.length - 1);
   const letters = alnum.replace(/[0-9]/g, '');
   const vowels =
     letters.replace(/[^aeiou]/gi, '').length / (letters.length || 1);
-  return ratio >= 0.4 || vowels < 0.25 || (ratio >= 0.3 && vowels < 0.3);
+  const consonants = Math.max(
+    0,
+    ...alnum
+      .toLowerCase()
+      .split(/[aeiouy0-9]+/)
+      .map((r) => r.length),
+  );
+  const digitGroups = alnum.match(/[0-9]+/g)?.length ?? 0;
+  return (
+    changes / (alnum.length - 1) >= 0.4 ||
+    vowels < 0.2 ||
+    consonants >= 5 ||
+    digitGroups >= 3
+  );
 }
+// A part that reads as a word: lower case, Capitalized or SCREAMING, with a vowel.
+const isWord = (p: string) =>
+  /^(?:[A-Z]?[a-z]{3,}|[A-Z]{4,})$/.test(p) && /[aeiouy]/i.test(p);
+// Provider request ids are what a support reader asks for (review 3 R3-N2).
+const REQUEST_ID = /^(?:req|msg|run|resp|batch|call|evt)_|^chatcmpl-/;
 export function isOpaqueSecret(s: string): boolean {
+  if (REQUEST_ID.test(s)) return false;
   const parts = s.split(/[-/_.=+]+/).filter(Boolean);
   if (parts.some((p) => looksRandom(p, 16))) return true;
-  // Dotted names (files, hosts, versions) are judged by their parts only.
-  if (s.includes('.')) return false;
-  return looksRandom(s, 20);
+  // Dotted names (files, hosts, versions) and runs with a word in them are judged by their
+  // parts only.
+  if (s.includes('.') || (parts.length > 1 && parts.some(isWord))) return false;
+  return s.length >= 20 && looksRandom(s, 16);
 }
 
 // name=value and name: value, unquoted. Only the name and separator are matched, so a value
@@ -327,8 +347,9 @@ export function redactSupportText(
   let hidden = 0;
   // Encoded separators would hide a path or an email from the rules (L-4, R2-N2), and
   // escaped quotes would hide a JSON body embedded in an error message (R2-M1).
-  let out = text
-    .replace(/\\(["\\])/g, '$1')
+  // Backslashes are unescaped only in text that carries escaped quotes, so a UNC path
+  // such as \\server\share keeps its two leading backslashes (review 3 R3-N3).
+  let out = (text.includes('\\"') ? text.replace(/\\(["\\])/g, '$1') : text)
     .replace(/%5C/gi, '\\')
     .replace(/%2F/gi, '/')
     .replace(/%3A/gi, ':')
@@ -345,7 +366,13 @@ export function redactSupportText(
   const named = hideNamedValues(out);
   out = named.text;
   hidden += named.hidden;
-  out = out.replace(OPAQUE, (s) => {
+  out = out.replace(OPAQUE, (s: string, at: number, all: string) => {
+    if (
+      /request[-_ ]?id["']?\s*[:=]?\s*["']?$/i.test(
+        all.slice(Math.max(0, at - 20), at),
+      )
+    )
+      return s;
     if (!isOpaqueSecret(s)) return s;
     hidden++;
     return HIDDEN;

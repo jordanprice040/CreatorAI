@@ -231,6 +231,53 @@ test('random keys are hidden at a pinned rate', () => {
     rate(() => `${make(B64, 43)}=`),
     500,
   );
+  // Review 3: 20-character base64url tokens (R3-L1) and single-case keys (R3-M1).
+  assert.ok(rate(() => make(URL64, 20)) >= 485);
+  const LOWER = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  const UPPER = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const single = (alphabet: string, n: number) =>
+    Array.from(
+      { length: n },
+      () => alphabet[Math.floor(next() * alphabet.length)],
+    ).join('');
+  assert.ok(rate(() => single(LOWER, 32)) >= 495);
+  assert.ok(rate(() => single(UPPER, 32)) >= 495);
+  assert.ok(rate(() => single(LOWER, 40)) >= 495);
+});
+
+test('review 3: single-case and provider keys are hidden; request ids, versioned names and UNC paths stay', () => {
+  for (const key of [
+    'g3lnqotqk9nhtefzjs2qpma56hbotsbe',
+    'M3GJK6QOCHJC6IEVRNOZ0SVQQEE2VZ84',
+    'hf_abcdefghijklmnopqrstuvwxyz123456',
+    'key-3ax6xnjp29jd6fds4gc373sgvjxteol0',
+    'zM3Ent6CKcJ_xZXubC-m',
+  ]) {
+    const { text } = redactSupportText(`failed with ${key} today`);
+    assert.equal(text, 'failed with [hidden] today', key);
+  }
+  for (const keep of [
+    'req_011CUb8xYzAbCdEfGh',
+    'chatcmpl-9AbCdEfGhIjKlMnOpQrStUv',
+    'msg_01XFDUDYJgAACzvnptvVoYEL',
+    'run_abc123DEF456ghi789',
+    'x-request-id: Zx81kQ2mN4pL7vR9tY3w',
+    'request id Zx81kQ2mN4pL7vR9tY3w',
+    'PostgreSQL16TestServer',
+    'creator_test_3f9a1c0b2e7d',
+  ]) {
+    const { text, hidden } = redactSupportText(keep);
+    assert.equal(text, keep);
+    assert.equal(hidden, 0, keep);
+  }
+  // R3-N3: a UNC path keeps both leading backslashes; only the host name is hidden.
+  assert.equal(
+    redactSupportText('open \\\\DESKTOP-J1\\share\\x failed', {
+      userNames: [],
+      hostNames: ['DESKTOP-J1'],
+    }).text,
+    'open \\\\[host]\\share\\x failed',
+  );
 });
 
 test('fields are hidden before they are cut short and cannot forge report lines', () => {
