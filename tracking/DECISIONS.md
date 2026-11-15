@@ -123,6 +123,8 @@ Not covered: no live run yet (each needs Jordan's typed OK: `docs/BUILD_QUALIFIC
 
 Review 5 (two nits) fixed: the scorer label is `recipe-scorer/5` to match the fourth re-cut's scorer, and the freezes were re-cut for it.
 
+**Owner decision (November 15, 11:29 UTC): the Claude route is qualified for small builds only.** In the installed-app rerun (`tracking/evidence/recipe-qualifications/2026-11-15-rerun/`), claude-sonnet-5-5 qualified as builder and reviewer and on `p15-small-signup-v5`. It was not qualified on `p14-larger-ledgercheck-v5`: its first builder answer began with invented tool-call text (`<invoke name="note">…`) before the fenced patch, although the route runs with no tools. Jordan chose to keep the strict answer check, so larger Python builds on the Claude Code connection keep the unqualified-trial label. Nothing was changed and nothing is rerun. Rejected: tolerating leading tool-call text through new benchmark versions, and a builder prompt line saying there are no tools (that would mean requalifying every builder).
+
 Rejected: keeping the v4 pass bars (the app cannot run them); a global switch per recipe (ADR-0078 L-9 still holds: a pass is per connection, model and prompt pair); running attempts as catalog runs (it would add runs, specs and products to the person's catalog); re-sending an interrupted attempt (it could double-count a verdict).
 
 ## ADR-0101 — The Path branches after Selection, and a proposal's missing sections can be drafted by the chat model (November 14, 2026)

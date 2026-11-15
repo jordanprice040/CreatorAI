@@ -41,6 +41,9 @@ complete-looking patch. Even where ADR-0110's `one_json_fence` applies, one fenc
 when it wraps the whole answer with nothing but whitespace outside it
 (`packages/contracts/src/routing.ts`), so the preamble makes the answer invalid either way. That is a role-caused failure, so it was not replaced. Nothing was left open.
 
+Afterwards Jordan chose to keep the strict check: the Claude route stays qualified for small builds
+only, and larger Python builds on it keep the trial label (ADR-0105, owner decision of 11:29 UTC).
+
 Packet A's build records (`7dc8312f`, `8b8d8c26`, in `../2026-11-15-installed/`) are bound to builder/1
 (`73cb799e…`). Under builder/2 they no longer count, so web builds on the ChatGPT connection carry the
 trial label again until `p15-small-signup-v5` is rerun there. It was not rerun here.
