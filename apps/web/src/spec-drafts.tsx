@@ -19,7 +19,7 @@ import { StaleNote, useLoad } from './ui.js';
 import { draftRoute } from './spec-fields.js';
 
 // ADR-0107 (B2): model-drafted build specs on Build › Write a spec. A model qualified for
-// drafting specs (spec-cases-v1) proposes the spec and its suggested cases, one more edge case
+// drafting specs (spec-cases-v2) proposes the spec and its suggested cases, one more edge case
 // for a check, or an explanation of a case. Every reply is a draft shown beside the form: the
 // studio checks the cases' shape and picks about a third as held out at random, and nothing is
 // saved, frozen or built until the person saves the form and freezes the spec.

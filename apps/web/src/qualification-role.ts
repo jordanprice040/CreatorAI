@@ -30,7 +30,8 @@ export function roleOf(q: Flags): Admits {
 export const forRole = <T extends Flags>(qs: readonly T[], admits: Admits) =>
   qs.filter((q) => roleOf(q) === admits);
 
-const ROLE_NAME: Record<Exclude<Admits, null>, string> = {
+/** Typed over every role, so a new role cannot go unnamed (the live run showed "jobundefined"). */
+export const ROLE_NAME: Record<Exclude<Admits, null>, string> = {
   assessment: 'assessments',
   discovery: 'discovery',
   web_discovery: 'Search the web',

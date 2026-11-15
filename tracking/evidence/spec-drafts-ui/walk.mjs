@@ -3,7 +3,7 @@
 // 4330/5183/4340), with a loopback stand-in for the ChatGPT plan that answers the spec draft
 // instructions with a canned draft, edge case or explanation. Seeds the fixture selection with
 // the CLI, archives its seeded spec so the option can be written again, and records a
-// spec-cases-v1 qualification for the stand-in model directly in the database (no live
+// spec-cases-v2 qualification for the stand-in model directly in the database (no live
 // qualification ran). Walks: no route before qualifying, the draft and its checks, using it,
 // an edge case, an explanation, saving with the drafted mark, and the phone width, with
 // axe-core WCAG 2.2 A/AA on the spec form in each state.
@@ -350,11 +350,11 @@ await step(
   },
 );
 await step(
-  'qualified on spec-cases-v1, Draft with m shows the draft beside the form, checked',
+  'qualified on spec-cases-v2, Draft with m shows the draft beside the form, checked',
   async () => {
     const manifest = JSON.parse(
       readFileSync(
-        join(root, 'config/connections/benchmarks/spec-cases-v1.json'),
+        join(root, 'config/connections/benchmarks/spec-cases-v2.json'),
         'utf8',
       ),
     );
@@ -502,7 +502,7 @@ const result = {
   mode: 'fixture',
   stand_ins: [
     'loopback ChatGPT plan with canned draft replies',
-    'spec-cases-v1 qualification recorded directly (no live qualification)',
+    'spec-cases-v2 qualification recorded directly (no live qualification)',
   ],
   steps,
   problems,

@@ -9,7 +9,7 @@ import {
 } from '@creator/contracts';
 import { canonicalHash } from './rules.js';
 
-// ADR-0107 (B2): the programs behind the frozen `spec-cases-v1` benchmark. Each is a small
+// ADR-0107 (B2): the programs behind the frozen `spec-cases-v2` benchmark. Each is a small
 // command-line program the studio knows exactly (a reference) and a few known-broken versions
 // of it (mutants, each with one plausible mistake). A drafted spec's cases are graded by
 // running them against these programs in process: a good case set passes the reference and
@@ -17,8 +17,8 @@ import { canonicalHash } from './rules.js';
 // arguments and input text, so nothing the model wrote is ever executed.
 //
 // The programs are frozen with the benchmark: changing one changes what a qualification means,
-// so a change needs a new benchmark version (spec-cases-v2) and new qualifications. Each case
-// of spec-cases-v1 carries its program's fingerprint (specCasesFingerprint below); a changed
+// so a change needs a new benchmark version (the next spec-cases version) and new qualifications. Each case
+// of spec-cases-v2 carries its program's fingerprint (specCasesFingerprint below); a changed
 // program or grader no longer matches it, so the old benchmark stops grading and stops
 // admitting drafts.
 
@@ -308,7 +308,7 @@ const brackets =
     return out('ok\n');
   };
 
-/** The benchmark's programs, by id. Frozen with spec-cases-v1. */
+/** The benchmark's programs, by id. Frozen with spec-cases-v2. */
 export const SPEC_BENCHMARK_PROGRAMS: Record<string, SpecBenchmarkProgram> = {
   wordtally: {
     title: 'Counting words in pasted text',
@@ -682,7 +682,7 @@ export const SPEC_CASES_GRADER_VERSION = 'spec-cases-grader/1' as const;
 const fingerprints = new Map<string, string | null>();
 
 /**
- * The frozen behaviour behind one spec-cases-v1 program (review 1 of PR #206, L-2): the spec
+ * The frozen behaviour behind one spec-cases-v2 program (review 1 of PR #206, L-2): the spec
  * schema a reply is read into (review 3), its request text, the outputs of the reference and
  * every broken version on the probe inputs, the studio's held-out pick of a probe reply, and the grades of fixed probe replies (good,
  * too few, one wrong output, a broken version's outputs, unreadable). Null for an unknown

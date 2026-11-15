@@ -71,12 +71,12 @@ export const toSpecDraft = (r: Row): SpecDraft => {
   };
 };
 
-/** spec-cases-v1's pass bar, set by the server (review 2 of PR #206, L-1): all 5 held out. */
+/** spec-cases-v2's pass bar, set by the server (review 2 of PR #206, L-1): all 5 held out. */
 export const SPEC_CASES_MIN_HELD_OUT = 5;
 export const SPEC_CASES_FLOOR = { numerator: 1, denominator: 1 } as const;
 
 /**
- * A qualification start's pass bar, with spec-cases-v1's fixed by the server whatever the
+ * A qualification start's pass bar, with spec-cases-v2's fixed by the server whatever the
  * request said; other benchmarks keep theirs.
  */
 export function specCasesBar<
@@ -98,7 +98,7 @@ export function specCasesBar<
 
 let bundled: string | null | undefined;
 /**
- * The hash of the bundled spec-cases-v1 file, read once per process (the file is frozen); null
+ * The hash of the bundled spec-cases-v2 file, read once per process (the file is frozen); null
  * when it cannot be read, so nothing admits drafts.
  */
 export function specCasesManifestHash(): string | null {
@@ -106,7 +106,7 @@ export function specCasesManifestHash(): string | null {
     try {
       bundled = canonicalHash(
         JSON.parse(
-          readFileSync(new URL('spec-cases-v1.json', BENCHMARKS_ROOT), 'utf8'),
+          readFileSync(new URL('spec-cases-v2.json', BENCHMARKS_ROOT), 'utf8'),
         ),
       );
     } catch {
@@ -118,7 +118,7 @@ export function specCasesManifestHash(): string | null {
 
 /**
  * ADR-0107: a specification qualification admits spec drafts only when it ran the bundled
- * spec-cases-v1 file itself (review 1 of PR #206, L-1: never a hand-made manifest with a weaker
+ * spec-cases-v2 file itself (review 1 of PR #206, L-1: never a hand-made manifest with a weaker
  * bar), every case is a spec cases check on the current instructions version whose system
  * message is exactly the draft instructions and whose user message is exactly the draft input
  * for its request, and every case's fingerprint still matches its program and the grader
@@ -132,7 +132,7 @@ export function currentForSpecDraftRole(r: Row): boolean {
   };
   const expected = specCasesManifestHash();
   // Review 2 of PR #206, L-1: the pass bar is the row's, not the manifest's, so it must be the
-  // one the server sets for spec-cases-v1 (every held-out program, all five of them). Only the
+  // one the server sets for spec-cases-v2 (every held-out program, all five of them). Only the
   // bar is checked, never the results: a failed run under this bar still counts as the newest.
   const floor = r.floor as { numerator?: unknown; denominator?: unknown };
   if (

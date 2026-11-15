@@ -13,7 +13,7 @@ import {
 
 // ADR-0107 (B2): model-drafted build specs. On Build › Write a spec, the owner can ask a model
 // qualified for drafting specs (task class `specification`, qualified on the frozen
-// `spec-cases-v1` benchmark with these exact instructions) to draft the spec and its suggested
+// `spec-cases-v2` benchmark with these exact instructions) to draft the spec and its suggested
 // cases, to suggest one more edge case for a check, or to explain one case. The reply is a
 // draft: the studio checks it against the spec form's own rules, picks about a third of the
 // cases as held out at random, and shows problems in plain words. Nothing is saved, frozen or
@@ -41,7 +41,12 @@ export const SPEC_DRAFT_BODY_MAX = 15_000;
 /** An explanation or a "why this case" note. */
 export const SPEC_DRAFT_NOTE_MAX = 2000;
 
-export const SPEC_DRAFT_INSTRUCTIONS_VERSION = 'spec-draft-v2' as const;
+/**
+ * v3 (November 15): the live spec-cases-v1 run failed every case because v2 never listed an
+ * acceptance check's fields (the model wrote `name` for `statement` and left out `measure` and
+ * `flow`); v3 spells them out.
+ */
+export const SPEC_DRAFT_INSTRUCTIONS_VERSION = 'spec-draft-v3' as const;
 /**
  * Fixed instructions for every spec draft; their version and hash are kept with each draft. A
  * specification qualification admits drafts only when every benchmark case's system message
@@ -50,7 +55,7 @@ export const SPEC_DRAFT_INSTRUCTIONS_VERSION = 'spec-draft-v2' as const;
 export const SPEC_DRAFT_INSTRUCTIONS = [
   'You help a person write a build spec in Creator Agent, a personal product studio. The studio builds the spec with a separate builder model, an independent reviewer and its own test runner. <task> names the job: draft_spec, edge_case or explain_case. <request> holds the problem, the option chosen to build, what kind of product it is and, for edge_case and explain_case, one acceptance check as the person has it now.',
   'Reply with JSON only, no other text.',
-  'draft_spec: reply {"title": "...", "notes": "<at most 600 characters for the person: what you assumed and what they should check>", "spec": {"audience": "...", "problem_statement": "...", "user_flows": [{"key": "F1", "name": "...", "steps": ["..."]}], "scope": ["..."], "non_goals": ["..."], "acceptance_checks": [...], "risks": [{"risk": "...", "mitigation": "..."}], "tasks": [{"key": "T1", "title": "...", "role": "builder", "file_scope": ["..."], "depends_on": [], "acceptance": ["A1"], "deliverable": "..."}]}}. Every text is one line of at most 300 characters (the problem statement at most 1200). Keep the whole reply under 12000 characters.',
+  'draft_spec: reply {"title": "...", "notes": "<at most 600 characters for the person: what you assumed and what they should check>", "spec": {"audience": "...", "problem_statement": "...", "user_flows": [{"key": "F1", "name": "...", "steps": ["..."]}], "scope": ["..."], "non_goals": ["..."], "acceptance_checks": [{"key": "A1", "flow": "F1", "statement": "<what must be true, one line>", "measure": "<what is observed to check it>", "method": "automated_test", "cases": [...]}], "risks": [{"risk": "...", "mitigation": "..."}], "tasks": [{"key": "T1", "title": "...", "role": "builder", "file_scope": ["..."], "depends_on": [], "acceptance": ["A1"], "deliverable": "..."}]}}. Every text is one line of at most 300 characters (the problem statement at most 1200). Use exactly these field names in every object, with no others; "flow" names one of the user_flows keys. Keep the whole reply under 12000 characters.',
   'Scope lines are the exact rules the program must follow, precise enough that two people would write the same expected output: input format, output format character by character, ordering, rounding, error messages and exit codes. State only rules the request supports or that are needed to make the behaviour exact; list open questions in "notes".',
   'Product "cli": one Python 3 standard-library command-line program, entry point src/main.py. Every acceptance check has "method": "automated_test" and 2 to 6 "cases": {"args": ["..."], "stdin": "...", "stdout": "<the exact expected output, including the final newline>", "exit_code": 0}. One builder task with "file_scope": ["src"] delivers every check. Cover the normal path, empty input, invalid input and boundaries, and work out each expected output exactly by following the scope rules; never guess an output.',
   'Do not mark cases as held out; the studio picks the held-out cases itself.',
@@ -91,7 +96,7 @@ export const SpecDraftRequestSchema = z
     selection_id: id,
     alternative: z.strictObject({ id, version }),
     product: SpecProductSchema,
-    /** The connection and model to ask: one qualified for drafting specs (spec-cases-v1). */
+    /** The connection and model to ask: one qualified for drafting specs (spec-cases-v2). */
     connection_id: id,
     model_id: z.string().trim().min(1).max(200),
     /** edge_case and explain_case: the check as the form has it now. */
@@ -106,11 +111,11 @@ export const SpecDraftRequestSchema = z
       issue('Only an edge case or an explanation sends a check.');
     if ((r.kind === 'explain_case') !== (r.case_index !== null))
       issue('Only an explanation names a case.');
-    // Review 1 of PR #206, L-3: spec-cases-v1 tests command-line cases only, so a qualification
+    // Review 1 of PR #206, L-3: spec-cases-v2 tests command-line cases only, so a qualification
     // on it admits drafts for command-line programs only, until a web benchmark exists.
     if (r.product !== 'cli')
       issue(
-        'Drafting is for command-line programs only: the drafting qualification (spec-cases-v1) tests command-line cases only. Write a web page’s spec yourself.',
+        'Drafting is for command-line programs only: the drafting qualification (spec-cases-v2) tests command-line cases only. Write a web page’s spec yourself.',
       );
     if (r.check) {
       const web = r.check.method === 'browser_check';
@@ -242,9 +247,9 @@ export function draftedMarkText(m: SpecDraftedMark): string {
 }
 
 // ---- Reading a reply ---------------------------------------------------------------------
-// spec-cases-v1 frozen source: begin. Everything from here to the end marker is hashed into
+// spec-cases-v2 frozen source: begin. Everything from here to the end marker is hashed into
 // the benchmark (`source_sha256`, with packages/domain/src/spec-cases.ts); a change to it
-// needs spec-cases-v2. Review 2 of PR #206, N-2.
+// needs a new spec-cases version. Review 2 of PR #206, N-2.
 
 /** The first JSON object in a reply that has `key` (a code fence around it is tolerated). */
 function replyObject(
@@ -793,7 +798,7 @@ export function pickHeldOut(
   }
   return { content: c, picks };
 }
-// spec-cases-v1 frozen source: end.
+// spec-cases-v2 frozen source: end.
 
 /** Content compared for `edited`: upkeep and held-out ticks are the person's routine choices. */
 export function draftComparable(c: SpecContent) {
