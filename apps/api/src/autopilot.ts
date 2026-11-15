@@ -254,19 +254,29 @@ export interface AutopilotRunnerOptions {
 
 export class AutopilotRunner {
   /**
-   * Keys of steps whose start call itself threw, so nothing was sent (review 1 of #202, L-5).
-   * Only such a step gives back the calls it set aside: a start that returned and then failed
-   * to be recorded may have spent, and unknown spend is not zero.
+   * Keys of steps whose start threw before it committed, so nothing was sent (review 1 of #202,
+   * L-5). Only such a step gives back the calls it set aside: a start that committed may have
+   * spent, and unknown spend is not zero.
    */
   readonly #refused = new Set<string>();
-  async #starting<T>(step: AutopilotStep, start: () => Promise<T>): Promise<T> {
+  async #starting<T>(
+    ws: string,
+    step: AutopilotStep,
+    start: () => Promise<T>,
+  ): Promise<T> {
     try {
       return await start();
     } catch (e) {
-      // Re-review L-2: only a refusal (a ContractError, raised before the store commits the
-      // start) means nothing was sent. Any other error may come after the commit (e.g. the
-      // store's follow-up read failed), so the step may have spent.
-      if (step.key && e instanceof ContractError) this.#refused.add(step.key);
+      // Third review N-1: an error, even a ContractError, can come after the start committed
+      // (each start ends with a read that can fail). The start's idempotency receipt is written
+      // in the same transaction, so no receipt for the step's key means nothing was sent. If
+      // the receipt cannot be read, the step is treated as possibly sent.
+      if (step.key) {
+        const committed = await this.store
+          .commandCommitted(ws, step.key)
+          .catch(() => true);
+        if (!committed) this.#refused.add(step.key);
+      }
       throw e;
     }
   }
@@ -1247,7 +1257,7 @@ export class AutopilotRunner {
     let id = step.child?.kind === 'web_discovery' ? step.child.id : undefined;
     if (!id) {
       const web = this.web;
-      const d = await this.#starting(step, () =>
+      const d = await this.#starting(ws, step, () =>
         web.start(keyed, ws, a.run_id, request),
       );
       id = d.id;
@@ -1433,7 +1443,7 @@ export class AutopilotRunner {
   ): Promise<Result> {
     let id = step.child?.id;
     if (!id) {
-      const started = await this.#starting(step, () =>
+      const started = await this.#starting(ws, step, () =>
         step.stage === 'explore'
           ? this.store.startExploration(keyed, ws, a.run_id, step.request)
           : step.stage === 'discover'

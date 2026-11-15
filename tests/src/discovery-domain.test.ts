@@ -30,6 +30,7 @@ import {
   type DiscoveryView,
   type DispositionTask,
 } from '@creator/domain';
+import { withNote } from '@creator/db';
 
 // Pure discovery rules (T07); these run without PostgreSQL.
 
@@ -782,4 +783,22 @@ test('review 1 of #202 L-3: a proposal duplicating a record the packet had no ro
   const dup = dispose([left]);
   assert.equal(dup.disposition, 'duplicate');
   assert.equal(dup.duplicate_of?.id, left.id);
+});
+
+test('third review of #202 N-2: withNote keeps the note whole within 1,200 characters and never splits an emoji', () => {
+  const note =
+    '3 recorded problems, ideas or options were left out of what the designers saw for lack of room; app rules still checked every proposal against them for duplicates.';
+  const long = withNote('x'.repeat(1500), note);
+  assert.ok(long.length <= 1200);
+  assert.ok(long.endsWith(` ${note}`), 'the note is kept whole');
+  // An emoji straddling the explanation's cut is dropped whole.
+  const room = 1200 - note.length - 1;
+  const emoji = withNote('y'.repeat(room - 1) + '😀 rest', note);
+  assert.ok(emoji.length <= 1200);
+  assert.ok(emoji.endsWith(` ${note}`));
+  assert.doesNotMatch(emoji, /[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
+  assert.doesNotMatch(emoji, /(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/);
+  // Without a note the explanation is only cut; a short one is unchanged.
+  assert.equal(withNote('Done.', null), 'Done.');
+  assert.equal(withNote('z'.repeat(1300), null).length, 1200);
 });

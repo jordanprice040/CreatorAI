@@ -214,7 +214,7 @@ export interface DiscoveryWorkflowContext {
  * Re-review N-2: the explanation cut to leave room for a note after it, so a long explanation
  * never cuts the note off (both within the 1,200-character limit).
  */
-function withNote(explanation: string, note: string | null): string {
+export function withNote(explanation: string, note: string | null): string {
   if (!note) return cutText(explanation, 1200);
   return `${cutText(explanation, Math.max(0, 1200 - note.length - 1))} ${note}`.trim();
 }

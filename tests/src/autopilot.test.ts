@@ -3416,6 +3416,34 @@ test('re-review of #202 L-2: a discovery start that committed and then threw a p
   );
 });
 
+test('third review of #202 N-1: a start that committed and then threw a refusal keeps its calls set aside', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  // The discovery commits (its receipt is written), then a later read is refused.
+  const start = h.store.startDiscovery.bind(h.store);
+  h.store.startDiscovery = async (...args) => {
+    await start(...args);
+    throw new ContractError(
+      'ACCESS_DENIED',
+      'The read after the start was refused (test).',
+    );
+  };
+  const a = await h.start(await h.run());
+  h.store.startDiscovery = start;
+  // A refused role check stops for a person's authority.
+  assert.equal(a.outcome, 'needs_authority', a.explanation);
+  const discover = a.steps.find((s) => s.stage === 'discover')!;
+  assert.match(discover.note, /The read after the start was refused/);
+  assert.equal(discover.child, null);
+  assert.ok(discover.calls > 0, 'it committed, so it may have spent');
+  assert.ok(await h.store.commandCommitted(h.ws.id, discover.key!));
+  assert.equal(
+    a.calls_reserved,
+    a.steps.reduce((n, s) => n + s.calls, 0),
+  );
+});
+
 test('re-review of #202 L-1: a stop note with an emoji across the cut stores without a lone surrogate', async (t) => {
   const h = await setup(t);
   if (!h) return;
