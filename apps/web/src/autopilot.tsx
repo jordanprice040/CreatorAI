@@ -19,6 +19,7 @@ import {
   StoredEntitySchema,
   WebDiscoveryPreviewSchema,
   autopilotRoutinePolicy,
+  cutText,
   autopilotSummary,
   routinePolicySummary,
   z,
@@ -118,6 +119,7 @@ export function Autopilot({
   const route = pickRoute(routes, routeKey, fixture);
   const [search, setSearch] = useState(false);
   const [interests, setInterests] = useState('');
+  const [question, setQuestion] = useState('');
   const [groups, setGroups] = useState('');
   const [exclusions, setExclusions] = useState('');
   const [roles, setRoles] = useState<EvidenceRole[]>(['problem']);
@@ -147,7 +149,7 @@ export function Autopilot({
   const webScope = {
     interests: list(interests),
     target_groups: list(groups),
-    question: null,
+    question: question.trim() ? cutText(question.trim(), 300) : null,
     exclusions: list(exclusions),
     excluded_hosts: [],
     max_search_calls: 3,
@@ -426,6 +428,31 @@ export function Autopilot({
                     />{' '}
                     Search the web first (ChatGPT plan models only)
                   </label>
+                  {researchOn && (
+                    <>
+                      <label htmlFor="ap-question">
+                        Question for the search (optional)
+                      </label>
+                      <input
+                        id="ap-question"
+                        maxLength={300}
+                        value={question}
+                        aria-describedby={
+                          !question.trim() && !list(interests).length
+                            ? 'ap-question-hint'
+                            : undefined
+                        }
+                        onChange={(e) => setQuestion(e.target.value)}
+                      />
+                      {!question.trim() && !list(interests).length && (
+                        <p className="small" id="ap-question-hint">
+                          With no question or interests, the search starts from
+                          broad public topics, and its claims may have little to
+                          do with each other.
+                        </p>
+                      )}
+                    </>
+                  )}
                   <label htmlFor="ap-class">Evidence sharing class</label>
                   <select
                     id="ap-class"
