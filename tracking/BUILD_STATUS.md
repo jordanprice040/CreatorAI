@@ -1,6 +1,5 @@
 # Build status — November 10, 2026
 
-<<<<<<< HEAD
 ## November 15 update — build roles may wrap their answer in one code fence (ADR-0110, no migration)
 
 What now works: the builder and reviewer may answer with their JSON inside exactly one ```` ```json ```` (or bare ```` ``` ````) fence and nothing else, in builds on the plan route and in qualifications on the new frozen versions `t12-builder-v3` and `t12-reviewer-v3` (same cases as `t12-builder-v1` and `t12-reviewer-v2`, which stay strict). Qualify a model offers the v3 versions. Any other text around the answer still fails. The failed Claude Code `t12-builder-v1` record (`7c054251`) stays as it is.
@@ -8,7 +7,7 @@ What now works: the builder and reviewer may answer with their JSON inside exact
 Checked in the cloud container on a throwaway PostgreSQL 16 database: see the PR for typecheck, format and `pnpm test:db` counts. New tests: `tests/src/role-answer-fence.test.ts` (accepted and refused forms, the marker only on build-role classes, v3 equal to its sources), a plan qualification test (fenced answers qualify on a marked version, fail a strict one, prose around the fence fails, the patch scorer gets the inside) and a build test (fenced builder and reviewer answers reach review with `call-N-answer-form.json`; prose around the fence stops the build with nothing applied). Not run: packet H again on the installed app (needs Jordan's fresh typed OK).
 
 Review 1 (3 L, 5 nits; `/mnt/project-files/reviews/PR208_REVIEW_1_2026-11-15.md`): the dollar route now refuses fence-accepting benchmarks; only JSON whitespace is allowed outside the fence; the frozen files' hashes are pinned; main merged. Still open: `t12-builder-v3` is re-cut from `t12-builder-v2` once #207 merges, and packet H waits for both.
-=======
+
 ## November 15 update — specs drafted by a qualified model, checked by you (B2; ADR-0107, migration 67)
 
 What now works (schema 67): Build › Write a spec has **Draft it with a model** for the owner. A model qualified on the new frozen `spec-cases-v1` benchmark proposes the requirements, acceptance checks and suggested cases (exact arguments, input and output for a command-line program; static web pages are not drafted, since the benchmark has no web case). The draft is shown beside the form with the model's notes, the studio's checks of the cases in plain words (contradictions, repeats, trailing spaces, missing final newline, no output, too few cases) and what the build will be checked against; the studio holds out about a third of the cases at random (cryptographic source), and the person can change the pick. **Use this draft** fills the form; nothing is saved, frozen or built until the person does it. Each automated check has **Add an edge case** and each of its cases **Explain this case** (held-out cases go to the model as a count, except the case being explained). A saved spec records which drafts went into it, whether they were edited and whether the held-out pick is still the studio's, worked out again on every save; the Build row says "Drafted by &lt;model&gt;, checked by you…". Each draft is one `specification` task request outside any run, admitted only for the owner's own press, on a connection allowing specification work and the selection's data class, and only with a qualification that ran the bundled `spec-cases-v1` file (by hash) under the exact drafting instructions and input, with every case's fingerprint (programs, broken versions and grader on fixed probes) still matching. Redacting the option clears every draft's words. Qualify a model lists `spec-cases-v1` with the role **drafting specs**; its grader runs the drafted cases (data only) against the studio's own reference program and four known-broken versions of each of eight programs.
@@ -44,7 +43,6 @@ Review 7 fix (November 15): each sheet is read only as far as it is shown (1,000
 Review 8 nits (November 15): all part headers are checked before the re-pack buffer is allocated; the cut-sheet note writes "16,384". Checked: typecheck, format, build, `pnpm test:db` (1288 tests: 1254 pass, 29 skipped, the 5 known PowerShell-wrapper failures), the walk (Word, Excel and PowerPoint open; bombs and `shortzip64s.xlsx` refused; 0 outside requests, 0 dialogs, 0 console errors). No further review round.
 
 Open: a walk in the installed app after merge.
->>>>>>> origin/main
 
 ## November 14 update — building qualified in the app, per connection (B1; ADR-0105, migration 65)
 

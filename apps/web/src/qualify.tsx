@@ -32,15 +32,11 @@ import { api, words } from './oversight.js';
  * The frozen benchmarks this app can start a plan qualification with (audit item 4, piece 4).
  * They are the files under config/connections/benchmarks that a Responses plan role uses
  * today; t12-reviewer-v1 is left out because its reviewer prompt was replaced (ADR-0049) and
-<<<<<<< HEAD
  * the server refuses it. The builder and reviewer are offered as t12-builder-v3 and
  * t12-reviewer-v3 (ADR-0110: one code fence around the answer is accepted); the strict v1/v2
  * files stay frozen and their decided qualifications still count.
- * assessment-synthetic-v3 qualifies the automatic assessor (ADR-0074).
-=======
- * the server refuses it. assessment-synthetic-v3 qualifies the automatic assessor (ADR-0074);
+ * assessment-synthetic-v3 qualifies the automatic assessor (ADR-0074);
  * spec-cases-v1 qualifies drafting specs on Build (ADR-0107).
->>>>>>> origin/main
  * The server checks the manifest, the task class, the data class and
  * that the model is verified before it records anything.
  */
