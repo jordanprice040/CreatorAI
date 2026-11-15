@@ -280,6 +280,28 @@ test('review 3: single-case and provider keys are hidden; request ids, versioned
   );
 });
 
+test('review 4: hex digests and acronym CamelCase names stay readable', () => {
+  for (const keep of [
+    'sha256-3f9a1c0b2e7d4a5b6c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b',
+    'sha1-da39a3ee5e6b4b0d3255bfef95601890afd80709',
+    'HTTPSConnectionPool',
+    'ChatGPTPlanConnection',
+    'DefaultEndpointsProtocol',
+    'XMLHttpRequestUpload',
+    'OAuth2TokenRefreshError',
+    'HTTPSConnectionPool(host=api.example.com, port=443): Max retries exceeded',
+  ]) {
+    const { text, hidden } = redactSupportText(keep);
+    assert.equal(text, keep);
+    assert.equal(hidden, 0, keep);
+  }
+  // A random key that happens to sit after a digest name is still hidden.
+  assert.equal(
+    redactSupportText('sha256-Zx81kQ2mN4pL7vR9tY3wB6cDeF0gH1jK').text,
+    '[hidden]',
+  );
+});
+
 test('fields are hidden before they are cut short and cannot forge report lines', () => {
   const key = 'sk-proj-Zx81kQ2mN4pL7vR9tY3wB6cDeF0gH1jK';
   const facts: SupportFacts = {

@@ -271,9 +271,50 @@ const RULES: Rule[] = [
 const OPAQUE = /[A-Za-z0-9+/_.=-]{16,}/g;
 const classOf = (c: string) =>
   /[0-9]/.test(c) ? 'd' : /[A-Z]/.test(c) ? 'u' : 'l';
+// CamelCase names, acronyms included (HTTPSConnectionPool, ChatGPTPlanConnection): every
+// piece is a word of three or more letters with a vowel, an acronym of two to six capitals,
+// or one of at most two short numbers (review 4 R4-L1).
+const CAMEL_PIECE =
+  /[A-Z]{2,}(?=[A-Z][a-z]|[0-9]|$)|[A-Z]?[a-z]+|[0-9]+|[A-Z]/g;
+const VOWELLESS = new Set([
+  'http',
+  'https',
+  'sql',
+  'xml',
+  'rpc',
+  'tcp',
+  'dns',
+  'ssl',
+  'tls',
+  'url',
+  'pdf',
+  'cdn',
+  'npm',
+  'pnpm',
+  'html',
+  'css',
+]);
+function readsAsName(alnum: string): boolean {
+  const pieces = alnum.match(CAMEL_PIECE) ?? [];
+  if (pieces.length < 2) return false;
+  let numbers = 0;
+  for (const p of pieces) {
+    if (/^[0-9]+$/.test(p)) {
+      if (++numbers > 2 || p.length > 3) return false;
+    } else if (/^[A-Z]+$/.test(p)) {
+      if (p.length < 2 || p.length > 6) return false;
+    } else if (
+      p.length < 3 ||
+      (!/[aeiouy]/i.test(p) && !VOWELLESS.has(p.toLowerCase()))
+    )
+      return false;
+  }
+  return true;
+}
 function looksRandom(run: string, min: number): boolean {
   const alnum = run.replace(/[^A-Za-z0-9]/g, '');
   if (alnum.length < min || /^[0-9a-f]+$/i.test(alnum)) return false;
+  if (readsAsName(alnum)) return false;
   const digits = /[0-9]/.test(alnum);
   if (!digits && !(/[A-Z]/.test(alnum) && /[a-z]/.test(alnum))) return false;
   let changes = 0;
@@ -302,8 +343,12 @@ const isWord = (p: string) =>
   /^(?:[A-Z]?[a-z]{3,}|[A-Z]{4,})$/.test(p) && /[aeiouy]/i.test(p);
 // Provider request ids are what a support reader asks for (review 3 R3-N2).
 const REQUEST_ID = /^(?:req|msg|run|resp|batch|call|evt)_|^chatcmpl-/;
+// Hex digests named by their algorithm (sha256-<hex>, md5:<hex>) are content hashes, not
+// secrets (review 4 R4-L1).
+const HEX_DIGEST =
+  /^(?:sha(?:1|224|256|384|512)?|md5|blake2[bs]?)[-:_][0-9a-f]{16,}$/i;
 export function isOpaqueSecret(s: string): boolean {
-  if (REQUEST_ID.test(s)) return false;
+  if (REQUEST_ID.test(s) || HEX_DIGEST.test(s)) return false;
   const parts = s.split(/[-/_.=+]+/).filter(Boolean);
   if (parts.some((p) => looksRandom(p, 16))) return true;
   // Dotted names (files, hosts, versions) and runs with a word in them are judged by their
