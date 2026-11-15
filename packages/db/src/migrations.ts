@@ -3743,6 +3743,19 @@ join lateral (select actor_id from workspace_members where workspace_id = pc.wor
 where pc.id = '4e4a7bec-c1ca-4f31-8f87-b11ed5fc81d4';
 `,
   },
+  {
+    // ADR-0106: Word, Excel and PowerPoint files and ZIP archives get kinds of their own, so the
+    // studio can open them in its inert viewers. Only the allowed values change; stored versions
+    // stay exactly as they were (they never change), and older uploads keep the kind they had.
+    version: 66,
+    name: 'file_kinds_office',
+    sql: `
+alter table workspace_file_versions drop constraint workspace_file_versions_kind_check;
+alter table workspace_file_versions add constraint workspace_file_versions_kind_check
+ check (kind in ('text','markdown','json','csv','code','image','pdf','document','spreadsheet',
+   'presentation','archive','other'));
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

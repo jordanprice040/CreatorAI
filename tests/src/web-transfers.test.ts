@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import ts from 'typescript';
+import * as contracts from '@creator/contracts';
 
 // PR #141 review L5/L7: an upload is bound to the workspace it was started in, a retry reuses
 // its key and target, an oversized drop is refused before it is sent once the limit is known,
@@ -81,9 +82,11 @@ async function load(): Promise<Mod> {
         }
       : name === './oversight.js'
         ? { STUDIO_CHANGED: 'studio-changed' }
-        : (() => {
-            throw new Error(`unexpected import ${name}`);
-          })();
+        : name === '@creator/contracts'
+          ? contracts
+          : (() => {
+              throw new Error(`unexpected import ${name}`);
+            })();
   const g = globalThis as Record<string, unknown>;
   g.XMLHttpRequest = FakeXhr;
   g.window = { dispatchEvent: () => true };
@@ -134,11 +137,45 @@ test('uploads keep their workspace, retry with the same key, and leave with thei
   assert.match(
     m
       .useTransfers()
-      .find((t) => t.state === 'failed' && /larger/.test(t.error))!.error,
-    /larger than the studio accepts/,
+      .find((t) => t.state === 'failed' && /accepts files/.test(t.error))!
+      .error,
+    /^This file is 101 bytes; the studio accepts files up to 100 bytes each\.$/,
   );
   // Another person's session starting in this tab removes alice's transfers (review L7).
   m.clearOtherTransfers('bob');
   assert.equal(m.useTransfers().length, 0);
+  m.resetTransfers();
+});
+
+test('a bare 502 for a file over the default limit names the limit (live check follow-up 3)', async () => {
+  const m = await load();
+  FakeXhr.sent = [];
+  m.clearOtherTransfers('alice');
+  const big = 26 * 1024 * 1024;
+  m.startUploads([{ name: 'big.bin', size: big, type: '' }], {
+    ws: 'ws-A',
+    wsName: 'A',
+    csrf: 'c1',
+  });
+  // The limit was not known yet, so the file was sent; a proxy answered with a bare 502.
+  const sent = FakeXhr.sent.at(-1)!;
+  sent.xhr.status = 502;
+  sent.xhr.responseText = 'Bad Gateway';
+  sent.xhr.onload?.();
+  assert.equal(
+    m.useTransfers()[0]!.error,
+    'This file is 26 MiB; the studio accepts files up to 25 MiB each.',
+  );
+  // A small file that fails the same way keeps the plain status text.
+  m.startUploads([{ name: 'a.txt', size: 10, type: '' }], {
+    ws: 'ws-A',
+    wsName: 'A',
+    csrf: 'c1',
+  });
+  const small = FakeXhr.sent.at(-1)!;
+  small.xhr.status = 502;
+  small.xhr.responseText = 'Bad Gateway';
+  small.xhr.onload?.();
+  assert.equal(m.useTransfers()[1]!.error, 'The upload failed (502).');
   m.resetTransfers();
 });
