@@ -49,12 +49,17 @@ test('build blockers: other methods, too many cases, no held-out case, wrong tas
 
   const many = clone(BUILD_FIXTURE_SPEC);
   const c = many.acceptance_checks[0]!.cases![0]!;
-  many.acceptance_checks[0]!.cases = Array.from({ length: 10 }, () => ({
+  // ADR-0109: a build runs at most 30 cases (it was 10).
+  many.acceptance_checks[0]!.cases = Array.from({ length: 30 }, () => ({
     ...c,
   }));
   assert.match(
     buildBlockers(many, 'T1')[0]!,
-    /11 test cases across its checks, and a build runs at most 10/,
+    /31 test cases across its checks, and a build runs at most 30/,
+  );
+  many.acceptance_checks[0]!.cases.pop();
+  assert.ok(
+    !buildBlockers(many, 'T1').some((b) => /test cases across/.test(b)),
   );
 
   const seen = clone(BUILD_FIXTURE_SPEC);

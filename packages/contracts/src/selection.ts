@@ -807,24 +807,58 @@ export const SpecContentSchema = z.strictObject({
     .max(40),
 });
 export type SpecContent = z.infer<typeof SpecContentSchema>;
+/**
+ * The spec schema as JSON Schema: every limit, key pattern and case field a drafted spec is read
+ * into. spec-cases-v1's fingerprint includes it (review 3 of PR #206), so a change to case
+ * limits or held-out fields changes the fingerprint and needs spec-cases-v2.
+ */
+export function specContentSchemaJson(): unknown {
+  return z.toJSONSchema(SpecContentSchema);
+}
+/**
+ * ADR-0107 (B2): how a saved spec version says model drafts went into it. The studio sets it
+ * from the draft ids the form sends; the person never types it. `edited` compares the saved
+ * content (routine upkeep fields and held-out ticks aside) with the drafted spec; `held_out`
+ * says whether the studio's random pick was kept or changed.
+ */
+export const SpecDraftedMarkSchema = z.strictObject({
+  drafts: z
+    .array(
+      z.strictObject({
+        id,
+        kind: z.enum(['spec', 'edge_case']),
+        model_id: z.string().max(120),
+      }),
+    )
+    .min(1)
+    .max(40),
+  edited: z.boolean(),
+  held_out: z.enum(['studio_pick', 'changed', 'none']),
+});
+export type SpecDraftedMark = z.infer<typeof SpecDraftedMarkSchema>;
 /** Stored `specification` body for T08 specs (the T02 summary form remains valid). */
 export const SpecBodySchema = SpecContentSchema.extend({
   format: z.literal('spec/1'),
   alternative: ref,
   selection_id: id,
+  drafted: SpecDraftedMarkSchema.optional(),
 });
 export type SpecBody = z.infer<typeof SpecBodySchema>;
+/** ADR-0107: the completed model drafts (a spec, edge cases) whose text the person used. */
+const draftIds = z.array(id).max(40).optional();
 export const CreateSpecRequestSchema = z.strictObject({
   selection_id: id,
   alternative: ref,
   title: short,
   content: SpecContentSchema,
+  draft_ids: draftIds,
 });
 export const ReviseSpecRequestSchema = z.strictObject({
   expected_version: version,
   title: short,
   content: SpecContentSchema,
   reason: short,
+  draft_ids: draftIds,
 });
 export const FreezeSpecRequestSchema = z.strictObject({
   spec: ref,
@@ -889,8 +923,21 @@ export const FreezeOutcomeSchema = z.strictObject({
 });
 export type FreezeOutcome = z.infer<typeof FreezeOutcomeSchema>;
 
-/** The most executable cases one build runs (the build plan's limit). */
-export const MAX_BUILD_CASES = 10;
+/**
+ * The most executable cases one build runs (the build plan's limit). ADR-0109 (B4): 30, up from
+ * 10; every round runs all of them, one after another, within the build's time limit.
+ */
+export const MAX_BUILD_CASES = 30;
+/** How many frozen cases a build of `taskKey` runs (browser cases for a web task). */
+export function buildCaseCount(s: SpecContent, taskKey: string): number {
+  const task = s.tasks.find((t) => t.key === taskKey);
+  const checks = s.acceptance_checks.filter((a) =>
+    task?.acceptance.includes(a.key),
+  );
+  return checks.every((a) => a.method === 'browser_check')
+    ? checks.flatMap((a) => a.browser_cases ?? []).length
+    : checks.flatMap((a) => a.cases ?? []).length;
+}
 const METHOD_NAMES: Record<string, string> = {
   automated_test: 'automated test',
   browser_check: 'browser check',

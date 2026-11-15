@@ -412,8 +412,8 @@ test('P24: Qualify several offers allowed tasks not yet qualified and sends thei
   );
   assert.equal(body.expected_version, 7);
   assert.deepEqual(
-    body.items.map((i) => i.manifest.task_class),
-    ['specification', 'independent_review'],
+    body.items.map((i) => i.manifest.name),
+    ['spec-cases-v1', 'plan-spec-acceptance-synthetic-v1', 't12-reviewer-v3'],
   );
   for (const i of body.items) {
     const m = BenchmarkManifestSchema.parse(i.manifest);
@@ -485,7 +485,8 @@ test('P24: a running queue shows its progress and locks every other qualify acti
     );
   const idle = html(null);
   assert.match(idle, /Qualify several tasks/);
-  assert.match(idle, /Qualify all \(2, up to/);
+  // Specification serves two roles (labelling and drafting specs, ADR-0107), qualified apart.
+  assert.match(idle, /Qualify all \(3, up to/);
   assert.match(idle, /Not allowed on this connection, so not offered/);
   // Review N-4: what is left of the 24-hour cap is said before queueing.
   assert.match(idle, /19 plan requests left in this connection/);
@@ -602,14 +603,15 @@ test('P24: Qualify several says before it starts when the queue needs more than 
         act: async () => null,
       }),
     );
-  // Six bundled benchmarks: 8 + 8 + 15 + 4 + 4 + 13 plan requests on a fresh connection.
+  // Seven bundled benchmarks: 8 (spec-cases-v1) + 8 + 8 + 15 + 4 + 4 + 13 plan requests on a
+  // fresh connection.
   const fresh = html(40);
-  assert.match(fresh, /Qualify all \(6, up to 52 plan requests\)/);
+  assert.match(fresh, /Qualify all \(7, up to 60 plan requests\)/);
   assert.match(
     fresh,
-    /Qualify all needs up to 52 plan requests, more than this connection&#x27;s cap of 40 in any 24 hours/,
+    /Qualify all needs up to 60 plan requests, more than this connection&#x27;s cap of 40 in any 24 hours/,
   );
-  assert.doesNotMatch(html(52), /more than this connection/);
+  assert.doesNotMatch(html(60), /more than this connection/);
 });
 
 test('ADR-0089: the discovery benchmarks are listed with their own allow, start and qualified states', async () => {
@@ -944,8 +946,8 @@ test('P24 with P34: Qualify several offers the discovery benchmarks by name, per
   const skeptic = discovery.find((b) => b.task_class === 'scoring')!.name;
   const fresh = byName([]);
   for (const b of discovery) assert.equal(fresh[b.name]?.eligible, true);
-  // Qualify all on a fresh connection: the six bundled benchmarks (52 plan requests) and the
-  // three discovery ones (2 + 4 cases each) come to 70, above the default 40 in any 24 hours.
+  // Qualify all on a fresh connection: the seven bundled benchmarks (60 plan requests) and the
+  // three discovery ones (2 + 4 cases each) come to 78, above the default 40 in any 24 hours.
   assert.equal(
     queueChoices(
       [],
@@ -959,7 +961,7 @@ test('P24 with P34: Qualify several offers the discovery benchmarks by name, per
       ],
       list,
     ).reduce((n, c) => n + (c as unknown as { requests: number }).requests, 0),
-    70,
+    78,
   );
   assert.equal(fresh['assessment-synthetic-v3']?.eligible, true);
   // A discovery benchmark is queued by name; the server loads its manifest.

@@ -609,7 +609,7 @@ test('plan roles send builder and reviewer as fresh plan requests and never touc
   );
   assert.ok(seen.every((x) => x.timeout_ms <= 120000));
   // The reviewer packet carries no builder summary or conversation.
-  assert.ok(!seen[1]!.input.includes('builder/1'));
+  assert.ok(!seen[1]!.input.includes('builder/2'));
   const assigned = s.spec.tasks.find((x) => x.key === 'T1')!.acceptance;
   for (const c of frozenCases(s.spec, assigned).filter((c) => c.held_out))
     for (const x of seen)
@@ -661,6 +661,74 @@ test('a failed plan role request stops the build without applying anything', asy
   assert.match(result.reason, /quota_exhausted/);
   assert.equal(result.commit, s.product.initial_commit);
   assert.equal(s.requests.length, 0);
+});
+
+test('ADR-0110: a plan role answer in one code fence is accepted and recorded; extra text stops the build', async (t) => {
+  // Each build starts from its own fresh product, so no run sees another's candidate.
+  const go = async (wrap: (json: string) => string) => {
+    const s = await setup(t);
+    const plan: BuildPlan = {
+      ...s.plan,
+      plan_roles: { connection_id: randomUUID(), model_id: 'fixture-plan' },
+    };
+    const roles: string[] = [];
+    return s.builds
+      .run(s.product.id, s.task.id, s.product.initial_commit, plan, {
+        ...s.ports,
+        planRolesReady: async () => [],
+        planRole: async (target, request) => {
+          roles.push(target.role);
+          const answer = buildFixtureAnswer([
+            { role: 'system', text: BUILD_ROLE_PROMPTS[target.role] },
+            { role: 'user', text: request.input },
+          ]);
+          return {
+            request_id: randomUUID(),
+            status: 'succeeded',
+            reason_code: 'ok',
+            text: answer === null ? null : wrap(answer),
+            fixture: true,
+          };
+        },
+      })
+      .then((result) => ({ result, roles, s }));
+  };
+  const fenced = await go((j) => `\`\`\`json\n${j}\n\`\`\`\n`);
+  // Both roles answered in a fence, so the build reached the reviewer.
+  assert.deepEqual(fenced.roles, ['builder', 'reviewer']);
+  const dir = join(
+    fenced.s.products.dir(fenced.s.product.id),
+    'builds',
+    fenced.result.id,
+  );
+  for (const n of [1, 2])
+    assert.deepEqual(
+      JSON.parse(
+        await readFile(join(dir, `call-${n}-answer-form.json`), 'utf8'),
+      ),
+      { wrapping: 'one_json_fence' },
+    );
+  // A builder that talks around its fence is not a role answer; nothing is applied.
+  const chatty = await go((j) => `Sure! Here it is:\n\`\`\`json\n${j}\n\`\`\``);
+  assert.deepEqual(chatty.roles, ['builder']);
+  assert.equal(chatty.result.state, 'checkpoint');
+  assert.match(chatty.result.reason, /JSON/);
+  assert.equal(chatty.result.commit, chatty.s.product.initial_commit);
+  // A raw JSON answer writes no answer-form record.
+  const raw = await go((j) => j);
+  await assert.rejects(
+    readFile(
+      join(
+        raw.s.products.dir(raw.s.product.id),
+        'builds',
+        raw.result.id,
+        'call-1-answer-form.json',
+      ),
+    ),
+    /ENOENT/,
+  );
+  for (const x of [fenced, chatty, raw])
+    assert.equal(x.s.requests.length, 0, 'no dollar broker call');
 });
 
 test('plan-role packets are bounded by the accepted plan input cap, broker packets by 20,000', async (t) => {

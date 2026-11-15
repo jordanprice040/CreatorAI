@@ -7,6 +7,7 @@ import {
   nanoUsd,
   ConditionSchema,
 } from './primitives.js';
+import type { BuildRecipe } from './web-recipe.js';
 
 // T03 human oversight contracts (context/HUMAN_OVERSIGHT.md). Policy decisions are made by
 // domain rules over these shapes; nothing here is permission by itself.
@@ -438,25 +439,62 @@ export type Admission = z.infer<typeof AdmissionSchema>;
  * limits, and covers its repair rounds and (on the plan route) its builder and reviewer requests.
  */
 export const BuildRouteSchema = z.enum(['broker', 'codex_plan', 'plan_roles']);
-export const BUILD_APPROVAL_MAX_REQUESTS = 6;
-export const BUILD_APPROVAL_MAX_REPAIRS = 2;
+/**
+ * ADR-0109 (B4): owner caps per build, raised from 6 requests and 2 repair rounds. The Build
+ * form's defaults stay 2 + 2 per repair round and 1 repair round; these are the most a build
+ * may state, and the approval names what it covers.
+ */
+export const BUILD_APPROVAL_MAX_REQUESTS = 20;
+export const BUILD_APPROVAL_MAX_REPAIRS = 5;
+/** The default request limit for a build with `repairs` repair rounds (one builder and one reviewer per round). */
+export const defaultBuildRequests = (repairs: number) =>
+  Math.min(BUILD_APPROVAL_MAX_REQUESTS, 2 + 2 * Math.max(0, repairs));
+/**
+ * The longest one QA case may run in the worker, per recipe (executor launch timeouts). The
+ * build's time limit counts every case of every round at this length.
+ */
+export const BUILD_CASE_MAX_MS = {
+  'python-build/1': 40_000,
+  'static-web/1': 90_000,
+} as const satisfies Record<BuildRecipe, number>;
+/** The longest one plan builder or reviewer request waits (the plan route's request timeout). */
+export const BUILD_REQUEST_MAX_MS = 120_000;
 /** The longest a build approval lasts, whatever deadline the build states (review L-1). */
 export const BUILD_APPROVAL_MAX_MS = 24 * 3_600_000;
 /**
- * How long a build may run from the Build form (PR #123 third review L-1). Plan-role and
- * broker builds keep 30 minutes. A Codex build runs one turn per round (first try plus each
- * repair), each up to the connection's build timeout, which has no maximum (ADR-0062), plus 30
- * minutes for review and checks; never past the build approval's 24 hours (less 5 minutes so
- * the approval's own check, made a moment later, still passes).
+ * How long a build may run from the Build form (PR #123 third review L-1). A Codex build runs
+ * one turn per round (first try plus each repair), each up to the connection's build timeout,
+ * which has no maximum (ADR-0062). ADR-0109: every round also runs all of its cases one after
+ * another, each up to its recipe's case limit, and every role request may wait the build's
+ * own call timeout (`requestMs`; the plan route's 120 s when not given, an upper bound). Plus 10 minutes for packaging the evidence, and never less than
+ * the 30 minutes builds had before; never past the build approval's 24 hours (less 5 minutes
+ * so the approval's own check, made a moment later, still passes). The Build form shows this
+ * time limit before anything is approved, and the build stops at it.
  */
-export function buildDeadlineMs(codexBuildTimeoutMs: number, repairs: number) {
+export function buildDeadlineMs(
+  codexBuildTimeoutMs: number,
+  repairs: number,
+  work: {
+    requests?: number;
+    cases?: number;
+    recipe?: BuildRecipe;
+    /** The build plan's timeout_ms (review N-2: broker builds wait 30 s, not 120 s). */
+    requestMs?: number;
+  } = {},
+) {
+  const rounds = Math.max(0, repairs) + 1;
   const base = 30 * 60_000;
+  const qa =
+    rounds *
+    Math.max(0, work.cases ?? 0) *
+    BUILD_CASE_MAX_MS[work.recipe ?? 'python-build/1'];
+  const requests =
+    Math.max(0, work.requests ?? 0) *
+    Math.min(BUILD_REQUEST_MAX_MS, work.requestMs ?? BUILD_REQUEST_MAX_MS);
+  const codex = rounds * Math.max(0, codexBuildTimeoutMs);
   return Math.min(
     BUILD_APPROVAL_MAX_MS - 5 * 60_000,
-    Math.max(
-      base,
-      (Math.max(0, repairs) + 1) * Math.max(0, codexBuildTimeoutMs) + base,
-    ),
+    Math.max(base, codex + base, codex + requests + qa + 10 * 60_000),
   );
 }
 export const BuildApprovalRequestSchema = z

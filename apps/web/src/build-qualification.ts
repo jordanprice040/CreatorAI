@@ -70,11 +70,11 @@ export function startBlockers(input: {
   else {
     if (!isQualified(input.qualifications, model, 'patch_build'))
       out.push(
-        `${model} isn't qualified as the builder yet: qualify it with t12-builder-v1 above.`,
+        `${model} isn't qualified as the builder yet: qualify it with t12-builder-v3 above.`,
       );
     if (!isQualified(input.qualifications, model, 'independent_review'))
       out.push(
-        `${model} isn't qualified as the reviewer yet: qualify it with t12-reviewer-v2 above.`,
+        `${model} isn't qualified as the reviewer yet: qualify it with t12-reviewer-v3 above.`,
       );
   }
   if (input.offer.freeze_problems.length)

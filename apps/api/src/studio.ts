@@ -18,9 +18,12 @@ import {
   migrate,
   migrations,
   restoreBackup,
+  takeStudioLock,
 } from '@creator/db';
+import { APP_PORTS, APP_PORT_ENV } from '@creator/domain';
 import { createApi } from './index.js';
 import { SERVER_REQUEST_MS, bodyDeadline } from './files.js';
+import { portHolder, portInUseText } from './ports.js';
 
 /**
  * §2.1 installed studio service (ADR-0041). The desktop supervisor starts this as its only
@@ -30,7 +33,8 @@ import { SERVER_REQUEST_MS, bodyDeadline } from './files.js';
  * Nothing here reads the source checkout.
  */
 export const STUDIO_PROTOCOL = 'creator-studio/1';
-const PORTS = { web: 5173, api: 4310, preview: 4320 } as const;
+/** ADR-0108: fixed, never a fallback; the window's origin and the shell's checks use them. */
+const PORTS = APP_PORTS;
 
 const absolute = z
   .string()
@@ -508,16 +512,15 @@ function listen(server: Server, port: number) {
   return new Promise<void>((ok, fail) => {
     const onError = (e: NodeJS.ErrnoException) => {
       server.off('listening', onListening);
-      fail(
-        e.code === 'EADDRINUSE'
-          ? Object.assign(
-              new ContractError(
-                'INVALID_CONFIG',
-                `Port ${port} is already in use by another program.`,
-              ),
-              { port, studio_code: 'PORT_IN_USE' },
-            )
-          : e,
+      if (e.code !== 'EADDRINUSE') return fail(e);
+      // ADR-0108: name the program holding the port when the system can tell.
+      void portHolder(port).then((holder) =>
+        fail(
+          Object.assign(
+            new ContractError('INVALID_CONFIG', portInUseText(port, holder)),
+            { port, studio_code: 'PORT_IN_USE' },
+          ),
+        ),
       );
     };
     const onListening = () => {
@@ -576,12 +579,41 @@ export async function serveStudio(
       'The installed UI is missing; reinstall the app.',
     );
   });
+  // ADR-0108: one studio per database (review 1 M-1), e.g. a dev studio pointed at it.
+  // Review 2: a lost lock connection is taken again; if another studio took it meanwhile,
+  // this one stops. A database that doesn't answer within 10 s is DATABASE_UNAVAILABLE.
+  let lost: (message: string) => void = () => undefined;
+  const lockLost = new Promise<string>((r) => (lost = r));
+  let taken;
+  try {
+    taken = await takeStudioLock(
+      input.database_url,
+      `desktop app, web port ${PORTS.web}, process ${process.pid}`,
+      {
+        onLost: (message) => lost(message),
+        onNote: (note) => process.stderr.write(`${note}\n`),
+      },
+    );
+  } catch (e) {
+    emit({
+      event: 'error',
+      code: 'DATABASE_UNAVAILABLE',
+      message: e instanceof Error ? e.message : 'Database unavailable',
+    });
+    return 4;
+  }
+  if (!taken.held) {
+    emit({ event: 'error', code: 'STUDIO_RUNNING', message: taken.message });
+    return 7;
+  }
   const env: Record<string, string> = {
     CREATOR_DATABASE_URL: input.database_url,
     CREATOR_PRODUCTS_ROOT: input.products_root,
     CREATOR_AUTH_MODE: 'dev_local',
     CREATOR_DEV_LOGIN_CODE: input.login_code,
     CREATOR_DESKTOP_MANAGED: '1',
+    // ADR-0108: the API's origin checks follow the app's fixed ports, not the dev defaults.
+    ...APP_PORT_ENV,
     // ADR-0042: DPAPI-protected ChatGPT sign-in, beside the studio's products folder.
     CREATOR_PLAN_VAULT_DIR: join(input.products_root, '..', 'plan-credentials'),
     // ADR-0050: the studio's own Claude Code sign-in folder (the owner runs claude auth login
@@ -612,6 +644,7 @@ export async function serveStudio(
       web.listening ? web.close(() => r()) : r(),
     );
     await api.close();
+    await taken.lock.release();
   };
   try {
     await listen(api.server, PORTS.api);
@@ -635,7 +668,12 @@ export async function serveStudio(
     schema_version: state.expected,
     worker: api.worker ? 'in_process' : 'off',
   });
-  await stop;
+  const lostMessage = await Promise.race([stop.then(() => null), lockLost]);
+  if (lostMessage !== null) {
+    emit({ event: 'error', code: 'STUDIO_RUNNING', message: lostMessage });
+    await closeAll();
+    return 7;
+  }
   emit({ event: 'stopping' });
   await closeAll();
   emit({ event: 'stopped' });

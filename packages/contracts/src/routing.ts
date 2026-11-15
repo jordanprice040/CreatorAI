@@ -486,6 +486,51 @@ export const BenchmarkCheckSchema = z.discriminatedUnion('kind', [
     forbidden_refs: z.array(z.string().max(20)).max(20),
   }),
   /**
+   * ADR-0107 (B2): a drafted spec and its suggested cases for a command-line program the studio
+   * knows exactly. The reply is read as a spec draft; after the studio's held-out pick, its own
+   * case checks must find no error, there must be at least `min_cases` cases, every case must
+   * pass the reference program, and at least `min_caught` of the known-broken programs must fail
+   * a case. The programs are the studio's own (packages/domain spec-cases.ts) and run in
+   * process; the drafted cases are only their arguments and input.
+   */
+  z.strictObject({
+    kind: z.literal('spec_cases_contract'),
+    role_version: short,
+    program: z.string().regex(/^[a-z0-9-]{1,40}$/),
+    request: z.strictObject({
+      problem: z.strictObject({
+        title: short,
+        statement: z.string().min(1).max(2000),
+        affected_group: short,
+      }),
+      option: z.strictObject({
+        title: short,
+        rationale: z.string().min(1).max(2000),
+        tradeoffs: z.array(short).min(1).max(20),
+      }),
+    }),
+    mutants: z
+      .array(z.string().regex(/^[a-z0-9-]{1,40}\/[a-z0-9-]{1,40}$/))
+      .min(1)
+      .max(12),
+    min_cases: z.number().int().min(1).max(60),
+    min_caught: z.number().int().min(1).max(12),
+    /**
+     * The frozen behaviour of this program and the grader (review 1 of PR #206, L-2): a hash
+     * over the outputs of the reference and every broken version on fixed probe inputs and the
+     * grades of fixed probe replies. A change to the programs or the grading changes it, so
+     * the old benchmark stops grading and stops admitting drafts until spec-cases-v2.
+     */
+    fingerprint: hash,
+    /**
+     * The source of the programs, the grader and the case readers (review 2 of PR #206, N-2):
+     * sha256 of packages/domain/src/spec-cases.ts and the frozen region of
+     * packages/contracts/src/spec-draft.ts, line endings as LF. The sources are not shipped, so
+     * a test holds it, as B1's FREEZE.json holds its scorer.
+     */
+    source_sha256: hash,
+  }),
+  /**
    * T12 reviewer (ADR-0048): the answer binds the case's candidate and frozen hashes and gives
    * the expected verdict; approve needs no findings, changes_requested at least one.
    */
@@ -534,6 +579,58 @@ export const BenchmarkCaseSchema = z.strictObject({
   max_output_tokens: counter.min(1).max(200000),
   check: BenchmarkCheckSchema,
 });
+/**
+ * ADR-0110: how a build role's answer may be wrapped. `one_json_fence` accepts exactly one
+ * markdown code fence (opened by ```json or a bare ```, closed by ``` on its own line) around the
+ * whole answer, with nothing but whitespace outside it. Any other surrounding text still fails.
+ * A manifest without the field grades the raw answer strictly, as every earlier version did.
+ */
+export const RoleAnswerWrappingSchema = z.literal('one_json_fence');
+export type RoleAnswerWrapping = z.infer<typeof RoleAnswerWrappingSchema>;
+
+// Outside the fence only JSON's own whitespace (space, tab, CR, LF) is allowed, as JSON.parse
+// allows around a raw answer; a BOM or a no-break space is not (review 1 N-1).
+const ONE_JSON_FENCE =
+  /^[ \t\r\n]*```(?:json)?[ \t]*\r?\n([\s\S]*)\r?\n[ \t]*```[ \t\r\n]*$/;
+
+/**
+ * The text inside the one fence that wraps a whole build-role answer, or null when the answer is
+ * not wrapped that way. Greedy, so a second fence or any text after the first closing fence stays
+ * inside the result and makes it invalid JSON rather than being dropped.
+ */
+export function unwrapOneJsonFence(text: string): string | null {
+  const m = ONE_JSON_FENCE.exec(text);
+  return m ? m[1]! : null;
+}
+
+/**
+ * The text a build-role answer is graded on (ADR-0110): with `one_json_fence`, what is inside
+ * the one fence when the answer is wrapped that way; otherwise the answer as it came. The one
+ * place the rule is applied, for both the JSON parse and the patch scorer.
+ */
+export function roleAnswerText(
+  text: string,
+  wrapping: RoleAnswerWrapping | null,
+): { text: string; fenced: boolean } {
+  const inner = wrapping === 'one_json_fence' ? unwrapOneJsonFence(text) : null;
+  return inner === null
+    ? { text, fenced: false }
+    : { text: inner, fenced: true };
+}
+
+/**
+ * Parses a build role's answer (ADR-0110). A raw answer is strict JSON; with `one_json_fence`,
+ * an answer that is exactly one fence around JSON is parsed from inside the fence. Throws
+ * SyntaxError otherwise. `fenced` says which form was accepted, for the record.
+ */
+export function parseRoleAnswer(
+  text: string,
+  wrapping: RoleAnswerWrapping | null,
+): { json: unknown; fenced: boolean } {
+  const a = roleAnswerText(text, wrapping);
+  return { json: JSON.parse(a.text) as unknown, fenced: a.fenced };
+}
+
 export const BenchmarkManifestSchema = z
   .strictObject({
     format: z.literal('route-benchmark/1'),
@@ -541,10 +638,22 @@ export const BenchmarkManifestSchema = z
     fixture: z.boolean(),
     task_class: TaskClassSchema,
     data_class: DataClassSchema,
+    /** ADR-0110: absent means the raw answer must be strict JSON. Build roles only. */
+    answer_wrapping: RoleAnswerWrappingSchema.optional(),
     cases: z.array(BenchmarkCaseSchema).min(2).max(200),
     provenance: note,
   })
   .superRefine((b, ctx) => {
+    if (
+      b.answer_wrapping !== undefined &&
+      b.task_class !== 'patch_build' &&
+      b.task_class !== 'independent_review'
+    )
+      ctx.addIssue({
+        code: 'custom',
+        message:
+          'Only build-role benchmarks (patch_build, independent_review) may accept a fenced answer.',
+      });
     for (const c of b.cases)
       if (c.check.kind === 'discovery_contract') {
         const required =
@@ -559,6 +668,18 @@ export const BenchmarkManifestSchema = z
             message: 'Discovery check task class/output format mismatch.',
           });
       }
+    for (const c of b.cases)
+      if (
+        c.check.kind === 'spec_cases_contract' &&
+        (b.task_class !== 'specification' ||
+          c.output_format !== 'json' ||
+          c.check.min_caught > c.check.mutants.length)
+      )
+        ctx.addIssue({
+          code: 'custom',
+          message:
+            'Spec cases check: specification task class, JSON output, and no more catches than broken programs.',
+        });
     for (const c of b.cases)
       if (
         c.check.kind === 'assessment_contract' &&

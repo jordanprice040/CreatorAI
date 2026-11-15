@@ -110,7 +110,7 @@ test('a build qualification may start only with both roles qualified, the freeze
     m
       .startBlockers({ ...input, qualifications: [role('patch_build')] })
       .join(' '),
-    /isn't qualified as the reviewer yet: qualify it with t12-reviewer-v2/,
+    /isn't qualified as the reviewer yet: qualify it with t12-reviewer-v3/,
   );
   assert.match(
     m

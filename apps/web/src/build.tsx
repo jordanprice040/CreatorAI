@@ -14,7 +14,7 @@ import {
 } from 'react';
 import {
   ArtifactSummarySchema,
-  buildDeadlineMs,
+  buildCaseCount,
   EnvelopeSchema,
   PlanConnectionSchema,
   PlanModelAccessSchema,
@@ -39,9 +39,17 @@ import {
   RecipeBenchmarkOffersSchema,
   RecipeQualificationListSchema,
   browserRecheckDue,
+  SpecDraftedMarkSchema,
+  draftedMarkText,
   specRecipe,
 } from '@creator/contracts';
 import { webBuildNote } from './build-qualification.js';
+import {
+  REPAIR_OPTIONS,
+  buildLimits,
+  limitsText,
+  requestOptions,
+} from './build-limits.js';
 import { api, message, when, words } from './oversight.js';
 import {
   Empty,
@@ -479,6 +487,9 @@ export function BuildView({
                 base={base}
                 session={session}
                 mode={specForm}
+                owner={owner}
+                choice={choice}
+                openModels={() => open('models')}
                 cancel={() => setSpecForm(null)}
                 saved={(s) => {
                   setSpecForm(null);
@@ -506,6 +517,10 @@ export function BuildView({
                     s.spec.status === 'active' &&
                     !stale(s) &&
                     !!entityOf(s);
+                  // ADR-0107: a spec saved from a model's draft says so on its row.
+                  const drafted = SpecDraftedMarkSchema.safeParse(
+                    entityOf(s)?.body?.drafted,
+                  ).data;
                   const made = d.products.filter(
                     (p) =>
                       p.product.binding.spec_id === s.spec.id &&
@@ -522,6 +537,7 @@ export function BuildView({
                         : s.latest_freeze
                           ? 'changed since its last freeze'
                           : 'not frozen'}
+                      {drafted && <small> · {draftedMarkText(drafted)}</small>}
                       {s.blockers.length > 0 && (
                         <small> · {s.blockers.join('; ')}</small>
                       )}
@@ -1381,6 +1397,8 @@ function StartBuild({
   /** The person picked a builder on this form, so a switch in the top bar leaves it alone. */
   const [picked, setPicked] = useState(false);
   const [repairs, setRepairs] = useState(1);
+  // ADR-0109: null keeps the default request limit for the repair rounds chosen.
+  const [requests, setRequests] = useState<number | null>(null);
   // ADR-0081: the current model's plan-role builder comes first, even when it is not
   // qualified: the form then says so and offers a qualified one, never switching quietly.
   const preferred = planBuilderDefault(data.builders, data.choice);
@@ -1455,6 +1473,16 @@ function StartBuild({
   const blockers = body.success
     ? buildBlockers(body.data, taskKey, dataClass)
     : [];
+  // ADR-0109: the build's limits and the time limit they imply, shown before approval.
+  const limits = buildLimits({
+    repairs,
+    requests,
+    cases: body.success ? buildCaseCount(body.data, taskKey) : 0,
+    recipe: webSpec ? 'static-web/1' : 'python-build/1',
+    codexBuildTimeoutMs:
+      connection?.kind === 'codex' ? connection.build_timeout_ms : 0,
+    requestMs: connection?.kind === 'roles' ? 120000 : 30000,
+  });
   const refusedClass = connection
     ? connectionDataBlocker(
         connection.data_classes,
@@ -1553,17 +1581,11 @@ function StartBuild({
       humility_review: { id: chosen.id, version: chosen.version },
       data_class: dataClass,
       max_repairs: repairs,
-      max_calls: 2 + 2 * repairs,
+      max_calls: limits.requests,
       // A streamed plan answer can take up to the plan's 120 s request timeout.
-      timeout_ms: connection?.kind === 'roles' ? 120000 : 30000,
+      timeout_ms: limits.requestMs,
       max_output_tokens: 3000,
-      deadline: new Date(
-        Date.now() +
-          buildDeadlineMs(
-            connection?.kind === 'codex' ? connection.build_timeout_ms : 0,
-            repairs,
-          ),
-      ).toISOString(),
+      deadline: new Date(Date.now() + limits.deadlineMs).toISOString(),
       ...(connection
         ? {
             [connection.kind === 'roles' ? 'plan_roles' : 'codex_plan_builder']:
@@ -1716,25 +1738,47 @@ function StartBuild({
         <p className="small">
           Live requests on your{' '}
           {connection.plan === 'claude_code' ? 'Claude' : 'ChatGPT'} plan, with
-          no metered spend: up to {2 + 2 * repairs} builder and reviewer
-          requests, each counted against the plan caps in Settings. One approval
-          covers the whole build, its repair rounds and both roles within that
-          limit. Both roles must be qualified and the run must have room for at
-          least one of each first (repair rounds need more room); if not, the
-          build stops before anything is sent or any approval is used. The
-          budget and pricing chosen above are recorded with the build, but
-          nothing is reserved or charged on this route.
+          no metered spend: up to {limits.requests} builder and reviewer
+          requests (a large change may take several builder requests), each
+          counted against the plan caps in Settings. One approval covers the
+          whole build, its repair rounds and both roles within that limit. Both
+          roles must be qualified and the run must have room for at least one of
+          each first (repair rounds need more room); if not, the build stops
+          before anything is sent or any approval is used. The budget and
+          pricing chosen above are recorded with the build, but nothing is
+          reserved or charged on this route.
         </p>
       )}
       <label htmlFor="bp-repairs">Repair rounds after a failed check</label>
       <select
         id="bp-repairs"
         value={repairs}
-        onChange={(e) => setRepairs(Number(e.target.value))}
+        onChange={(e) => {
+          setRepairs(Number(e.target.value));
+          // Review N-1: a request limit chosen for other repair rounds is not kept.
+          setRequests(null);
+        }}
       >
-        <option value={0}>0</option>
-        <option value={1}>1</option>
-        <option value={2}>2</option>
+        {REPAIR_OPTIONS.map((n) => (
+          <option key={n} value={n}>
+            {n}
+          </option>
+        ))}
+      </select>
+      <label htmlFor="bp-requests">Model requests for the whole build</label>
+      <select
+        id="bp-requests"
+        value={limits.requests}
+        onChange={(e) => {
+          const n = Number(e.target.value);
+          setRequests(n === requestOptions(repairs)[0] ? null : n);
+        }}
+      >
+        {requestOptions(repairs).map((n, i) => (
+          <option key={n} value={n}>
+            {i === 0 ? `${n} (one builder and one reviewer per round)` : n}
+          </option>
+        ))}
       </select>
       {dataClass === 'private_approved' && (
         <p className="small">
@@ -1756,8 +1800,11 @@ function StartBuild({
           },
           {
             label: 'Limits',
-            value: `At most ${2 + 2 * repairs} model requests, ${repairs} repair round${repairs === 1 ? '' : 's'} after a failed check`,
-            source: repairs === 1 ? 'studio default' : 'changed here',
+            value: limitsText(limits),
+            source:
+              repairs === 1 && requests === null
+                ? 'studio default'
+                : 'changed here',
           },
           { label: 'Records', value: recordsSummary },
           { label: 'Data class', value: words(dataClass) },

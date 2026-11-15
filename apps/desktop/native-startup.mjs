@@ -7,10 +7,12 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createApi } from '../api/dist/index.js';
+import { APP_PORT_ENV } from '../../packages/domain/dist/index.js';
 
 // A disposable stateless fixture API and built UI. No personal browser, DB or paid adapter.
 const root = resolve(fileURLToPath(new URL('../..', import.meta.url)));
-const api = createApi({ CREATOR_WORKER: 'off' });
+// ADR-0108: the native shell uses the installed app's ports, not the dev range.
+const api = createApi({ CREATOR_WORKER: 'off', ...APP_PORT_ENV });
 let web;
 let native;
 // A throwaway studio home: the probe never touches the installed app's WebView2 data.
@@ -48,6 +50,7 @@ try {
     ],
     {
       cwd: resolve(root, 'apps/web'),
+      env: { ...process.env, ...APP_PORT_ENV },
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'],
     },

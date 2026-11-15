@@ -2247,6 +2247,12 @@ test('build-role plan requests need the exact role prompt, a qualification and a
     'Model m is not qualified for patch_build (the T12 builder) under its current prompt.',
   ]);
   assert.match((await ready(human))[0]!, /human-only/);
+  // ADR-0109 review L-5: the build reads the connection's input cap at its preflight.
+  const detail = await s.store.planConnectionDetail(owner, ws.id, conn.id);
+  assert.equal(
+    await service.buildRoleInputCap(owner, ws.id, conn.id),
+    detail.connection.settings.caps.responses.max_input_chars,
+  );
   // A frozen study assignment keeps its adopted route.
   const studyRun = await entity('human_in_loop', 'human_in_loop');
   const studyId = randomUUID();
@@ -2343,7 +2349,7 @@ test('build-role plan requests need the exact role prompt, a qualification and a
   // The studio states what the one approval covers; the caller cannot word it.
   assert.equal(
     decision.options.find((o) => o.id === 'approve')!.consequence,
-    `One approval covers this whole build (builder and reviewer on the ChatGPT plan via connection "${conn.label}" (${conn.id.slice(0, 8)}) with model m): its repair rounds and builder and reviewer requests, up to 0 repair rounds and 2 requests (never more than 2 and 6).`,
+    `One approval covers this whole build (builder and reviewer on the ChatGPT plan via connection "${conn.label}" (${conn.id.slice(0, 8)}) with model m): its repair rounds and builder and reviewer requests, up to 0 repair rounds and 2 requests (never more than 5 and 20).`,
   );
   // Review M-1: a one-time approval admits only a build within the scope it showed. A build
   // with another route or more requests or repair rounds is not covered by it: it asks for
@@ -2748,6 +2754,13 @@ test('a one-time build approval goes only to a build it covers, preferring the e
       'clamped to the grant',
     );
   }
+  // ADR-0109 (B4): the raised caps (20 requests, 5 repair rounds) fit the approval records
+  // (migration 68); a build stating more is refused before anything is written.
+  const widest = await approve({ request_limit: 20, max_repairs: 5 });
+  assert.equal(widest.approval?.request_limit, 20);
+  assert.equal(widest.approval?.max_repairs, 5);
+  await assert.rejects(approve({ request_limit: 21 }));
+  await assert.rejects(approve({ max_repairs: 6 }));
   assert.equal(await status(genericGrant), 'active');
   // The matching leftover one-time approval is still taken by the build it describes.
   const broker = await approve({
@@ -2922,6 +2935,113 @@ test('a patch-build qualification is graded by the studio scorer, and a scorer c
     store.planQualificationResults(owner, other.id, crashedQ.id),
     /not found/i,
   );
+});
+
+test('ADR-0110: a fence-accepting build-role benchmark grades inside one fence; strict versions and extra text still fail', async (t) => {
+  let answer = APPROVE;
+  const s = await setup(t, {
+    respond: (body) =>
+      body.instructions === BUILD_ROLE_PROMPTS.reviewer ||
+      body.instructions === BUILD_ROLE_PROMPTS.builder
+        ? answer
+        : 'ok',
+  });
+  if (!s) return;
+  const { store, ws } = s;
+  await s.signIn();
+  let conn = await s.ready();
+  conn = await store.updatePlanSettings(owner, ws.id, conn.id, {
+    expected_version: conn.version,
+    settings: {
+      ...conn.settings,
+      allowed_task_classes: [
+        ...new Set([
+          ...conn.settings.allowed_task_classes,
+          'independent_review',
+          'patch_build',
+        ]),
+      ],
+    },
+  });
+  conn = await store.acceptPlanCaps(owner, ws.id, conn.id, {
+    expected_version: conn.version,
+    settings_hash: conn.settings_hash,
+  });
+  const grant = await store.createPlanVerificationGrant(owner, ws.id, conn.id, {
+    expected_version: conn.version,
+    model_id: 'm',
+    path: 'responses',
+    expires_in_minutes: 5,
+  });
+  await s.service.verifyModel(owner, ws.id, conn.id, {
+    id: grant.id,
+    model_id: 'm',
+  });
+  const graded: (string | null)[] = [];
+  const service = new PlanConnectionService({
+    store,
+    vault: s.vault,
+    fixtureEndpoints: {
+      auth_base: s.fake.auth_base,
+      api_base: s.fake.api_base,
+    },
+    openBrowser: () => {},
+    callbackPort: 0,
+    patchScorer: async (_ctx, _check, text) => {
+      graded.push(text);
+      return 'accepted';
+    },
+  });
+  const run = async (manifest: Record<string, unknown>) => {
+    const q = await store.startPlanQualification(owner, ws.id, conn.id, {
+      expected_version: (await s.current()).version,
+      model_id: 'm',
+      manifest,
+      min_held_out_cases: 3,
+      floor: { numerator: 3, denominator: 3 },
+    });
+    const done = await service.runQualification(owner, ws.id, q.id);
+    assert.ok(done.state === 'decided');
+    const results = await store.planQualificationResults(owner, ws.id, q.id);
+    return { state: done.qualification.state, results };
+  };
+  const fenced = { ...reviewManifest(), answer_wrapping: 'one_json_fence' };
+  answer = `\`\`\`json\n${APPROVE}\n\`\`\``;
+  const pass = await run(fenced);
+  assert.equal(pass.state, 'qualified');
+  // The raw answer, fence and all, is what the record keeps.
+  assert.ok(pass.results.cases.every((c) => c.answer === answer));
+  // The same fenced answers fail a strict version, as t12-reviewer-v2 graded them.
+  const strict = await run(reviewManifest());
+  assert.equal(strict.state, 'failed');
+  assert.ok(strict.results.cases.every((c) => c.signal === 'schema_invalid'));
+  // Any text outside the one fence still fails a fence-accepting version.
+  answer = `Here is my review.\n\`\`\`json\n${APPROVE}\n\`\`\``;
+  const chatty = await run(fenced);
+  assert.equal(chatty.state, 'failed');
+  assert.ok(chatty.results.cases.every((c) => c.signal === 'schema_invalid'));
+  // The patch scorer is handed what is inside the fence; a strict version hands it the raw text.
+  const inner = '{"summary":"s","submission":null,"blocker":"b"}';
+  answer = `\`\`\`\n${inner}\n\`\`\``;
+  const patchManifest = {
+    ...reviewManifest(BUILD_ROLE_PROMPTS.builder),
+    task_class: 'patch_build',
+    cases: reviewManifest(BUILD_ROLE_PROMPTS.builder).cases.map((c) => ({
+      ...c,
+      check: {
+        kind: 'patch_cases',
+        file_scope: ['src'],
+        cases: [
+          { check_key: 'A1', args: [], stdin: '', stdout: '', exit_code: 0 },
+        ],
+      },
+    })),
+  };
+  await run({ ...patchManifest, answer_wrapping: 'one_json_fence' });
+  assert.deepEqual(graded, [inner, inner, inner, inner]);
+  graded.length = 0;
+  await run(patchManifest);
+  assert.deepEqual(graded, [answer, answer, answer, answer]);
 });
 
 test('PR #130 review L-1: a revised discovery role keeps the held-out case keys and changes the prompt', () => {
