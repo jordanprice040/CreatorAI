@@ -1,5 +1,17 @@
 # Session handoff — November 10, 2026
 
+## November 15 handoff — autopilot fixes from the third live rerun
+
+Branch `claude/project-thread-77qqks`, restarted from main 42dce84 after #205 merged. No migration or ADR.
+
+- **New helpers in `autopilot.ts`:** `refusalStop`, `failedNote`, `unknownCount`, `USAGE_LIMIT_NOTE` and `#usageLimited`, which reads the plan connection's quota state.
+- **New stop kind:** `usage_limit`, with its next steps in contracts.
+- **Gather requests** carry `unknowns`.
+- **`#gathered`** returns `lastUnknowns`.
+- **Continue findability:** `apps/web/src/autopilot-waiting-rules.ts` (`waitingAutopilot`, `continueLabel`) and `autopilot-waiting.tsx`, rendered in `compare.tsx` after the gates. `autopilotContinuable(a, now)` refuses past `config.limits.ends_at`; `autopilotEndsApprovals` passes only state, outcome and steps. Tests in `tests/src/web-autopilot-waiting.test.ts` and `autopilot.test.ts`.
+
+Review 1 fixes: `stalledNote` (api), `cutWords` now in `packages/contracts/src/files.ts`, `refusalKind` returns `usage_limit` only when every plan reason is a quota or cap one, and `#research` returns a `usage_limit` stop from `#retryOr`. Autopilot e8b36bd9 finished with a proposal after Jordan's typed OK. Next: review 2 in the review thread.
+
 ## November 15 handoff — sidebar, borders and top bar polish
 
 Branch `claude/project-thread-lfuisg`, no migration or ADR. `main.tsx`: `.sidebar-controls` (theme button with its name, then `ViewModeSwitch`) above `.sidebar-foot`. `style.css`: `.sidebar-controls`, Back to top `margin-right: 16px`, the low-specificity button-then-block rule and `.assess-run`/nested `.explain` margins. `usage.css`: `.usage { margin-top: 0 }`. Sweep: `tracking/evidence/ui-polish-borders/border-sweep.mjs`. The Autopilot page is a separate thread.

@@ -1,4 +1,5 @@
 import {
+  cutWords,
   AUTOPILOT_STAGE_LABEL,
   METERED_WALL_MAX_SECONDS,
   WORKFLOW_WALL_MAX_SECONDS,
@@ -268,6 +269,30 @@ export type AutopilotChoice =
 const clip = (s: string, n = 1100) =>
   s.length > n ? `${s.slice(0, n - 1)}…` : s;
 
+/**
+ * Live rerun 3 (November 15): sensitivity scenarios are named by criterion key ("without
+ * evidence_support"); a note says them in words ("evidence support is left out").
+ */
+export function scenarioWords(scenarios: readonly { name: string }[]): string {
+  const said = scenarios.slice(0, 4).map(({ name }) => {
+    const m = /^(without|double) (.+)$/.exec(name);
+    if (!m) return name.replaceAll('_', ' ');
+    const what = m[2]!.replaceAll('_', ' ');
+    return m[1] === 'without' ? `${what} is left out` : `${what} counts double`;
+  });
+  return said.length > 1
+    ? `${said.slice(0, -1).join(', ')} or ${said.at(-1)}`
+    : (said[0] ?? '');
+}
+
+/** How a choice reads after "cannot be …". */
+const DISPOSITION_PASSIVE: Partial<Record<string, string>> = {
+  select_for_build: 'selected for build',
+  proceed_to_validation: 'taken to validation',
+  recommend_alternative: 'recommended',
+  research_further: 'sent for more research',
+};
+
 type Row = SelectionReport['suitability']['candidates'][number];
 /** a − b for exact scores (sign only). */
 const cmpScore = (a: ExactScore, b: ExactScore) => {
@@ -423,22 +448,14 @@ export function autopilotChoice(
       outcome: 'needs_person',
       kind: 'close_ranking',
       reason: clip(
-        `“${leader.alternative.title}” ranks first, but not when the weights change (${unstable
-          .slice(0, 4)
-          .map((s) => s.name)
-          .join(
-            ', ',
-          )}). A close ranking is a judgment for a person: choose under Decide and continue, and the autopilot goes on with your choice.`,
+        `“${leader.alternative.title}” ranks first, but not when the weights change (${scenarioWords(unstable)}). A close ranking is a judgment for a person: choose under Decide and continue, and the autopilot goes on with your choice.`,
       ),
     };
   if (unstable.length)
     fallbacks.push({
       setting: 'keep_close_leader',
       instead_of: 'close_ranking',
-      note: `Kept the leader under the owner's weights although the leader changes under ${unstable
-        .slice(0, 4)
-        .map((s) => s.name)
-        .join(', ')}.`,
+      note: `Kept the leader under the owner's weights, although another option leads when ${scenarioWords(unstable)}.`,
     });
   // Why an option cannot be advanced now, or null when it can.
   const why = (
@@ -470,9 +487,10 @@ export function autopilotChoice(
       return {
         kind: 'gate_blocked',
         outcome: 'needs_person',
-        reason: clip(
-          `“${c.alternative.title}” ranks first but cannot be ${disposition.replaceAll('_', ' ')} yet: ${blocked.join(' ')} Resolve it, or choose under Decide yourself, then continue.`,
-        ),
+        // Live rerun 3 (November 15): "cannot be recommend alternative yet" read garbled, and
+        // a long gate reason cut off what to do next. The disposition reads as a verb, and the
+        // gate text is shortened (at a word) so the last sentence stays whole.
+        reason: `“${c.alternative.title}” ranks first but cannot be ${DISPOSITION_PASSIVE[disposition] ?? disposition.replaceAll('_', ' ')} yet: ${cutWords(blocked.join(' '), 700)} Resolve it, or choose under Decide yourself, then continue.`,
       };
     if (disposition === 'select_for_build') {
       const opp = report.opportunity.candidates.filter(

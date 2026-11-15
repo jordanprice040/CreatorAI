@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import {
   AUTOPILOT_SETTINGS_DEFAULT,
+  cutWords,
   PROPOSAL_DRAFTABLE_SECTIONS,
   type ProposalSectionDraft,
   MODEL_ONLY_ETHICS_NOTE,
@@ -41,6 +42,7 @@ import {
   DISCOVERY_SCENARIOS,
   autopilotChildLimits,
   autopilotChoice,
+  scenarioWords,
   autopilotProblem,
   checkSelection,
   notAdmitted,
@@ -56,16 +58,20 @@ import {
   AutopilotRunner,
   DEFAULT_OWNER_ACTOR_ID,
   autopilotKey,
+  capAlso,
   createApi,
-  cutWords,
+  failedNote,
   fitNote,
   gatherQuestion,
   namesOf,
   nextGatherQuestion,
   refusalKind,
+  refusalStop,
+  stalledNote,
   spentCandidates,
   spentSettled,
   trimSpent,
+  unknownCount,
   type SpentDetail,
   type AutopilotWeb,
 } from '@creator/api';
@@ -395,7 +401,7 @@ test('the choice rule advances only a clear, stable, unblocked first place; ever
   assert.ok(
     !unstable.ok &&
       unstable.outcome === 'needs_person' &&
-      /double cost/.test(unstable.reason),
+      /cost counts double/.test(unstable.reason),
   );
   const unscored = autopilotChoice(report([cand('a', 'use_existing', null)]));
   assert.ok(
@@ -2223,6 +2229,29 @@ test('ADR-0100: settings let the choice rule go past a stop, and the request it 
   const b1 = autopilotChoice(blocked, OFF);
   assert.ok(!b1.ok);
   assert.equal(b1.kind, 'gate_blocked');
+  // Live rerun 3: the choice reads as a verb, and a long gate reason keeps the last sentence.
+  assert.match(b1.reason, /ranks first but cannot be recommended yet/);
+  const longGate = report([
+    cand('a', 'use_existing', 1, {
+      gates: {
+        ethics_access: 'unresolved',
+        discovery: 'candidate',
+        humility: 'not_applicable',
+        blocked: {
+          recommend_alternative: [
+            'Access: ' + 'staff time is missing '.repeat(60),
+          ],
+        },
+      },
+    }),
+  ]);
+  const g1 = autopilotChoice(longGate, OFF);
+  assert.ok(!g1.ok);
+  assert.match(g1.reason, /\w… Resolve it/);
+  assert.match(
+    g1.reason,
+    /Resolve it, or choose under Decide yourself, then continue\.$/,
+  );
   const b2 = autopilotChoice(blocked, { ...OFF, next_candidate: true });
   assert.ok(b2.ok);
   assert.equal(b2.option.id, 'b');
@@ -3699,5 +3728,342 @@ test('review 1 L-3: a later gather round never repeats a question; it moves to t
   assert.equal(
     nextGatherQuestion(opts, 'Volunteers miss shifts', asked),
     undefined,
+  );
+});
+
+test('live rerun 3 (November 15): a usage-limit refusal is a limit to wait out, not an approval or a broken connection', () => {
+  const quota = new ContractError(
+    'ACCESS_DENIED',
+    'This plan request is not admitted.',
+    ['The ChatGPT plan usage limit was reached.'],
+    [
+      {
+        code: 'quota_exhausted',
+        text: 'The ChatGPT plan usage limit was reached. Plan requests pause; check ChatGPT Settings > Usage.',
+      },
+    ],
+  );
+  assert.deepEqual(refusalStop(quota), {
+    outcome: 'limit_reached',
+    kind: 'usage_limit',
+  });
+  // Other refusals keep their outcome.
+  const caps = new ContractError(
+    'ACCESS_DENIED',
+    'Not admitted.',
+    ['x'],
+    [{ code: 'caps_not_accepted', text: 'x' }],
+  );
+  assert.equal(refusalStop(caps).kind, 'connection');
+  assert.equal(refusalStop(caps).outcome, 'needs_authority');
+  // The finished autopilot offers Continue, not "Fix the connection".
+  const next = autopilotNextSteps({
+    state: 'finished',
+    outcome: 'limit_reached',
+    steps: [
+      {
+        stage: 'assess',
+        state: 'stopped',
+        stop_kind: 'usage_limit',
+      } as unknown as AutopilotStep,
+    ],
+  });
+  // PR #211 review 1 L-1/N-2: recheck usage first (the connection stays marked used up until
+  // then), in words that fit any plan.
+  assert.equal(next[0]?.kind, 'models');
+  assert.match(next[0]!.label, /Recheck usage once the limit resets/);
+  assert.doesNotMatch(next[0]!.detail, /ChatGPT/);
+  // N-1: a refusal that also needs the connection fixed says so first.
+  const both = new ContractError(
+    'ACCESS_DENIED',
+    'Not admitted.',
+    ['x'],
+    [
+      { code: 'quota_exhausted', text: 'x' },
+      { code: 'sign_in', text: 'x' },
+    ],
+  );
+  assert.equal(refusalStop(both).kind, 'connection');
+  const capped = new ContractError(
+    'ACCESS_DENIED',
+    'Not admitted.',
+    ['x'],
+    [
+      { code: 'quota_exhausted', text: 'x' },
+      { code: 'daily_cap_reached', text: 'x' },
+    ],
+  );
+  assert.equal(refusalStop(capped).kind, 'usage_limit');
+  // Review 2 N-4: the cap that was also reached is named with its own step.
+  assert.match(
+    capAlso(capped),
+    /daily request cap was reached too; add requests/,
+  );
+  assert.equal(capAlso(quota), '');
+  // Review 3: only the per-run cap is named as such; another cap is quoted.
+  const capOf = (text: string) =>
+    capAlso(
+      new ContractError(
+        'ACCESS_DENIED',
+        'Not admitted.',
+        ['x'],
+        [
+          { code: 'quota_exhausted', text: 'x' },
+          { code: 'cap_reached', text },
+        ],
+      ),
+    );
+  assert.match(
+    capOf('The per-run request cap was reached.'),
+    /per-run request cap/,
+  );
+  const input = capOf('The input is above the per-request input cap.');
+  assert.doesNotMatch(input, /per-run/);
+  assert.match(
+    input,
+    /A connection cap was reached too \(The input is above the per-request input cap\)/,
+  );
+  assert.equal(capAlso(both), '');
+});
+
+test('PR #211 review 1 N-3/N-4/N-5: a short reason stays, the stall note names both counts, reason codes read as words', () => {
+  const note = fitNote('Stopped.', 'x '.repeat(750), 1200);
+  assert.ok(note.startsWith('Stopped. '), note.slice(0, 40));
+  assert.ok(note.length <= 1200);
+  assert.equal(
+    stalledNote(1, 2),
+    'The last round of evidence left 2 unknown ratings, more than the 1 before it, so it stops gathering and the choice is yours.',
+  );
+  assert.match(stalledNote(2, 2), /left 2 unknown ratings, the same as the 2/);
+  assert.equal(
+    failedNote('Assess the options', {
+      state: 'failed',
+      reason: 'invalid_output',
+    }),
+    'Assess the options failed: invalid output.',
+  );
+});
+
+test('live rerun 3: notes and questions stay whole, and a failed step says why once', () => {
+  assert.equal(
+    failedNote('Assess the options', { state: 'failed', reason: 'failed' }),
+    'Assess the options failed.',
+  );
+  assert.equal(
+    failedNote('Assess the options', {
+      state: 'failed',
+      reason: 'The model answer was not valid.',
+    }),
+    'Assess the options failed: The model answer was not valid.',
+  );
+  assert.equal(
+    failedNote('Find the problem', { state: 'cancelled', reason: null }),
+    'Find the problem was cancelled.',
+  );
+  // Long titles and three unknowns: the question keeps its closing quote and question mark.
+  const q = gatherQuestion(
+    {
+      title:
+        'Conditional handoff protocol with existing-system support; defer a custom build until the pilot shows where the handoffs fail',
+      unknown: [
+        'feasibility_burden',
+        'maintenance_burden',
+        'stakeholder_acceptability',
+      ],
+    },
+    'Disparate systems delay nonprofit operations because staff re-enter the same records in several tools every week',
+  );
+  assert.ok(q.length <= 300, String(q.length));
+  assert.match(q, /”\?$/);
+  assert.match(q, /feasibility burden and maintenance burden of/);
+  assert.doesNotMatch(q, /stakeholder/);
+  // A long ending leaves the reason at least two fifths of the note.
+  const reason =
+    'Choose stopped: 3 options are not fully scored (unknown: feasibility burden).';
+  const note = fitNote(reason, 'x '.repeat(400).trim(), 120);
+  assert.ok(note.length <= 120);
+  assert.ok(note.startsWith('Choose stopped: 3 options'), note);
+});
+
+test('live rerun 3: gathering counts the unknown ratings it asked about', () => {
+  const rows = [
+    { unknown_criteria: ['effort', 'maintenance'] },
+    { unknown_criteria: ['acceptability'] },
+  ];
+  assert.equal(unknownCount('unknown_ratings', rows), 3);
+  assert.equal(unknownCount('gate_blocked', rows), null);
+});
+
+test('live rerun 3: weight scenarios read in words, not criterion keys', () => {
+  assert.equal(
+    scenarioWords([{ name: 'without evidence_support' }]),
+    'evidence support is left out',
+  );
+  assert.equal(
+    scenarioWords([
+      { name: 'without evidence_support' },
+      { name: 'double maintenance_burden' },
+    ]),
+    'evidence support is left out or maintenance burden counts double',
+  );
+});
+
+test('PR #211 review 1 L-2a: a failed step while the plan usage limit holds stops on the limit and is not retried', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  const conn = '00000000-0000-4000-8000-0000000000c1';
+  class Exhausted extends ConnectionStore {
+    override async planRunRoomIn() {
+      return { per_run: 40, used: 0, daily_left: 50 };
+    }
+    override async planConnectionDetail(
+      ...args: Parameters<ConnectionStore['planConnectionDetail']>
+    ) {
+      if (args[2] !== conn) return super.planConnectionDetail(...args);
+      return {
+        connection: { quota: { state: 'exhausted' } },
+      } as unknown as Awaited<
+        ReturnType<ConnectionStore['planConnectionDetail']>
+      >;
+    }
+  }
+  let starts = 0;
+  const web: AutopilotWeb = {
+    ...webStub(async () => {
+      starts += 1;
+      return { id: '00000000-0000-4000-8000-0000000000d4' };
+    }),
+    read: async () =>
+      ({
+        id: '00000000-0000-4000-8000-0000000000d4',
+        version: 1,
+        state: 'failed',
+        explanation: 'The search failed (test).',
+        proposals: [],
+      }) as unknown as WebDiscovery,
+  };
+  await h.store.saveAutopilotSettings(owner, h.ws.id, {
+    expected_version: 0,
+    values: { ...OFF, retry_failed: 2 },
+  });
+  const runner = new AutopilotRunner(new Exhausted(h.db.pool), web, {
+    pollMs: 5,
+    onWait: () => h.worker.settle(),
+  });
+  const research = {
+    connection_id: conn,
+    model_id: 'gpt-test',
+    scope: WebDiscoveryScopeSchema.parse({ interests: ['volunteers'] }),
+    input_hash: 'c'.repeat(64),
+  };
+  const plan = {
+    kind: 'subscription' as const,
+    connection_id: conn,
+    model_id: 'gpt-test',
+    settings_hash: 'a'.repeat(64),
+    max_output_chars: 16000,
+  };
+  const runId = await h.run(
+    h.policy(['research', 'evidence', 'model_work', 'selection'], {
+      data_classes: ['public', 'synthetic'],
+    }),
+  );
+  const a = await runner.start(
+    owner,
+    h.ws.id,
+    runId,
+    h.body(h.config({ resource_setup: plan, research })),
+  );
+  await runner.settled(a.id);
+  const done = runner.with(await h.store.getAutopilot(owner, h.ws.id, a.id));
+  assert.equal(starts, 1, 'not retried');
+  assert.equal(done.steps.length, 1, JSON.stringify(done.steps));
+  assert.equal(done.outcome, 'limit_reached', done.explanation);
+  assert.equal(done.steps[0]!.stop_kind, 'usage_limit');
+  assert.match(done.explanation, /recheck usage under Models and connections/);
+  assert.ok(autopilotContinuable(done).ok);
+  assert.equal(done.next?.[0]?.kind, 'models');
+  assert.match(done.next![0]!.label, /Recheck usage/);
+});
+
+test('PR #211 review 1 L-2b: a gather round that leaves as many unknown ratings stops gathering and says so', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  // The assessment rates every option; this stand-in leaves the first choosable one with an
+  // unknown rating on every read, so evidence never shrinks the unknowns.
+  class Unknown extends ConnectionStore {
+    override async selectionReport(
+      ...args: Parameters<ConnectionStore['selectionReport']>
+    ) {
+      const r = await super.selectionReport(...args);
+      const c = r.suitability.candidates.find(
+        (x) => x.gates.discovery === 'candidate',
+      );
+      if (c)
+        Object.assign(c, {
+          rank: null,
+          score: null,
+          unknown_criteria: ['adoption_cost'],
+        });
+      return r;
+    }
+  }
+  let n = 0;
+  const web: AutopilotWeb = {
+    accept: async () => null,
+    start: async () => ({
+      id: `00000000-0000-4000-8000-0000000000e${++n}`,
+    }),
+    read: async (_c, _w, id) =>
+      ({
+        id,
+        version: 1,
+        state: 'done',
+        explanation: 'Read 1 page.',
+        proposals: [{ decision: 'admitted', check: 'verified' }],
+      }) as unknown as WebDiscovery,
+    isActive: () => true,
+    resume: async () => null,
+    cancel: async () => null,
+  };
+  await h.store.saveAutopilotSettings(owner, h.ws.id, {
+    expected_version: 0,
+    values: { ...OFF, gather_evidence: true, max_extra_searches: 3 },
+  });
+  const runner = new AutopilotRunner(new Unknown(h.db.pool), web, {
+    pollMs: 5,
+    onWait: () => h.worker.settle(),
+  });
+  const research = {
+    connection_id: '00000000-0000-4000-8000-0000000000c1',
+    model_id: 'gpt-test',
+    scope: WebDiscoveryScopeSchema.parse({ interests: ['volunteers'] }),
+    input_hash: 'c'.repeat(64),
+  };
+  const runId = await h.run(
+    h.policy(['research', 'evidence', 'model_work', 'selection'], {
+      data_classes: ['public', 'synthetic'],
+    }),
+  );
+  const a = await runner.start(
+    owner,
+    h.ws.id,
+    runId,
+    h.body(h.config({ research })),
+  );
+  await runner.settled(a.id);
+  const done = await h.store.getAutopilot(owner, h.ws.id, a.id);
+  const trail = JSON.stringify(
+    done.steps.map((s) => [s.stage, s.state, s.stop_kind, s.note]),
+  );
+  const gathers = done.steps.filter((s) => s.stage === 'gather');
+  assert.equal(gathers.length, 1, trail);
+  assert.equal(gathers[0]!.request?.unknowns, 1, trail);
+  assert.equal(done.outcome, 'needs_person', trail);
+  assert.equal(done.steps.at(-1)!.stop_kind, 'unknown_ratings', trail);
+  assert.match(
+    done.explanation,
+    /left 1 unknown rating, the same as the 1 before it, so it stops gathering/,
   );
 });

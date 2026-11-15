@@ -664,6 +664,16 @@ const NEXT: Record<AutopilotStopKind, Omit<AutopilotNext, 'setting'>[]> = {
         'Adds 20 requests for 24 hours without changing caps; then continue.',
     },
   ],
+  // PR #211 review 1 L-1: the connection stays marked used up until its usage is rechecked,
+  // so the recheck comes before Continue, not as a fallback.
+  usage_limit: [
+    {
+      kind: 'models',
+      label: 'Recheck usage once the limit resets, then continue',
+      detail:
+        'The plan account’s own usage limit pauses requests until it resets (see your plan’s usage settings). Then recheck usage under Models and connections, and continue.',
+    },
+  ],
   call_limit: [
     {
       kind: 'new_autopilot',

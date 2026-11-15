@@ -135,6 +135,8 @@ export const AutopilotStopKindSchema = z.enum([
   'paused',
   'run_cap',
   'daily_cap',
+  /** Live rerun 3 (November 15): the plan account's own usage limit, which resets by itself. */
+  'usage_limit',
   /** Review 1 L-2: the connection refused for its own setup (caps not accepted, sign-in, …). */
   'connection',
   'call_limit',

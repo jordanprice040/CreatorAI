@@ -176,6 +176,14 @@ export function cutText(text: string, max: number): string {
   return text.slice(0, c >= 0xd800 && c <= 0xdbff ? max - 1 : max);
 }
 
+/** Cuts text at a word boundary with an ellipsis, never splitting a surrogate pair. */
+export function cutWords(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const cut = cutText(text, Math.max(0, max - 1));
+  const space = cut.lastIndexOf(' ');
+  return `${(space > max * 0.6 ? cut.slice(0, space) : cut).trimEnd()}…`;
+}
+
 /** `name (2).ext`, `name (3).ext`… for a display name already in use. */
 export function numberedName(name: string, n: number): string {
   const dot = name.lastIndexOf('.');

@@ -47,6 +47,7 @@ import {
 } from './scorecard.js';
 import { AssessmentLines, AutoAssess, RangeWhy } from './assess.js';
 import { AdvanceAndGates, GateLines } from './gates.js';
+import { WaitingAutopilot } from './autopilot-waiting.js';
 import { InlineApproval } from './inline-approval.js';
 import { LinkClaims } from './link-claims.js';
 import { Routine, WhatWillHappen } from './routine.js';
@@ -764,6 +765,12 @@ export function Compare({
                 onDone={() => detail.reload()}
               />
             )}
+            <WaitingAutopilot
+              base={base}
+              problemId={d.report.problem.id}
+              session={session}
+              owner={workspace.role === 'owner'}
+            />
 
             <div className="fold-head">
               <h3>Alternatives side by side</h3>

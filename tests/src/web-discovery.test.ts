@@ -1429,7 +1429,10 @@ test('P-12: an autopilot adds quote-checked claims only with the owner’s setti
   // explanation no longer says the claims wait because the setting is off.
   assert.equal(after.explanation.split('Claims so far:').length, 2);
   assert.doesNotMatch(after.explanation, /is off/);
-  assert.match(after.explanation, /The autopilot accepted 1 checked claim/);
+  assert.match(
+    after.explanation,
+    /Claims so far: the autopilot accepted 1 checked claim/,
+  );
   assert.match(after.explanation, /^Read 3 pages\. word/);
   assert.ok(after.explanation.length <= 1200);
   const added = after.proposals.find((x) => x.decision === 'admitted')!;

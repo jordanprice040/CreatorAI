@@ -814,7 +814,9 @@ export class WebDiscoveryStore extends PortfolioStore {
         // earlier pass's claim count instead of adding to it, so the note never contradicts itself.
         // Review 1 N-2: an explanation written before the mark existed drops its earlier
         // count sentences too, and the base is shortened so the mark and the count always fit.
-        const tail = ` ${CLAIMS_MARK} ${cutText(summary, 600)}`;
+        // Live rerun 3: the count reads on after the mark ("Claims so far: the autopilot…").
+        const count = cutText(summary, 600);
+        const tail = ` ${CLAIMS_MARK} ${count.charAt(0).toLowerCase()}${count.slice(1)}`;
         const prior = (
           await c.query(
             'select explanation from web_discoveries where id = $1',

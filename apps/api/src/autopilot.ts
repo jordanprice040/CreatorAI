@@ -4,6 +4,7 @@ import {
   AUTOPILOT_STAGE_LABEL,
   ContractError,
   cutText,
+  cutWords,
   ExplorationResultSchema,
   WebDiscoveryScopeSchema,
   MODEL_ONLY_ETHICS_NOTE,
@@ -166,23 +167,20 @@ export function trimSpent(
     : { ...a, steps, calls_reserved: reserved };
 }
 
-/** Cuts text at a word boundary with an ellipsis, never splitting a surrogate pair. */
-export function cutWords(text: string, max: number): string {
-  if (text.length <= max) return text;
-  const cut = cutText(text, Math.max(0, max - 1));
-  const space = cut.lastIndexOf(' ');
-  return `${(space > max * 0.6 ? cut.slice(0, space) : cut).trimEnd()}…`;
-}
-
 /**
  * Live rerun (November 15): a note made of a long reason and what happens next keeps the
  * second part whole; the reason is shortened at a word instead.
  */
 export function fitNote(head: string, tail: string, max: number): string {
-  const end = cutWords(tail.trim(), max);
-  if (!end) return cutWords(head.trim(), max);
+  const lead = head.trim();
+  // Live rerun 3 (November 15): a long ending must not take the whole note; the reason keeps
+  // at least two fifths of it (or all of itself, when shorter).
+  const keep = Math.min(lead.length, Math.floor(max * 0.4));
+  const end = cutWords(tail.trim(), keep ? max - keep - 1 : max);
+  if (!end) return cutWords(lead, max);
   const room = max - end.length - 1;
-  const start = room >= 20 ? cutWords(head.trim(), room) : '';
+  // PR #211 review 1 N-3: a short reason that was given room is kept whole.
+  const start = room >= Math.min(20, lead.length) ? cutWords(lead, room) : '';
   return start ? `${start} ${end}` : end;
 }
 
@@ -195,11 +193,15 @@ export function gatherQuestion(
   problem: string,
 ): string {
   if (!option) return cutWords(problem, 300);
-  const unknown = option.unknown.map((x) => x.replaceAll('_', ' '));
+  // Live rerun 3 (November 15): long titles and three unknowns cut the question mid-word. The
+  // titles are shortened inside it and at most two unknowns are named, so it stays whole.
+  const unknown = option.unknown.slice(0, 2).map((x) => x.replaceAll('_', ' '));
+  const title = cutWords(option.title, 90);
+  const about = cutWords(problem, 70);
   return cutWords(
     unknown.length
-      ? `What evidence shows the ${unknown.join(' and ')} of “${option.title}” as a response to “${problem}”?`
-      : `What evidence bears on “${option.title}” as a response to “${problem}”?`,
+      ? `What evidence shows the ${unknown.join(' and ')} of “${title}” as a response to “${about}”?`
+      : `What evidence bears on “${title}” as a response to “${about}”?`,
     300,
   );
 }
@@ -222,9 +224,31 @@ export function nextGatherQuestion(
   ].find((q) => !asked.has(q.question.toLowerCase()));
 }
 
+/**
+ * Live rerun 3 (November 15): unknown ratings (option × criterion) among the options a choice
+ * stopped on; null when the stop is not about unknown ratings.
+ */
+export function unknownCount(
+  kind: string,
+  rows: readonly { unknown_criteria: readonly string[] }[],
+): number | null {
+  return kind === 'unknown_ratings'
+    ? rows.reduce((n, r) => n + r.unknown_criteria.length, 0)
+    : null;
+}
+
+/**
+ * Live rerun 3 (November 15) and PR #211 review 1 N-4: why gathering stopped, with both counts
+ * (the last round can leave more unknowns than before, not only as many).
+ */
+export function stalledNote(before: number, now: number): string {
+  const n = (k: number) => `${k} unknown rating${k === 1 ? '' : 's'}`;
+  return `The last round of evidence left ${n(now)}, ${now === before ? 'the same as' : 'more than'} the ${before} before it, so it stops gathering and the choice is yours.`;
+}
+
 /** “A”, “B”, “C” and 2 more. */
 export function namesOf(titles: string[], shown = 3): string {
-  const named = titles.slice(0, shown).map((t) => `“${cutWords(t, 80)}”`);
+  const named = titles.slice(0, shown).map((t) => `“${cutWords(t, 60)}”`);
   const more = titles.length - named.length;
   return named.join(', ') + (more > 0 ? ` and ${more} more` : '');
 }
@@ -249,6 +273,16 @@ export function refusalKind(e: unknown): AutopilotStopKind {
   const text = said(e).toLowerCase();
   // Re-review 2 N-1: a connection that is not set up (caps not accepted, sign-in, …) is fixed
   // first; more requests cannot help until it is.
+  // Live rerun 3 (November 15): the plan account's own usage limit resets by itself; it is a
+  // limit to wait out, not a connection to fix or an approval to give.
+  // PR #211 review 1 N-1: only when nothing else about the connection needs fixing.
+  if (
+    reasons.includes('quota_exhausted') &&
+    reasons.every((c) =>
+      ['quota_exhausted', 'cap_reached', 'daily_cap_reached'].includes(c),
+    )
+  )
+    return 'usage_limit';
   if (reasons.some((c) => c !== 'cap_reached' && c !== 'daily_cap_reached'))
     return 'connection';
   if (reasons.includes('daily_cap_reached')) return 'daily_cap';
@@ -265,6 +299,60 @@ export function refusalKind(e: unknown): AutopilotStopKind {
   if (outcome === 'needs_authority') return 'approval';
   if (outcome === 'failed') return 'failed_step';
   return 'other';
+}
+
+const USAGE_LIMIT_NOTE =
+  "The plan account's usage limit was reached, so the step is not tried again now. Once it resets (see your plan's usage settings), recheck usage under Models and connections, then continue.";
+
+/** Live rerun 3 (November 15): "Assess the options failed: <reason>", never "ended failed: failed". */
+export function failedNote(
+  label: string,
+  wf: { state: string; reason: string | null },
+): string {
+  const verb = wf.state === 'cancelled' ? 'was cancelled' : 'failed';
+  const reason = (wf.reason ?? '').trim();
+  return reason && reason.toLowerCase() !== wf.state
+    ? `${label} ${verb}: ${reason.replace(/[.\s]*$/, '').replaceAll('_', ' ')}.`
+    : `${label} ${verb}.`;
+}
+
+/**
+ * PR #211 review 2 N-4: a usage-limit stop whose refusal also hit a request cap names that cap's
+ * own step too, so the recheck is not followed by a second refusal; empty otherwise.
+ */
+export function capAlso(e: unknown): string {
+  if (refusalKind(e) !== 'usage_limit' || !(e instanceof ContractError))
+    return '';
+  const codes = e.reasons.map((r) => r.code);
+  const out: string[] = [];
+  // PR #211 review 3: cap_reached also covers the input, chat and Codex caps; only the per-run
+  // cap is named as such (as refusalKind reads it), any other is quoted.
+  for (const r of e.reasons.filter((x) => x.code === 'cap_reached')) {
+    const text = (r.text ?? '').trim().replace(/[.\s]*$/, '');
+    out.push(
+      /per-run/i.test(text)
+        ? "The connection's per-run request cap was reached too; raise it under Models and connections › Change caps."
+        : `A connection cap was reached too${text ? ` (${cutWords(text, 200)})` : ''}; see Models and connections.`,
+    );
+  }
+  if (codes.includes('daily_cap_reached'))
+    out.push(
+      "The connection's daily request cap was reached too; add requests under Models and connections.",
+    );
+  return out.length ? ` ${out.join(' ')}` : '';
+}
+
+/** A refused call's stop: its kind, and the outcome that kind implies. */
+export function refusalStop(e: unknown): {
+  outcome: AutopilotOutcome;
+  kind: AutopilotStopKind;
+} {
+  const kind = refusalKind(e);
+  return {
+    outcome:
+      kind === 'usage_limit' ? 'limit_reached' : refusalOutcome(codeOf(e)),
+    kind,
+  };
 }
 
 /** A stable idempotency key per autopilot step attempt. */
@@ -340,6 +428,8 @@ type GatherRequest = {
   question: string | null;
   /** Filled in when the step finishes: claims linked or added. */
   added?: number;
+  /** Live rerun 3: unknown ratings (option × criterion) when this round was asked for. */
+  unknowns?: number;
 };
 type Done = {
   note: string;
@@ -805,11 +895,7 @@ export class AutopilotRunner {
     try {
       planned = await this.#plan(ctx, ws, a, stage);
     } catch (e) {
-      planned = {
-        outcome: refusalOutcome(codeOf(e)),
-        kind: refusalKind(e),
-        note: said(e),
-      };
+      planned = { ...refusalStop(e), note: `${said(e)}${capAlso(e)}` };
     }
     if ('outcome' in planned) {
       planned = await this.#settle(ctx, ws, planned);
@@ -1116,6 +1202,16 @@ export class AutopilotRunner {
     };
   }
 
+  /** Whether the autopilot's plan connection last saw its account's usage limit reached. */
+  async #usageLimited(ctx: CommandContext, ws: string, a: Autopilot) {
+    const r = a.config.resource_setup;
+    if (r.kind !== 'subscription') return false;
+    const d = await this.store
+      .planConnectionDetail(ctx, ws, r.connection_id)
+      .catch(() => null);
+    return d?.connection.quota?.state === 'exhausted';
+  }
+
   /** Failed attempts of this stage so far (each a stopped step that failed). */
   #failures(a: Autopilot, stage: AutopilotStage) {
     return a.steps.filter(
@@ -1135,6 +1231,17 @@ export class AutopilotRunner {
     stop: Stop,
   ): Promise<Result> {
     if (stop.outcome !== 'failed') return { stop };
+    // Live rerun 3 (November 15): while the plan account's usage limit holds, a retry is only
+    // refused again; stop on the limit instead, so Continue goes on once it resets.
+    if (await this.#usageLimited(ctx, ws, a))
+      return {
+        stop: {
+          ...stop,
+          outcome: 'limit_reached',
+          kind: 'usage_limit',
+          note: fitNote(stop.note, USAGE_LIMIT_NOTE, 1200),
+        },
+      };
     const settings = await this.#settings(ctx, ws);
     if (this.#failures(a, step.stage) >= settings.values.retry_failed)
       return { stop: { ...stop, kind: stop.kind ?? 'failed_step' } };
@@ -1196,7 +1303,11 @@ export class AutopilotRunner {
         then.includes((s.request as GatherRequest | null)?.then ?? 'explore'),
     );
     const last = rounds.at(-1)?.request as GatherRequest | undefined;
-    return { rounds: rounds.length, lastAdded: last?.added ?? null };
+    return {
+      rounds: rounds.length,
+      lastAdded: last?.added ?? null,
+      lastUnknowns: last?.unknowns ?? null,
+    };
   }
 
   async #run(
@@ -1243,9 +1354,8 @@ export class AutopilotRunner {
       // spent, so its calls stay set aside.
       const unsent = !!step.key && this.#refused.delete(step.key);
       const stop: Stop = {
-        outcome: refusalOutcome(codeOf(e)),
-        kind: refusalKind(e),
-        note: `${AUTOPILOT_STAGE_LABEL[step.stage]} was refused: ${said(e)}`,
+        ...refusalStop(e),
+        note: `${AUTOPILOT_STAGE_LABEL[step.stage]} was refused: ${said(e)}${capAlso(e)}`,
         ...(unsent ? { unsent: true } : {}),
       };
       return this.#retryOr(ctx, ws, a, step, stop).catch(() => ({ stop }));
@@ -1294,7 +1404,13 @@ export class AutopilotRunner {
       // next candidate"): the autopilot explores the claims already recorded instead.
       if (r.stop.outcome === 'failed') {
         const retried = await this.#retryOr(ctx, ws, a, step, r.stop);
-        if ('redo' in retried) return retried;
+        // PR #211 review 1 L-2: a search that failed under the plan's usage limit stops on that
+        // limit; skipping it would only be refused again at the next step.
+        if (
+          'redo' in retried ||
+          ('stop' in retried && retried.stop.kind === 'usage_limit')
+        )
+          return retried;
       }
       const settings = await this.#settings(ctx, ws);
       if (
@@ -1655,10 +1771,7 @@ export class AutopilotRunner {
     if (wf.state !== 'succeeded')
       return this.#retryOr(ctx, ws, a, step, {
         outcome: wf.state === 'cancelled' ? 'cancelled' : 'failed',
-        note: cutText(
-          `${AUTOPILOT_STAGE_LABEL[step.stage]} ended ${wf.state}: ${wf.reason}`,
-          1200,
-        ),
+        note: cutText(failedNote(AUTOPILOT_STAGE_LABEL[step.stage], wf), 1200),
       });
     const result = wf.result;
     if (step.stage === 'explore') {
@@ -2016,6 +2129,8 @@ export class AutopilotRunner {
     const report = await this.store.selectionReport(ctx, ws, problem.id);
     const settings = await this.#settings(ctx, ws);
     const S = settings.values;
+    // PR #211 review 1 N-4: the two counts, named in the stop note.
+    let stalled: { before: number; now: number } | null = null;
     // ADR-0100: when more evidence could settle the stop (unknown ratings, an open gate), gather
     // it and assess again before any setting chooses past it.
     const strict = autopilotChoice(report, {
@@ -2031,11 +2146,25 @@ export class AutopilotRunner {
       a.config.start?.stage !== 'select'
     ) {
       const g = this.#gathered(a, ['assess', 'select']);
-      if (g.rounds < 1 + S.max_extra_searches && g.lastAdded !== 0) {
+      const rows = report.suitability.candidates.filter((c) =>
+        (strict.options ?? []).some((o) => o.id === c.alternative.id),
+      );
+      const unknowns = unknownCount(strict.kind, rows);
+      // Live rerun 3 (November 15): four rounds went on although the unknown ratings did not
+      // shrink (2, then 1, then 2 again). A round that leaves as many unknowns as the last one
+      // asked about stops gathering, and the choice goes to a person or the settings.
+      stalled =
+        unknowns !== null &&
+        g.lastUnknowns !== null &&
+        unknowns >= g.lastUnknowns
+          ? { before: g.lastUnknowns, now: unknowns }
+          : null;
+      if (
+        g.rounds < 1 + S.max_extra_searches &&
+        g.lastAdded !== 0 &&
+        !stalled
+      ) {
         const route = this.#searchRoute(a, settings);
-        const rows = report.suitability.candidates.filter((c) =>
-          (strict.options ?? []).some((o) => o.id === c.alternative.id),
-        );
         // Review 1 L-3: each round asks a question no earlier round asked, trying the options
         // in order and then the problem itself; with none left it only links recorded claims.
         const asked = new Set(
@@ -2077,6 +2206,7 @@ export class AutopilotRunner {
                 problem_id: report.problem.id,
                 options: rows.length ? rows.map((r) => r.alternative.id) : null,
                 question: search?.question ?? null,
+                ...(unknowns !== null ? { unknowns } : {}),
               },
             },
           },
@@ -2089,7 +2219,13 @@ export class AutopilotRunner {
         stop: {
           outcome: choice.outcome,
           kind: choice.kind,
-          note: choice.reason,
+          note: stalled
+            ? fitNote(
+                choice.reason,
+                stalledNote(stalled.before, stalled.now),
+                1200,
+              )
+            : choice.reason,
         },
       };
     const out = await this.store.select(keyed, ws, a.run_id, {
