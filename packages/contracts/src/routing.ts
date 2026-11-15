@@ -597,6 +597,11 @@ export const ROLE_ANSWER_WRAPPINGS = [
 ] as const;
 export const RoleAnswerWrappingSchema = z.enum(ROLE_ANSWER_WRAPPINGS);
 export type RoleAnswerWrapping = z.infer<typeof RoleAnswerWrappingSchema>;
+/**
+ * ADR-0115 review 1 L-2: what a route benchmark manifest may name. Only `one_json_fence` until a
+ * benchmark that drops tool-call lines also records the dropped count per call, as builds do.
+ */
+export const BenchmarkAnswerWrappingSchema = z.literal('one_json_fence');
 
 // Outside the fence only JSON's own whitespace (space, tab, CR, LF) is allowed, as JSON.parse
 // allows around a raw answer; a BOM or a no-break space is not (review 1 N-1).
@@ -614,7 +619,8 @@ export function unwrapOneJsonFence(text: string): string | null {
 }
 
 // ADR-0115: one leading line that is wholly an invented tool call: `<invoke>` or
-// `<invoke name="…">`, text without angle brackets, `</invoke>`; or a lone `</invoke>`.
+// `<invoke name="…">` (attributes without angle brackets), text without angle brackets,
+// `</invoke>`; or a lone `</invoke>`.
 // Spaces and tabs around it only. Nested tags, other tag names and multi-line calls do not match.
 const INVOKE_LINE =
   /^[ \t]*(?:<invoke(?:[ \t][^<>\r\n]*)?>[^<>\r\n]*<\/invoke>|<\/invoke>)[ \t]*$/;
@@ -694,7 +700,7 @@ export const BenchmarkManifestSchema = z
     task_class: TaskClassSchema,
     data_class: DataClassSchema,
     /** ADR-0110/0115: absent means the raw answer must be strict JSON. Build roles only. */
-    answer_wrapping: RoleAnswerWrappingSchema.optional(),
+    answer_wrapping: BenchmarkAnswerWrappingSchema.optional(),
     cases: z.array(BenchmarkCaseSchema).min(2).max(200),
     provenance: note,
   })

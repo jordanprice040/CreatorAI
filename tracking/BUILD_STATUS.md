@@ -4,7 +4,7 @@
 
 - **What works.** Plan-route builds now accept a builder or reviewer answer that starts with up to 8 invented one-line `<invoke …>…</invoke>` or `</invoke>` lines before its one json fence, as claude-sonnet-5-5's H4 answer did (record `49fe5782`). The lines are dropped and counted in `call-N-answer-form.json`; anything else around the fence still fails.
 - **Frozen benchmarks unchanged.** v5 recipe benchmarks still grade one fence only (their attempts' plans say so). New frozen `p14-larger-ledgercheck-v6` (same task, cases and pass bars as v5) allows the lines, and a pass on it lifts the larger Python build label (ADR-0112).
-- **Checks run (cloud):** typecheck; format; new tests in `role-answer-invoke.test.ts`, `build.test.ts` (default drops and records; a plan naming `one_json_fence` stops), `recipe-qualification.test.ts` (H4 form fails v5, qualifies v6; v6 equals v5 but for its answer form); `pnpm test:db` (see handoff).
+- **Checks run (cloud):** typecheck; format; new tests in `role-answer-invoke.test.ts`, `build.test.ts` (default drops and records the form and mode; a plan naming `one_json_fence` stops), `recipe-qualification.test.ts` (H4 form fails v5, qualifies v6; v6 equals v5 but for its answer form), `web-recipe.test.ts` (a v6 pass lifts the larger label only on its own roles). `pnpm test:db` at 6504bb4 (PostgreSQL 16): 1,371 tests, 1,337 pass, 29 skipped, 5 fail, the known PowerShell-wrapper tests (422, 440, 802, 806, 896); `pnpm test:dev-safety` 19 pass, 0 fail. Review 1 fixes rerun: see the handoff.
 - **Not done:** no live run. Requalifying Claude on v6 needs Jordan's typed OK.
 
 ## November 15 update — autopilot fixes from the third live rerun (no migration or ADR)

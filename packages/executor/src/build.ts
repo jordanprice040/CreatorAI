@@ -609,6 +609,7 @@ export class BuildSupervisor {
           const wrapping = plan.answer_wrapping ?? PLAN_ROUTE_ANSWER_WRAPPING;
           const answer = parseRoleAnswer(r.text, wrapping);
           if (answer.fenced)
+            // The form the answer took, and the mode in force (review 1 N-3).
             await jsonWrite(join(dir, `call-${calls}-answer-form.json`), {
               wrapping: answer.dropped_invoke_lines
                 ? 'invoke_lines_then_json_fence'
@@ -616,6 +617,7 @@ export class BuildSupervisor {
               ...(answer.dropped_invoke_lines
                 ? { dropped_invoke_lines: answer.dropped_invoke_lines }
                 : {}),
+              mode: wrapping,
             });
           return answer.json;
         }

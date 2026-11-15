@@ -92,24 +92,26 @@ test('ADR-0115: the other modes are unchanged by the new one', () => {
   assert.equal(roleAnswerText(h4, MODE).text, ANSWER);
 });
 
-test('ADR-0115: only build-role benchmarks may name the new mode', () => {
-  const base = {
-    format: 'route-benchmark/1',
-    name: 'x',
-    fixture: true,
-    data_class: 'synthetic',
-    provenance: 'test',
-    answer_wrapping: MODE,
-    cases: [],
-  };
-  const issues = (task_class: string) => {
-    const r = BenchmarkManifestSchema.safeParse({ ...base, task_class });
-    return r.success ? [] : r.error.issues.map((i) => i.message);
-  };
-  assert.ok(
-    issues('summarization').some((m) => /Only build-role benchmarks/.test(m)),
-  );
-  assert.ok(
-    !issues('patch_build').some((m) => /Only build-role benchmarks/.test(m)),
-  );
+test('ADR-0115 review 1 L-2: no route benchmark may name the new mode yet', () => {
+  for (const task_class of [
+    'patch_build',
+    'independent_review',
+    'summarization',
+  ]) {
+    const r = BenchmarkManifestSchema.safeParse({
+      format: 'route-benchmark/1',
+      name: 'x',
+      fixture: true,
+      task_class,
+      data_class: 'synthetic',
+      provenance: 'test',
+      answer_wrapping: MODE,
+      cases: [],
+    });
+    assert.equal(r.success, false, task_class);
+    assert.ok(
+      r.error!.issues.some((i) => i.path.join('.') === 'answer_wrapping'),
+      task_class,
+    );
+  }
 });
