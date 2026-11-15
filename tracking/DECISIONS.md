@@ -1,6 +1,5 @@
 # Decision log
 
-<<<<<<< HEAD
 ## ADR-0112 — Larger Python builds are unqualified trials until their roles pass the larger Python benchmark (November 15, 2026; no migration)
 
 **Owner decision (Jordan, November 15, 11:33 UTC): "Label larger Claude builds".** ADR-0105's "Claude route qualified for small builds only" was a written rule the app did not enforce (PR #212 re-check 3): Python builds never carried the unqualified-trial label and `p14-larger-ledgercheck-v5` gated nothing. Jordan wants larger Claude builds to stay possible, so they are labelled, not blocked. **Amends ADR-0078 (review M-2) and ADR-0105.** (ADR-0111 is PR #213's. S0 takes the next free ADR, 0113 once this PR merges (#213 merged with ADR-0111), and migration 69.)
@@ -15,7 +14,6 @@
 Not covered: no live run. The file count is only known from the package, so before a build the form can only say "may".
 
 Rejected: blocking larger Python builds without a pass (Jordan wants them possible); judging size from line count (the benchmark rejects it, and a single long file can be simple) or from the spec's flows or checks (the builder decides how many modules to write); counting only files outside the template (the template's one `src/main.py` is what a small build edits anyway).
-=======
 ## ADR-0111 — Autopilot gets its own page in the left nav (November 15, 2026; no migration)
 
 Jordan's request (November 15): using the autopilot meant going all over the studio, and a stopped run's Continue was hard to find. Web only; amends ADR-0103 (Discover's panels) and the step 9 page map.
@@ -34,7 +32,6 @@ Jordan's request (November 15): using the autopilot meant going all over the stu
 - **Nits.** The next-step line reads "do what each card says, then press Continue on that card" (N-1). "Whole process" links to "Start an autopilot" (N-2). The card's top padding is 12 px (N-3). Allow and continue's explanation sits on its own line (N-4). The explanation is left out when the last step's note says the same (N-5). `whenShown` (`discovery-progress.tsx`) is shared by Search the web and Open the exploration (N-6). Non-owners read "The workspace owner can continue it", and only the owner sees the nav count (N-7).
 
 **Amendment (November 15, review 2 of PR #213: three Lows, three nits, all fixed).** L-1: a card under Earlier autopilots whose stop could otherwise be continued is headed "Ended: its end time passed" or "Ended: it cannot continue" instead of "Waiting for you". L-2: How much is automated reads the current level with `autopilotContinuable` only, so an expired autopilot no longer counts. L-3: the run and problem names load once per missing id, not with every 3-second refresh. N-1: the stop's explanation is always shown, and a last step that repeats it says "see above.". N-2: the server's Allow and continue refuses an autopilot past its end time with `EXPIRED`, as Continue does, before the continuable check. N-3: the shared end-time code and comments match #211's, so the merge keeps one copy.
->>>>>>> origin/main
 
 ## ADR-0110 — Build roles may wrap their whole answer in one code fence, in new frozen benchmark versions (November 15, 2026; no migration)
 
