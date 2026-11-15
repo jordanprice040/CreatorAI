@@ -453,7 +453,11 @@ function Facts({ d }: { d: ArtifactDetail }) {
             <>
               {' '}
               · <strong>unqualified trial</strong> (build roles not yet
-              qualified for this recipe)
+              qualified for{' '}
+              {m.toolchain.recipe === 'python-build/1'
+                ? 'larger Python builds'
+                : 'this recipe'}
+              )
             </>
           )}
         </dd>

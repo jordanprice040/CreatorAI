@@ -44,7 +44,7 @@ when it wraps the whole answer with nothing but whitespace outside it
 Afterwards Jordan chose to keep the strict check: the Claude route stays qualified for small builds
 only (ADR-0105, owner decision of 11:29 UTC). The app does not enforce that yet: Python builds carry
 no trial label, and this benchmark gates no build, so a larger Python build on the Claude connection
-runs unlabelled (see the ADR-0105 note).
+runs unlabelled (see the ADR-0105 note). Enforced as a label by ADR-0112 (PR #215, added after this record).
 
 Packet A's build records (`7dc8312f`, `8b8d8c26`, in `../2026-11-15-installed/`) are bound to builder/1
 (`73cb799e…`). Under builder/2 they no longer count, so web builds on the ChatGPT connection carry the
