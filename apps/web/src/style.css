@@ -3905,6 +3905,28 @@ fieldset.gate-checklist li input {
 .fix-outcome .error {
   display: block;
 }
+/* The Autopilot page (November 15): each autopilot as its own card, with space between cards
+   so no two borders meet; one waiting for you is marked by its border colour. */
+.autopilot-page .jump-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0 0 16px;
+}
+.autopilot-page article.card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  padding: 4px 16px 12px;
+  margin: 12px 0;
+}
+.autopilot-page article.card .next-after-stop {
+  background: var(--surface-sunken);
+}
+.autopilot-page article.card.waiting {
+  border-color: var(--accent-bg);
+  box-shadow: inset 3px 0 0 var(--accent-bg);
+}
 /* Final UX pass K-1: what to do after an autopilot stops. */
 .next-after-stop {
   margin: 10px 0;

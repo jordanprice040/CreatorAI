@@ -45,12 +45,15 @@ import { useEndTime } from './end-time.js';
 import { AllowAndContinue } from './autopilot-next.js';
 import { useAutopilotSettings } from './autopilot-settings.js';
 import { heldClaimsSetting } from './autopilot-held.js';
-import { routeHash } from './pages.js';
+import { routeHash, type View } from './pages.js';
+import { revealWhenShown } from './discovery-progress.js';
 
 // P13 (ADR-0092): "Run it for me". One form sets up a new run with routine approvals covering
 // exactly the autopilot's steps and starts the autopilot; the owner confirms both summaries.
-// The list below shows each autopilot's steps as they happen, why it stopped, and Stop or
-// Continue. The autopilot itself runs on the server; leaving the page does not stop it.
+// Since November 15 it sits on its own Autopilot page (Jordan's request), with the autopilots
+// that are working or waiting for you first, each with its steps, why it stopped, what to do
+// next and Stop or Continue; then the start form; then earlier autopilots, folded. The
+// autopilot itself runs on the server; leaving the page does not stop it.
 
 const ROLE_LABEL: Record<EvidenceRole, string> = {
   problem: 'the problem',
@@ -84,12 +87,38 @@ const list = (s: string) =>
     .map((x) => x.trim())
     .filter(Boolean);
 
+/**
+ * Waits for Explore for me to be on the page in view (Discover may be mounting for the first
+ * time), then asks it to open the autopilot's exploration; Explore opens its panel itself.
+ */
+function openExplorationWhenShown(detail: { id: string; at: string }) {
+  let tries = 0;
+  const look = () => {
+    const page = document.querySelector('.draft-page:not([hidden])');
+    if (page?.querySelector('#explore-title'))
+      window.dispatchEvent(new CustomEvent(OPEN_EXPLORATION, { detail }));
+    else if (++tries < 20) setTimeout(look, 100);
+  };
+  setTimeout(look, 0);
+}
+
+/** Working now, or stopped and waiting for the person to continue it. */
+export const autopilotCurrent = (a: AutopilotRecord) =>
+  a.state === 'running' ||
+  (a.state === 'finished' && !!a.outcome && autopilotContinuable(a).ok);
+
 export function Autopilot({
   session,
   workspace,
+  open,
+  between,
 }: {
   session: SessionInfo;
   workspace: Workspace;
+  /** Opens another tab, for the next steps that are taken elsewhere (Decide, Discover). */
+  open: (view: View, id?: string) => void;
+  /** Shown after the start form and before the earlier autopilots (the page's other parts). */
+  between?: ReactNode;
 }) {
   const base = `workspaces/${workspace.id}`;
   // ADR-0100: a web search the owner's settings allow needs the run's approvals to cover it.
@@ -129,6 +158,8 @@ export function Autopilot({
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // Stop and Continue answer on their card's section, not under the start form.
+  const [controlError, setControlError] = useState('');
   // The end time is fixed while the owner reads the summary, so the summary read is the one
   // sent. It is worked out again when the hours change, and when the page comes back into view
   // unless the summary is confirmed (then only once the end time is close or past).
@@ -339,17 +370,17 @@ export function Autopilot({
 
   async function control(a: AutopilotRecord, what: 'cancel' | 'continue') {
     setBusy(true);
-    setError('');
+    setControlError('');
     try {
       await api(AutopilotSchema, `${base}/autopilots/${a.id}/${what}`, {
         csrf: session.csrf_token,
         body:
           what === 'cancel'
-            ? { reason: 'Stopped from the Discover page.' }
+            ? { reason: 'Stopped from the Autopilot page.' }
             : { expected_version: a.version },
       });
     } catch (err) {
-      setError(message(err));
+      setControlError(message(err));
     } finally {
       setBusy(false);
       // Final UX pass K-3: the next start counts its hours from now, not from the page load.
@@ -358,25 +389,142 @@ export function Autopilot({
     }
   }
 
-  return (
-    <section className="explore" aria-labelledby="autopilot-title">
-      <h3 id="autopilot-title">Run it for me (autopilot)</h3>
-      <p>
-        The studio takes the whole path for you, one step after another:{' '}
-        {researchOn ? 'search the web, ' : ''}explore the claims, write a brief
-        from the first candidate problem, run discovery, assess every option,
-        choose by a fixed rule, and save a proposal for a non-code option. Each
-        step is the same server step the forms use, admitted by routine
-        approvals made for this run only. It stops and says why when a step
-        needs you: a tie or close ranking, ethics and access to confirm, a
-        software option (its spec stays with you), or a limit.
-      </p>
-      <Status
-        loading={ctx.loading}
-        error={ctx.error}
-        stale={ctx.stale}
-        retry={ctx.reload}
+  const current = c?.autopilots.filter(autopilotCurrent) ?? [];
+  const earlier =
+    c?.autopilots.filter((a) => !autopilotCurrent(a)).slice(0, 10) ?? [];
+
+  function card(a: AutopilotRecord, now: boolean) {
+    const can = autopilotContinuable(a);
+    const offered =
+      owner &&
+      a.state === 'finished' &&
+      !!a.outcome &&
+      (AUTOPILOT_RETRYABLE.includes(a.outcome) || can.ok);
+    const steps = (
+      <ol className="small">
+        {a.steps.map((s, i) => (
+          <li key={i}>
+            {MARK[s.state]} {AUTOPILOT_STAGE_LABEL[s.stage]}
+            {s.attempt > 1 ? ` (try ${s.attempt})` : ''}: {s.note}
+          </li>
+        ))}
+      </ol>
+    );
+    return (
+      <article
+        key={a.id}
+        className={now && a.state === 'finished' ? 'card waiting' : 'card'}
+        aria-label="Autopilot"
       >
+        <p>
+          <strong>
+            {a.state === 'running'
+              ? `Working: ${AUTOPILOT_STAGE_LABEL[a.stage].toLowerCase()}`
+              : (OUTCOME_LABEL[a.outcome ?? ''] ?? words(a.outcome ?? ''))}
+          </strong>{' '}
+          <span className="small">
+            {a.automation_id
+              ? 'Automate selection · '
+              : a.config.start
+                ? 'Automate the rest · '
+                : ''}
+            started {when(a.created_at)} · {a.calls_reserved} of{' '}
+            {a.config.limits.max_calls} calls set aside
+            {a.state === 'running' && !a.active
+              ? ' · not being driven by this studio process (it carries on after a restart)'
+              : ''}
+          </span>
+        </p>
+        <p>{a.explanation}</p>
+        {/* What it did is the progress while it works; on an older one it is folded. */}
+        {now ? (
+          steps
+        ) : (
+          <details>
+            <summary>Its steps ({a.steps.length})</summary>
+            {steps}
+          </details>
+        )}
+        {owner && a.state === 'finished' && a.outcome && (
+          <NextAfterStop
+            autopilot={a}
+            workspace={workspace}
+            acceptsHeld={!!settings?.accept_quote_checked_claims}
+            open={open}
+          />
+        )}
+        {owner && a.state === 'running' && (
+          <button
+            className="secondary"
+            disabled={busy}
+            onClick={() => void control(a, 'cancel')}
+          >
+            Stop
+          </button>
+        )}
+        {offered &&
+          (can.ok ? (
+            <button disabled={busy} onClick={() => void control(a, 'continue')}>
+              Continue the autopilot from{' '}
+              {AUTOPILOT_STAGE_LABEL[a.stage].toLowerCase()}
+            </button>
+          ) : (
+            <p className="small">{can.reason}</p>
+          ))}
+        <AllowAndContinue
+          a={a}
+          base={base}
+          session={session}
+          owner={owner}
+          onDone={() => ctx.refresh()}
+        />
+      </article>
+    );
+  }
+
+  return (
+    <>
+      <section className="explore" aria-labelledby="autopilot-now-title">
+        <h3 id="autopilot-now-title">Working or waiting for you</h3>
+        <Status
+          loading={ctx.loading}
+          error={ctx.error}
+          stale={ctx.stale}
+          retry={ctx.reload}
+        >
+          {c &&
+            (current.length === 0 ? (
+              <Empty>
+                No autopilot is working or waiting for you. Start one below.
+              </Empty>
+            ) : (
+              <>
+                <p className="small">
+                  A stopped autopilot waits here until its end time. Do what its
+                  card says, then press Continue on the card.
+                </p>
+                {current.map((a) => card(a, true))}
+              </>
+            ))}
+          {controlError && (
+            <p className="error" role="alert">
+              {controlError}
+            </p>
+          )}
+        </Status>
+      </section>
+      <section className="explore" aria-labelledby="autopilot-title">
+        <h3 id="autopilot-title">Start an autopilot</h3>
+        <p>
+          The studio takes the whole path for you, one step after another:{' '}
+          {researchOn ? 'search the web, ' : ''}explore the claims, write a
+          brief from the first candidate problem, run discovery, assess every
+          option, choose by a fixed rule, and save a proposal for a non-code
+          option. Each step is the same server step the forms use, admitted by
+          routine approvals made for this run only. It stops and says why when a
+          step needs you: a tie or close ranking, ethics and access to confirm,
+          a software option (its spec stays with you), or a limit.
+        </p>
         {c && (
           <>
             {owner ? (
@@ -643,89 +791,19 @@ export function Autopilot({
                 Only the workspace owner can start an autopilot.
               </p>
             )}
-            {c.autopilots.length === 0 ? (
-              <Empty>No autopilot has run in this workspace yet.</Empty>
-            ) : (
-              c.autopilots.slice(0, 5).map((a) => (
-                <article key={a.id} className="card" aria-label="Autopilot">
-                  <p>
-                    <strong>
-                      {a.state === 'running'
-                        ? `Working: ${AUTOPILOT_STAGE_LABEL[a.stage].toLowerCase()}`
-                        : (OUTCOME_LABEL[a.outcome ?? ''] ??
-                          words(a.outcome ?? ''))}
-                    </strong>{' '}
-                    <span className="small">
-                      {a.automation_id
-                        ? 'Automate selection · '
-                        : a.config.start
-                          ? 'Automate the rest · '
-                          : ''}
-                      started {when(a.created_at)} · {a.calls_reserved} of{' '}
-                      {a.config.limits.max_calls} calls set aside
-                      {a.state === 'running' && !a.active
-                        ? ' · not being driven by this studio process (it carries on after a restart)'
-                        : ''}
-                    </span>
-                  </p>
-                  <p>{a.explanation}</p>
-                  <ol className="small">
-                    {a.steps.map((s, i) => (
-                      <li key={i}>
-                        {MARK[s.state]} {AUTOPILOT_STAGE_LABEL[s.stage]}
-                        {s.attempt > 1 ? ` (try ${s.attempt})` : ''}: {s.note}
-                      </li>
-                    ))}
-                  </ol>
-                  {owner && a.state === 'finished' && a.outcome && (
-                    <NextAfterStop
-                      autopilot={a}
-                      workspace={workspace}
-                      acceptsHeld={!!settings?.accept_quote_checked_claims}
-                    />
-                  )}
-                  {owner && a.state === 'running' && (
-                    <button
-                      className="secondary"
-                      disabled={busy}
-                      onClick={() => void control(a, 'cancel')}
-                    >
-                      Stop
-                    </button>
-                  )}
-                  {owner &&
-                    a.state === 'finished' &&
-                    a.outcome &&
-                    (AUTOPILOT_RETRYABLE.includes(a.outcome) ||
-                      autopilotContinuable(a).ok) &&
-                    (() => {
-                      const can = autopilotContinuable(a);
-                      return can.ok ? (
-                        <button
-                          disabled={busy}
-                          onClick={() => void control(a, 'continue')}
-                        >
-                          Continue from{' '}
-                          {AUTOPILOT_STAGE_LABEL[a.stage].toLowerCase()}
-                        </button>
-                      ) : (
-                        <p className="small">{can.reason}</p>
-                      );
-                    })()}
-                  <AllowAndContinue
-                    a={a}
-                    base={base}
-                    session={session}
-                    owner={owner}
-                    onDone={() => ctx.refresh()}
-                  />
-                </article>
-              ))
-            )}
           </>
         )}
-      </Status>
-    </section>
+      </section>
+      {between}
+      {earlier.length > 0 && (
+        <section className="explore" aria-label="Earlier autopilots">
+          <details>
+            <summary>Earlier autopilots ({earlier.length})</summary>
+            {earlier.map((a) => card(a, false))}
+          </details>
+        </section>
+      )}
+    </>
   );
 }
 
@@ -738,10 +816,12 @@ function NextAfterStop({
   autopilot: a,
   workspace,
   acceptsHeld,
+  open,
 }: {
   autopilot: AutopilotRecord;
   workspace: Workspace;
   acceptsHeld: boolean;
+  open: (view: View, id?: string) => void;
 }) {
   const href = (
     view: 'evidence' | 'compare' | 'decisions' | 'proposals',
@@ -761,15 +841,26 @@ function NextAfterStop({
     <button
       type="button"
       className="secondary"
-      onClick={() =>
-        window.dispatchEvent(
-          new CustomEvent(OPEN_EXPLORATION, {
-            detail: { id: exploration.id, at: exploreStarted },
-          }),
-        )
-      }
+      onClick={() => {
+        // On Discover › Explore for me, its own tab.
+        open('submit');
+        openExplorationWhenShown({ id: exploration.id, at: exploreStarted });
+      }}
     >
       Open the exploration
+    </button>
+  );
+  // Search the web is a Discover panel; it opens there, since this page has no search form.
+  const searchWeb = (
+    <button
+      type="button"
+      className="secondary"
+      onClick={() => {
+        open('submit');
+        revealWhenShown('web-title');
+      }}
+    >
+      Search the web
     </button>
   );
   const decide = (
@@ -778,7 +869,7 @@ function NextAfterStop({
     </a>
   );
   const then = canContinue
-    ? ', then press Continue here.'
+    ? ', then press Continue on this card.'
     : ', then start a new autopilot.';
   // Every candidate the explorer found is already a recorded problem (review 1 of #192, L-6).
   // The note lists each candidate's disposition, e.g. "(E1 duplicate; E2 insufficient
@@ -815,9 +906,7 @@ function NextAfterStop({
       actions = (
         <>
           {openExploration}
-          <button type="button" className="secondary" onClick={go('web-title')}>
-            Search the web
-          </button>
+          {searchWeb}
           <a className="button secondary" href={href('evidence')}>
             Sources and claims
           </a>
@@ -832,37 +921,31 @@ function NextAfterStop({
           canContinue && a.next?.some((n) => n.kind === 'allow_and_continue')
             ? ' While claims still wait and none were added, it stops here again.'
             : '';
-        text = `Next: read the claims its web search found and add the ones you agree with under Discover › Search the web${then}${again} ${heldClaimsSetting(a, canContinue, acceptsHeld)}`;
+        text = `Next: read the claims its web search found and add the ones you agree with under Projects › Discover › Search the web${then}${again} ${heldClaimsSetting(a, canContinue, acceptsHeld)}`;
         actions = (
           <>
+            {searchWeb}
             <button
               type="button"
               className="secondary"
-              onClick={go('web-title')}
+              onClick={go('autopilot-settings-title')}
             >
-              Search the web
-            </button>
-            <button
-              type="button"
-              className="secondary"
-              onClick={go('automation-title')}
-            >
-              How much is automated
+              Autopilot settings
             </button>
           </>
         );
         break;
       }
-      text = `Next: this step is yours. Make the choice under Projects › Decide (or write the proposal under Proposals)${then} How much is automated sets which steps stop for you.`;
+      text = `Next: this step is yours. Make the choice under Projects › Decide (or write the proposal under Proposals)${then} Autopilot settings below choose which stops it may handle on its own.`;
       actions = (
         <>
           {decide}
           <button
             type="button"
             className="secondary"
-            onClick={go('automation-title')}
+            onClick={go('autopilot-settings-title')}
           >
-            How much is automated
+            Autopilot settings
           </button>
         </>
       );

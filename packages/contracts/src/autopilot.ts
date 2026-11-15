@@ -422,7 +422,7 @@ export function autopilotSummary(c: AutopilotConfig): string[] {
     'If an option’s ethics gate was cleared only on the model’s word, it stops and asks you before choosing it. If you choose under Decide while it waits, Continue goes on with your choice.',
     'For a non-code option it saves a proposal drafted from the records. A software option first needs your humility review to be chosen, and writing and freezing its spec stays with you, so it stops there.',
     `Limits: at most ${c.limits.max_calls} model calls in all, each step setting aside its maximum first; it stops at ${until.slice(0, 10)} ${until.slice(11, 16)} UTC. The run's routine approvals, budgets, spending limits and connection caps still apply.`,
-    'Where your autopilot settings (How much is automated) allow it, it takes a planned fallback instead of stopping (gathering evidence, choosing by the worst case, breaking a tie, the next candidate, a retry); each is recorded with the setting that allowed it.',
+    'Where your autopilot settings (Autopilot page) allow it, it takes a planned fallback instead of stopping (gathering evidence, choosing by the worst case, breaking a tie, the next candidate, a retry); each is recorded with the setting that allowed it.',
     'It never publishes, sends messages, spends outside the run, changes permissions or answers a question for you. Stop it at any time; what it made so far is kept.',
   ];
 }
@@ -705,7 +705,7 @@ export function autopilotNextSteps(
       kind: 'allow_and_continue',
       label: `Allow “${AUTOPILOT_SETTING_TEXT[setting].label}” and continue`,
       detail:
-        `${AUTOPILOT_SETTING_TEXT[setting].text} It stays on for later autopilots; change it under How much is automated.`.slice(
+        `${AUTOPILOT_SETTING_TEXT[setting].text} It stays on for later autopilots; change it under Autopilot settings.`.slice(
           0,
           300,
         ),

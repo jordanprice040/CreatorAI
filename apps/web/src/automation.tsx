@@ -46,10 +46,7 @@ import {
 import { Empty, Status, reveal, useLoad } from './ui.js';
 import { usePoll } from './page-active.js';
 import { endTimeClose, useEndTime } from './end-time.js';
-import {
-  AutopilotSettingsPanel,
-  useAutopilotSettings,
-} from './autopilot-settings.js';
+import { useAutopilotSettings } from './autopilot-settings.js';
 
 /** The run selector's value for "Automate the rest" on a new run (live-run finding). */
 const NEW_RUN = 'new';
@@ -98,13 +95,13 @@ export function currentLevel(
         level: 'manual',
         note:
           latest.state === 'running'
-            ? 'a choice Automate selection started is still working; stop it under Run it for me'
-            : 'a choice Automate selection started is waiting for you; see Run it for me',
+            ? 'a choice Automate selection started is still working; stop it above, under Working or waiting for you'
+            : 'a choice Automate selection started is waiting for you; see Working or waiting for you',
       };
     const note =
       latest.state === 'running'
-        ? 'its autopilot is working now; stop it under Run it for me'
-        : 'its autopilot stopped and waits for you; see Run it for me';
+        ? 'its autopilot is working now; stop it above, under Working or waiting for you'
+        : 'its autopilot stopped and waits for you; see Working or waiting for you';
     return { level: latest.config.start ? 'rest' : 'whole', note };
   }
   return { level: 'manual', note: 'you take every step' };
@@ -298,7 +295,7 @@ export function Automation({
   const blockers = [
     ...(!run && !isNew
       ? [
-          'There is no active supervised or human-in-the-loop run. Start one from Discover, or use Run it for me for the whole process.',
+          'There is no active supervised or human-in-the-loop run. Start one from Discover, or start an autopilot above for the whole process.',
         ]
       : []),
     ...(level !== 'whole' && !route
@@ -517,9 +514,6 @@ export function Automation({
       >
         {c && (
           <>
-            {owner && (
-              <AutopilotSettingsPanel session={session} workspace={workspace} />
-            )}
             {(c.runs.length > 0 || level === 'rest') && (
               <>
                 <label htmlFor="am-run">Project (run)</label>
@@ -814,7 +808,7 @@ export function Automation({
                           {p.state === 'running'
                             ? 'choosing now'
                             : (p.outcome ?? '').replaceAll('_', ' ')}{' '}
-                          (see Run it for me for its steps)
+                          (see Working or waiting for you for its steps)
                         </li>
                       ))}
                     </ul>

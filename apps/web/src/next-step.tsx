@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  AutopilotSchema,
+  autopilotContinuable,
   ArtifactSummarySchema,
   EnvelopeSchema,
   FeedbackSchema,
@@ -74,6 +76,7 @@ async function readFacts(
     artifacts,
     plans,
     proposals,
+    autopilots,
   ] = await Promise.all([
     api(OverviewSchema, `${base}/overview`),
     api(z.array(PricingSnapshotSchema), `${base}/pricing`),
@@ -94,6 +97,7 @@ async function readFacts(
           () => null,
         ),
     api(z.array(ProposalSummarySchema), `${base}/proposals`).catch(() => null),
+    api(z.array(AutopilotSchema), `${base}/autopilots`).catch(() => null),
   ]);
   // Freeze state for the specs changed most recently; a long tail of old specs adds nothing.
   const recent = [...specs]
@@ -186,6 +190,20 @@ async function readFacts(
         : null,
     },
     planConnections: plans ? plans.length : null,
+    ...(autopilots
+      ? {
+          autopilots: {
+            running: autopilots.filter((a) => a.state === 'running').length,
+            // Stopped and still able to continue: the same rule as the Continue button.
+            waiting: autopilots.filter(
+              (a) =>
+                a.state === 'finished' &&
+                !!a.outcome &&
+                autopilotContinuable(a).ok,
+            ).length,
+          },
+        }
+      : {}),
   };
 }
 
