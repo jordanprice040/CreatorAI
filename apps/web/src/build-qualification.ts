@@ -70,7 +70,7 @@ export function startBlockers(input: {
   else {
     if (!isQualified(input.qualifications, model, 'patch_build'))
       out.push(
-        `${model} isn't qualified as the builder yet: qualify it with t12-builder-v1 above.`,
+        `${model} isn't qualified as the builder yet: qualify it with t12-builder-v2 above.`,
       );
     if (!isQualified(input.qualifications, model, 'independent_review'))
       out.push(

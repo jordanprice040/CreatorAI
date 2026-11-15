@@ -13,7 +13,7 @@ import assessment from '../../../config/connections/benchmarks/assessment-synthe
 import specification from '../../../config/connections/benchmarks/specification-synthetic-v1.json';
 import specCases from '../../../config/connections/benchmarks/spec-cases-v1.json';
 import summarization from '../../../config/connections/benchmarks/summarization-synthetic-v1.json';
-import builder from '../../../config/connections/benchmarks/t12-builder-v1.json';
+import builder from '../../../config/connections/benchmarks/t12-builder-v2.json';
 import reviewer from '../../../config/connections/benchmarks/t12-reviewer-v2.json';
 import webDiscovery from '../../../config/connections/benchmarks/web-discovery-v2.json';
 import { AllowTasks } from './allow-tasks.js';

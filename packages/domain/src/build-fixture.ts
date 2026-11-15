@@ -97,11 +97,15 @@ const planCases = (spec: SpecContent) =>
 export const BUILD_FIXTURE_CASES = planCases(BUILD_FIXTURE_SPEC);
 export const BUILD_FIXTURE_SOURCE =
   'import json\nimport sys\nif len(sys.argv) > 1:\n    print("invalid input")\n    sys.exit(2)\nprint(json.dumps({"template": "checklist/1", "items": ["inspect", "build", "review", "verify"]}))\n';
+/** builder/2, or builder/1 for a frozen study build (ADR-0109); both get the one-part answer. */
+const isBuilder = (system: string | undefined) =>
+  !!system &&
+  (system.startsWith('builder/2:') || system.startsWith('builder/1:'));
 export function buildFixtureAnswer(
   input: { role: string; text: string }[],
 ): string | null {
   if (
-    !input[0]?.text.startsWith('builder/1:') &&
+    !isBuilder(input[0]?.text) &&
     !input[0]?.text.startsWith('independent-reviewer/2:')
   )
     return null;
@@ -119,7 +123,7 @@ export function buildFixtureAnswer(
   const source = packet.acceptance?.some((a) => a.key === 'A3')
     ? BUILD_FIXTURE_REVISION_SOURCE
     : BUILD_FIXTURE_SOURCE;
-  if (input[0]!.text.startsWith('builder/1:'))
+  if (isBuilder(input[0]!.text))
     return JSON.stringify({
       summary:
         'FIXTURE: fixed synthetic checklist implementation; no model reasoning.',
