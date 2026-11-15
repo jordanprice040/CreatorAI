@@ -56,7 +56,16 @@ import {
   DEFAULT_OWNER_ACTOR_ID,
   autopilotKey,
   createApi,
+  cutWords,
+  fitNote,
+  gatherQuestion,
+  namesOf,
+  nextGatherQuestion,
   refusalKind,
+  spentCandidates,
+  spentSettled,
+  trimSpent,
+  type SpentDetail,
   type AutopilotWeb,
 } from '@creator/api';
 import { discoverySetup, owner } from './discovery-harness.js';
@@ -805,16 +814,30 @@ test('an autopilot runs explore → brief → discover → assess, stops at a ti
   );
   // The fixture rates every option the same: a tie is never broken by a rule.
   assert.match(a.explanation, /tie for first on suitability/);
-  // Each step kept its exact request and key; the calls it set aside add up, within the limit.
+  // Each step kept its exact request and key; a finished step keeps only the calls its work
+  // used (live rerun, November 15), never more than it set aside, and they add up within the limit.
   for (const s of a.steps.filter((x) =>
     ['explore', 'discover', 'assess'].includes(x.stage),
   )) {
     assert.ok(s.request && s.key && s.child?.kind === 'workflow');
+    const detail = await h.store.getWorkflow(owner, h.ws.id, s.child.id);
+    const used = Math.max(
+      detail.usage.attempts,
+      detail.subscription_usage?.requests ?? 0,
+    );
     assert.equal(
-      (s.request.limits as { max_calls: number }).max_calls,
       s.calls,
+      Math.min(used, (s.request.limits as { max_calls: number }).max_calls),
     );
   }
+  assert.ok(
+    a.steps.some(
+      (s) =>
+        s.request?.limits &&
+        s.calls < (s.request.limits as { max_calls: number }).max_calls,
+    ),
+    'a step that used less than its worst case gave the rest back',
+  );
   assert.equal(
     a.calls_reserved,
     a.steps.reduce((n, s) => n + s.calls, 0),
@@ -1504,9 +1527,12 @@ test('an empty workspace ends as insufficient evidence; a tight call limit stops
     h.config({ limits: { max_calls: 8, ends_at: inHours(2) } }),
   );
   assert.equal(tight.outcome, 'limit_reached', tight.explanation);
+  // The exploration gives back the call it set aside but did not use (live rerun, November 15),
+  // so finding the problem and options fits; assessing them then does not.
+  assert.equal(tight.steps[0]!.calls, 1);
   assert.match(
     tight.explanation,
-    /Find the problem and options needs at least 7 model calls; the autopilot has 6 left/,
+    /Assess the options needs at least 3 model calls; the autopilot has 0 left/,
   );
   // Review L-3: its own call limit cannot be raised, so Continue is refused with what to do.
   assert.match(tight.steps.at(-1)!.no_retry ?? '', /start a new autopilot/);
@@ -1522,14 +1548,15 @@ test('an empty workspace ends as insufficient evidence; a tight call limit stops
     [
       ['explore', 'done'],
       ['brief', 'done'],
-      ['discover', 'stopped'],
+      ['discover', 'done'],
+      ['assess', 'stopped'],
     ],
   );
   // Nothing was started for the step that did not fit.
-  assert.equal(tight.steps[2]!.child, null);
+  assert.equal(tight.steps[3]!.child, null);
   const wfs = await h.store.listWorkflows(owner, h.ws.id, { runId });
-  assert.equal(wfs.length, 1, 'only the exploration ran');
-  assert.equal(tight.calls_reserved, 2);
+  assert.equal(wfs.length, 2, 'only the exploration and discovery ran');
+  assert.equal(tight.calls_reserved, 8);
 });
 
 test('stopping an autopilot cancels the workflow it is waiting on and keeps what was made', async (t) => {
@@ -3465,4 +3492,183 @@ test('re-review of #202 L-1: a stop note with an emoji across the cut stores wit
   assert.equal(note.length, 1199);
   assert.doesNotMatch(note, /[\uD800-\uDBFF]$/);
   assert.equal(b.explanation, note);
+});
+
+test('live rerun (November 15): notes are cut at a word, keep their ending, and name at most three options', () => {
+  // A short text is kept whole; a long one ends at a word with an ellipsis, within the limit.
+  assert.equal(cutWords('Short note.', 40), 'Short note.');
+  const long =
+    'Gathering evidence for Habit tracker and Weekly planning ritual';
+  const cut = cutWords(long, 30);
+  assert.ok(cut.length <= 30, cut);
+  assert.match(cut, /…$/);
+  assert.ok(long.startsWith(cut.slice(0, -1).trimEnd()));
+  assert.doesNotMatch(cut, /\bH…$/);
+  // The ending (what happens next) survives a long reason; the reason is cut instead.
+  const note = fitNote(
+    'x '.repeat(400).trim(),
+    'Gathering evidence, then assessing again.',
+    120,
+  );
+  assert.ok(note.length <= 120, String(note.length));
+  assert.match(note, /Gathering evidence, then assessing again\.$/);
+  // Up to three names, then a count of the rest.
+  assert.equal(namesOf(['A', 'B']), '“A”, “B”');
+  assert.equal(namesOf(['A', 'B', 'C', 'D', 'E']), '“A”, “B”, “C” and 2 more');
+  assert.equal(namesOf([]), '');
+  // A gather question names the unknowns, the option and the problem, within 300 characters.
+  assert.equal(
+    gatherQuestion(
+      { title: 'Shift swap board', unknown: ['effort', 'time_to_value'] },
+      'Volunteers miss shifts',
+    ),
+    'What evidence shows the effort and time to value of “Shift swap board” as a response to “Volunteers miss shifts”?',
+  );
+  assert.match(
+    gatherQuestion({ title: 'Board', unknown: [] }, 'P'),
+    /^What evidence bears on “Board”/,
+  );
+  assert.ok(
+    gatherQuestion({ title: 'x'.repeat(400), unknown: ['effort'] }, 'P')
+      .length <= 300,
+  );
+  assert.equal(
+    gatherQuestion(null, 'Volunteers miss shifts'),
+    'Volunteers miss shifts',
+  );
+  // An empty reason leaves only what happens next, with no leading space (review 1 N-4).
+  assert.equal(fitNote('', 'Gathering evidence.', 120), 'Gathering evidence.');
+  assert.equal(
+    fitNote('  ', 'Gathering evidence.', 120),
+    'Gathering evidence.',
+  );
+  // An empty ending leaves the reason alone, with no trailing space (review 2).
+  assert.equal(fitNote('Nothing new.', '', 120), 'Nothing new.');
+});
+
+test('review 1 L-1/L-4: unused calls go back only from finished, settled workflows, from the step that holds them', () => {
+  const X = '00000000-0000-4000-8000-0000000000a1';
+  const Y = '00000000-0000-4000-8000-0000000000a2';
+  const step = (
+    state: AutopilotStep['state'],
+    calls: number,
+    child: string,
+  ): AutopilotStep =>
+    ({
+      stage: 'discover',
+      state,
+      calls,
+      child: { kind: 'workflow', id: child },
+    }) as unknown as AutopilotStep;
+  const ap = (steps: AutopilotStep[]) =>
+    ({
+      steps,
+      calls_reserved: steps.reduce((n, s) => n + s.calls, 0) + 2,
+    }) as unknown as Parameters<typeof trimSpent>[0];
+  const done = (
+    attempts: number,
+    extra: Partial<SpentDetail> = {},
+  ): SpentDetail => ({
+    workflow: { state: 'succeeded' },
+    usage: { attempts, in_flight: 0 },
+    subscription_usage: null,
+    ...extra,
+  });
+  const one = ap([step('running', 24, X)]);
+  // Settled: keeps what it used.
+  const t = trimSpent(one, new Map([[X, done(5)]]));
+  assert.equal(t.steps[0]!.calls, 5);
+  assert.equal(t.calls_reserved, one.calls_reserved - 19);
+  // Plan requests count when they are more than the attempts.
+  const plan = trimSpent(
+    one,
+    new Map([
+      [
+        X,
+        done(2, {
+          subscription_usage: { requests: 9, in_flight: 0, unresolved: 0 },
+        }),
+      ],
+    ]),
+  );
+  assert.equal(plan.steps[0]!.calls, 9);
+  // Unknown is not zero: an unresolved or in-flight plan request, an API request in flight or
+  // a workflow still working keeps the whole reservation.
+  for (const d of [
+    done(1, {
+      subscription_usage: { requests: 1, in_flight: 0, unresolved: 1 },
+    }),
+    done(1, {
+      subscription_usage: { requests: 1, in_flight: 1, unresolved: 0 },
+    }),
+    done(1, { usage: { attempts: 1, in_flight: 1 } }),
+    { ...done(1), workflow: { state: 'running' } },
+  ])
+    assert.equal(trimSpent(one, new Map([[X, d]])), one);
+  // Only a finished workflow with nothing in flight or unresolved is read once and kept.
+  assert.equal(spentSettled(done(1)), true);
+  assert.equal(
+    spentSettled(done(1, { usage: { attempts: 1, in_flight: 1 } })),
+    false,
+  );
+  assert.equal(
+    spentSettled({ ...done(1), workflow: { state: 'running' } }),
+    false,
+  );
+  // Never more than it set aside: a workflow that used it all changes nothing.
+  assert.equal(trimSpent(one, new Map([[X, done(30)]])), one);
+  // A step stopped before its workflow finished keeps the reservation; the step that carries
+  // the workflow on sets nothing aside, so the stopped step is the one trimmed.
+  const carried = ap([step('stopped', 24, X), step('running', 0, X)]);
+  assert.deepEqual(spentCandidates(carried), [X]);
+  const c = trimSpent(carried, new Map([[X, done(5)]]));
+  assert.deepEqual(
+    c.steps.map((s) => s.calls),
+    [5, 0],
+  );
+  assert.equal(c.calls_reserved, carried.calls_reserved - 19);
+  // Trimming again changes nothing (no double give-back).
+  assert.equal(trimSpent(c, new Map([[X, done(5)]])), c);
+  // A failed workflow and its retry: each keeps what it used; the total stays the sum.
+  const retry = ap([step('stopped', 7, X), step('running', 7, Y)]);
+  assert.deepEqual(spentCandidates(retry).sort(), [X, Y].sort());
+  const r = trimSpent(
+    retry,
+    new Map([
+      [X, { ...done(2), workflow: { state: 'failed' } }],
+      [Y, done(3)],
+    ]),
+  );
+  assert.deepEqual(
+    r.steps.map((s) => s.calls),
+    [2, 3],
+  );
+  assert.equal(r.calls_reserved, retry.calls_reserved - 9);
+  // Done steps and stopped steps that hold nothing are not read again.
+  assert.deepEqual(
+    spentCandidates(ap([step('done', 5, X), step('stopped', 0, Y)])),
+    [],
+  );
+});
+
+test('review 1 L-3: a later gather round never repeats a question; it moves to the next option, then the problem', () => {
+  const opts = [
+    { title: 'Swap board', unknown: ['effort'] },
+    { title: 'Reminder texts', unknown: [] },
+  ];
+  const asked = new Set<string>();
+  const first = nextGatherQuestion(opts, 'Volunteers miss shifts', asked)!;
+  assert.equal(first.about, 'Swap board');
+  asked.add(first.question.toLowerCase());
+  const second = nextGatherQuestion(opts, 'Volunteers miss shifts', asked)!;
+  assert.equal(second.about, 'Reminder texts');
+  asked.add(second.question.toLowerCase());
+  const third = nextGatherQuestion(opts, 'Volunteers miss shifts', asked)!;
+  assert.equal(third.about, null);
+  assert.equal(third.question, 'Volunteers miss shifts');
+  asked.add(third.question.toLowerCase());
+  assert.equal(
+    nextGatherQuestion(opts, 'Volunteers miss shifts', asked),
+    undefined,
+  );
 });

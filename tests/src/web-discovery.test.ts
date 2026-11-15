@@ -35,6 +35,7 @@ import {
 } from '@creator/domain';
 import {
   ConnectionStore,
+  droppedQuotes,
   heldOutKeys,
   heldOutSeen,
   heldOutPrompts,
@@ -1404,9 +1405,33 @@ test('P-12: an autopilot adds quote-checked claims only with the owner’s setti
       accept_quote_checked_claims: true,
     },
   });
+  // Review 1 N-2: an explanation written before the mark existed (main 9172584 appended the
+  // count straight after a long reading note) is still replaced, and the count still fits.
+  const old = await h.db.pool.connect();
+  try {
+    await old.query(`set session_replication_role = replica`);
+    await old.query(
+      `update web_discoveries set explanation = left($2 || ' ' ||
+         substring(explanation from 'Claims so far: (.*)$'), 1200) where id = $1`,
+      [d.id, `Read 3 pages. ${'word '.repeat(170).trim()}`],
+    );
+  } finally {
+    await old.query(`set session_replication_role = origin`);
+    old.release();
+  }
+  const legacy = await h.store.getWebDiscovery(owner, h.ws.id, d.id);
+  assert.doesNotMatch(legacy.explanation, /Claims so far:/);
+  assert.match(legacy.explanation, /is off/);
   const ok = await h.store.admitWebClaimsByPolicy(auto, h.ws.id, d.id);
   assert.equal(ok.admitted, 1);
   const after = await h.store.getWebDiscovery(owner, h.ws.id, d.id);
+  // Live rerun (November 15): each pass replaces the last pass's claim count, so the
+  // explanation no longer says the claims wait because the setting is off.
+  assert.equal(after.explanation.split('Claims so far:').length, 2);
+  assert.doesNotMatch(after.explanation, /is off/);
+  assert.match(after.explanation, /The autopilot accepted 1 checked claim/);
+  assert.match(after.explanation, /^Read 3 pages\. word/);
+  assert.ok(after.explanation.length <= 1200);
   const added = after.proposals.find((x) => x.decision === 'admitted')!;
   assert.equal(added.admitted_via, 'autopilot');
   assert.ok(
@@ -1554,4 +1579,94 @@ test('re-review 2 N-4: a web search an autopilot starts is stamped with it throu
     [mine.id],
   );
   assert.equal(plain.rows[0].autopilot_id, null);
+});
+
+test('live rerun (November 15): two checked quotes from one passage add one support row, not a database error, and a contrary one stays named', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.qualify();
+  const runId = await h.run();
+  const d = await h.start(runId);
+  assert.equal(d.state, 'done');
+  const observation = d.proposals.find(
+    (p) => p.check === 'verified' && p.basis === 'observation',
+  )!;
+  // A second quote from the same passage, as the reading request can propose. (The stored
+  // proposal is otherwise immutable; the test edits it with triggers off on one connection.)
+  const c = await h.db.pool.connect();
+  try {
+    await c.query(`set session_replication_role = replica`);
+    await c.query(
+      `update web_discovery_claims set proposal = jsonb_set(proposal, '{evidence}',
+         jsonb_build_array(
+           jsonb_set(proposal->'evidence'->0, '{stance}', '"contradicts"'))
+         || (proposal->'evidence') || jsonb_build_array(proposal->'evidence'->0))
+       where id = $1`,
+      [observation.id],
+    );
+    await c.query(`set session_replication_role = origin`);
+  } finally {
+    c.release();
+  }
+  const after = await h.store.admitWebClaims(owner, h.ws.id, d.id, {
+    proposal_ids: [observation.id],
+  });
+  const added = after.proposals.find((x) => x.id === observation.id)!;
+  assert.equal(added.decision, 'admitted');
+  const rows = await h.db.pool.query(
+    'select passage_id from claim_support where claim_id = $1',
+    [added.claim_id],
+  );
+  const passages = rows.rows.map((r) => String(r.passage_id));
+  assert.equal(new Set(passages).size, passages.length);
+  // Review 1 N-1: the supporting quote keeps the row, and the contrary quote from the same page
+  // is named in its rationale instead of being dropped silently.
+  const kept = await h.db.pool.query(
+    `select stance, rationale from claim_support where claim_id = $1 and passage_id = $2`,
+    [added.claim_id, observation.evidence[0]!.passage_id],
+  );
+  assert.equal(kept.rows[0].stance, 'supports');
+  assert.match(kept.rows[0].rationale, /also has a contrary quote/);
+});
+
+test('review 2 N-3: every distinct quote that loses its page’s row is named, also two contrary quotes with no supporting one', () => {
+  const long = (w: string) => `${w} `.repeat(12).trim();
+  const q = (
+    passage_id: string,
+    stance: 'supports' | 'contradicts',
+    quote: string,
+  ) => ({ verified: true, passage_id, stance, quote });
+  const d = droppedQuotes([
+    q('p1', 'supports', long('yes')),
+    q('p1', 'supports', long('yes')),
+    q('p1', 'contradicts', long('no')),
+    q('p2', 'contradicts', long('maybe')),
+    q('p2', 'contradicts', long('never')),
+    {
+      verified: false,
+      passage_id: 'p3',
+      stance: 'contradicts' as const,
+      quote: 'x',
+    },
+  ]);
+  // The identical supporting repeat is not named; the contrary one is.
+  assert.equal(d.get('p1')?.length, 1);
+  assert.match(d.get('p1')![0]!, /a contrary quote.*“no no/);
+  // Two contrary quotes and no supporting one: the second is named on the first's row.
+  assert.equal(d.get('p2')?.length, 1);
+  assert.match(d.get('p2')![0]!, /a contrary quote.*“never/);
+  assert.equal(d.has('p3'), false);
+  // Review 3: a repeated contrary quote is named once; past two, the rest are counted.
+  const many = droppedQuotes([
+    q('p4', 'supports', long('yes')),
+    q('p4', 'contradicts', long('no')),
+    q('p4', 'contradicts', long('no')),
+    q('p4', 'contradicts', long('never')),
+    q('p4', 'contradicts', long('rarely')),
+    q('p4', 'contradicts', long('seldom')),
+  ]).get('p4')!;
+  assert.equal(many.length, 3);
+  assert.match(many[0]!, /“no no/);
+  assert.match(many[1]!, /“never/);
+  assert.equal(many[2], 'It has 2 more quotes not recorded as their own rows.');
 });
