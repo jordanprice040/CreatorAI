@@ -10,7 +10,7 @@ Branch `claude/project-thread-77qqks`, restarted from main 42dce84 after #205 me
 - **`#gathered`** returns `lastUnknowns`.
 - **Continue findability:** `apps/web/src/autopilot-waiting-rules.ts` (`waitingAutopilot`, `continueLabel`) and `autopilot-waiting.tsx`, rendered in `compare.tsx` after the gates. `autopilotContinuable(a, now)` refuses past `config.limits.ends_at`; `autopilotEndsApprovals` passes only state, outcome and steps. Tests in `tests/src/web-autopilot-waiting.test.ts` and `autopilot.test.ts`.
 
-Next: independent review in a separate thread. Autopilot e8b36bd9 finished with a proposal after Jordan's typed OK.
+Review 1 fixes: `stalledNote` (api), `cutWords` now in `packages/contracts/src/files.ts`, `refusalKind` returns `usage_limit` only when every plan reason is a quota or cap one, and `#research` returns a `usage_limit` stop from `#retryOr`. Autopilot e8b36bd9 finished with a proposal after Jordan's typed OK. Next: review 2 in the review thread.
 
 ## November 15 handoff — B2 follow-up after the live run (branch `claude/project-thread-m8yaok`, restarted from main aa922f9)
 
