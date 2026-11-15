@@ -1,5 +1,13 @@
 # Build status — November 10, 2026
 
+## November 15 update — Windows web build fixed; packet A and H records (PR #212, no migration or ADR)
+
+What now works: `node apps/desktop/build-studio.mjs` builds on Windows again. PR #201's licence list walked up from each viewer library's entry comparing backslash paths against `/node_modules/`, reached the drive root and failed with `ENOENT C:\package.json`. The walk (`apps/web/src/package-root.ts`, used by `apps/web/vite.config.ts`) now works in forward slashes on every platform, keeps POSIX names with a backslash intact, and stops with a clear error instead of reading a drive root. On Linux the built `THIRD_PARTY_LICENSES.txt` is byte-identical before and after (23 packages). New test `tests/src/web-package-root.test.ts` runs the walk with Windows (drive, pnpm store, scoped, UNC) and POSIX path rules; the old code walked to `C:\` on the same input.
+
+Records: `tracking/evidence/recipe-qualifications/2026-11-15-installed/` holds the installed-app packet A (GPT-6 Astra, passed: p15 3/3, p14 3/3 with 21/21 extended cases) and packet H (claude-sonnet-5-5, H1 failed 1/3 held out on a code fence) records at $0, with a README. They are bound to builder/1, so after #207 packet A must run again under builder/2.
+
+Checked in the cloud container: see PR #212 for typecheck, format and `pnpm test:db` counts. Not checked here: a Windows build after the refactor (the packets thread rebuilds the installer from this branch).
+
 ## November 15 update — spec drafting fixed after its first live qualification (B2 follow-up; ADR-0107 amendment)
 
 The first live `spec-cases-v1` qualification (gpt-6-astra, ChatGPT plan, dev studio at main 334d0e5 schema 67, 8 requests, $0) failed every case as `schema_invalid`: the drafting instructions never listed an acceptance check's fields, so the model wrote `name` instead of `statement` and left out `measure` and `flow`. Fixed: instructions `spec-draft-v3` list the fields; benchmark `spec-cases-v2` (same programs and pass bar; v1 kept as it ran); the Qualify result row names the drafting-specs role. A recorded view of v1's held-out results now refuses a v2 start (they are the same held-out cases), a hand-made start of v1 is refused in words, and v2's hash is pinned. Not yet run live: a `spec-cases-v2` qualification (about 8 requests, $0; needs Jordan's typed OK). Checks: typecheck, format check, full `pnpm test:db` (1316 tests, 1282 pass, 29 skipped, the 5 known PowerShell-wrapper failures) and the fixture browser walk again (7 of 7, 0 axe violations).
