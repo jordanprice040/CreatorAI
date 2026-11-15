@@ -11,7 +11,7 @@ import {
 } from '@creator/contracts';
 import assessment from '../../../config/connections/benchmarks/assessment-synthetic-v3.json';
 import specification from '../../../config/connections/benchmarks/specification-synthetic-v1.json';
-import specCases from '../../../config/connections/benchmarks/spec-cases-v1.json';
+import specCases from '../../../config/connections/benchmarks/spec-cases-v2.json';
 import summarization from '../../../config/connections/benchmarks/summarization-synthetic-v1.json';
 import builder from '../../../config/connections/benchmarks/t12-builder-v3.json';
 import reviewer from '../../../config/connections/benchmarks/t12-reviewer-v3.json';
@@ -36,7 +36,7 @@ import { api, words } from './oversight.js';
  * t12-reviewer-v3 (ADR-0110: one code fence around the answer is accepted); the strict v1/v2
  * files stay frozen and their decided qualifications still count.
  * assessment-synthetic-v3 qualifies the automatic assessor (ADR-0074);
- * spec-cases-v1 qualifies drafting specs on Build (ADR-0107).
+ * spec-cases-v2 qualifies drafting specs on Build (ADR-0107).
  * The server checks the manifest, the task class, the data class and
  * that the model is verified before it records anything.
  */

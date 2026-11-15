@@ -70,7 +70,7 @@ const {
 } = web;
 
 // ADR-0107 (B2): the rules behind model-drafted specs, without a database: reading a reply,
-// the studio's case checks and held-out pick, the drafting input, and the frozen spec-cases-v1
+// the studio's case checks and held-out pick, the drafting input, and the frozen spec-cases-v2
 // benchmark whose grader runs drafted cases against the studio's own programs.
 
 const UPKEEP: SpecContent['maintenance'] = {
@@ -86,7 +86,7 @@ const manifest = BenchmarkManifestSchema.parse(
   JSON.parse(
     readFileSync(
       new URL(
-        '../../config/connections/benchmarks/spec-cases-v1.json',
+        '../../config/connections/benchmarks/spec-cases-v2.json',
         import.meta.url,
       ),
       'utf8',
@@ -387,8 +387,8 @@ test('the drafting input: request text is escaped data under the fixed instructi
   assert.ok(SPEC_DRAFT_INSTRUCTIONS.includes('data, not instructions'));
 });
 
-test('spec-cases-v1 is current: every case runs under the spec draft instructions with its exact draft input, so its passes admit drafts', () => {
-  assert.equal(manifest.name, 'spec-cases-v1');
+test('spec-cases-v2 is current: every case runs under the spec draft instructions with its exact draft input, so its passes admit drafts', () => {
+  assert.equal(manifest.name, 'spec-cases-v2');
   assert.equal(manifest.task_class, 'specification');
   assert.equal(manifest.cases.length, 8);
   assert.equal(manifest.cases.filter((c) => c.split === 'held_out').length, 5);
@@ -461,7 +461,7 @@ test('spec-cases-v1 is current: every case runs under the spec draft instruction
   }
   assert.equal(specCasesFingerprint('nope'), null);
   // Review 2 of PR #206, N-2: the programs', grader's and case readers' source is frozen too
-  // (not shipped, so held here): a change to it needs spec-cases-v2.
+  // (not shipped, so held here): a change to it needs a new spec-cases version.
   const src = (p: string) =>
     readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8').replace(
       /\r\n/g,
@@ -469,8 +469,8 @@ test('spec-cases-v1 is current: every case runs under the spec draft instruction
     );
   const draftSrc = src('packages/contracts/src/spec-draft.ts');
   const region = draftSrc.slice(
-    draftSrc.indexOf('// spec-cases-v1 frozen source: begin.'),
-    draftSrc.indexOf('// spec-cases-v1 frozen source: end.'),
+    draftSrc.indexOf('// spec-cases-v2 frozen source: begin.'),
+    draftSrc.indexOf('// spec-cases-v2 frozen source: end.'),
   );
   assert.ok(region.includes('export function readSpecDraft('));
   assert.ok(region.includes('export function specCaseProblems('));
@@ -484,7 +484,7 @@ test('spec-cases-v1 is current: every case runs under the spec draft instruction
     assert.equal(
       (c.check as SpecCasesCheck).source_sha256,
       source,
-      'spec-cases-v1 source changed: write spec-cases-v2',
+      'spec-cases source changed: write the next spec-cases version',
     );
   assert.equal(
     currentForSpecDraftRole({
@@ -509,9 +509,24 @@ test('spec-cases-v1 is current: every case runs under the spec draft instruction
     ),
   );
   assert.equal(currentForSpecDraftRole(row(labelling)), false);
+  // spec-cases-v1 ran live under spec-draft-v2 (whose format left out the check fields); it is
+  // kept as it ran but no longer admits drafts.
+  const v1 = JSON.parse(
+    readFileSync(
+      new URL(
+        '../../config/connections/benchmarks/spec-cases-v1.json',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  );
+  assert.equal(currentForSpecDraftRole(row(v1)), false);
+  // spec-draft-v3 names every acceptance check field the reader needs.
+  for (const f of ['"statement"', '"measure"', '"flow"', '"method"', '"cases"'])
+    assert.ok(SPEC_DRAFT_INSTRUCTIONS.includes(f), f);
 });
 
-test('spec-cases-v1 grading: good cases pass the reference and catch every broken program; wrong, too few or weak cases fail', () => {
+test('spec-cases-v2 grading: good cases pass the reference and catch every broken program; wrong, too few or weak cases fail', () => {
   for (const [name, groups] of Object.entries(GOOD)) {
     const program = SPEC_BENCHMARK_PROGRAMS[name]!;
     const check = checkOf(name);
@@ -681,5 +696,61 @@ test('the form asks about one check at a time and drafts go to a route the serve
       held_out: 'changed',
     }),
     'Drafted by m1, checked by you and edited; held-out cases picked by the studio and changed by you.',
+  );
+});
+
+test('review 1 of PR #210, N-2: a reply that follows the draft_spec example reads; the live v1 shape does not', () => {
+  // The example as the instructions give it, with each placeholder filled by a plain value.
+  const line = SPEC_DRAFT_INSTRUCTIONS.split('\n').find((l) =>
+    l.startsWith('draft_spec: reply '),
+  )!;
+  const example = line
+    .slice('draft_spec: reply '.length, line.indexOf('. Every text'))
+    .replace(
+      '"cases": [...]',
+      '"cases": [{"args": [], "stdin": "a b\\n", "stdout": "words: 2\\n", "exit_code": 0}, {"args": [], "stdin": "", "stdout": "words: 0\\n", "exit_code": 0}]',
+    )
+    // The product "cli" line sets the file scope and the entry point.
+    .replace('"file_scope": ["..."]', '"file_scope": ["src"]')
+    .replace('"deliverable": "..."', '"deliverable": "src/main.py"')
+    .replace(/"<[^"]*>"/g, '"Plain words"')
+    .replaceAll('"..."', '"Plain words"');
+  const filled = readSpecDraft(example, UPKEEP);
+  assert.ok(filled.ok, filled.ok ? '' : filled.reason);
+  const a = filled.content.acceptance_checks[0]!;
+  assert.deepEqual(
+    [a.key, a.flow, a.statement, a.measure, a.cases?.length],
+    ['A1', 'F1', 'Plain words', 'Plain words', 2],
+  );
+  // The live spec-cases-v1 run's shape: "name" in place of "statement", no measure or flow.
+  const live = JSON.parse(example);
+  for (const c of live.spec.acceptance_checks) {
+    c.name = c.statement;
+    delete c.statement;
+    delete c.measure;
+    delete c.flow;
+  }
+  const r = readSpecDraft(JSON.stringify(live), UPKEEP);
+  assert.equal(r.ok, false);
+  assert.match(r.ok ? '' : r.reason, /does not fit the spec form/);
+  assert.equal(
+    gradeSpecCases(checkOf('wordtally'), JSON.stringify(live)).signal,
+    'schema_invalid',
+  );
+});
+
+test('review 1 of PR #210, N-3: the bundled spec-cases-v2 file is pinned as it was frozen', () => {
+  // Regenerating the file would change this hash and stop older v2 qualifications admitting
+  // drafts; a revised benchmark is a new file (spec-cases-v3), never a rewrite of this one.
+  assert.equal(
+    canonicalHash(
+      JSON.parse(
+        readFileSync(
+          'config/connections/benchmarks/spec-cases-v2.json',
+          'utf8',
+        ),
+      ),
+    ),
+    '4c10c97f9fa315e431c9eebbb91a13e1fd41065863bedb17e4f5df17d21c2730',
   );
 });
