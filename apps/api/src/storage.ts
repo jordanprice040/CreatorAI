@@ -99,7 +99,7 @@ export function createStorage(o: {
     const usage = await productDiskUsage(o.products, cleanup.workspaces);
     const projects: StorageProject[] = workspaces.map((w) => {
       const mine = usage.filter((u) => u.workspace_id === w.workspace_id);
-      const sum = (k: keyof (typeof mine)[number]) =>
+      const sum = (k: Exclude<keyof (typeof mine)[number], 'moved_aside'>) =>
         mine.reduce((n, u) => n + Number(u[k]), 0);
       return {
         workspace_id: w.workspace_id,
@@ -118,6 +118,9 @@ export function createStorage(o: {
         previews_live: w.previews_live,
         previews_ended: w.previews_ended,
         study: w.study,
+        moved_aside: mine.flatMap((u) =>
+          u.moved_aside ? [{ product_id: u.product_id, ...u.moved_aside }] : [],
+        ),
       };
     });
     const studio: StorageStudioItem[] =

@@ -7,7 +7,7 @@ fixture project through the CLI, makes a product in it with one task build and i
 merge can go; the task is kept because it has no verified package), Cancel, the confirming button,
 the removal on disk, the page reading again, the audit history, and phone width.
 
-Result on November 15, 2026 (cloud container, PostgreSQL 16): 12 of 12 checks pass. Screenshots:
+Result on November 15, 2026 (cloud container, PostgreSQL 16): 13 of 13 checks pass (review 2 added the moved-aside list: the walk seeds one moved-aside folder). Screenshots:
 `storage-confirm.png` (confirmation), `storage-after.png` (result, kept reasons, history; the
 repeated projects are earlier walk runs on the same database), `storage-phone.png` (390 px; the
 table scrolls inside its own box). The full-page captures show the sticky top bar and sidebar

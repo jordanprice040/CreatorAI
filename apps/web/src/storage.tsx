@@ -136,6 +136,28 @@ export function Storage({ session }: { session: SessionInfo }) {
           ) : (
             <p>You don't own any projects yet.</p>
           )}
+          {s.projects.some((p) => p.moved_aside.length) && (
+            <div className="storage-aside" role="note">
+              <h3>Moved aside after a failed removal</h3>
+              <p className="small">
+                Git could not finish removing these, so what was left was moved
+                out of the build workspaces. Their commits are safe on their
+                branches. Look inside if you want, then delete the folders by
+                hand; the studio never deletes them.
+              </p>
+              <ul className="rows">
+                {s.projects.flatMap((p) =>
+                  p.moved_aside.map((m) => (
+                    <li key={m.folder}>
+                      <strong>{p.name}</strong>: {m.count} folder
+                      {m.count === 1 ? '' : 's'}, {sizeText(m.bytes)}, in{' '}
+                      <code>{m.folder}</code>
+                    </li>
+                  )),
+                )}
+              </ul>
+            </div>
+          )}
           {s.studio.length > 0 && (
             <>
               <h3>Studio-wide</h3>

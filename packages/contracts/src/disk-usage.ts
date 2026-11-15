@@ -28,6 +28,18 @@ export const StorageProjectSchema = z.strictObject({
   previews_ended: z.number().int().min(0),
   /** A thesis study uses this project: nothing in it is ever cleaned. */
   study: z.boolean(),
+  /**
+   * Review L-7: what was left of a removal that failed part-way, moved out of the build
+   * workspaces into each product's `worktrees-removed` folder. Never removed by the studio.
+   */
+  moved_aside: z.array(
+    z.strictObject({
+      product_id: id,
+      folder: z.string().max(2000),
+      count: z.number().int().min(1),
+      bytes,
+    }),
+  ),
 });
 export type StorageProject = z.infer<typeof StorageProjectSchema>;
 

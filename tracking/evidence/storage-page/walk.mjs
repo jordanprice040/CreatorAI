@@ -10,7 +10,14 @@
 import { createRequire } from 'node:module';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { lstat, mkdtemp, readdir, utimes } from 'node:fs/promises';
+import {
+  lstat,
+  mkdir,
+  mkdtemp,
+  readdir,
+  utimes,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -94,6 +101,10 @@ const merged = await products.integrate(
   binding,
 );
 await age(join(products.dir(p.id), 'worktrees'), 30 * 86_400_000);
+// Review L-7: what a removal that failed part-way left behind, already moved aside.
+const aside = join(products.dir(p.id), 'worktrees-removed', `${task.id}-1`);
+await mkdir(join(aside, 'src'), { recursive: true });
+await writeFile(join(aside, 'src', 'left.py'), 'x'.repeat(4096));
 
 const browser = await chromium.launch();
 const page = await browser.newPage({
@@ -127,6 +138,12 @@ check(
 check(
   (await page.locator('.storage-list li').count()) === 1,
   'one workspace can go (the finished merge)',
+);
+check(
+  /1 folder, 4\.0 KB, in .*worktrees-removed/.test(
+    (await page.locator('.storage-aside li').last().textContent()) ?? '',
+  ),
+  'moved-aside folders are listed with their size and folder',
 );
 await page.locator('.storage-kept summary').click();
 check(

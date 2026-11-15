@@ -52,3 +52,7 @@
 .storage-days select {
   width: auto;
 }
+/* Review L-7: a long absolute folder path wraps instead of widening the page. */
+.storage-aside code {
+  overflow-wrap: anywhere;
+}

@@ -793,7 +793,10 @@ export async function runCli(
         break;
       }
       case 'build-status':
-        await restoreBuildWorkspace(local, rest[0]!, rest[1]!);
+        // Review N-6: a read; only a checkout cleanup removed is made again, nothing moves.
+        await restoreBuildWorkspace(local, rest[0]!, rest[1]!, {
+          onlyIfMissing: true,
+        });
         data = await new BuildSupervisor(local, executor).status(
           rest[0]!,
           rest[1]!,

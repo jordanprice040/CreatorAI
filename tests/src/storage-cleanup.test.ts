@@ -6,6 +6,7 @@ import {
   mkdir,
   mkdtemp,
   readdir,
+  readFile,
   rm,
   symlink,
   utimes,
@@ -20,7 +21,9 @@ import {
   cleanupPlanHash,
   digest,
   planWorkspaceCleanup,
+  productDiskUsage,
   removeWorkspaces,
+  restoreBuildWorkspace,
   restoreTaskWorkspace,
   type Binding,
   type CleanupInputs,
@@ -300,6 +303,7 @@ test('the storage route asks for a confirmation of the exact list, records inten
   assert.equal(report.projects[0].build_workspace_count, 1);
   assert.equal(report.projects[0].verified_packages, 1);
   assert.equal(report.projects[0].files, 12);
+  assert.deepEqual(report.projects[0].moved_aside, []);
   assert.equal(report.studio.length, 3);
   assert.equal(report.cleanup.remove.length, 1);
   const body = {
@@ -525,7 +529,8 @@ test('review M-1 and L-5: ignored files, links, unregistered folders and a left 
   assert.match(await reasonOf(linked), /Not a plain folder/);
   const loose = randomUUID();
   await mkdir(join(products.dir(p.id), 'worktrees', loose));
-  assert.match(await reasonOf(loose), /Not a registered Git workspace/);
+  // No `.git` file: Git can't open it, so the advice says what to do (review L-7).
+  assert.match(await reasonOf(loose), /Git can no longer open it/);
   const plan = await planWorkspaceCleanup(products, await inputs());
   assert.deepEqual(
     plan.remove.map((r) => r.name),
@@ -595,6 +600,105 @@ test('review M-2: a removal Git could not finish is moved aside, and the task ch
   assert.ok(
     (await readdir(join(products.dir(p.id), 'worktrees-removed'))).length >= 1,
   );
+});
+
+test('review L-7: a leftover that could not be moved aside gets advice that works, and moved-aside folders are measured', async (t) => {
+  const { products, p, task, built, tree, inputs } = await setup(t);
+  const o = await inputs();
+  const plan = await planWorkspaceCleanup(products, o);
+  const stuck = join(tree, 'src', 'main.py');
+  const chattr = async (flag: string) =>
+    promisify(execFile)('chattr', [flag, stuck]).then(
+      () => true,
+      () => false,
+    );
+  if (!(await chattr('+i'))) {
+    t.diagnostic('chattr is not available here; this path was not exercised');
+    return;
+  }
+  // Something already sits where moved-aside folders go, so the move fails too.
+  const asideDir = join(products.dir(p.id), 'worktrees-removed');
+  await writeFile(asideDir, 'in the way');
+  let out;
+  try {
+    out = await removeWorkspaces(products, plan.remove, o);
+  } finally {
+    await chattr('-i');
+  }
+  assert.equal(out.failed.length, 1);
+  assert.match(out.failed[0]!.reason, /could not be moved aside/);
+  assert.match(out.failed[0]!.reason, /build that task again/);
+  assert.doesNotMatch(out.failed[0]!.reason, /run the cleanup again/);
+  // The next plan names it as a leftover with the same advice, not as an unknown folder.
+  await age(tree, 30 * DAY);
+  const again = await planWorkspaceCleanup(products, o);
+  assert.equal(again.remove.length, 0);
+  assert.match(
+    again.keep.find((k) => k.name === task.id)?.reason ?? '',
+    /failed part-way.*build that task again/,
+  );
+  // Review N-6: reading a build's status never moves anything, even a leftover.
+  const buildId = randomUUID();
+  await mkdir(join(products.dir(p.id), 'builds', buildId), { recursive: true });
+  await writeFile(
+    join(products.dir(p.id), 'builds', buildId, 'intent.json'),
+    JSON.stringify({ task_id: task.id }),
+  );
+  await rm(asideDir);
+  assert.equal(
+    await restoreBuildWorkspace(products, p.id, buildId, {
+      onlyIfMissing: true,
+    }),
+    false,
+  );
+  assert.equal(await exists(asideDir), false);
+  assert.equal(await exists(stuck), true);
+  // Building the task again moves it aside once nothing is in the way.
+  assert.equal(await restoreTaskWorkspace(products, p.id, task.id), true);
+  assert.equal(await git(tree, ['rev-parse', 'HEAD']), built.commit);
+  const [usage] = await productDiskUsage(products);
+  assert.equal(usage!.moved_aside?.count, 1);
+  assert.ok(usage!.moved_aside!.bytes > 0);
+  assert.equal(usage!.moved_aside!.folder, asideDir);
+});
+
+test('review L-6: a checkout that opens is never moved aside, whatever Git lists', async (t) => {
+  const { products, p, task, tree, inputs } = await setup(t);
+  const repo = products.repo(p.id);
+  // A person's uncommitted work in the checkout.
+  await writeFile(join(tree, 'src', 'wip.py'), 'not committed\n');
+  const stillThere = async () => {
+    assert.equal(await exists(join(tree, 'src', 'wip.py')), true);
+    assert.equal(
+      await exists(join(products.dir(p.id), 'worktrees-removed')),
+      false,
+    );
+  };
+  // Git records the checkout under another path (a store reached by another path).
+  const gitdirFile = join(repo, '.git', 'worktrees', task.id, 'gitdir');
+  const recorded = await readFile(gitdirFile, 'utf8');
+  await writeFile(gitdirFile, '/somewhere/else/.git\n');
+  assert.equal(await restoreTaskWorkspace(products, p.id, task.id), false);
+  await stillThere();
+  const kept = async () =>
+    (await planWorkspaceCleanup(products, await inputs())).keep.find(
+      (k) => k.name === task.id,
+    )?.reason ?? '';
+  assert.match(await kept(), /^Not a registered Git workspace/);
+  await writeFile(gitdirFile, recorded);
+  // `worktree list` itself fails: a broken shared config breaks every Git call.
+  const config = join(repo, '.git', 'config');
+  const good = await readFile(config, 'utf8');
+  await writeFile(config, `${good}\n[broken\n`);
+  try {
+    assert.equal(await restoreTaskWorkspace(products, p.id, task.id), false);
+    await stillThere();
+    assert.match(await kept(), /could not list/);
+  } finally {
+    await writeFile(config, good);
+  }
+  // The work is still in the checkout, where the build's own check finds it and says why.
+  assert.notEqual(await git(tree, ['status', '--porcelain']), '');
 });
 
 test('the storage routes need a signed-in session, and cleanup needs the CSRF token', async (t) => {

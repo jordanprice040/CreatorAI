@@ -55,6 +55,8 @@ export type ProductDiskUsage = {
   build_workspace_count: number;
   packages: number;
   records: number;
+  /** Review L-7: leftovers of failed removals, moved aside; null when there are none. */
+  moved_aside: { folder: string; count: number; bytes: number } | null;
 };
 
 const isId = (n: string) => id.safeParse(n).success;
@@ -77,6 +79,9 @@ export async function productDiskUsage(
     const repository = await diskSize(join(dir, 'repo'));
     const trees = await diskSize(join(dir, 'worktrees'));
     const packages = await diskSize(join(dir, 'artifacts'));
+    const asideDir = join(dir, 'worktrees-removed');
+    const aside = await diskSize(asideDir);
+    const asideCount = (await readdir(asideDir).catch(() => [])).length;
     const count = (await readdir(join(dir, 'worktrees')).catch(() => []))
       .length;
     out.push({
@@ -88,8 +93,15 @@ export async function productDiskUsage(
       packages: packages.bytes,
       records: Math.max(
         0,
-        total.bytes - repository.bytes - trees.bytes - packages.bytes,
+        total.bytes -
+          repository.bytes -
+          trees.bytes -
+          packages.bytes -
+          aside.bytes,
       ),
+      moved_aside: asideCount
+        ? { folder: asideDir, count: asideCount, bytes: aside.bytes }
+        : null,
     });
   }
   return out;
@@ -237,7 +249,11 @@ async function judge(
     return keep('Not a plain folder; left for a person to look at.');
   if (!isId(name)) return keep('Not a folder the studio made; left alone.');
   if (!registered.some((r) => same(r, path)))
-    return keep('Not a registered Git workspace; left alone.');
+    return keep(
+      (await brokenCheckout(path))
+        ? LEFTOVER
+        : 'Not a registered Git workspace; left alone.',
+    );
   const repo = products.repo(productId);
   if (await exists(join(repo, '.git', 'worktrees', name, 'index.lock')))
     return keep('A Git step was interrupted here; left for recovery.');
@@ -322,13 +338,14 @@ async function judge(
   };
 }
 
+/** Git's list of this repository's checkouts. A Git error throws: it is never "none" (L-6). */
 async function registeredTrees(repo: string): Promise<string[]> {
   const list = await git(repo, [
     '--no-optional-locks',
     'worktree',
     'list',
     '--porcelain',
-  ]).catch(() => '');
+  ]);
   return list
     .split('\n')
     .filter((l) => l.startsWith('worktree '))
@@ -388,7 +405,13 @@ export async function planWorkspaceCleanup(
       await all('A build or Git step is running in this product.');
       continue;
     }
-    const registered = await registeredTrees(products.repo(productId));
+    const registered = await registeredTrees(products.repo(productId)).catch(
+      () => null,
+    );
+    if (!registered) {
+      await all("Git could not list this product's workspaces; left alone.");
+      continue;
+    }
     for (const name of trees) {
       const v = await judge(products, productId, ws, name, o, registered);
       if (isCandidate(v)) remove.push(v);
@@ -523,8 +546,9 @@ async function afterFailedRemove(
   const repo = products.repo(productId);
   if (!(await exists(path)))
     return `Git reported an error but the folder is gone: ${why}`;
-  if ((await registeredTrees(repo)).some((r) => same(r, path)))
-    return `Git refused to remove it: ${why}`;
+  // Review L-6: moved aside only when Git can no longer open it, never because a list
+  // failed or names the folder by another path.
+  if (!(await brokenCheckout(path))) return `Git refused to remove it: ${why}`;
   const branch =
     c.kind === 'task'
       ? `refs/heads/task/${c.name}`
@@ -534,7 +558,33 @@ async function afterFailedRemove(
   const aside = await moveAside(products, productId, path, c.name);
   return aside
     ? `Git could not finish removing it (${why}). What was left was moved to ${aside}; its commit is safe on its branch.`
-    : `Git could not finish removing it, and the rest could not be moved aside; close any program using it and run the cleanup again: ${why}`;
+    : `Git could not finish removing it, and the rest could not be moved aside (${why}). ${AFTER_STUCK}`;
+}
+
+/** Review L-7: what to do about a leftover the studio could not move aside. */
+const AFTER_STUCK =
+  'Close any program using it. Then, for a task, build that task again (the studio moves the leftover aside first); for a merge, or if that fails too, move the folder out of worktrees by hand. Its commit is safe on its branch.';
+const LEFTOVER = `Git can no longer open it; most likely left over from a removal that failed part-way. ${AFTER_STUCK}`;
+
+/**
+ * Review L-6: positive evidence that a checkout is broken, read from the folder itself, so a
+ * failed `worktree list`, a Git error (a bad shared config fails every checkout alike) or a
+ * store reached by another path than the one Git recorded never counts. Broken means its
+ * `.git` file is gone or names no admin folder, or that admin folder is gone (Git drops it
+ * even when deleting the files fails part-way). A folder with its own `.git` directory is not
+ * a studio checkout and is never called broken.
+ */
+async function brokenCheckout(tree: string): Promise<boolean> {
+  const dotGit = join(tree, '.git');
+  const st = await lstat(dotGit).catch(() => null);
+  if (!st) return true;
+  if (st.isDirectory()) return false;
+  if (!st.isFile()) return true;
+  const m = /^gitdir:\s*(.+?)\s*$/m.exec(
+    await readFile(dotGit, 'utf8').catch(() => ''),
+  );
+  if (!m) return true;
+  return !(await exists(join(resolve(tree, m[1]!), 'HEAD')));
 }
 
 /** Moves a leftover checkout into the product's `worktrees-removed/` folder. */
@@ -550,11 +600,12 @@ async function moveAside(
     await canonical(into, true);
     await mkdir(into, { recursive: true });
     await rename(path, join(products.dir(productId), rel));
-    await git(products.repo(productId), ['worktree', 'prune']);
-    return rel;
   } catch {
     return null;
   }
+  // The folder is already out of the way; a failed prune leaves only Git's own note of it.
+  await git(products.repo(productId), ['worktree', 'prune']).catch(() => {});
+  return rel;
 }
 
 /**
@@ -567,22 +618,26 @@ export async function restoreTaskWorkspace(
   products: ProductSupervisor,
   productId: string,
   taskId: string,
+  /** Review N-6: make a missing checkout only; never move anything (for reads). */
+  o: { onlyIfMissing?: boolean } = {},
 ): Promise<boolean> {
   await products.task(productId, taskId);
   const tree = products.worktree(productId, taskId);
   const repo = products.repo(productId);
-  const healthy = async () =>
-    (await exists(tree)) &&
-    (await registeredTrees(repo)).some((r) => same(r, tree));
-  if (await healthy()) return false;
+  // Review L-6: a checkout that is there and opens is left exactly as it is, whatever
+  // `worktree list` says; the build then checks it as it always did.
+  const fine = async () =>
+    (await exists(tree)) && !(await brokenCheckout(tree));
+  if (await fine()) return false;
+  if (o.onlyIfMissing && (await exists(tree))) return false;
   return withLock(products.dir(productId), async () => {
-    if (await healthy()) return false;
+    if (await fine()) return false;
     if (
       (await exists(tree)) &&
       !(await moveAside(products, productId, tree, taskId))
     )
       throw new Error(
-        "This task's workspace was left half-removed and could not be moved aside; close any program using it and try again.",
+        "This task's workspace was left half-removed and could not be moved aside. Close any program using it and try again, or move the folder out of worktrees by hand; its commit is safe on its branch.",
       );
     const at = await tip(repo, `refs/heads/task/${taskId}`);
     if (!at)
@@ -600,6 +655,7 @@ export async function restoreBuildWorkspace(
   products: ProductSupervisor,
   productId: string,
   buildId: string,
+  o: { onlyIfMissing?: boolean } = {},
 ): Promise<boolean> {
   const intent = (await readJson(
     join(
@@ -611,6 +667,6 @@ export async function restoreBuildWorkspace(
   ).catch(() => null)) as { task_id?: unknown } | null;
   const task = id.safeParse(intent?.task_id);
   return task.success
-    ? restoreTaskWorkspace(products, productId, task.data)
+    ? restoreTaskWorkspace(products, productId, task.data, o)
     : false;
 }
