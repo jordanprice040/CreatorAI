@@ -18,7 +18,10 @@ scheduled task). Launching it from Start:
    its in-process workflow worker (4310) and private previews (4320), all on 127.0.0.1.
 4. Proves each port belongs to this launch (HMAC over a fresh nonce with a per-launch
    secret) and only then opens the studio window. A development server or any other
-   program on those ports is reported, never shown.
+   program on those ports is reported, never shown. These ports are fixed and never
+   fall back (ADR-0108): the window's origin, its session cookie and saved settings,
+   and the shell's navigation checks are bound to them. Development runs default to
+   5273/4410/4420 instead, so they no longer hold these ports.
 
 Building and packaging products (ADR-0046, the Build and package page) also needs Git for
 Windows: the app passes its resolved `git.exe` to the service as `CREATOR_GIT` (found on
@@ -86,7 +89,7 @@ A failed setup removes only what it created and saves nothing.
 
 | Situation                                  | Behavior                                                                                    |
 | ------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| Port 5173/4310/4320 in use                 | Status window names the port; Retry                                                         |
+| Port 5173/4310/4320 in use                 | Status window names the port and, where Windows can tell, the program holding it; Retry     |
 | Database unreachable (external)            | Message with how to start it; retries every 15 s                                            |
 | PostgreSQL folder missing                  | Actionable failure naming the missing tool                                                  |
 | Service crash                              | Restarted up to 3 times in 10 minutes (1/4/15 s backoff), then paused with Retry            |

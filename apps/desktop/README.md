@@ -171,7 +171,8 @@ node apps/desktop/native-startup.mjs
 
 `CREATOR_TEST_DATABASE_URL` enables disposable PostgreSQL tests.
 `CREATOR_TEST_NATIVE=1` additionally enables the native download gate in
-`tests/dist/artifact-api.test.js`; it needs free ports 4310/5173 and a built UI and
+`tests/dist/artifact-api.test.js`; it needs the installed app's ports 4310/5173 free (close the installed app; a
+dev studio now uses 5273/4410/4420) and a built UI and
 Windows executable. Debug probes use fixture credentials supplied only to their
 process environment, have no native IPC endpoint, and are disabled in release
 builds. Native fixture source snapshots are left in application-local cache for
@@ -189,7 +190,8 @@ This needs the existing reviewed WSL backend and disposable PostgreSQL; it never
 substitutes the fixture execution backend. `node apps/desktop/signin-acceptance.mjs`
 creates a disposable local studio and prints a fixture approval URL/code for an
 isolated browser. `CREATOR_TEST_NATIVE_SECURE=1` checks the Secure-cookie policy.
-Both harnesses require free local ports 4310/5173 and clean up their test databases.
+Both harnesses require the installed app's ports 4310/5173 free and clean up their
+test databases.
 
 Additional executed gates: native browser approval in isolated Edge and authenticated
 fetch inside the Windows WebView, with both ordinary and Secure cookies; actual

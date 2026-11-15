@@ -31,6 +31,26 @@ const HeartbeatSchema = z.strictObject({
 });
 
 /**
+ * Where the owner approves a pairing: the web app in front of the API. ADR-0108 (review 1
+ * L-2): locally the installed app's API (4310) pairs with its window (5173) and the dev API
+ * (4410) with the dev web app (5273); any other local API is linked directly unless
+ * CREATOR_WEB_URL (a loopback http origin) names its web app.
+ */
+export function approvalOrigin(apiOrigin, hosted, webUrl) {
+  if (hosted) return new URL(webUrl ?? apiOrigin).origin;
+  if (webUrl !== undefined) {
+    const web = new URL(webUrl);
+    if (web.protocol !== 'http:' || web.hostname !== '127.0.0.1')
+      throw new Error('CREATOR_WEB_URL must be an http://127.0.0.1 origin.');
+    return web.origin;
+  }
+  const api = new URL(apiOrigin);
+  const web = { 4310: 5173, 4410: 5273 }[api.port];
+  // Any other port (a moved dev API, a test): the API answers the approval route itself.
+  return web ? `http://127.0.0.1:${web}` : api.origin;
+}
+
+/**
  * Control origin for this worker. The default is the local API on loopback. A hosted
  * control plane (X06) is accepted only when explicitly requested and only over https with
  * certificate verification; the worker still connects outbound only and receives no
@@ -172,9 +192,11 @@ if (
     const hosted = process.env.CREATOR_CONTROL === 'hosted';
     const origin = process.env.CREATOR_API_URL ?? 'http://127.0.0.1:4310';
     const client = workerClient(origin, { hosted });
-    const approveAt = hosted
-      ? new URL(process.env.CREATOR_WEB_URL ?? origin).origin
-      : 'http://127.0.0.1:5173';
+    const approveAt = approvalOrigin(
+      origin,
+      hosted,
+      process.env.CREATOR_WEB_URL,
+    );
     const { challenge, proof } = await client.begin(
       workspaceId,
       label,
