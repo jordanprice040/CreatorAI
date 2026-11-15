@@ -19,6 +19,8 @@ import {
   recipePasses,
   recipeQualificationMaxRequests,
   unqualifiedTrial,
+  pythonBuildScale,
+  SMALL_PYTHON_BUILD,
   type ErrorCode,
   type PlanConnection,
   type RecipeQualificationRecord,
@@ -410,6 +412,45 @@ test('review 1 N-3: tool leftovers beside a benchmark neither break nor join its
     (await recipeFreezeProblems(id, root)).join(' '),
     /reference\/src\/extra\.py was added after the freeze/,
   );
+});
+
+test('ADR-0112: the small Python build limits are the small benchmark’s own, and the larger benchmark is past them', () => {
+  const shape = (id: string) => {
+    const dir = `config/recipe-benchmarks/${id}`;
+    const files: { path: string; size: number }[] = [];
+    const walk = (d: string) => {
+      for (const e of readdirSync(path(d), { withFileTypes: true }))
+        if (e.isDirectory()) walk(`${d}${e.name}/`);
+        else
+          files.push({
+            path: `${d}${e.name}`,
+            size: statSync(path(`${d}${e.name}`)).size,
+          });
+    };
+    walk(`${dir}/reference/`);
+    const spec = json(`${dir}/spec.json`) as {
+      content: { acceptance_checks: { cases?: unknown[] }[] };
+    };
+    const cases = spec.content.acceptance_checks.reduce(
+      (n, c) => n + (c.cases?.length ?? 0),
+      0,
+    );
+    return { files, cases };
+  };
+  const small = shape('p14-small-wordtally-v5');
+  assert.equal(
+    small.files.filter((f) => f.path.endsWith('.py') && f.size > 0).length,
+    SMALL_PYTHON_BUILD.python_files,
+  );
+  assert.equal(small.cases, SMALL_PYTHON_BUILD.cases);
+  assert.equal(pythonBuildScale(small.files, small.cases), 'small');
+  const larger = shape('p14-larger-ledgercheck-v5');
+  assert.equal(pythonBuildScale(larger.files, larger.cases), 'larger');
+  // Larger by modules alone: same case count as the small one.
+  assert.equal(larger.cases, SMALL_PYTHON_BUILD.cases);
+  assert.deepEqual(RECIPE_BENCHMARKS['python-build/1'], [
+    'p14-larger-ledgercheck-v5',
+  ]);
 });
 
 test('ADR-0105: only a finished, non-fixture qualified record lifts the trial label, for its own roles', () => {

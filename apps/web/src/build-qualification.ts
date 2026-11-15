@@ -1,4 +1,5 @@
 import {
+  RECIPE_BENCHMARKS,
   isQualified,
   recipePasses,
   unqualifiedTrial,
@@ -136,7 +137,13 @@ export function recordLine(
   if (r.max_input_chars != null)
     parts.push(`input cap ${r.max_input_chars} characters`);
   if (r.fixture) parts.push('fixture, not evidence about a real model');
-  if (prompts && r.state === 'qualified' && !onCurrentPrompts(r, prompts))
+  // Review N-3 (ADR-0112): only a benchmark that can lift a label says it no longer does.
+  if (
+    prompts &&
+    r.state === 'qualified' &&
+    !onCurrentPrompts(r, prompts) &&
+    (RECIPE_BENCHMARKS[r.recipe] ?? []).includes(r.benchmark_id)
+  )
     parts.push('on older role prompts, so it no longer lifts the trial label');
   return parts.join(' · ');
 }
@@ -196,4 +203,42 @@ export function webBuildNote(
       ? `A web build qualification of ${roles.model_id} is running on this connection (${running.passed} of ${running.attempts_needed} passed so far); until it qualifies, web packages are unqualified trials.`
       : `Web packages built with ${roles.model_id} here are unqualified trials. Qualify building under Models and connections to lift the label.`,
   };
+}
+
+/** ADR-0112: whether larger Python packages built with these roles are qualified. */
+export function largerPythonQualified(
+  records: readonly RecipeQualificationRecord[],
+  roles: { connection_id: string; model_id: string },
+  prompts: RolePrompts | null,
+): boolean {
+  return (
+    !!prompts &&
+    !unqualifiedTrial(
+      'python-build/1',
+      { ...roles, ...prompts },
+      recipePasses(records),
+      'larger',
+    )
+  );
+}
+
+/**
+ * ADR-0112 (review L-2): the Build page's note for a Python build whose package may be an
+ * unqualified trial; null when it cannot be. `cases` is the task's frozen case count: more than 10
+ * makes the package larger whatever files it has, otherwise only more than one Python file does.
+ */
+export function pythonBuildNote(
+  route:
+    | { kind: 'roles'; model_id: string; qualified: boolean }
+    | { kind: 'codex' | 'broker' },
+  cases: number,
+): string | null {
+  if (route.kind === 'roles' && route.qualified) return null;
+  const when =
+    cases > 10
+      ? `This task froze ${cases} cases, so its package will be an unqualified trial`
+      : 'If the package has more than one Python file, it will be labelled an unqualified trial';
+  return route.kind === 'roles'
+    ? `${when}: ${route.model_id} has not passed p14-larger-ledgercheck-v5 on this connection with today's role prompts. Qualify building under Models and connections to lift the label.`
+    : `${when}: this route (${route.kind === 'codex' ? 'the Codex builder' : 'the pay-per-use broker'}) has no build qualification, so the label cannot be lifted here.`;
 }

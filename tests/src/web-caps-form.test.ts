@@ -520,7 +520,7 @@ test('P-12 (review 1 of #199, L-1): the held-claims Next text offers the setting
     { next: [{ kind: 'new_autopilot' }] },
     false,
   );
-  assert.match(ended, /under How much is automated/);
+  assert.match(ended, /under Autopilot settings/);
   assert.doesNotMatch(ended, /below/);
   // It cannot continue and the setting is already on: never ask to turn it on again.
   const endedOn = m.heldClaimsSetting(
@@ -537,6 +537,6 @@ test('P-12 (review 1 of #199, L-1): the held-claims Next text offers the setting
     page.indexOf('text = `Next: this step is yours.'),
   );
   assert.match(branch, /heldClaimsSetting\(a, canContinue, acceptsHeld\)/);
-  assert.match(branch, /go\('web-title'\)/);
-  assert.match(branch, /go\('automation-title'\)/);
+  assert.match(branch, /\{searchWeb\}/);
+  assert.match(branch, /go\('autopilot-settings-title'\)/);
 });

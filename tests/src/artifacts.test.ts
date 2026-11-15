@@ -24,7 +24,15 @@ import {
   frozenCases,
   taskHashes,
 } from '@creator/domain';
-import type { BrokerCallResult, SpecBody } from '@creator/contracts';
+import {
+  UNQUALIFIED_LARGER_PYTHON_NOTE,
+  UNQUALIFIED_LARGER_PYTHON_NO_ROLES_NOTE,
+  UNQUALIFIED_TRIAL_NOTE,
+  type BrokerCallResult,
+  type BuildRoles,
+  type RecipeQualification,
+  type SpecBody,
+} from '@creator/contracts';
 import { manifestCalls } from '@creator/db';
 import { TestDoubleExecutor } from './artifact-double.js';
 
@@ -304,6 +312,101 @@ test('a build with more than 10 cases and more than 6 plan requests packages (AD
   assert.equal(manifest.tests.package.length, 22);
   assert.equal(manifest.costs.plan_requests?.request_ids.length, 8);
   assert.ok(manifest.package.files.some((f) => f.path === 'src/part6.py'));
+  // ADR-0112: a larger Python build (7 Python files, 22 cases) whose roles have no larger
+  // benchmark pass is an unqualified trial.
+  assert.equal(manifest.toolchain.role_qualification, 'unqualified_trial');
+  assert.ok(manifest.limitations.includes(UNQUALIFIED_LARGER_PYTHON_NOTE));
+  assert.ok(!manifest.limitations.includes(UNQUALIFIED_TRIAL_NOTE));
+});
+
+test('ADR-0112 review L-1: a larger Python build with no plan roles is always a trial, without a lookup', async (t) => {
+  // The dollar broker route: 22 frozen cases, so larger, and no plan roles to match.
+  const s = await verifiedBuild(t, { manyCases: true });
+  let looked = 0;
+  const { manifest } = await new ArtifactSupervisor(
+    s.products,
+    s.double,
+  ).package(
+    s.product.id,
+    s.build.id,
+    s.ports,
+    undefined,
+    undefined,
+    async (roles) => {
+      looked++;
+      return [
+        {
+          ...roles,
+          recipe: 'python-build/1' as const,
+          benchmark_id: 'p14-larger-ledgercheck-v5',
+        },
+      ];
+    },
+  );
+  assert.equal(looked, 0);
+  assert.equal(manifest.toolchain.role_qualification, 'unqualified_trial');
+  assert.ok(
+    manifest.limitations.includes(UNQUALIFIED_LARGER_PYTHON_NO_ROLES_NOTE),
+  );
+  assert.ok(!manifest.limitations.includes(UNQUALIFIED_LARGER_PYTHON_NOTE));
+});
+
+test('ADR-0112: only a larger Python benchmark pass on the build’s own roles lifts a larger Python build’s label', async (t) => {
+  const s = await verifiedBuild(t, { planRoles: true, parts: 2 });
+  const artifacts = new ArtifactSupervisor(s.products, s.double);
+  const seen: unknown[] = [];
+  const packageWith = async (
+    pass: (roles: BuildRoles) => RecipeQualification[],
+  ) =>
+    (
+      await artifacts.package(
+        s.product.id,
+        s.build.id,
+        s.ports,
+        undefined,
+        undefined,
+        async (roles) => {
+          seen.push(roles);
+          return pass(roles);
+        },
+      )
+    ).manifest;
+  const larger = (roles: BuildRoles) => ({
+    ...roles,
+    recipe: 'python-build/1' as const,
+    benchmark_id: 'p14-larger-ledgercheck-v5',
+  });
+  // Two Python files (src/main.py and src/part1.py): larger by files alone.
+  const lifted = await packageWith((roles) => [larger(roles)]);
+  assert.ok(lifted.package.files.some((f) => f.path === 'src/part1.py'));
+  assert.equal(lifted.toolchain.role_qualification, undefined);
+  assert.ok(!lifted.limitations.some((l) => /Unqualified trial/.test(l)));
+  assert.equal(seen.length, 1, 'the roles were looked up');
+  for (const other of [
+    (r: BuildRoles) => [
+      { ...larger(r), benchmark_id: 'p14-small-wordtally-v5' },
+    ],
+    (r: BuildRoles) => [
+      { ...larger(r), benchmark_id: 'p14-larger-ledgercheck-v4' },
+    ],
+    (r: BuildRoles) => [
+      {
+        ...larger(r),
+        recipe: 'static-web/1' as const,
+        benchmark_id: 'p15-small-signup-v5',
+      },
+    ],
+    (r: BuildRoles) => [{ ...larger(r), model_id: 'another-model' }],
+    (r: BuildRoles) => [{ ...larger(r), connection_id: randomUUID() }],
+    (r: BuildRoles) => [
+      { ...larger(r), builder_prompt_sha256: digest('older') },
+    ],
+    () => [],
+  ]) {
+    const m = await packageWith(other);
+    assert.equal(m.toolchain.role_qualification, 'unqualified_trial');
+    assert.ok(m.limitations.includes(UNQUALIFIED_LARGER_PYTHON_NOTE));
+  }
 });
 
 test('a verified candidate packages to a manifest bound to its commit, spec, task, QA and package checks', async (t) => {
@@ -331,7 +434,7 @@ test('a verified candidate packages to a manifest bound to its commit, spec, tas
   );
   assert.equal(manifest.availability.native_installer.state, 'unavailable');
   assert.ok(manifest.limitations.some((l) => /not isolation evidence/.test(l)));
-  // ADR-0078 review M-2: a Python build on qualified roles carries no trial label.
+  // ADR-0078 review M-2, ADR-0112: a small Python build on qualified roles carries no trial label.
   assert.equal(manifest.toolchain.role_qualification, undefined);
   assert.ok(!manifest.limitations.some((l) => /Unqualified trial/.test(l)));
   const dir = artifacts.dir(s.product.id, manifest.id);

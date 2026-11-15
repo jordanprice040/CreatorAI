@@ -14,5 +14,5 @@ export function heldClaimsSetting(
     return '“Accept quote-checked web claims” is on now, so Continue accepts them.';
   if (settingOn)
     return '“Accept quote-checked web claims” is on now, so later autopilots accept them.';
-  return 'To let later autopilots accept them, turn on “Accept quote-checked web claims” under How much is automated.';
+  return 'To let later autopilots accept them, turn on “Accept quote-checked web claims” under Autopilot settings.';
 }
