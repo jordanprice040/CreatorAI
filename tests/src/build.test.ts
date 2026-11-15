@@ -731,6 +731,81 @@ test('ADR-0110: a plan role answer in one code fence is accepted and recorded; e
     assert.equal(x.s.requests.length, 0, 'no dollar broker call');
 });
 
+test('ADR-0115: leading invented tool-call lines are dropped by default and recorded; a plan naming one_json_fence stops on them', async (t) => {
+  const H4 = (j: string) =>
+    `\n<invoke name="note">na</invoke>\n</invoke>\n\`\`\`json\n${j}\n\`\`\``;
+  const go = async (
+    wrap: (json: string) => string,
+    answer_wrapping?: BuildPlan['answer_wrapping'],
+  ) => {
+    const s = await setup(t);
+    const plan: BuildPlan = {
+      ...s.plan,
+      plan_roles: { connection_id: randomUUID(), model_id: 'fixture-plan' },
+      ...(answer_wrapping ? { answer_wrapping } : {}),
+    };
+    const roles: string[] = [];
+    const result = await s.builds.run(
+      s.product.id,
+      s.task.id,
+      s.product.initial_commit,
+      plan,
+      {
+        ...s.ports,
+        planRolesReady: async () => [],
+        planRole: async (target, request) => {
+          roles.push(target.role);
+          const answer = buildFixtureAnswer([
+            { role: 'system', text: BUILD_ROLE_PROMPTS[target.role] },
+            { role: 'user', text: request.input },
+          ]);
+          return {
+            request_id: randomUUID(),
+            status: 'succeeded',
+            reason_code: 'ok',
+            text: answer === null ? null : wrap(answer),
+            fixture: true,
+          };
+        },
+      },
+    );
+    const form = (n: number) =>
+      readFile(
+        join(
+          s.products.dir(s.product.id),
+          'builds',
+          result.id,
+          `call-${n}-answer-form.json`,
+        ),
+        'utf8',
+      ).then((x) => JSON.parse(x) as unknown);
+    return { result, roles, s, form };
+  };
+  // The default (no answer_wrapping in the plan): both roles answered as H4 did, and went on.
+  const tolerant = await go(H4);
+  assert.deepEqual(tolerant.roles, ['builder', 'reviewer']);
+  for (const n of [1, 2])
+    assert.deepEqual(await tolerant.form(n), {
+      wrapping: 'invoke_lines_then_json_fence',
+      dropped_invoke_lines: 2,
+    });
+  // A plain fence is still recorded as one fence.
+  const fenced = await go((j) => `\`\`\`json\n${j}\n\`\`\``);
+  assert.deepEqual(await fenced.form(1), { wrapping: 'one_json_fence' });
+  // A plan frozen on one fence (the v5 recipe benchmarks) stops on the same answer.
+  const strict = await go(H4, 'one_json_fence');
+  assert.deepEqual(strict.roles, ['builder']);
+  assert.equal(strict.result.state, 'checkpoint');
+  assert.match(strict.result.reason, /JSON/);
+  assert.equal(strict.result.commit, strict.s.product.initial_commit);
+  // Prose with the lines still stops the build by default.
+  const chatty = await go((j) => `Sure.\n${H4(j)}`);
+  assert.deepEqual(chatty.roles, ['builder']);
+  assert.equal(chatty.result.state, 'checkpoint');
+  for (const x of [tolerant, fenced, strict, chatty])
+    assert.equal(x.s.requests.length, 0, 'no dollar broker call');
+});
+
 test('plan-role packets are bounded by the accepted plan input cap, broker packets by 20,000', async (t) => {
   // Owner pilot F21: a v4 spec plus a 5.5k program and its diff passed 20,000 characters and
   // stopped a $0 plan build before the reviewer, though the accepted plan cap was 64,000.
