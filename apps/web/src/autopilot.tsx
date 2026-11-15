@@ -43,6 +43,7 @@ import { usePoll } from './page-active.js';
 import { useEndTime } from './end-time.js';
 import { AllowAndContinue } from './autopilot-next.js';
 import { useAutopilotSettings } from './autopilot-settings.js';
+import { heldClaimsSetting } from './autopilot-held.js';
 import { routeHash } from './pages.js';
 
 // P13 (ADR-0092): "Run it for me". One form sets up a new run with routine approvals covering
@@ -646,7 +647,11 @@ export function Autopilot({
                     ))}
                   </ol>
                   {owner && a.state === 'finished' && a.outcome && (
-                    <NextAfterStop autopilot={a} workspace={workspace} />
+                    <NextAfterStop
+                      autopilot={a}
+                      workspace={workspace}
+                      acceptsHeld={!!settings?.accept_quote_checked_claims}
+                    />
                   )}
                   {owner && a.state === 'running' && (
                     <button
@@ -701,9 +706,11 @@ export function Autopilot({
 function NextAfterStop({
   autopilot: a,
   workspace,
+  acceptsHeld,
 }: {
   autopilot: AutopilotRecord;
   workspace: Workspace;
+  acceptsHeld: boolean;
 }) {
   const href = (
     view: 'evidence' | 'compare' | 'decisions' | 'proposals',
@@ -787,15 +794,31 @@ function NextAfterStop({
       );
       break;
     case 'needs_person':
-      // Live run 2026-11-14: a web search's waiting claims are reviewed under Search the web,
-      // not Decide; Continue with none added stops here again.
+      // P-12: quote-checked web claims wait under Search the web, not Decide. While the setting
+      // is off, Continue with none added stops here again (live run 2026-11-14, #202).
       if (last?.stop_kind === 'claims_held') {
-        text =
-          'Next: review the checked claims under Discover › Search the web and add the ones you agree with, then press Continue. With none added it stops here again. Or allow quote-checked claims below.';
+        const again =
+          canContinue && a.next?.some((n) => n.kind === 'allow_and_continue')
+            ? ' With none added it stops here again.'
+            : '';
+        text = `Next: read the claims its web search found and add the ones you agree with under Discover › Search the web${then}${again} ${heldClaimsSetting(a, canContinue, acceptsHeld)}`;
         actions = (
-          <button type="button" className="secondary" onClick={go('web-title')}>
-            Search the web
-          </button>
+          <>
+            <button
+              type="button"
+              className="secondary"
+              onClick={go('web-title')}
+            >
+              Search the web
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              onClick={go('automation-title')}
+            >
+              How much is automated
+            </button>
+          </>
         );
         break;
       }
