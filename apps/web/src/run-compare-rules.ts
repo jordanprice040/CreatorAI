@@ -1,4 +1,9 @@
-import type { RunComparison, RunComparisonSide } from '@creator/contracts';
+import {
+  AUTOPILOT_STAGE_LABEL,
+  type AutopilotStage,
+  type RunComparison,
+  type RunComparisonSide,
+} from '@creator/contracts';
 import { money } from './amounts.js';
 
 // ADR-0120 (F7): the rows of the side-by-side table, worked out from the comparison alone so
@@ -26,6 +31,11 @@ const OUTCOME: Record<string, string> = {
 };
 
 const words = (s: string) => s.replaceAll('_', ' ');
+/** Review n-4: the app's own stage names ("Choose an option"). */
+export const stageName = (s: string) =>
+  AUTOPILOT_STAGE_LABEL[s as AutopilotStage] ?? words(s);
+/** A stop kind in words ("tie", "thin evidence"), or null. */
+export const stopKindName = (k: string | null) => (k ? words(k) : null);
 
 /** "2 h 05 min", "4 min 10 s", "35 s". */
 export function duration(seconds: number): string {
@@ -59,6 +69,7 @@ function choiceText(side: RunComparisonSide): string {
 
 function buildText(side: RunComparisonSide): string {
   if (!side.builds.length) return 'No build';
+  // Builds come newest first (review L-3), so the fallback is the newest.
   const latest = side.builds.find((b) => b.current) ?? side.builds[0]!;
   const more =
     side.builds.length > 1 ? ` (${side.builds.length} packages)` : '';
@@ -68,9 +79,12 @@ function buildText(side: RunComparisonSide): string {
 function stopsText(side: RunComparisonSide): string {
   if (!side.stops.length) return 'Never stopped';
   const forPerson = side.stops.filter(
-    (s) => s.decision_id || s.kind !== null,
+    // Review L-1: a failed step asked nobody anything.
+    (s) => s.decision_id || (s.kind !== null && s.kind !== 'failed_step'),
   ).length;
-  const stages = [...new Set(side.stops.map((s) => words(s.stage)))].join(', ');
+  const stages = [...new Set(side.stops.map((s) => stageName(s.stage)))].join(
+    ', ',
+  );
   return `${side.stops.length} stop${side.stops.length === 1 ? '' : 's'} (at ${stages})${forPerson ? `, ${forPerson} asked a person or a setting` : ''}`;
 }
 
@@ -83,7 +97,14 @@ function topOption(side: RunComparisonSide): string {
 /** The table's rows, in reading order: what it did, what it found, what it chose, what it used. */
 export function compareRows(c: RunComparison): CompareRow[] {
   const fx = (s: RunComparisonSide) => s.autopilot.fixture;
-  const rows: [string, string, (s: RunComparisonSide) => string][] = [
+  type Rule = [
+    string,
+    string,
+    (s: RunComparisonSide) => string,
+    /** What decides "differs" when the shown text is not enough (review n-1). */
+    ((s: RunComparisonSide) => string)?,
+  ];
+  const rows: Rule[] = [
     ['Run', 'Result', outcomeText],
     [
       'Run',
@@ -97,9 +118,14 @@ export function compareRows(c: RunComparison): CompareRow[] {
       (s) =>
         s.autopilot.started_at_stage === 'start'
           ? 'The beginning'
-          : words(s.autopilot.started_at_stage),
+          : stageName(s.autopilot.started_at_stage),
     ],
-    ['Run', 'Problem', (s) => s.problem?.title ?? 'No problem reached'],
+    [
+      'Run',
+      'Problem',
+      (s) => s.problem?.title ?? 'No problem reached',
+      (s) => s.problem?.id ?? '',
+    ],
     [
       'Evidence',
       'Web search',
@@ -155,10 +181,10 @@ export function compareRows(c: RunComparison): CompareRow[] {
         `${duration(s.time.elapsed_seconds)} in all, ${duration(s.time.working_seconds)} working`,
     ],
   ];
-  return rows.map(([group, label, f]) => {
+  return rows.map(([group, label, f, key = f]) => {
     const a = f(c.a);
     const b = f(c.b);
-    return { group, label, a, b, differs: a !== b };
+    return { group, label, a, b, differs: key(c.a) !== key(c.b) };
   });
 }
 

@@ -30,7 +30,7 @@ export type RunCompareStore = Pick<
   | 'getEntity'
   | 'getWebDiscovery'
   | 'getWorkflow'
-  | 'listSelections'
+  | 'getSelection'
   | 'selectionReport'
   | 'proposalDetail'
   | 'listArtifacts'
@@ -110,11 +110,15 @@ export async function comparisonSide(
   let leads = 0,
     pagesRead = 0,
     proposed = 0,
-    admitted = 0;
+    admitted = 0,
+    searchRequests = 0;
   const searches = childIds('web_discovery');
   for (const d of searches) {
     const w = await maybe(store.getWebDiscovery(ctx, ws, d));
     if (!w) continue;
+    // Review L-2: the search and the reading are plan requests too.
+    searchRequests +=
+      (w.search_request_id ? 1 : 0) + (w.read_request_id ? 1 : 0);
     leads += w.leads.length;
     pagesRead += w.leads.filter((l) => l.retrieval_state === 'fetched').length;
     proposed += w.proposals.length;
@@ -124,11 +128,9 @@ export async function comparisonSide(
 
   // The choice and the options: its own selection when it recorded one.
   const selectionId = childIds('selection').at(-1) ?? null;
-  const selections = problemRef
-    ? await store.listSelections(ctx, ws, problemRef.id)
-    : [];
+  // Review L-4: read by id, so a problem with many later selections never hides it.
   const selection = selectionId
-    ? (selections.find((s) => s.id === selectionId) ?? null)
+    ? await maybe(store.getSelection(ctx, ws, selectionId))
     : null;
   let options: RunComparisonSide['options'];
   if (selection)
@@ -202,7 +204,13 @@ export async function comparisonSide(
   const builds: RunComparisonSide['builds'] = [];
   if (selection) {
     const specSelection = new Map<string, string | null>();
-    for (const art of await store.listArtifacts(ctx, ws)) {
+    // Review L-3: newest first, so the cap never drops the current package.
+    // Review n-5: one spec read per distinct spec, each its own transaction; fine at today's
+    // sizes, a single query if workspaces grow to many packages.
+    const arts = [...(await store.listArtifacts(ctx, ws))].sort((x, y) =>
+      y.created_at.localeCompare(x.created_at),
+    );
+    for (const art of arts) {
       if (builds.length >= RUN_COMPARISON_MAX_BUILDS) break;
       if (!specSelection.has(art.spec.id)) {
         const spec = await maybe(store.getEntity(ctx, ws, art.spec.id));
@@ -261,7 +269,7 @@ export async function comparisonSide(
       config_hash: a.config_hash,
       policy_version: a.policy_version,
       route: setup.kind,
-      models: [...models].slice(0, 10),
+      models: [...models].sort().slice(0, 10),
       started_at_stage: a.config.start?.stage ?? 'start',
     },
     problem,
@@ -293,7 +301,7 @@ export async function comparisonSide(
       used: a.calls_reserved,
       limit: a.config.limits.max_calls,
       model_attempts: attempts,
-      plan_requests: planRequests,
+      plan_requests: planRequests + searchRequests,
     },
     money: {
       reserved: reserved.toString(),

@@ -9,6 +9,7 @@ import {
   autopilotSummary,
   comparisonCautions,
   routinePolicySummary,
+  type Autopilot,
   type AutopilotConfig,
   type ErrorCode,
   type RoutinePolicyInput,
@@ -23,7 +24,9 @@ import {
   AutopilotRunner,
   DEFAULT_OWNER_ACTOR_ID,
   compareRuns,
+  comparisonSide,
   createApi,
+  type RunCompareStore,
 } from '@creator/api';
 import { discoverySetup, owner } from './discovery-harness.js';
 import { freshDatabase, LOGIN_CODE, login } from './pg-harness.js';
@@ -32,6 +35,7 @@ import { loadWeb } from './web-module.js';
 // ADR-0120 (F7): two autopilots side by side, read from their records with the caller's own
 // access, labelled as a comparison of two runs and never a study result.
 
+const POST_STATUS = 404;
 const inHours = (h: number) =>
   new Date(Date.now() + h * 3_600_000).toISOString();
 const rejects = (code: ErrorCode, p: Promise<unknown>, message?: RegExp) =>
@@ -108,7 +112,17 @@ function side(over: Partial<RunComparisonSide> = {}): RunComparisonSide {
 
 test('cautions name what makes the two columns unlike, from the records only', () => {
   const a = side();
-  assert.deepEqual(comparisonCautions(a, side()), []);
+  // Same problem: only the note that its claim links belong to neither run (review L-7).
+  const same = comparisonCautions(a, side());
+  assert.equal(same.length, 1);
+  assert.match(same[0]!, /belongs to neither run/);
+  assert.match(
+    comparisonCautions(
+      { ...a, autopilot: { ...a.autopilot, state: 'running' } },
+      side({ autopilot: { ...a.autopilot, state: 'running' } }),
+    ).join(' '),
+    /Both are still running/,
+  );
   const b = side({
     problem: null,
     autopilot: { ...a.autopilot, route: 'subscription', state: 'running' },
@@ -154,7 +168,7 @@ test('the table rows mark what differs; the pair comes from the address or the t
   assert.equal(stops.a, 'Never stopped');
   assert.match(
     stops.b,
-    /^1 stop \(at select\), 1 asked a person or a setting$/,
+    /^1 stop \(at Choose an option\), 1 asked a person or a setting$/,
   );
   assert.equal(stops.differs, true);
   const money = rows.find((x) => x.label === 'Money')!;
@@ -412,8 +426,64 @@ test('two autopilots compare side by side from their own records, read with the 
       e instanceof ContractError &&
       (e.code === 'ACCESS_DENIED' || e.code === 'NOT_FOUND'),
   );
+  // Review L-8: a person chooses under Decide for the second; Continue carries that choice,
+  // and the comparison says a person made it.
+  {
+    const p2 = c.b.problem!;
+    let rep2 = await h.store.selectionReport(owner, h.ws.id, p2.id);
+    const pick = rep2.suitability.candidates.find(
+      (x) => x.alternative.kind === 'use_existing',
+    )!;
+    for (const gate of ['ethics', 'access'] as const)
+      await h.store.confirmGate(owner, h.ws.id, p2.id, {
+        alternative: {
+          id: pick.alternative.id,
+          version: pick.alternative.version,
+        },
+        gate,
+        reason: 'I checked this one (test).',
+        concerns_seen:
+          pick.gates.gate_details
+            ?.find((d) => d.gate === gate)
+            ?.concerns.map((x) => x.scorecard) ?? [],
+      });
+    rep2 = await h.store.selectionReport(owner, h.ws.id, p2.id);
+    const mine = await h.store.select(owner, h.ws.id, second.run_id, {
+      problem: { id: rep2.problem.id, version: rep2.problem.version },
+      report_hash: rep2.report_hash,
+      dispositions: rep2.suitability.candidates.map((x) => ({
+        alternative: { id: x.alternative.id, version: x.alternative.version },
+        disposition:
+          x.alternative.id === pick.alternative.id
+            ? 'recommend_alternative'
+            : 'defer',
+        reasons: ['My call between tied options (test).'],
+        reverse_if: 'New evidence.',
+      })),
+      override_reason: null,
+      rationale: 'I chose between the tied options (test).',
+      shortlist_size: 3,
+      data_class: 'synthetic',
+    });
+    assert.equal(mine.status, 'recorded', mine.admission.explanation);
+    const now2 = await h.store.getAutopilot(owner, h.ws.id, second.id);
+    await h.runner.retry(owner, h.ws.id, second.id, {
+      expected_version: now2.version,
+    });
+    await h.runner.settled(second.id);
+    const both = await compareRuns(h.store, owner, h.ws.id, {
+      a: first.id,
+      b: second.id,
+    });
+    assert.equal(both.b.choice?.by, 'person');
+    assert.equal(both.b.choice?.id, pick.alternative.id);
+    assert.equal(both.b.choice?.disposition, 'recommend_alternative');
+    assert.equal(both.b.options.scores_from, 'selection');
+  }
+
   // A viewer of the workspace may read the comparison; it writes nothing.
   await h.store.addMember(owner, h.ws.id, stranger.actorId, 'viewer');
+  const before = (await h.store.getAutopilot(owner, h.ws.id, first.id)).version;
   const seen = await compareRuns(h.store, stranger, h.ws.id, {
     a: first.id,
     b: second.id,
@@ -421,7 +491,7 @@ test('two autopilots compare side by side from their own records, read with the 
   assert.equal(seen.a.autopilot.id, first.id);
   assert.equal(
     (await h.store.getAutopilot(owner, h.ws.id, first.id)).version,
-    done.version,
+    before,
   );
 });
 
@@ -470,5 +540,182 @@ test('HTTP: the comparison is a read under the workspace, and refuses a bad pair
     headers: { 'Content-Type': 'application/json', ...auth.write },
     body: '{}',
   });
-  assert.notEqual(post.status, 200);
+  assert.equal(post.status, POST_STATUS);
+});
+
+test('review L-2/L-3/L-4: web search requests count, builds link through the selection newest first, the selection is read by id', async () => {
+  const ws = randomUUID();
+  const problemId = randomUUID();
+  const selId = randomUUID();
+  const wdId = randomUUID();
+  const altId = randomUUID();
+  const at = (m: number) =>
+    new Date(Date.parse('2026-11-15T10:00:00.000Z') + m * 60_000).toISOString();
+  const step = (stage: string, kind: string | null, id: string | null) => ({
+    stage,
+    attempt: 1,
+    state: 'done',
+    child: kind ? { kind, id } : null,
+    calls: 1,
+    problem: { id: problemId, version: 1 },
+    option: null,
+    request: null,
+    key: null,
+    note: '',
+    started_at: at(0),
+    finished_at: at(1),
+  });
+  const a = {
+    id: randomUUID(),
+    workspace_id: ws,
+    run_id: randomUUID(),
+    fixture: true,
+    config: {
+      resource_setup: {
+        kind: 'subscription',
+        connection_id: randomUUID(),
+        model_id: 'z-model',
+        settings_hash: 'a'.repeat(64),
+        max_output_chars: 1000,
+      },
+      research: { model_id: 'a-model' },
+      start: null,
+      limits: { max_calls: 40, ends_at: at(600) },
+    },
+    config_hash: 'b'.repeat(64),
+    policy_version: 'autopilot/1.0',
+    state: 'finished',
+    stage: 'select',
+    outcome: 'proposal',
+    explanation: 'Done.',
+    steps: [
+      step('research', 'web_discovery', wdId),
+      step('select', 'selection', selId),
+      {
+        ...step('assess', null, null),
+        state: 'stopped',
+        stop_kind: 'failed_step',
+      },
+    ],
+    calls_reserved: 12,
+    created_at: at(0),
+    finished_at: at(5),
+  } as unknown as Autopilot;
+  const specs = new Map([
+    ['s-mine', selId],
+    ['s-other', randomUUID()],
+  ]);
+  // Twelve packages for this selection and one for another, oldest first as the store lists them.
+  const arts = [
+    ...Array.from({ length: 12 }, (_, i) => ({
+      id: randomUUID(),
+      spec: { id: 's-mine', version: 1 },
+      state: i === 11 ? 'verified' : 'failed',
+      current: i === 11,
+      created_at: at(10 + i),
+    })),
+    {
+      id: randomUUID(),
+      spec: { id: 's-other', version: 1 },
+      state: 'verified',
+      current: true,
+      created_at: at(40),
+    },
+  ];
+  const cand = {
+    alternative: {
+      id: altId,
+      version: 1,
+      kind: 'use_existing',
+      title: 'Use it',
+    },
+    rank: 1,
+    score: { display: '80.0' },
+  };
+  const store = {
+    getEntity: async (_c: unknown, _w: string, id: string) =>
+      id === problemId
+        ? { entity: { id, title: 'Problem' }, incoming: [], outgoing: [] }
+        : { entity: { id, body: { selection_id: specs.get(id) } } },
+    getWebDiscovery: async () => ({
+      search_request_id: randomUUID(),
+      read_request_id: randomUUID(),
+      leads: [
+        { retrieval_state: 'fetched' },
+        { retrieval_state: 'blocked' },
+        { retrieval_state: null },
+      ],
+      proposals: [{ decision: 'admitted' }, { decision: 'dismissed' }],
+    }),
+    getWorkflow: async () => {
+      throw new Error('no workflows here');
+    },
+    // Only a read by id finds it (a list would have paged past it).
+    getSelection: async (_c: unknown, _w: string, id: string) => {
+      assert.equal(id, selId);
+      return {
+        id: selId,
+        autopilot_id: a.id,
+        rationale: 'Chosen.',
+        dispositions: [
+          {
+            alternative: { id: altId, version: 1 },
+            disposition: 'recommend_alternative',
+          },
+        ],
+        report: { suitability: { candidates: [cand] } },
+      };
+    },
+    selectionReport: async () => {
+      throw new Error('not read when a selection exists');
+    },
+    proposalDetail: async () => null,
+    listArtifacts: async () => arts,
+  } as unknown as RunCompareStore;
+  const s = await comparisonSide(store, owner, ws, a, new Date(at(5)));
+  assert.deepEqual(
+    [
+      s.evidence.leads,
+      s.evidence.pages_read,
+      s.evidence.claims_proposed,
+      s.evidence.claims_admitted,
+    ],
+    [3, 1, 2, 1],
+  );
+  assert.equal(s.requests.plan_requests, 2, 'the search and the reading');
+  assert.deepEqual(s.autopilot.models, ['a-model', 'z-model']);
+  assert.equal(s.options.scores_from, 'selection');
+  assert.equal(s.choice?.by, 'autopilot');
+  assert.equal(s.builds.length, 10);
+  assert.equal(
+    s.builds[0]!.id,
+    arts[11]!.id,
+    'newest first, the current one kept',
+  );
+  assert.ok(
+    s.builds.every((b) => b.id !== arts[12]!.id),
+    'only its own selection’s',
+  );
+  const r = (await loadWeb('run-compare-rules.ts')) as Rules;
+  const c = RunComparisonSchema.parse({
+    label: RUN_COMPARISON_LABEL,
+    workspace_id: ws,
+    same_problem: true,
+    cautions: [],
+    a: s,
+    b: { ...s, problem: { ...s.problem!, id: randomUUID() } },
+    read_at: at(5),
+  });
+  const rows = r.compareRows(c);
+  assert.equal(
+    rows.find((x) => x.label === 'Build')!.a,
+    'Verified (10 packages)',
+  );
+  // A failed step asked nobody (L-1); stage names are the app's (n-4).
+  assert.equal(
+    rows.find((x) => x.label === 'Where it stopped')!.a,
+    '1 stop (at Assess the options)',
+  );
+  // Same title, different problem: still marked (n-1).
+  assert.equal(rows.find((x) => x.label === 'Problem')!.differs, true);
 });

@@ -104,6 +104,7 @@ export const RunComparisonSideSchema = z.strictObject({
     })
     .nullable(),
   proposal: z.strictObject({ id, version, title }).nullable(),
+  /** Newest first. */
   builds: z
     .array(
       z.strictObject({
@@ -118,7 +119,10 @@ export const RunComparisonSideSchema = z.strictObject({
     /** Calls or plan requests the autopilot kept for its steps (its own count). */
     used: counter,
     limit: counter,
-    /** What its workflows record: API attempts and plan requests. */
+    /**
+     * API attempts its workflows recorded, and plan requests its workflows and web search
+     * made (the search and the reading are one request each).
+     */
     model_attempts: counter,
     plan_requests: counter,
   }),
@@ -168,7 +172,10 @@ export function comparisonCautions(
     out.push(
       'They used different model routes, so money and requests are counted differently.',
     );
-  if (a.autopilot.state === 'running' || b.autopilot.state === 'running')
+  const running = [a, b].filter((s) => s.autopilot.state === 'running').length;
+  if (running === 2)
+    out.push('Both are still running; their columns will change.');
+  else if (running === 1)
     out.push('One is still running; its column will change.');
   if (a.requests.limit !== b.requests.limit)
     out.push(
@@ -176,6 +183,11 @@ export function comparisonCautions(
     );
   if (a.autopilot.started_at_stage !== b.autopilot.started_at_stage)
     out.push('They entered the path at different steps.');
+  // Review L-7: the same problem's links are the problem's, not either run's findings.
+  if (a.problem && a.problem.id === b.problem?.id)
+    out.push(
+      '“Claims on the problem now” counts the problem’s links today, so it is the same for both and belongs to neither run.',
+    );
   if (
     a.options.scores_from === 'current' ||
     b.options.scores_from === 'current'

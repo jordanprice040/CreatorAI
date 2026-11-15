@@ -225,7 +225,7 @@ check(
 check(
   (
     await table.locator('tr', { hasText: 'Where it stopped' }).textContent()
-  )?.includes('select'),
+  )?.includes('Choose an option'),
   'both columns show the stop at the choice',
 );
 await page.screenshot({ path: `${out}/01-compare-runs.png`, fullPage: true });

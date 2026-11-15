@@ -15,6 +15,8 @@ import {
   defaultPair,
   outcomeText,
   pairFrom,
+  stageName,
+  stopKindName,
 } from './run-compare-rules.js';
 import type { View } from './pages.js';
 import './run-compare.css';
@@ -212,9 +214,12 @@ export function RunCompare({
                       >
                         <th scope="row">
                           {r.differs && (
-                            <span className="differs-mark" aria-label="differs">
-                              ≠{' '}
-                            </span>
+                            <>
+                              <span className="differs-mark" aria-hidden="true">
+                                ≠{' '}
+                              </span>
+                              <span className="sr-only">Differs: </span>
+                            </>
                           )}
                           {r.label}
                         </th>
@@ -302,7 +307,9 @@ function SideDetail({
         <ul className="small">
           {side.stops.map((s) => (
             <li key={`${s.stage}-${s.attempt}`}>
-              {s.stage} (try {s.attempt}): {s.note || 'No note.'}
+              {stageName(s.stage)} (try {s.attempt})
+              {s.kind ? `, ${stopKindName(s.kind)}` : ''}:{' '}
+              {s.note || 'No note.'}
               {s.decision_id && (
                 <>
                   {' '}
