@@ -3,6 +3,7 @@ import {
   readSpecDraft,
   specCaseProblems,
   SPEC_DRAFT_INSTRUCTIONS_VERSION,
+  specContentSchemaJson,
   type BenchmarkCheck,
   type ObjectiveSignal,
 } from '@creator/contracts';
@@ -681,9 +682,9 @@ export const SPEC_CASES_GRADER_VERSION = 'spec-cases-grader/1' as const;
 const fingerprints = new Map<string, string | null>();
 
 /**
- * The frozen behaviour behind one spec-cases-v1 program (review 1 of PR #206, L-2): its
- * request text, the outputs of the reference and every broken version on the probe inputs,
- * the studio's held-out pick of a probe reply, and the grades of fixed probe replies (good,
+ * The frozen behaviour behind one spec-cases-v1 program (review 1 of PR #206, L-2): the spec
+ * schema a reply is read into (review 3), its request text, the outputs of the reference and
+ * every broken version on the probe inputs, the studio's held-out pick of a probe reply, and the grades of fixed probe replies (good,
  * too few, one wrong output, a broken version's outputs, unreadable). Null for an unknown
  * program. Computed once per process.
  */
@@ -737,6 +738,8 @@ export function specCasesFingerprint(program: string): string | null {
     };
     value = canonicalHash({
       grader: SPEC_CASES_GRADER_VERSION,
+      // Review 3 of PR #206: the spec schema drafted cases are read into.
+      spec_schema: canonicalHash(specContentSchemaJson()),
       program,
       request: check.request,
       runs,
