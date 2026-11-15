@@ -413,7 +413,7 @@ test('P24: Qualify several offers allowed tasks not yet qualified and sends thei
   assert.equal(body.expected_version, 7);
   assert.deepEqual(
     body.items.map((i) => i.manifest.name),
-    ['spec-cases-v1', 'plan-spec-acceptance-synthetic-v1', 't12-reviewer-v2'],
+    ['spec-cases-v1', 'plan-spec-acceptance-synthetic-v1', 't12-reviewer-v3'],
   );
   for (const i of body.items) {
     const m = BenchmarkManifestSchema.parse(i.manifest);
