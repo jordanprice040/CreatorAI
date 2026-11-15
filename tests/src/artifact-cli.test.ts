@@ -8,6 +8,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { createApi } from '@creator/api';
 import {
+  APP_PORT_ENV,
   BUILD_FIXTURE_CASES,
   BUILD_FIXTURE_FEEDBACK,
   BUILD_FIXTURE_REVISION_CASES,
@@ -27,11 +28,13 @@ test(
     t.after(() => closeApi());
     const db = await freshDatabase(t);
     if (!db) return;
+    const native = process.env.CREATOR_TEST_NATIVE === '1';
     const api = createApi({
       CREATOR_DATABASE_URL: db.url,
       CREATOR_DEV_LOGIN_CODE: LOGIN_CODE,
+      // ADR-0108: the native shell talks to the installed app's ports, not the dev range.
+      ...(native ? APP_PORT_ENV : {}),
     });
-    const native = process.env.CREATOR_TEST_NATIVE === '1';
     api.server.listen(native ? 4310 : 0, '127.0.0.1');
     api.preview.listen(0, '127.0.0.1');
     await Promise.all([
@@ -307,7 +310,12 @@ test(
                 '5173',
                 '--strictPort',
               ],
-              { cwd: resolve('apps/web'), windowsHide: true, stdio: 'ignore' },
+              {
+                cwd: resolve('apps/web'),
+                env: { ...process.env, ...APP_PORT_ENV },
+                windowsHide: true,
+                stdio: 'ignore',
+              },
             );
             await wait(
               async () => {

@@ -1,3 +1,4 @@
+import { gradeSpecCases } from './spec-cases.js';
 import { createHash } from 'node:crypto';
 import {
   z,
@@ -218,6 +219,9 @@ export function checkOutput(
     case 'web_scout_contract':
     case 'web_reader_contract':
       return gradeWebDiscoveryCase(check, output.json, searchCalls);
+    // ADR-0107 (B2): drafted spec cases, run against the studio's own programs.
+    case 'spec_cases_contract':
+      return gradeSpecCases(check, output.text).signal;
     case 'discovery_contract': {
       if (canonicalHash(check.packet) !== check.context.packet_hash)
         return 'acceptance_check_failed';

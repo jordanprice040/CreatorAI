@@ -1035,6 +1035,16 @@ export class Store {
              and redacted_at is null`,
           [ws, entityId],
         );
+      // ADR-0107: spec drafts hold the option's and problem's words (what was sent, the reply).
+      if (current.kind === 'alternative' || current.kind === 'problem')
+        await c.query(
+          `update spec_drafts set input = '', request = '{}'::jsonb, result = null,
+             problems = '[]'::jsonb, text = case when text is null then null else '' end,
+             redacted_at = clock_timestamp()
+           where workspace_id = $1 and (alternative_id = $2 or problem_id = $2)
+             and state <> 'pending' and redacted_at is null`,
+          [ws, entityId],
+        );
       const hash = canonicalHash({
         kind: current.kind,
         redacted_from: current.content_hash,

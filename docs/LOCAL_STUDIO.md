@@ -17,7 +17,9 @@ cd C:\dev\creator_agent
 .\scripts\start-local-studio.ps1
 ```
 
-Open http://127.0.0.1:5173 and use the one-run login link printed by the API.
+Open http://127.0.0.1:5273 (the development range since ADR-0108; the installed app
+keeps 5173) and use the one-run login link printed by the API. If a port was busy,
+use the address the launcher prints instead.
 The launcher reads the existing ignored `.env.docker` password locally; it does not
 print credentials, migrate, seed records or start Docker. Docker must already be
 running. This remains a development launch; installed desktop lifecycle is §2.1.

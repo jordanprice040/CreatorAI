@@ -8,6 +8,7 @@ import {
   FileRenameRequestSchema,
   FileSortSchema,
   FileStatusRequestSchema,
+  FILE_MAX_BYTES_DEFAULT,
   inspectFile,
   numberedName,
   parse,
@@ -36,7 +37,7 @@ import {
 /** Storage bounds, from the deployment (environment); never raised by a request. */
 export type FileLimits = { fileMaxBytes: number; workspaceMaxBytes: number };
 export const DEFAULT_FILE_LIMITS: FileLimits = {
-  fileMaxBytes: 25 * 1024 * 1024,
+  fileMaxBytes: FILE_MAX_BYTES_DEFAULT,
   workspaceMaxBytes: 2 * 1024 * 1024 * 1024,
 };
 

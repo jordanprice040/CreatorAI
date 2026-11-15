@@ -15,7 +15,12 @@ import {
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import pg from 'pg';
-import { migrationChecksum, migrations } from '@creator/db';
+import {
+  STUDIO_LOCK_KEY,
+  migrationChecksum,
+  migrations,
+  takeStudioLock,
+} from '@creator/db';
 import {
   guardOwnership,
   inspectDatabase,
@@ -295,6 +300,13 @@ test('installed studio: new studio, serve, sign in, record survives quit and rel
 
   const first = studio('serve', base);
   await first.next('ready', 60000);
+  // ADR-0108: the API itself accepts the window's origin on the app's fixed ports, not the
+  // dev defaults a plain local run would use.
+  assert.equal(
+    (await get(4310, '/api/health', { Origin: 'http://127.0.0.1:5173' }))
+      .status,
+    200,
+  );
   for (const port of [5173, 4310, 4320]) {
     const nonce = randomBytes(32).toString('hex');
     const r = await get(port, '/__creator/ownership', {
@@ -405,9 +417,77 @@ test('an occupied port is reported, never shared, and nothing else starts servin
   const e = await s.next('error', 60000);
   assert.equal(e.code, 'PORT_IN_USE');
   assert.equal(e.port, 5173);
+  // ADR-0108: the message names the holder (this test process) where the system can tell.
+  const said = String(e.message);
+  if (!said.endsWith('in use by another program.'))
+    assert.match(
+      said,
+      new RegExp(
+        `^Port 5173 is already in use by .*process ${process.pid}\\)?\\.$`,
+      ),
+    );
   assert.equal(await s.exit, 5);
   await assert.rejects(get(4310, '/api/health'));
   assert.equal((await get(5173, '/')).body, 'not the studio');
+});
+
+test('a database another studio holds is refused before any port is taken (ADR-0108)', async (t) => {
+  const fresh = await freshDatabase(t);
+  if (!fresh) return;
+  const dir = await home();
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const other = await takeStudioLock(fresh.url, 'pnpm dev, web port 5273');
+  assert.ok(other.held);
+  t.after(() => (other.held ? other.lock.release() : undefined));
+  const s = studio('serve', input(fresh.url, dir));
+  const e = await s.next('error', 60000);
+  assert.equal(e.code, 'STUDIO_RUNNING');
+  assert.match(String(e.message), /\(pnpm dev, web port 5273\)/);
+  assert.equal(await s.exit, 7);
+  await assert.rejects(get(4310, '/api/health'));
+});
+
+test('a serving studio stops if another studio takes its database while its lock connection is down (review 2 L-1)', async (t) => {
+  const fresh = await freshDatabase(t);
+  if (!fresh) return;
+  const dir = await home();
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const s = studio('serve', input(fresh.url, dir));
+  t.after(() => s.proc.kill());
+  await s.next('ready', 60000);
+  const holder = async () =>
+    (
+      await fresh.pool.query<{ pid: number }>(
+        `select pid from pg_locks where locktype = 'advisory' and granted and objid = $1
+           and database = (select oid from pg_database where datname = current_database())`,
+        [STUDIO_LOCK_KEY],
+      )
+    ).rows[0]?.pid;
+  const other = new pg.Client({
+    connectionString: fresh.url,
+    application_name: 'creator-agent-studio pnpm dev, web port 5273',
+  });
+  other.on('error', () => undefined);
+  await other.connect();
+  t.after(() => other.end().catch(() => undefined));
+  const pid = await holder();
+  assert.ok(pid);
+  const waiting = other.query('select pg_advisory_lock($1)', [STUDIO_LOCK_KEY]);
+  for (let i = 0; i < 100; i++) {
+    const r = await fresh.pool.query(
+      `select count(*)::int as n from pg_locks where locktype = 'advisory' and not granted and objid = $1`,
+      [STUDIO_LOCK_KEY],
+    );
+    if (r.rows[0].n === 1) break;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  await fresh.pool.query('select pg_terminate_backend($1)', [pid]);
+  await waiting;
+  const e = await s.next('error', 30000);
+  assert.equal(e.code, 'STUDIO_RUNNING');
+  assert.match(String(e.message), /\(pnpm dev, web port 5273\)/);
+  assert.equal(await s.exit, 7);
+  await assert.rejects(get(4310, '/api/health'));
 });
 
 test('unreachable database is an actionable error, not a crash loop', async () => {
