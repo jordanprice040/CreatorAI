@@ -124,8 +124,8 @@ async function inflatedSize(data: Uint8Array, limit: number): Promise<number> {
  * the check here could count one part while a viewer inflates another: the method, the
  * data-descriptor flag (and no encryption), the name, and (when the sizes are not after the
  * data) both sizes must agree. Review 4 N-1: a ZIP64 extra field (written by some .NET tools)
- * is accepted when its sizes are the same ones (or zero in a local header whose sizes follow
- * the data, as a streaming writer leaves them); one that says anything else is refused.
+ * is accepted when its sizes are the same ones; review 5 narrows what a part with a data
+ * descriptor may say (below).
  */
 function localDisagrees(
   bytes: Uint8Array,
@@ -153,20 +153,27 @@ function localDisagrees(
   const nameLen = view.getUint16(at + 26, true);
   const extraLen = view.getUint16(at + 28, true);
   if (at + 30 + nameLen + extraLen > bytes.length) return true;
+  // Review 5 L-1: SheetJS sizes its output buffer from the local header's uncompressed size
+  // (its ZIP64 value when that is non-zero, else the 32-bit field), whether or not the sizes
+  // also follow the data. So the sizes it will use must be 0 (a streaming writer's "unknown",
+  // which SheetJS grows from) or the central ones, with or without a data descriptor.
   const local64 = zip64Extra(view, at + 30 + nameLen, extraLen);
-  const streamed = Boolean(flags & 0x08);
-  if (local64) {
-    const same = (v: number | null, want: number | null) =>
-      v === want || (streamed && v === 0);
-    if (!same(local64.size, e.size) || !same(local64.compressed, e.compressed))
+  const used = (field: number, wide: number | null | undefined) =>
+    wide ? wide : view.getUint32(at + field, true);
+  const sizeOk = (v: number, want: number | null) => v === 0 || v === want;
+  if (
+    !sizeOk(used(22, local64?.size), e.size) ||
+    !sizeOk(used(18, local64?.compressed), e.compressed)
+  )
+    return true;
+  // Without a data descriptor the local header is the only record of the sizes: it must
+  // carry them (a ZIP64 value, when present, too).
+  if (!(flags & 0x08)) {
+    if (
+      used(22, local64?.size) !== e.size ||
+      used(18, local64?.compressed) !== e.compressed
+    )
       return true;
-  }
-  if (!streamed) {
-    const csz = view.getUint32(at + 18, true);
-    const usz = view.getUint32(at + 22, true);
-    const fits = (v: number, want: number | null) =>
-      v === want || (v === 0xffffffff && local64 !== null);
-    if (!fits(csz, e.compressed) || !fits(usz, e.size)) return true;
   }
   const raw = bytes.subarray(at + 30, at + 30 + nameLen);
   const name = new TextDecoder(flags & 0x800 ? 'utf-8' : 'latin1').decode(raw);

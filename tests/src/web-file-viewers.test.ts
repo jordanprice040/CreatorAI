@@ -220,6 +220,11 @@ function deflated(
     localName?: string;
     /** A ZIP64 extra field's two sizes in the central (and local) header. */
     zip64?: [number, number];
+    /**
+     * Sizes after the data (a data descriptor): the local header then says `size` for both
+     * sizes, and `local64` (if given) in a local ZIP64 field instead of `zip64`.
+     */
+    stream?: { size: number; local64?: [number, number] };
   }[],
 ): Uint8Array {
   const u16 = (n: number) => [n & 0xff, (n >> 8) & 0xff];
@@ -236,25 +241,30 @@ function deflated(
       ...u32(v % 2 ** 32),
       ...u32(Math.floor(v / 2 ** 32)),
     ];
-    const extra = p.zip64
-      ? [...u16(1), ...u16(16), ...u64(p.zip64[0]), ...u64(p.zip64[1])]
+    const z64 = (v?: [number, number]) =>
+      v ? [...u16(1), ...u16(16), ...u64(v[0]), ...u64(v[1])] : [];
+    const extra = z64(p.zip64);
+    const localExtra = p.stream ? z64(p.stream.local64) : extra;
+    const flags = p.stream ? 8 : 0;
+    const descriptor = p.stream
+      ? [...u32(0x08074b50), ...u32(0), ...u32(body.length), ...u32(size)]
       : [];
     const head = [
       ...u32(0x04034b50),
       ...u16(20),
-      ...u16(0),
+      ...u16(flags),
       ...u16(8),
       ...u32(0),
       ...u32(0),
-      ...u32(body.length),
-      ...u32(size),
+      ...u32(p.stream ? p.stream.size : body.length),
+      ...u32(p.stream ? p.stream.size : size),
       ...u16(ln.length),
-      ...u16(extra.length),
+      ...u16(localExtra.length),
       ...ln,
-      ...extra,
+      ...localExtra,
     ];
-    chunks.push(head, body);
-    central.push(...u32(0x02014b50), ...u16(20), ...u16(20), ...u16(0));
+    chunks.push(head, body, descriptor);
+    central.push(...u32(0x02014b50), ...u16(20), ...u16(20), ...u16(flags));
     central.push(
       ...u16(p.centralMethod ?? 8),
       ...u32(0),
@@ -264,7 +274,7 @@ function deflated(
     central.push(...u32(size), ...u16(n.length), ...u16(extra.length));
     central.push(...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(offset));
     central.push(...n, ...extra);
-    offset += head.length + body.length;
+    offset += head.length + body.length + descriptor.length;
   }
   const end = [
     ...u32(0x06054b50),
@@ -413,4 +423,35 @@ test('consistent ZIP64 sizes are accepted and inconsistent ones refused', async 
     { name: 'word/document.xml', data, zip64: [1 << 30, packed.length] },
   ]);
   assert.match((await r.officeCheck(lying)) ?? '', /may be damaged/);
+});
+
+// Review 5 L-1: SheetJS allocates its output from the local header's uncompressed size (the
+// local ZIP64 value when non-zero), even when the real sizes follow the data. A streamed part
+// may say 0 there (unknown) or the true size; anything else is refused.
+test('a streamed part must not claim another size in its local header', async () => {
+  const r = await rules();
+  const data = new TextEncoder().encode('<worksheet/>'.repeat(100));
+  const packed = deflateRawSync(data);
+  const part = (stream: { size: number; local64?: [number, number] }) =>
+    deflated([{ name: 'xl/workbook.xml', data, stream }]);
+  // What Go, Java and JSZip streaming writers do: zeros, real sizes in the descriptor.
+  assert.equal(await r.officeCheck(part({ size: 0 })), null);
+  // The true sizes repeated in the local header are fine too.
+  assert.equal(
+    await r.officeCheck(
+      part({ size: 0, local64: [data.length, packed.length] }),
+    ),
+    null,
+  );
+  // The reviewer's usz.xlsx: honest central sizes and descriptor, local header 0x1FFFFF00.
+  assert.match(
+    (await r.officeCheck(part({ size: 0x1fffff00 }))) ?? '',
+    /may be damaged/,
+  );
+  // Python's streamed force_zip64: 0xFFFFFFFF with a ZIP64 value of 0, so SheetJS would
+  // allocate 4 GiB.
+  assert.match(
+    (await r.officeCheck(part({ size: 0xffffffff, local64: [0, 0] }))) ?? '',
+    /may be damaged/,
+  );
 });
