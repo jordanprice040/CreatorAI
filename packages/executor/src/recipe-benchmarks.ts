@@ -69,9 +69,17 @@ export interface RecipeBenchmark {
   extended: { id: string; case: CliCase }[];
 }
 
+/**
+ * Review 1 N-3: files a tool leaves beside the frozen ones (Python's `__pycache__`, dotfiles such
+ * as `.DS_Store`) are never part of a benchmark, so they neither break nor join a freeze.
+ */
+export const ignoredBenchmarkFile = (name: string) =>
+  name === '__pycache__' || name.startsWith('.');
+
 async function walk(dir: string): Promise<string[]> {
   const out: string[] = [];
   for (const e of await readdir(dir, { withFileTypes: true })) {
+    if (ignoredBenchmarkFile(e.name)) continue;
     const p = join(dir, e.name);
     if (e.isDirectory()) out.push(...(await walk(p)));
     else out.push(p);

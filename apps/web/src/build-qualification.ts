@@ -100,7 +100,7 @@ export function startPacket(
       ? 'This is a fixture connection: the record is labelled fixture and says nothing about a real model.'
       : 'Plan requests are $0 on the plan and count against this connection’s daily cap. The data is synthetic.',
     `Pass bars: the build verifies (every frozen check passes and the reviewer approves) within ${c.max_calls} requests, and the exported package passes them again${offer.extended_cases ? `, plus ${offer.extended_cases} extended cases` : ''}${offer.scale === 'larger' ? ' and a structure check' : ''}.`,
-    'It runs in the background on this computer; you can leave the page, and Stop ends it at any time.',
+    'It runs in the background on this computer, and you can leave the page. Stop ends it after the request in progress answers or reaches its time limit (at most 2 minutes); nothing more is sent.',
   ];
 }
 

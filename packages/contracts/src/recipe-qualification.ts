@@ -243,8 +243,13 @@ export const StartRecipeQualificationRequestSchema = z.strictObject({
   benchmark_id: RecipeBenchmarkIdSchema,
   model_id: z.string().trim().min(1).max(200),
 });
+/**
+ * Review 1 L-3: Stop needs no version. A running qualification's version moves at every attempt,
+ * and Stop has no edit to protect; the state check makes it idempotent. A version sent by an older
+ * page is accepted and ignored.
+ */
 export const StopRecipeQualificationRequestSchema = z.strictObject({
-  expected_version: z.number().int().min(1),
+  expected_version: z.number().int().min(1).optional(),
 });
 
 /** A qualified record in the shape `unqualifiedTrial` matches builds against. */

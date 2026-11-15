@@ -102,6 +102,7 @@ import {
   type ChatMessage,
   usageOffStatement,
   CLAUDE_CODE_MIN_VERSION,
+  PLAN_RECONCILE_HINT,
   claudeCodeVersionSupported,
   isQualified,
   StartRecipeQualificationRequestSchema,
@@ -147,6 +148,7 @@ import {
   nextRecipeAttempt,
   recipeRecords,
   type NextRecipeAttempt,
+  type RecipeRoom,
 } from './recipe-qualification-store.js';
 import {
   webDiscoveryRequestGate,
@@ -6274,6 +6276,11 @@ export class ConnectionStore extends AutomationStore {
           problems.push(
             `${req.model_id} isn't qualified as the ${tc === 'patch_build' ? 'builder (t12-builder benchmark)' : 'reviewer (t12-reviewer benchmark)'} on this connection yet. Run that qualification first, above.`,
           );
+      const room = await this.#recipeRoom(c, conn);
+      if (room.kind === 'stop')
+        problems.push(
+          room.reason.charAt(0).toUpperCase() + room.reason.slice(1),
+        );
       const running = await c.query(
         "select 1 from recipe_qualifications where connection_id = $1 and state = 'running'",
         [conn.id],
@@ -6324,15 +6331,10 @@ export class ConnectionStore extends AutomationStore {
     body: unknown,
   ): Promise<RecipeQualificationRecord> {
     const ctx = normalize(ctxIn);
-    const req = parse(StopRecipeQualificationRequestSchema, body);
+    parse(StopRecipeQualificationRequestSchema, body);
     return this.tx(async (c) => {
       await this.requireOwner(c, uuid(ws), ctx.actorId);
       const q = await lockRecipeQualification(c, ws, id);
-      if (Number(q.version) !== req.expected_version)
-        throw fail(
-          'VERSION_CONFLICT',
-          'This qualification changed; reload and try again.',
-        );
       if (q.state !== 'running')
         throw fail(
           'INVALID_TRANSITION',
@@ -6424,7 +6426,64 @@ export class ConnectionStore extends AutomationStore {
     holder: string,
     requestLimit: number,
   ): Promise<NextRecipeAttempt> {
-    return this.tx((c) => nextRecipeAttempt(c, id, holder, requestLimit));
+    return this.tx((c) =>
+      nextRecipeAttempt(c, id, holder, requestLimit, async (connectionId) => {
+        const ws = (
+          await c.query(
+            'select workspace_id from plan_connections where id = $1',
+            [connectionId],
+          )
+        ).rows[0] as Row | undefined;
+        if (!ws)
+          return { kind: 'stop', reason: 'The connection no longer exists.' };
+        const conn = await this.#lock(c, String(ws.workspace_id), connectionId);
+        return this.#recipeRoom(c, conn);
+      }),
+    );
+  }
+
+  /**
+   * Review 1 M-1: whether the connection can take a build qualification attempt's requests
+   * now, by the admission rules that would otherwise refuse them mid-build: no request with an
+   * unknown outcome, room under the daily cap for a build (2 requests), and no other request
+   * running. A request left running past its timeout (the studio stopped during it) needs the
+   * owner, like an unknown one.
+   */
+  async #recipeRoom(c: PoolClient, conn: PlanConnection): Promise<RecipeRoom> {
+    const usage = await this.#usage(c, conn.id, null, null);
+    const caps = conn.settings.caps;
+    if (usage.unresolved > 0)
+      return {
+        kind: 'stop',
+        reason: `an earlier plan request on this connection has an unknown outcome; ${PLAN_RECONCILE_HINT}, then start the qualification again.`,
+      };
+    const room = dailyCap(caps, usage) - usage.last_24h_requests;
+    if (room < 2)
+      return {
+        kind: 'stop',
+        reason: `the connection's daily request cap leaves room for ${Math.max(0, room)} more request${room === 1 ? '' : 's'}, and a build needs at least 2. Start it again when the cap has room.`,
+      };
+    if (usage.in_flight > 0) {
+      const stale = (
+        await c.query(
+          `select count(*)::int as n from plan_requests where connection_id = $1
+             and state = 'in_flight'
+             and started_at < clock_timestamp() - make_interval(secs => $2::double precision / 1000)`,
+          [conn.id, caps.responses.request_timeout_ms + 60_000],
+        )
+      ).rows[0].n as number;
+      if (stale > 0)
+        return {
+          kind: 'stop',
+          reason: `a plan request on this connection has been running past its time limit (the studio may have stopped during it); ${PLAN_RECONCILE_HINT}, then start the qualification again.`,
+        };
+      return {
+        kind: 'wait',
+        reason:
+          'Waiting for another plan request on this connection to finish.',
+      };
+    }
+    return { kind: 'ok' };
   }
 
   /** The attempt's build, recorded once, when the build asks for its approval. */

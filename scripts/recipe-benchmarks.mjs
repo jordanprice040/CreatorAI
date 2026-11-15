@@ -21,8 +21,12 @@ import { fileURLToPath } from 'node:url';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DIR = join(ROOT, 'config/recipe-benchmarks');
 const sha = (b) => createHash('sha256').update(b).digest('hex');
+// Review 1 N-3: never freeze tool leftovers (Python's __pycache__, dotfiles); the studio ignores
+// them too (recipe-benchmarks.ts ignoredBenchmarkFile).
+const ignored = (n) => n === '__pycache__' || n.startsWith('.');
 const walk = (d) =>
   readdirSync(d)
+    .filter((n) => !ignored(n))
     .sort()
     .flatMap((n) =>
       statSync(join(d, n)).isDirectory() ? walk(join(d, n)) : [join(d, n)],

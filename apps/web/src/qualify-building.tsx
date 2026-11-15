@@ -118,7 +118,7 @@ export function QualifyBuilding({
     setError('');
     const out = await act(
       `recipe-qualifications/${r.id}/stop`,
-      { expected_version: r.version },
+      {},
       undefined,
       setError,
     );
@@ -246,9 +246,11 @@ export function QualifyBuilding({
         <div className="qualify-row" role="group">
           <span>
             {recordLine(running, prompts)}.{' '}
-            {running.executing
-              ? 'Building now; this can take several minutes an attempt and carries on if you leave this page.'
-              : 'Waiting for the studio to pick it up.'}
+            {running.reason
+              ? running.reason
+              : running.executing
+                ? 'Building now; this can take several minutes an attempt and carries on if you leave this page.'
+                : 'Waiting for the studio to pick it up.'}
           </span>
           <button
             type="button"

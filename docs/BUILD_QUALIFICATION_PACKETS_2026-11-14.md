@@ -34,7 +34,9 @@ and A5 are evidence that the build path works on this connection at both scales;
 no trial label today.
 
 Each "most" assumes every attempt uses its full request cap and each is replaced once after an
-infrastructure stop (a sign-in, limit or outage). A failed attempt ends the qualification at once, so
+infrastructure stop (a request that got no answer: network, provider, rate or usage limit, sign-in,
+timeout). An answer the role itself caused to fail (too long, out of turns, a different model) fails
+the attempt and is not replaced. A failed attempt ends the qualification at once, so
 a model that fails spends less.
 
 ## Packet H — the Claude route (local, unmodified `claude -p`, ADR-0050)
@@ -54,9 +56,17 @@ studio's computer is used; no API key and no other route.
 
 Known risk: the v5 benchmarks freeze a 120-second limit per builder or reviewer request (the same as
 the November 6 runs). The Claude Code connection allows 180 seconds. A Claude answer that takes
-longer than 120 seconds stops that attempt as an infrastructure fault: it is replaced once, and a
-second such stop ends the qualification as stopped (not as a failure of the model). If that
-happens, the fix is a new benchmark version with a longer limit, decided before any further run.
+longer than 120 seconds is cut off with an unknown outcome. That attempt ends without a verdict,
+and the studio then stops the qualification as **stopped**, never as a failure of the model,
+because no further request is admitted on the connection until the unknown one is reconciled
+(Models › the connection). It does not spend the replacement on a request that would be refused.
+If that happens, the fix is a new benchmark version with a longer limit, decided before any further
+run. (Review 1 M-1: before this fix, the refused replacement was recorded as a failed attempt.)
+
+Before every attempt and replacement the studio checks the connection first: an earlier request
+with an unknown outcome, or a daily cap without room for a build (2 requests), stops the
+qualification as stopped with the reason; another request still running makes it wait and look
+again 15 seconds later. Start is refused while a request with an unknown outcome is open.
 
 ## What to record
 
@@ -70,5 +80,6 @@ building › Show attempts). After each packet, the thread copies the records in
 Either Jordan presses **Qualify building** and confirms the packet in the app himself (that press is
 the owner's approval, and the studio admits no request beyond it), or he types an OK in the B1
 thread, for example "OK: run packet A steps A3 and A4 on the installed app" or "OK: run packet H",
-and the thread walks it through a Remote Control session. Stop under Qualify building ends a run at
-any time.
+and the thread walks it through a Remote Control session. Stop under Qualify building ends a run
+after the request in progress answers or reaches its time limit (at most 2 minutes); nothing more
+is sent.

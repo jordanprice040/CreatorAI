@@ -6,7 +6,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { join, relative, resolve } from 'node:path';
 import {
   CREDITS_OFF_STATEMENT,
@@ -28,6 +29,9 @@ import { BUILD_ROLE_PROMPTS, canonicalHash } from '@creator/domain';
 import {
   ProductSupervisor,
   digest,
+  ROLE_CAUSED_STOPS,
+  importsLedger,
+  hasTopLevelFunction,
   infrastructureStop,
   loadRecipeBenchmark,
   recipeFreezeProblems,
@@ -221,6 +225,83 @@ test('ADR-0105: the structure bar reads the package, and infrastructure stops ar
     infrastructureStop('Reviewer blocked: Error: Role stopped: x'),
     false,
   );
+  // Review 1 L-1: the v4 grader's rule, read as Python: strings and comments are not code.
+  assert.equal(hasTopLevelFunction('"""\ndef x(): pass\n"""\nX = 1\n'), false);
+  assert.equal(hasTopLevelFunction("s = 'def x(): pass'\n"), false);
+  assert.equal(
+    hasTopLevelFunction('@dec\ndef f(a,\n      b):\n    pass\n'),
+    true,
+  );
+  assert.equal(hasTopLevelFunction('async def f():\n    pass\n'), false);
+  assert.equal(importsLedger('import os, ledger\n'), true);
+  assert.equal(importsLedger('import os, ledger.rules as r\n'), true);
+  assert.equal(
+    importsLedger('from .ledger.report import (\n    a,\n    b,\n)\n'),
+    true,
+  );
+  assert.equal(
+    importsLedger('def main():\n    from ledger import parse\n'),
+    true,
+  );
+  assert.equal(importsLedger('if True: import ledger\n'), true);
+  assert.equal(importsLedger('s = "import ledger"\n# import ledger\n'), false);
+  assert.equal(importsLedger('"""\nfrom ledger import x\n"""\n'), false);
+  assert.equal(importsLedger('import ledgers\nfrom . import ledger\n'), false);
+  // Review 1 L-2 and M-1: only a request that got no answer, or one refused at admission, is
+  // infrastructure; an answer the role itself caused to fail is the model's work.
+  for (const code of [
+    'network_error',
+    'provider_error',
+    'stream_interrupted',
+    'rate_limited',
+    'auth_failed',
+    'token_unavailable',
+    'claude_usage_limit',
+    'claude_sign_in_invalid',
+    'unavailable',
+  ])
+    assert.equal(
+      infrastructureStop(`Error: Role stopped: failed ${code}`),
+      true,
+      code,
+    );
+  for (const code of ROLE_CAUSED_STOPS)
+    assert.equal(
+      infrastructureStop(`Error: Role stopped: failed ${code}`),
+      false,
+      code,
+    );
+  assert.equal(
+    infrastructureStop('ContractError: This plan request is not admitted.'),
+    true,
+  );
+});
+
+test('review 1 N-3: tool leftovers beside a benchmark neither break nor join its freeze', async (t) => {
+  await mkdir(resolve('.verification'), { recursive: true });
+  const tmp = await mkdtemp(join(resolve('.verification'), 'recipe-freeze-'));
+  t.after(() => rm(tmp, { recursive: true, force: true }));
+  const id = 'p14-small-wordtally-v5';
+  await cp(
+    fileURLToPath(path(`config/recipe-benchmarks/${id}/`)),
+    join(tmp, id),
+    {
+      recursive: true,
+    },
+  );
+  await mkdir(join(tmp, id, 'reference/src/__pycache__'), { recursive: true });
+  await writeFile(
+    join(tmp, id, 'reference/src/__pycache__/main.cpython-312.pyc'),
+    'x',
+  );
+  await writeFile(join(tmp, id, '.DS_Store'), 'x');
+  const root = pathToFileURL(`${tmp}/`);
+  assert.deepEqual(await recipeFreezeProblems(id, root), []);
+  await writeFile(join(tmp, id, 'reference/src/extra.py'), 'x = 1\n');
+  assert.match(
+    (await recipeFreezeProblems(id, root)).join(' '),
+    /reference\/src\/extra\.py was added after the freeze/,
+  );
 });
 
 test('ADR-0105: only a finished, non-fixture qualified record lifts the trial label, for its own roles', () => {
@@ -287,8 +368,14 @@ async function setup(t: test.TestContext) {
     display_name: 'owner',
   });
   // The roles answer from the packet they receive: the reference solution, then an approval.
-  const answer = { id: 'p15-small-signup-v5' as string, reviewer: 'approve' };
+  const answer = {
+    id: 'p15-small-signup-v5' as string,
+    reviewer: 'approve',
+    /** Awaited before each answer, so a test can act while a request is in flight. */
+    before: async () => {},
+  };
   const fake = await fakePlan({
+    beforeResponse: () => answer.before(),
     respond: (body) => {
       const input = (body.input as { content: string }[])[0]!.content;
       if (body.instructions === BUILD_ROLE_PROMPTS.builder) {
@@ -707,4 +794,124 @@ test('ADR-0105: a reviewer that blocks fails the attempt; a lost lease voids it 
   assert.equal(done.attempts[0]!.state, 'failed');
   assert.equal(done.attempts[0]!.result!.bars[0]!.key, 'build_verified');
   assert.equal(done.attempts[0]!.result!.bars[0]!.passed, false);
+});
+
+test('review 1 M-1: an unknown outcome refuses Start, and mid-run it stops the qualification instead of failing the model', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  await s.qualifyRoles();
+  const verification = (
+    await s.db.pool.query(
+      'select id, state from plan_requests where connection_id = $1',
+      [s.conn.id],
+    )
+  ).rows[0] as { id: string; state: string };
+  const mark = (state: string) =>
+    s.db.pool.query('update plan_requests set state = $2 where id = $1', [
+      verification.id,
+      state,
+    ]);
+  await mark('unknown');
+  await rejects(
+    'INVALID_TRANSITION',
+    s.start('p15-small-signup-v5'),
+    /An earlier plan request on this connection has an unknown outcome/,
+  );
+  await mark(verification.state);
+  const q = await s.start('p15-small-signup-v5');
+  // While the builder's request is in flight, an earlier request's outcome becomes unknown (as
+  // a Claude answer cut off at its time limit does). The reviewer's request is then refused at
+  // admission: that judges nothing about the roles.
+  let calls = 0;
+  s.answer.before = async () => {
+    if (++calls === 1) await mark('unknown');
+  };
+  const sent = s.fake.responseRequests.length;
+  const done = await s.run(q.id);
+  assert.deepEqual(s.errors, []);
+  assert.equal(done.state, 'stopped', done.reason ?? '');
+  assert.match(
+    done.reason!,
+    /Stopped before attempt 1 \(its replacement\), which was not started: an earlier plan request/,
+  );
+  assert.deepEqual(
+    done.attempts.map((a) => a.state),
+    ['invalid'],
+    'refused at admission is no verdict, and no replacement is spent on a refusal',
+  );
+  assert.match(done.attempts[0]!.reason!, /infrastructure/);
+  assert.equal(
+    s.fake.responseRequests.length - sent,
+    1,
+    'only the builder request was sent',
+  );
+});
+
+test('review 1 M-1: another request running makes a qualification wait; one left running past its limit stops it', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  await s.qualifyRoles();
+  const q = await s.start('p15-small-signup-v5');
+  const id = (
+    await s.db.pool.query(
+      'select id from plan_requests where connection_id = $1',
+      [s.conn.id],
+    )
+  ).rows[0].id as string;
+  await s.db.pool.query(
+    "update plan_requests set state = 'in_flight', started_at = clock_timestamp() where id = $1",
+    [id],
+  );
+  assert.equal((await s.store.leaseRecipeQualification('a', 60_000))?.id, q.id);
+  const wait = await s.store.nextRecipeAttempt(q.id, 'a', 4);
+  assert.equal(wait.kind, 'wait');
+  let r = await s.store.getRecipeQualification(owner, s.ws.id, q.id);
+  assert.equal(r.state, 'running');
+  assert.equal(r.attempts.length, 0, 'nothing was started or spent');
+  assert.match(r.reason!, /Waiting for another plan request/);
+  // The runner leaves it for a short wait instead of taking it again at once.
+  assert.equal(await s.store.leaseRecipeQualification('b', 60_000), null);
+  await s.db.pool.query(
+    "update plan_requests set started_at = clock_timestamp() - interval '1 hour' where id = $1",
+    [id],
+  );
+  assert.deepEqual(await s.store.nextRecipeAttempt(q.id, 'a', 4), {
+    kind: 'end',
+  });
+  r = await s.store.getRecipeQualification(owner, s.ws.id, q.id);
+  assert.equal(r.state, 'stopped');
+  assert.match(r.reason!, /running past its time limit/);
+  assert.equal(r.attempts.length, 0);
+});
+
+test('review 1 N-2: Stop during a running attempt voids it; the build it cut short is never recorded as a failure', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  await s.qualifyRoles();
+  const q = await s.start('p15-small-signup-v5');
+  let calls = 0;
+  s.answer.before = async () => {
+    // L-3: Stop needs no version, so a page that read an older one can still stop it.
+    if (++calls === 1)
+      await s.store.stopRecipeQualification(owner, s.ws.id, q.id, {});
+  };
+  const sent = s.fake.responseRequests.length;
+  const done = await s.run(q.id);
+  assert.deepEqual(s.errors, []);
+  assert.equal(done.state, 'stopped');
+  assert.equal(done.reason, 'Stopped by the owner.');
+  assert.deepEqual(
+    done.attempts.map((a) => a.state),
+    ['invalid'],
+  );
+  assert.equal(
+    done.attempts[0]!.reason,
+    'Stopped by the owner before a verdict.',
+  );
+  assert.equal(done.attempts[0]!.result, null, 'the late outcome was dropped');
+  assert.equal(
+    s.fake.responseRequests.length - sent,
+    1,
+    'nothing more was sent after Stop',
+  );
 });

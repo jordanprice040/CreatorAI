@@ -19,7 +19,23 @@ export type NextRecipeAttempt =
       slot: number;
       replaces: string | null;
     }
+  /** The connection can't take an attempt's requests yet (another request is running). */
+  | { kind: 'wait'; reason: string }
   | { kind: 'end' };
+
+/**
+ * Review 1 M-1: whether the connection can take an attempt's requests now, checked before an
+ * attempt or a replacement is created, so a refusal at admission does not spend one. `stop`
+ * needs the owner (an earlier request with an unknown outcome, the daily cap); `wait` passes by
+ * itself (another request running now).
+ */
+export type RecipeRoom =
+  | { kind: 'ok' }
+  | { kind: 'wait'; reason: string }
+  | { kind: 'stop'; reason: string };
+
+/** How long a waiting qualification waits before the runner looks again. */
+export const RECIPE_WAIT_MS = 15_000;
 
 const nullableIso = (v: unknown) => (v == null ? null : iso(v));
 
@@ -142,6 +158,9 @@ export async function nextRecipeAttempt(
   id: string,
   holder: string,
   requestLimit: number,
+  room: (connectionId: string) => Promise<RecipeRoom> = async () => ({
+    kind: 'ok',
+  }),
 ): Promise<NextRecipeAttempt> {
   const q = await heldRow(c, id, holder);
   if (!q) return { kind: 'end' };
@@ -186,6 +205,34 @@ export async function nextRecipeAttempt(
       );
       return { kind: 'end' };
     }
+    const free = await room(String(q.connection_id));
+    if (free.kind === 'stop') {
+      await finishQualification(
+        c,
+        String(q.id),
+        'stopped',
+        passed,
+        `Stopped before attempt ${slot}${last ? ' (its replacement)' : ''}, which was not started: ${free.reason}`,
+      );
+      return { kind: 'end' };
+    }
+    if (free.kind === 'wait') {
+      // Looked at again after a short wait; the lease stays with this holder until then.
+      await c.query(
+        `update recipe_qualifications set reason = $2,
+           lease_until = clock_timestamp() + make_interval(secs => $3::double precision / 1000),
+           version = version + 1
+         where id = $1 and reason is distinct from $2`,
+        [q.id, free.reason.slice(0, 4000), RECIPE_WAIT_MS],
+      );
+      await c.query(
+        `update recipe_qualifications set
+           lease_until = clock_timestamp() + make_interval(secs => $2::double precision / 1000)
+         where id = $1`,
+        [q.id, RECIPE_WAIT_MS],
+      );
+      return { kind: 'wait', reason: free.reason };
+    }
     const attemptId = randomUUID();
     const replaces = last ? String(last.id) : null;
     await c.query(
@@ -194,7 +241,7 @@ export async function nextRecipeAttempt(
       [attemptId, q.id, slot, replaces, requestLimit],
     );
     await c.query(
-      'update recipe_qualifications set version = version + 1 where id = $1',
+      'update recipe_qualifications set reason = null, version = version + 1 where id = $1',
       [q.id],
     );
     return { kind: 'attempt', attempt_id: attemptId, slot, replaces };

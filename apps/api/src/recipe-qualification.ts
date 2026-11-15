@@ -223,6 +223,8 @@ export class RecipeQualificationRunner {
       Math.min(RENEW_MS, Math.max(1000, Math.floor(ms / 4))),
     );
     renew.unref();
+    // A waiting qualification keeps its short lease, so it is looked at again when it lapses.
+    let keepLease = false;
     try {
       const ctx: CommandContext = { actorId };
       const q = await store.getRecipeQualification(ctx, ws, id);
@@ -235,6 +237,10 @@ export class RecipeQualificationRunner {
           info.caps.max_calls,
         );
         if (next.kind === 'end') return;
+        if (next.kind === 'wait') {
+          keepLease = true;
+          return;
+        }
         const out = await this.#attempt(ctx, ws, q, next.attempt_id).catch(
           (e: unknown) => ({
             state: 'invalid' as const,
@@ -247,9 +253,10 @@ export class RecipeQualificationRunner {
       }
     } finally {
       clearInterval(renew);
-      await store
-        .releaseRecipeQualificationLease(id, this.holder)
-        .catch((e: unknown) => this.deps.onError?.(e));
+      if (!keepLease)
+        await store
+          .releaseRecipeQualificationLease(id, this.holder)
+          .catch((e: unknown) => this.deps.onError?.(e));
     }
   }
 
@@ -449,7 +456,9 @@ export class RecipeQualificationRunner {
     bars.push({
       key: 'requests_within_cap',
       passed: outcome.calls <= info.caps.max_calls,
-      detail: `${outcome.calls} of at most ${info.caps.max_calls} requests.`,
+      // Review 1 N-1: the build itself stops at its cap, so this records the count rather than
+      // catching an overrun.
+      detail: `${outcome.calls} of at most ${info.caps.max_calls} requests (the build's own cap).`,
     });
     const artifacts = new ArtifactSupervisor(products, executor);
     const packaged = await artifacts.package(product.id, outcome.id, ports);

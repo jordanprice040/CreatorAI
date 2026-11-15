@@ -22,7 +22,7 @@
   "attempts": 3,
   "one_build_per_attempt": "Each attempt is its own product and build in the studio qualification harness, from this spec.json content exactly (no catalog run, selection or spec is created)",
   "qualified_at_declared_scale_when": "All 3 attempts meet every pass bar. Fewer is recorded as k of 3 and is not qualified; nothing is re-run to replace a failure",
-  "invalid_attempt_when": "An infrastructure fault outside the roles (a role request that got no answer, a worker that did not finish a case, a studio restart) stops the attempt before a verdict. It is recorded with its cause, and each attempt may be replaced at most once",
+  "invalid_attempt_when": "An infrastructure fault outside the roles stops the attempt before a verdict: a role request that got no answer (network, provider, rate or usage limit, sign-in, token or timeout), a request the studio refused at admission (an earlier request with an unknown outcome or one still running, the daily cap, a lost sign-in), a worker that did not finish a case, or a studio restart. It is recorded with its cause, and each attempt may be replaced at most once. A role answer the role itself caused to end without the contract (output too long or incomplete, out of turns, a model other than the one asked for, or that model refused) is a failed attempt, not an infrastructure fault",
   "pass_bar_per_attempt": [
     "Studio build reaches verified_candidate: QA passes every frozen studio case, held-out ones included, in the isolation worker, and the reviewer approves with no findings (the studio's own rule)",
     "Requests used are at most the plan's max_calls (4)",
@@ -280,5 +280,7 @@
       ],
       "reason_contains": "request outside the site"
     }
-  ]
+  ],
+  "before_each_attempt": "The studio checks the connection before starting an attempt or a replacement: an earlier request with an unknown outcome, or a daily cap without room for 2 requests, stops the qualification (state stopped, not a failure) without starting it; another request still running makes it wait",
+  "recut_note": "Re-cut on 2026-11-15 before any run (PR #200 review 1): the infrastructure rule above and, for the larger benchmark, the structure check now match the rules they copy. The first cut never ran"
 }
