@@ -16,6 +16,7 @@ import {
   type ResponseType,
   type SkepticOutput,
   type Sufficiency,
+  cutText,
   z,
 } from '@creator/contracts';
 import { canonicalHash } from './rules.js';
@@ -116,7 +117,7 @@ export function buildPacket(input: {
       ref: `C${i + 1}`,
       claim_id: claim.claim.id,
       version: claim.claim.version,
-      statement: (claim.claim.statement ?? claim.claim.title).slice(0, 2000),
+      statement: cutText(claim.claim.statement ?? claim.claim.title, 2000),
       basis: claim.claim.basis,
       bears_on: [...new Set(bears_on)],
       status: claim.status,
@@ -135,7 +136,7 @@ export function buildPacket(input: {
           stance: r.support.stance,
           support_type: r.support.support_type,
           freshness: r.freshness,
-          quote: r.support.quote ? r.support.quote.slice(0, 400) : null,
+          quote: r.support.quote ? cutText(r.support.quote, 400) : null,
         })),
     }),
   );
@@ -150,30 +151,48 @@ export function buildPacket(input: {
     max_age_days: input.max_age_days,
     assessed_at: input.now.toISOString(),
   };
-  // The catalog gets the room the brief and claims leave, newest entries first, so a workspace
-  // with many records can still start a discovery (live run 2026-11-14: 40 entries filled about
-  // 16,000 of the 19,000 characters and a two-claim brief was refused). Entries left out are
-  // counted in the packet.
-  let room =
+  // The catalog gets the room the brief and claims leave, so a workspace with many records can
+  // still start a discovery (live run 2026-11-14: 40 entries filled about 16,000 of the 19,000
+  // characters and a two-claim brief was refused). When the entries do not all fit at full
+  // length, every title is cut to 160 and every summary to 200 characters (as exploration does)
+  // before any entry is left out; then entries are taken newest first, skipping one that does
+  // not fit (so the kept ones are the newest that fit, with gaps). Entries left out are counted,
+  // and the duplicate check still reads all of them (disposeDiscovery's `catalog`).
+  const room =
     (input.limit ?? MAX_PACKET_CHARS) -
     JSON.stringify({ ...base, catalog_beyond_limit: 999 }).length;
+  const fetched = input.catalog.slice(0, 40);
+  const sizeOf = (e: Omit<CatalogEntry, 'ref'>, i: number) =>
+    JSON.stringify({ ...e, ref: `K${i + 1}` }).length + 1;
+  const whole = fetched.reduce((n, e, i) => n + sizeOf(e, i), 0) <= room;
+  const shown = whole
+    ? fetched
+    : fetched.map((e) => ({
+        ...e,
+        title: cutText(e.title, 160),
+        summary: cutText(e.summary, 200),
+      }));
   const catalog: CatalogEntry[] = [];
-  let beyond = 0;
-  for (const c of input.catalog) {
-    const entry: CatalogEntry = { ...c, ref: `K${catalog.length + 1}` };
-    const size = JSON.stringify(entry).length + 1;
-    if (catalog.length >= 40 || size > room) {
-      beyond += 1;
-      continue;
-    }
-    catalog.push(entry);
-    room -= size;
+  let left = room;
+  for (const c of shown) {
+    const size = sizeOf(c, catalog.length);
+    if (size > left) continue;
+    catalog.push({ ...c, ref: `K${catalog.length + 1}` });
+    left -= size;
   }
+  const beyond = fetched.length - catalog.length;
   return {
     ...base,
     catalog,
     ...(beyond ? { catalog_beyond_limit: beyond } : {}),
   };
+}
+
+/** The note a person reads when the packet had no room for some catalog entries (L-3). */
+export function catalogBeyondNote(packet: EvidencePacket): string | null {
+  const n = packet.catalog_beyond_limit ?? 0;
+  if (!n) return null;
+  return `${n} older ${n === 1 ? 'problem, idea or option was' : 'problems, ideas and options were'} not shown to the designers for lack of room; app rules still checked every proposal against ${n === 1 ? 'it' : 'them'} for duplicates.`;
 }
 
 // ---- Catalog similarity (duplicates) ---------------------------------------------------
@@ -201,10 +220,10 @@ export const DUPLICATE_TITLE = 0.6;
 export const DUPLICATE_BODY = 0.45;
 const MATCH_FLOOR = 0.3;
 /** Catalog entries resembling a proposal, best first; deterministic word overlap. */
-export function catalogMatches(
+export function catalogMatches<E extends Omit<CatalogEntry, 'ref'>>(
   p: Pick<ProposalOutput, 'title' | 'mechanism'>,
-  catalog: CatalogEntry[],
-): { entry: CatalogEntry; similarity: number; duplicate: boolean }[] {
+  catalog: readonly E[],
+): { entry: E; similarity: number; duplicate: boolean }[] {
   const title = tokens(p.title);
   const body = tokens(`${p.title} ${p.mechanism}`);
   return catalog
@@ -633,8 +652,14 @@ export function disposeDiscovery(input: {
   excluded: { perspective: ResponseType; reason: string }[];
   tasks: DispositionTask[];
   stopped_insufficient: boolean;
+  /**
+   * Every fetched record to check duplicates against, including those the packet had no room
+   * for (review 1 of #202, L-3). Defaults to the packet's catalog.
+   */
+  catalog?: readonly Omit<CatalogEntry, 'ref'>[] | undefined;
 }): Omit<DiscoveryResult, 'catalog_records'> {
   const { packet, tasks } = input;
+  const against = input.catalog ?? packet.catalog;
   const locate = tasks
     .filter((t) => t.kind === 'locate' && t.state === 'succeeded')
     .sort((a, b) => b.repair - a.repair)[0];
@@ -695,7 +720,7 @@ export function disposeDiscovery(input: {
     const reasons: string[] = [];
     let disposition: DiscoveryResult['proposals'][number]['disposition'];
     const match = out
-      ? catalogMatches(out, packet.catalog).find((m) => m.duplicate)
+      ? catalogMatches(out, against).find((m) => m.duplicate)
       : undefined;
     if (!out) {
       disposition = 'failed';

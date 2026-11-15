@@ -600,7 +600,7 @@ const NEXT: Record<AutopilotStopKind, Omit<AutopilotNext, 'setting'>[]> = {
       kind: 'continue',
       label: 'Continue',
       detail:
-        'Goes on with the claims you added; with none added it stops here again.',
+        'Goes on with the claims you added; while claims still wait and none were added, it stops here again.',
     },
   ],
   person_choice: [

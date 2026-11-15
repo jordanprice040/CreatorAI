@@ -3,6 +3,7 @@ import type { PoolClient } from 'pg';
 import {
   AUTOPILOT_STAGE_LABEL,
   ContractError,
+  cutText,
   ExplorationResultSchema,
   WebDiscoveryScopeSchema,
   MODEL_ONLY_ETHICS_NOTE,
@@ -252,6 +253,20 @@ export interface AutopilotRunnerOptions {
 }
 
 export class AutopilotRunner {
+  /**
+   * Keys of steps whose start call itself threw, so nothing was sent (review 1 of #202, L-5).
+   * Only such a step gives back the calls it set aside: a start that returned and then failed
+   * to be recorded may have spent, and unknown spend is not zero.
+   */
+  readonly #refused = new Set<string>();
+  async #starting<T>(step: AutopilotStep, start: () => Promise<T>): Promise<T> {
+    try {
+      return await start();
+    } catch (e) {
+      if (step.key) this.#refused.add(step.key);
+      throw e;
+    }
+  }
   readonly #live = new Map<
     string,
     { abort: AbortController; done: Promise<void> }
@@ -1061,13 +1076,9 @@ export class AutopilotRunner {
         }
       }
     } catch (e) {
-      // A step that never recorded what it started sent nothing: its start was refused. The
-      // proposal step asks the chat model itself, so its calls are kept.
-      const cur =
-        step.stage === 'proposal'
-          ? null
-          : await this.store.getAutopilot(ctx, ws, a.id).catch(() => null);
-      const unsent = !!cur && cur.steps.at(-1)?.child == null;
+      // Only a step whose start call itself threw sent nothing (L-5); anything else may have
+      // spent, so its calls stay set aside.
+      const unsent = !!step.key && this.#refused.delete(step.key);
       const stop: Stop = {
         outcome: refusalOutcome(codeOf(e)),
         kind: refusalKind(e),
@@ -1232,7 +1243,10 @@ export class AutopilotRunner {
       };
     let id = step.child?.kind === 'web_discovery' ? step.child.id : undefined;
     if (!id) {
-      const d = await this.web.start(keyed, ws, a.run_id, request);
+      const web = this.web;
+      const d = await this.#starting(step, () =>
+        web.start(keyed, ws, a.run_id, request),
+      );
       id = d.id;
       const child = { kind: 'web_discovery' as const, id };
       if (!(await this.#record(ctx, ws, a, child))) {
@@ -1413,17 +1427,13 @@ export class AutopilotRunner {
   ): Promise<Result> {
     let id = step.child?.id;
     if (!id) {
-      const started =
+      const started = await this.#starting(step, () =>
         step.stage === 'explore'
-          ? await this.store.startExploration(keyed, ws, a.run_id, step.request)
+          ? this.store.startExploration(keyed, ws, a.run_id, step.request)
           : step.stage === 'discover'
-            ? await this.store.startDiscovery(keyed, ws, a.run_id, step.request)
-            : await this.store.startAssessment(
-                keyed,
-                ws,
-                a.run_id,
-                step.request,
-              );
+            ? this.store.startDiscovery(keyed, ws, a.run_id, step.request)
+            : this.store.startAssessment(keyed, ws, a.run_id, step.request),
+      );
       id = started.workflow.id;
       if (!(await this.#record(ctx, ws, a, { kind: 'workflow', id }))) {
         // Stopped between the start and the record: stop what was just started (review L-1).
@@ -2104,7 +2114,7 @@ export class AutopilotRunner {
           r.then.kind === 'skip' ? ('skipped' as const) : ('stopped' as const),
         child: r.child ?? s.child,
         calls: s.calls - release,
-        note: r.fallback.note.slice(0, 1200),
+        note: cutText(r.fallback.note, 1200),
         fallback: r.fallback,
         stop_kind: r.fallback.instead_of,
         finished_at: now,
@@ -2163,7 +2173,7 @@ export class AutopilotRunner {
         state: 'stopped' as const,
         child,
         calls: s.calls - release,
-        note: stop.note.slice(0, 1200),
+        note: cutText(stop.note, 1200),
         no_retry: stop.final ?? null,
         stop_kind: stop.kind ?? 'other',
         ...(stop.asked ? { asked: stop.asked } : {}),

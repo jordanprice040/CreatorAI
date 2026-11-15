@@ -2813,7 +2813,7 @@ test('P-12: a web search whose claims wait for a person stops the autopilot; All
   assert.equal(started.length, 1, 'Continue did not search again');
   assert.match(
     again.next?.find((n) => n.kind === 'continue')?.detail ?? '',
-    /with none added it stops here again/,
+    /while claims still wait and none were added, it stops here again/,
   );
 
   // A later Allow still goes on from that first search instead of searching again.
@@ -3287,31 +3287,16 @@ test('review 1 L-4: a discovery a person runs gets no cited-claim links, even wi
   assert.equal(cited.rowCount, 0);
 });
 
-test('live run 2026-11-14: a step refused before it sent anything gives back the calls it set aside', async (t) => {
-  const h = await setup(t);
-  if (!h) return;
+/** A research-only autopilot whose web search is the given stand-in (review 1 of #202). */
+async function researchAutopilot(
+  h: NonNullable<Awaited<ReturnType<typeof setup>>>,
+  web: AutopilotWeb,
+) {
   const research = {
     connection_id: '00000000-0000-4000-8000-0000000000c1',
     model_id: 'gpt-test',
     scope: WebDiscoveryScopeSchema.parse({ interests: ['volunteers'] }),
     input_hash: 'c'.repeat(64),
-  };
-  let starts = 0;
-  const web: AutopilotWeb = {
-    accept: async () => null,
-    start: async () => {
-      starts += 1;
-      throw new ContractError(
-        'INVALID_CONTRACT',
-        'Refused before any request (test).',
-      );
-    },
-    read: async () => {
-      throw new Error('never read');
-    },
-    isActive: () => true,
-    resume: async () => null,
-    cancel: async () => null,
   };
   const runner = new AutopilotRunner(h.store, web, {
     pollMs: 5,
@@ -3329,13 +3314,81 @@ test('live run 2026-11-14: a step refused before it sent anything gives back the
     h.body(h.config({ research })),
   );
   await runner.settled(a.id);
-  const b = await h.store.getAutopilot(owner, h.ws.id, a.id);
+  return h.store.getAutopilot(owner, h.ws.id, a.id);
+}
+const webStub = (start: AutopilotWeb['start']): AutopilotWeb => ({
+  accept: async () => null,
+  start,
+  read: async () => {
+    throw new Error('Reading failed (test).');
+  },
+  isActive: () => true,
+  resume: async () => null,
+  cancel: async () => null,
+});
+
+test('live run 2026-11-14: a step refused before it sent anything gives back the calls it set aside, also on a retry', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  let starts = 0;
+  const refusing = webStub(async () => {
+    starts += 1;
+    throw new ContractError(
+      'INVALID_CONTRACT',
+      'Refused before any request (test).',
+    );
+  });
+  const b = await researchAutopilot(h, refusing);
   assert.equal(b.outcome, 'failed', b.explanation);
   assert.match(b.explanation, /Refused before any request/);
-  assert.ok(starts >= 1);
+  assert.equal(starts, 1);
   assert.ok(
     b.steps.every((s) => s.child === null && s.calls === 0),
     JSON.stringify(b.steps),
   );
   assert.equal(b.calls_reserved, 0, 'nothing stays set aside for a refusal');
+
+  // Review 1 L-6: with one retry allowed, both refused attempts give their calls back.
+  await h.store.saveAutopilotSettings(owner, h.ws.id, {
+    expected_version: 0,
+    values: { ...AUTOPILOT_SETTINGS_DEFAULT, retry_failed: 1 },
+  });
+  starts = 0;
+  const c = await researchAutopilot(h, refusing);
+  assert.equal(c.outcome, 'failed', c.explanation);
+  assert.equal(starts, 2, 'tried twice');
+  assert.equal(c.steps.length, 2);
+  assert.ok(
+    c.steps.every((s) => s.calls === 0),
+    JSON.stringify(c.steps),
+  );
+  assert.equal(c.calls_reserved, 0);
+});
+
+test('review 1 of #202 L-5: a start that returned keeps its calls set aside even when recording it failed', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  // The search starts (so it may have spent), then recording its child fails once.
+  let failNext = false;
+  const advance = h.store.advanceAutopilot.bind(h.store);
+  h.store.advanceAutopilot = async (...args) => {
+    if (failNext) {
+      failNext = false;
+      throw new Error('Recording failed (test).');
+    }
+    return advance(...args);
+  };
+  const b = await researchAutopilot(
+    h,
+    webStub(async () => {
+      failNext = true;
+      return { id: '00000000-0000-4000-8000-0000000000d4' };
+    }),
+  );
+  h.store.advanceAutopilot = advance;
+  assert.equal(b.outcome, 'failed', b.explanation);
+  assert.match(b.explanation, /Recording failed/);
+  assert.equal(b.steps[0]!.child, null, 'the child was never recorded');
+  assert.equal(b.steps[0]!.calls, 2, 'unknown spend is not zero');
+  assert.equal(b.calls_reserved, 2);
 });
