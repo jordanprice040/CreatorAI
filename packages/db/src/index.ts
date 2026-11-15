@@ -46,3 +46,4 @@ export type {
   RecipeRoom,
 } from './recipe-qualification-store.js';
 export * from './studio-lock.js';
+export * from './support-report-store.js';

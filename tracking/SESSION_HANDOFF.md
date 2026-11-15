@@ -1,5 +1,9 @@
 # Session handoff — November 10, 2026
 
+## November 15 handoff — copy a support report (ADR-0118, F5)
+
+Branch `claude/project-thread-p0o8qe` from main f5728aa, no migration. Domain `support-report.ts`: `SupportFacts`, `redactSupportText(text, identity)`, `renderSupportReport(facts, identity)`, `SUPPORT_FAILURE_LIMIT = 20`. DB `support-report-store.ts`: `supportFailures(pool, limit)` (one union over failed workflow, step, autopilot, web discovery, model request, GitHub operation, portfolio scheduler and job, and recipe attempt rows) and `supportConnections(pool)`. Contracts `support-report.ts`: `SupportReportSchema {generated_at, text, hidden}`. API `support-report.ts`: `supportReportRoutes` (wired after `opsRoutes` in `index.ts`, reuses `opsRoutes.evaluate` and `maintenance.snapshot`) and `localIdentity(env)`. Web: `support-report.tsx` (`SupportReportPanel`) + `support-report.css`, mounted with one line at the end of `operations.tsx`. Tests `tests/src/support-report.test.ts`; walk in `tracking/evidence/support-report/`. Next: review in a separate thread.
+
 ## November 15 handoff — autopilot fixes from the third live rerun
 
 Branch `claude/project-thread-77qqks`, restarted from main 42dce84 after #205 merged. No migration or ADR.

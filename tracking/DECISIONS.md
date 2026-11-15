@@ -1,5 +1,19 @@
 # Decision log
 
+## ADR-0118 — Copy a support report from Monitor > Workers (November 15, 2026; no migration)
+
+**Plan:** feature idea F5 in `/mnt/project-files/plans/FEATURE_IDEAS_PLAN_2026-11-15.md` (Jordan asked for all 13 feature ideas, November 15, 14:35 UTC). ADR-0118 was reserved for it; it needs no migration.
+
+**Decision.** Monitor > Workers gets a Support report section. "Prepare support report" reads `GET /api/support/report` (owner only, like operations status; read-only, `Cache-Control: no-store`). The server builds the whole text deterministically, with no model call: app version, commit, schema, deployment, OS and Node; readiness checks and maintenance jobs; workflow leases, local jobs, outbox and paired local workers; model connections (sign-in state and reason, failed or unknown requests in the last day), GitHub connections and saved API keys (provider and model only); and the newest 20 errors or failed steps with their ids, workspace, and fixture or real label (failed workflows and workflow steps, failed autopilots, failed or interrupted web discoveries, failed, rejected or unknown model requests, failed or unknown GitHub operations, portfolio scheduler failures and jobs, failed recipe qualification attempts). Sections that cannot be read say so instead of failing the report.
+
+The whole rendered text then passes through `redactSupportText` (`packages/domain/src/support-report.ts`) before it leaves the server, so the preview is byte for byte what is copied. It hides private key blocks, cookie headers, bearer and basic credentials, URL credentials, any name=value whose name looks secret (token, secret, password, api key, session, cookie, authorization, credential, signature), known key shapes (OpenAI, Anthropic, GitHub, Slack, AWS, Google, Stripe webhook, JWT), long opaque strings that are not plain hex, emails, personal folders (`C:\Users\<name>`, `/home/<name>`, `/Users/<name>`) and the machine's account and host names. Commits, hashes and ids stay readable. The database read selects no credential references, account labels, key digits, request bodies or outputs in the first place.
+
+Copying is the person's own action: "Copy report" writes the shown text to the clipboard, or selects it for Ctrl+C where the clipboard is blocked. The studio sends nothing anywhere.
+
+**Rejected:** a downloadable diagnostics bundle with logs (log lines are not redacted at the source and could hold anything); client-side redaction (the server would then send secrets to the page); and sending the report from the app (an outbound message needs its own decision).
+
+**Would change this:** a hosted support channel the owner approves, or service logs that are themselves redacted at write time.
+
 ## ADR-0112 — Larger Python builds are unqualified trials until their roles pass the larger Python benchmark (November 15, 2026; no migration)
 
 **Owner decision (Jordan, November 15, 11:33 UTC): "Label larger Claude builds".** ADR-0105's "Claude route qualified for small builds only" was a written rule the app did not enforce (PR #212 re-check 3): Python builds never carried the unqualified-trial label and `p14-larger-ledgercheck-v5` gated nothing. Jordan wants larger Claude builds to stay possible, so they are labelled, not blocked. **Amends ADR-0078 (review M-2) and ADR-0105.** (ADR-0111 is #213's, merged. S0 takes the next free numbers: ADR-0113 and migration 69.)

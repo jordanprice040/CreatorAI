@@ -1,5 +1,17 @@
 # Build status — November 10, 2026
 
+## November 15 update — copy a support report (ADR-0118, F5, no migration)
+
+What now works: Monitor > Workers has a **Support report** section. "Prepare support report" shows the full text in a read-only preview, and "Copy report" copies exactly that text (or selects it for Ctrl+C where the clipboard is blocked). It holds the app version, commit, schema, deployment, OS and Node; readiness checks and maintenance jobs; workflow leases, local jobs, outbox and paired local workers; model connections, GitHub connections and saved API keys (state, reason and failed or unknown requests in the last day, never credentials); and the newest 20 errors or failed steps with ids, workspace and a fixture or real label. The server (`GET /api/support/report`, owner only, read-only) renders and redacts it before sending, so nothing secret reaches the page: tokens, keys, cookies, passwords, URL credentials, emails, personal folders and the machine's account and host names are replaced. No model call; nothing is sent anywhere.
+
+Checked in the cloud container on a throwaway PostgreSQL 16 database:
+- `pnpm typecheck` and `pnpm format:check` pass.
+- `tests/src/support-report.test.ts` (3 tests) plants tokens, keys, cookies, passwords, emails and user paths in the redactor, in rendered facts and in database rows, and proves none reach the report; it also checks the 20-failure limit, fixture labels, owner-only access and that the route takes no writes.
+- Full `pnpm test:db`: TESTDB_RESULT.
+- Browser walk `tracking/evidence/support-report/walk.mjs`: 8 of 8 checks in both themes (planted secret and path hidden, clipboard equals preview).
+
+Limitations: the failure list reads recorded failure states only (no service log lines). Product builds keep their failures in files, not the database, so a failed build shows here only through its workflow, autopilot or model-request rows. Redaction is pattern-based and errs on hiding too much.
+
 ## November 15 update — autopilot fixes from the third live rerun (no migration or ADR)
 
 These fix the findings in `/mnt/project-files/reviews/LIVE_AUTOPILOT_RERUN_205_2026-11-15.md` (autopilot e8b36bd9 on main 42dce84).
