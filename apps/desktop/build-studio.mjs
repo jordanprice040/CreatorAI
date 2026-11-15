@@ -77,8 +77,11 @@ for (const ref of [
   '../../../config/spending.json',
   // ADR-0089: the discovery benchmarks Qualify a model offers.
   '../../../config/connections/benchmarks/',
+  // ADR-0105: the in-app build benchmarks and the web checker their freezes name.
+  '../../../config/recipe-benchmarks/',
   '../worker/bridge.py',
   '../worker/terminal.py',
+  '../worker/web_recipe.py',
 ])
   if (!bundled.includes(ref))
     throw new Error(`Bundle rewrote a runtime file reference: ${ref}`);
@@ -87,7 +90,7 @@ step('staging runtime, worker bridge, configuration and UI');
 mkdirSync(join(out, 'node'), { recursive: true });
 copyFileSync(process.execPath, join(out, 'node/node.exe'));
 mkdirSync(join(out, 'service/app/worker'), { recursive: true });
-for (const f of ['bridge.py', 'recipe.py', 'terminal.py'])
+for (const f of ['bridge.py', 'recipe.py', 'terminal.py', 'web_recipe.py'])
   copyFileSync(
     join(root, 'packages/executor/worker', f),
     join(out, 'service/app/worker', f),

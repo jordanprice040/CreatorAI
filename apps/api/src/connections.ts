@@ -2,6 +2,10 @@ import type { PlanConnectionService } from '@creator/broker';
 import { ContractError, parse, z } from '@creator/contracts';
 import type { CommandContext, ConnectionStore } from '@creator/db';
 import {
+  recipeBenchmarkOffers,
+  startRecipeQualification,
+} from './recipe-qualification.js';
+import {
   PLAN_ROLE_CONTEXT_MAX,
   PlanRelay,
   codexBuilder,
@@ -121,7 +125,7 @@ const codexTurns = new Map<string, number>();
 
 /** ADR-0042 ChatGPT-plan routes under /api/workspaces/:ws/<collection>. Matched separately. */
 export const CONNECTIONS_ROUTE =
-  /^\/api\/workspaces\/([^/]+)\/(plan-connections|plan-qualifications|plan-qualification-queues|plan-benchmarks)(?:\/([^/]+)(?:\/(settings|accept-caps|credits|credits-withdraw|sign-in|sign-out|verification-grants|verify|availability-recheck|qualifications|requests|reconcile|quota-recheck|codex-builds|build-calls|build-roles-ready|run|finish|claude-code-check|qualification-queues|cancel|copy|extra-requests))?)?$/;
+  /^\/api\/workspaces\/([^/]+)\/(plan-connections|plan-qualifications|plan-qualification-queues|plan-benchmarks|recipe-qualifications|recipe-benchmarks)(?:\/([^/]+)(?:\/(recipe-qualifications|stop|settings|accept-caps|credits|credits-withdraw|sign-in|sign-out|verification-grants|verify|availability-recheck|qualifications|requests|reconcile|quota-recheck|codex-builds|build-calls|build-roles-ready|run|finish|claude-code-check|qualification-queues|cancel|copy|extra-requests))?)?$/;
 
 const VerifyBody = z.strictObject({
   grant_id: z.uuid(),
@@ -205,6 +209,8 @@ export async function connectionRoutes(r: {
   codex: CodexLauncher | null;
   /** ADR-0088: told when a queue is started, so it begins at once instead of at the next poll. */
   queue?: { kick(): void } | null;
+  /** ADR-0105: build qualifications; told when one starts, so it begins at once. */
+  recipes?: { kick(): void } | null;
   ctx: CommandContext;
   ws: string;
   collection: string;
@@ -262,7 +268,52 @@ export async function connectionRoutes(r: {
       );
     return false;
   }
+  // ADR-0105 (B1): build qualifications, the in-app benchmarks they run, and Stop.
+  if (collection === 'recipe-benchmarks')
+    return !item && get
+      ? send(200, await recipeBenchmarkOffers(), false)
+      : false;
+  if (collection === 'recipe-qualifications' && item) {
+    if (get && !action)
+      return send(
+        200,
+        await store.getRecipeQualification(ctx, ws, item),
+        false,
+      );
+    if (post && action === 'stop')
+      return send(
+        200,
+        await store.stopRecipeQualification(ctx, ws, item, await r.body()),
+        true,
+      );
+    return false;
+  }
   if (collection !== 'plan-connections') return false;
+  if (item && action === 'recipe-qualifications') {
+    if (get)
+      return send(
+        200,
+        await store.listRecipeQualifications(ctx, ws, item),
+        false,
+      );
+    if (post) {
+      if (!r.recipes)
+        throw new ContractError(
+          'INVALID_CONFIG',
+          'Build qualifications need the plan service and a database.',
+        );
+      const started = await startRecipeQualification(
+        store,
+        ctx,
+        ws,
+        item,
+        await r.body(),
+      );
+      r.recipes.kick();
+      return send(201, started, true);
+    }
+    return false;
+  }
   if (!item) {
     if (get) return send(200, await store.listPlanConnections(ctx, ws), false);
     if (post)

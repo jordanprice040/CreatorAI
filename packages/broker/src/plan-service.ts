@@ -206,6 +206,11 @@ export interface InvokeRequest {
    * it against the discovery under lock and uses only web discovery qualifications.
    */
   web_discovery?: WebDiscoveryBinding;
+  /**
+   * ADR-0105: a builder or reviewer request of one build qualification attempt. Admission
+   * checks it against the attempt under lock instead of a run and build approval.
+   */
+  recipe_attempt_id?: string;
 }
 
 export class PlanConnectionService {
@@ -705,6 +710,7 @@ export class PlanConnectionService {
           }
         : undefined,
       r.web_discovery,
+      r.recipe_attempt_id,
     );
     if (admitted.admission)
       return {
@@ -1316,14 +1322,21 @@ export class PlanConnectionService {
     b: {
       role: BuildRole;
       model_id: string;
-      run_id: string;
+      /** Null only for a build qualification attempt's request (ADR-0105). */
+      run_id: string | null;
       build_id: string;
       data_class: 'synthetic' | 'public' | 'private_approved';
       input: string;
       timeout_ms: number;
       logical_operation_id: string;
+      recipe_attempt_id?: string;
     },
   ) {
+    if ((b.run_id === null) !== Boolean(b.recipe_attempt_id))
+      throw new ContractError(
+        'INVALID_CONTRACT',
+        'A build-role request names its run, or (for a build qualification) its attempt.',
+      );
     const { connection } = await this.deps.store.planConnectionDetail(
       ctx,
       ws,
@@ -1341,6 +1354,9 @@ export class PlanConnectionService {
       input: b.input,
       logical_operation_id: b.logical_operation_id,
       timeout_ms: b.timeout_ms,
+      ...(b.recipe_attempt_id
+        ? { recipe_attempt_id: b.recipe_attempt_id }
+        : {}),
     });
     return {
       request_id: r.request_id,
@@ -1348,8 +1364,15 @@ export class PlanConnectionService {
         r.outcome.kind === 'completed'
           ? ('succeeded' as const)
           : ('failed' as const),
+      // Re-review L-2: a refusal to serve the model asked for reads the same on every route
+      // (Claude Code's own code stays as it is).
       reason_code:
-        r.outcome.kind === 'completed' ? 'ok' : r.outcome.reason_code,
+        r.outcome.kind === 'completed'
+          ? 'ok'
+          : r.outcome.model_refused &&
+              r.outcome.reason_code !== 'claude_model_refused'
+            ? 'model_refused'
+            : r.outcome.reason_code,
       text: r.outcome.kind === 'completed' ? r.outcome.text : null,
       fixture: connection.fixture,
     };
@@ -1366,19 +1389,22 @@ export class PlanConnectionService {
     connectionId: string,
     b: {
       model_id: string;
-      run_id: string;
+      /** Null for a build qualification attempt, which has no run (ADR-0105). */
+      run_id: string | null;
       data_class: 'synthetic' | 'public' | 'private_approved';
     },
   ): Promise<string[]> {
     const d = await this.deps.store.planConnectionDetail(ctx, ws, connectionId);
     const out = [
       ...d.blockers,
-      ...(await this.deps.store.planBuildRolesRunBlockers(
-        ctx,
-        ws,
-        b.run_id,
-        connectionId,
-      )),
+      ...(b.run_id
+        ? await this.deps.store.planBuildRolesRunBlockers(
+            ctx,
+            ws,
+            b.run_id,
+            connectionId,
+          )
+        : []),
     ];
     if (!d.connection.settings.allowed_data_classes.includes(b.data_class))
       out.push(`Data class ${b.data_class} is not allowed on this connection.`);

@@ -15,7 +15,6 @@ import {
   BuildSupervisor,
   ExecutionSupervisor,
   ProductSupervisor,
-  RECIPE_QUALIFICATIONS,
   WEB_QA_RUNTIME,
   WEB_TEMPLATE,
   browserResult,
@@ -28,6 +27,7 @@ import {
   type BuildPorts,
   type Execution,
 } from '@creator/executor';
+import { migrations } from '@creator/db';
 import {
   BuildManifestSchema,
   BrowserStepSchema,
@@ -793,18 +793,22 @@ test('the recorded web qualification is the live 3 of 3 result on its benchmark 
     builder_prompt_sha256: results.role_prompts.builder_prompt_sha256,
     reviewer_prompt_sha256: results.role_prompts.reviewer_prompt_sha256,
   };
-  const records = RECIPE_QUALIFICATIONS.filter(
-    (r) =>
-      r.recipe === expected.recipe &&
-      r.benchmark_id === expected.benchmark_id &&
-      r.connection_id === expected.connection_id &&
-      r.model_id === expected.model_id &&
-      r.builder_prompt_sha256 === expected.builder_prompt_sha256 &&
-      r.reviewer_prompt_sha256 === expected.reviewer_prompt_sha256,
-  );
-  assert.equal(records.length, 1);
-  const q = records[0]!;
-  assert.deepEqual(q, expected);
+  // ADR-0105: the record is now the row migration 65 imports (where its connection exists),
+  // with exactly these values and the freeze it ran on.
+  const sql = migrations.find((m) => m.version === 65)!.sql;
+  const imported = sql.slice(sql.indexOf('insert into recipe_qualifications'));
+  for (const v of [
+    expected.recipe,
+    expected.benchmark_id,
+    expected.connection_id,
+    expected.model_id,
+    expected.builder_prompt_sha256,
+    expected.reviewer_prompt_sha256,
+    results.freeze.freeze_json_sha256,
+    'tracking/evidence/p15-benchmarks/RESULTS_P15_V4_2026-11-06.json',
+  ])
+    assert.ok(imported.includes(`'${v}'`), v);
+  const q = expected;
   assert.match(results.outcome, /^3 of 3: qualified/);
   assert.equal(results.attempts.length, 3);
   for (const a of results.attempts) {
@@ -848,14 +852,14 @@ test('the recorded web qualification is the live 3 of 3 result on its benchmark 
   // The record qualifies its own roles while its benchmark is the current one, and is ignored after.
   const roles = { ...q };
   assert.equal(
-    unqualifiedTrial('static-web/1', roles, RECIPE_QUALIFICATIONS),
-    q.benchmark_id !== RECIPE_BENCHMARKS['static-web/1'],
+    unqualifiedTrial('static-web/1', roles, [q]),
+    !RECIPE_BENCHMARKS['static-web/1']!.includes(q.benchmark_id),
   );
   assert.equal(
     unqualifiedTrial(
       'static-web/1',
       { ...roles, connection_id: randomUUID() },
-      RECIPE_QUALIFICATIONS,
+      [q],
     ),
     true,
   );
@@ -863,7 +867,7 @@ test('the recorded web qualification is the live 3 of 3 result on its benchmark 
     unqualifiedTrial(
       'static-web/1',
       { ...roles, builder_prompt_sha256: digest('a later builder prompt') },
-      RECIPE_QUALIFICATIONS,
+      [q],
     ),
     true,
   );

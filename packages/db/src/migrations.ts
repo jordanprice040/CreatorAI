@@ -3650,6 +3650,99 @@ create trigger proposal_section_drafts_settle_once before update or delete
  on proposal_section_drafts for each row execute function proposal_section_drafts_settle_once();
 `,
   },
+  {
+    // ADR-0105 (B1): build (recipe) qualifications as records earned in Qualify, per connection,
+    // model and pair of role prompts, replacing the list in source code. Each attempt is one
+    // build in the studio's qualification harness; its plan requests name the attempt, whose
+    // start is the owner's one approval for them. The November 6 web pass is imported as history
+    // where its connection exists.
+    version: 65,
+    name: 'recipe_qualifications',
+    sql: `
+create table recipe_qualifications (
+ id uuid primary key,
+ workspace_id uuid not null references workspaces(id),
+ connection_id uuid not null references plan_connections(id),
+ recipe text not null check (recipe in ('python-build/1','static-web/1')),
+ benchmark_id text not null check (length(benchmark_id) between 1 and 80),
+ model_id text not null check (length(model_id) between 1 and 200),
+ builder_prompt_sha256 char(64) not null,
+ reviewer_prompt_sha256 char(64) not null,
+ freeze_sha256 char(64) not null,
+ source text not null check (source in ('in_app','imported')),
+ fixture boolean not null,
+ state text not null check (state in ('running','qualified','not_qualified','stopped')),
+ attempts_needed integer not null check (attempts_needed between 1 and 10),
+ passed integer not null default 0 check (passed between 0 and attempts_needed),
+ -- The connection's per-request input cap at Start (null on an imported record).
+ max_input_chars integer check (max_input_chars >= 1),
+ -- The fewest input characters Start accepted for this benchmark (null on an imported record).
+ min_input_chars integer check (min_input_chars >= 1),
+ reason text,
+ evidence text,
+ lease_holder text,
+ lease_until timestamptz,
+ version integer not null default 1 check (version >= 1),
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ finished_at timestamptz,
+ check ((state = 'running') = (finished_at is null)),
+ check (state <> 'qualified' or passed = attempts_needed),
+ check ((source = 'imported') = (evidence is not null)),
+ check ((source = 'in_app') = (max_input_chars is not null)),
+ check ((source = 'in_app') = (min_input_chars is not null))
+);
+create unique index recipe_qualifications_one_running on recipe_qualifications (connection_id)
+ where state = 'running';
+create index recipe_qualifications_by_connection on recipe_qualifications (connection_id, created_at);
+create table recipe_qualification_attempts (
+ id uuid primary key,
+ qualification_id uuid not null references recipe_qualifications(id),
+ slot integer not null check (slot between 1 and 10),
+ replaces uuid references recipe_qualification_attempts(id),
+ state text not null check (state in ('running','passed','failed','invalid')),
+ reason text,
+ product_id uuid,
+ build_id uuid,
+ request_limit integer not null check (request_limit >= 2),
+ repairs integer check (repairs is null or repairs >= 0),
+ result jsonb,
+ started_at timestamptz not null default clock_timestamp(),
+ finished_at timestamptz,
+ check ((state = 'running') = (finished_at is null))
+);
+create unique index recipe_attempts_one_running on recipe_qualification_attempts (qualification_id)
+ where state = 'running';
+create unique index recipe_attempts_one_original on recipe_qualification_attempts (qualification_id, slot)
+ where replaces is null;
+create unique index recipe_attempts_one_replacement on recipe_qualification_attempts (replaces)
+ where replaces is not null;
+alter table plan_requests add column recipe_attempt_id uuid references recipe_qualification_attempts(id);
+create index plan_requests_by_recipe_attempt on plan_requests (recipe_attempt_id)
+ where recipe_attempt_id is not null;
+alter table plan_requests add constraint plan_requests_recipe_attempt_check
+ check (recipe_attempt_id is null or (purpose = 'task' and run_id is null and build_id is not null
+   and task_class in ('patch_build','independent_review')));
+-- The November 6 live pass (3 of 3 on the dev studio's ChatGPT connection), formerly the
+-- RECIPE_QUALIFICATIONS list in packages/executor/src/artifacts.ts.
+insert into recipe_qualifications (id, workspace_id, connection_id, recipe, benchmark_id, model_id,
+  builder_prompt_sha256, reviewer_prompt_sha256, freeze_sha256, source, fixture, state,
+  attempts_needed, passed, reason, evidence, created_by, created_at, finished_at)
+select '7d0c6f0e-5a1b-4c41-9b0e-b1a1e9c0f406', pc.workspace_id, pc.id, 'static-web/1',
+  'p15-small-signup-v4', 'gpt-6-astra',
+  '73cb799e9212ecdd2cd37fd5d642a292681b0169a4ddd12b831e6d1915da22ad',
+  '9e1cc6b4184526512d4cafa6f0f7f450579935c0bacaa3f17c558b1d2908f99c',
+  '463ced35393be0a34b3e941f70cec104a1cfe979cd6931dd568a2db3b1a9ce2c', 'imported', pc.fixture,
+  'qualified', 3, 3,
+  '3 of 3 live on November 6, 2026, run by a script on the dev studio before the app could run build qualifications.',
+  'tracking/evidence/p15-benchmarks/RESULTS_P15_V4_2026-11-06.json', m.actor_id,
+  '2026-11-06T21:44:00Z', '2026-11-06T21:44:00Z'
+from plan_connections pc
+join lateral (select actor_id from workspace_members where workspace_id = pc.workspace_id
+  and role = 'owner' order by actor_id limit 1) m on true
+where pc.id = '4e4a7bec-c1ca-4f31-8f87-b11ed5fc81d4';
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {
