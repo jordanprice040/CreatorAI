@@ -1,4 +1,9 @@
-import { zipEntries, type WorkspaceFileVersion } from '@creator/contracts';
+import {
+  zip64Extra,
+  zipEntries,
+  zipLayoutProblem,
+  type WorkspaceFileVersion,
+} from '@creator/contracts';
 
 // ADR-0106: which inert viewer a file version opens in. Pure, so it is unit-tested. The kind
 // comes from the studio's own look at the bytes; the name's extension only picks a code
@@ -65,6 +70,8 @@ export function officeRefusal(bytes: Uint8Array): string | null {
   // A ZIP whose directory the studio cannot read (ZIP64, damaged) is not handed to a viewer.
   const list = zipEntries(bytes);
   if (!list) return OFFICE_TOO_LARGE;
+  // Review 4 L-1: one unambiguous layout, so every reader sees the parts checked here.
+  if (zipLayoutProblem(bytes)) return OFFICE_DAMAGED;
   if (list.more || list.entries.length < list.total) return OFFICE_TOO_LARGE;
   let total = 0;
   for (const e of list.entries) {
@@ -115,9 +122,10 @@ async function inflatedSize(data: Uint8Array, limit: number): Promise<number> {
  * Review 3 L-1: JSZip reads a part by its central directory entry, SheetJS by its local header
  * (method, flags, name, and ZIP64 sizes from either). So the two must say the same thing, or
  * the check here could count one part while a viewer inflates another: the method, the
- * data-descriptor flag (and no encryption), the name, and (when the sizes are not after the data)
- * both sizes must agree, and no ZIP64 extra field may override them. Office files written by
- * Office, LibreOffice and the usual libraries agree in all of these.
+ * data-descriptor flag (and no encryption), the name, and (when the sizes are not after the
+ * data) both sizes must agree. Review 4 N-1: a ZIP64 extra field (written by some .NET tools)
+ * is accepted when its sizes are the same ones (or zero in a local header whose sizes follow
+ * the data, as a streaming writer leaves them); one that says anything else is refused.
  */
 function localDisagrees(
   bytes: Uint8Array,
@@ -126,7 +134,7 @@ function localDisagrees(
     name: string;
     method: number;
     flags: number;
-    zip64: boolean;
+    zip64: { size: number | null; compressed: number | null } | null;
     size: number | null;
     compressed: number | null;
     offset: number | null;
@@ -134,26 +142,35 @@ function localDisagrees(
 ): boolean {
   const at = e.offset!;
   const flags = view.getUint16(at + 6, true);
-  if (e.zip64 || (flags | e.flags) & 0x2041) return true;
+  if ((flags | e.flags) & 0x2041) return true;
   if ((flags & 0x08) !== (e.flags & 0x08)) return true;
   if (view.getUint16(at + 8, true) !== e.method) return true;
-  if (!(flags & 0x08)) {
-    if (view.getUint32(at + 18, true) !== e.compressed) return true;
-    if (view.getUint32(at + 22, true) !== e.size) return true;
-  }
+  if (
+    e.zip64 &&
+    (e.zip64.size !== e.size || e.zip64.compressed !== e.compressed)
+  )
+    return true;
   const nameLen = view.getUint16(at + 26, true);
   const extraLen = view.getUint16(at + 28, true);
   if (at + 30 + nameLen + extraLen > bytes.length) return true;
+  const local64 = zip64Extra(view, at + 30 + nameLen, extraLen);
+  const streamed = Boolean(flags & 0x08);
+  if (local64) {
+    const same = (v: number | null, want: number | null) =>
+      v === want || (streamed && v === 0);
+    if (!same(local64.size, e.size) || !same(local64.compressed, e.compressed))
+      return true;
+  }
+  if (!streamed) {
+    const csz = view.getUint32(at + 18, true);
+    const usz = view.getUint32(at + 22, true);
+    const fits = (v: number, want: number | null) =>
+      v === want || (v === 0xffffffff && local64 !== null);
+    if (!fits(csz, e.compressed) || !fits(usz, e.size)) return true;
+  }
   const raw = bytes.subarray(at + 30, at + 30 + nameLen);
   const name = new TextDecoder(flags & 0x800 ? 'utf-8' : 'latin1').decode(raw);
-  if (name !== e.name) return true;
-  for (
-    let x = at + 30 + nameLen, end = x + extraLen;
-    x + 4 <= end;
-    x += 4 + view.getUint16(x + 2, true)
-  )
-    if (view.getUint16(x, true) === 0x0001) return true;
-  return false;
+  return name !== e.name;
 }
 
 /**

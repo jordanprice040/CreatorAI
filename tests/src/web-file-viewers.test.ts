@@ -218,6 +218,8 @@ function deflated(
     /** Compression method in the central directory, when it should differ from the local 8. */
     centralMethod?: number;
     localName?: string;
+    /** A ZIP64 extra field's two sizes in the central (and local) header. */
+    zip64?: [number, number];
   }[],
 ): Uint8Array {
   const u16 = (n: number) => [n & 0xff, (n >> 8) & 0xff];
@@ -230,6 +232,13 @@ function deflated(
     const ln = [...Buffer.from(p.localName ?? p.name)];
     const body = [...(p.raw ?? deflateRawSync(p.data))];
     const size = p.declare ?? p.data.length;
+    const u64 = (v: number) => [
+      ...u32(v % 2 ** 32),
+      ...u32(Math.floor(v / 2 ** 32)),
+    ];
+    const extra = p.zip64
+      ? [...u16(1), ...u16(16), ...u64(p.zip64[0]), ...u64(p.zip64[1])]
+      : [];
     const head = [
       ...u32(0x04034b50),
       ...u16(20),
@@ -240,8 +249,9 @@ function deflated(
       ...u32(body.length),
       ...u32(size),
       ...u16(ln.length),
-      ...u16(0),
+      ...u16(extra.length),
       ...ln,
+      ...extra,
     ];
     chunks.push(head, body);
     central.push(...u32(0x02014b50), ...u16(20), ...u16(20), ...u16(0));
@@ -251,8 +261,9 @@ function deflated(
       ...u32(0),
       ...u32(body.length),
     );
-    central.push(...u32(size), ...u16(n.length), ...u16(0), ...u16(0));
-    central.push(...u16(0), ...u16(0), ...u32(0), ...u32(offset), ...n);
+    central.push(...u32(size), ...u16(n.length), ...u16(extra.length));
+    central.push(...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(offset));
+    central.push(...n, ...extra);
     offset += head.length + body.length;
   }
   const end = [
@@ -339,4 +350,67 @@ test('an Office part whose local and central headers disagree is refused', async
     },
   ]);
   assert.match((await r.officeCheck(renamed)) ?? '', /may be damaged/);
+});
+
+/** Rewrites a ZIP's end record: `edit(view, eocd)` changes it; `tail` is appended as comment. */
+function withEnd(
+  zip: Uint8Array,
+  edit: (v: DataView, eocd: number) => void,
+  tail: number[] = [],
+): Uint8Array {
+  const out = new Uint8Array([...zip, ...tail]);
+  const v = new DataView(out.buffer);
+  const eocd = zip.length - 22;
+  v.setUint16(eocd + 20, tail.length, true);
+  edit(v, eocd);
+  return out;
+}
+
+// Review 4 L-1: SheetJS finds the end record and counts entries by other rules than the
+// studio, so a file whose end record or central directory can be read two ways would show the
+// check one list of parts and SheetJS another. Only one unambiguous layout is opened.
+test('an Office file whose ZIP layout can be read two ways is refused', async () => {
+  const r = await rules();
+  const text = new TextEncoder().encode('<workbook/>'.repeat(100));
+  const honest = deflated([
+    { name: '[Content_Types].xml', data: new TextEncoder().encode('<x/>') },
+    { name: 'xl/workbook.xml', data: text },
+  ]);
+  assert.equal(await r.officeCheck(honest), null);
+  // A second end record hidden in the comment, where SheetJS (scanning from the last 4 bytes)
+  // finds it and the studio's scan (from the last 22) does not.
+  const second = [0x50, 0x4b, 0x05, 0x06, ...new Array<number>(16).fill(0)];
+  const hidden = withEnd(honest, () => {}, second);
+  assert.match((await r.officeCheck(hidden)) ?? '', /may be damaged/);
+  // "Entries on this disk" (what SheetJS counts) differs from the total (what the studio counts).
+  const counts = withEnd(honest, (v, e) => v.setUint16(e + 8, 3, true));
+  assert.match((await r.officeCheck(counts)) ?? '', /may be damaged/);
+  // A comment that does not end the file, and a central directory larger than its count.
+  const short = withEnd(honest, (v, e) => v.setUint16(e + 20, 5, true));
+  assert.match((await r.officeCheck(short)) ?? '', /may be damaged/);
+  const more = withEnd(honest, (v, e) => {
+    v.setUint16(e + 8, 1, true);
+    v.setUint16(e + 10, 1, true);
+  });
+  assert.match((await r.officeCheck(more)) ?? '', /may be damaged/);
+});
+
+// Review 4 N-1: a ZIP64 extra field that repeats the real sizes (as some .NET tools write) is
+// fine; one that says something else is refused.
+test('consistent ZIP64 sizes are accepted and inconsistent ones refused', async () => {
+  const r = await rules();
+  const data = new TextEncoder().encode('<document/>'.repeat(100));
+  const packed = deflateRawSync(data);
+  const ok = deflated([
+    {
+      name: 'word/document.xml',
+      data,
+      zip64: [data.length, packed.length],
+    },
+  ]);
+  assert.equal(await r.officeCheck(ok), null);
+  const lying = deflated([
+    { name: 'word/document.xml', data, zip64: [1 << 30, packed.length] },
+  ]);
+  assert.match((await r.officeCheck(lying)) ?? '', /may be damaged/);
 });

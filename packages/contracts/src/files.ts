@@ -284,8 +284,11 @@ export type ZipEntry = {
   offset: number | null;
   /** General-purpose flags (bit 0 encrypted, bit 3 sizes after the data, bit 11 UTF-8). */
   flags: number;
-  /** The central entry carries a ZIP64 extra field, whose sizes some readers prefer. */
-  zip64: boolean;
+  /**
+   * The central entry's ZIP64 extra field, read as SheetJS reads it (the first two 8-byte values
+   * as uncompressed and compressed size; null when too short), or null when there is none.
+   */
+  zip64: { size: number | null; compressed: number | null } | null;
 };
 /** Entries listed beyond this are not read; the listing says it stopped. */
 export const ZIP_ENTRY_MAX = 5000;
@@ -295,6 +298,72 @@ export const ZIP_ENTRY_MAX = 5000;
  * anything (so a ZIP bomb costs nothing to list). Null when the bytes are not a readable ZIP.
  * `more` is true when the archive holds more than ZIP_ENTRY_MAX entries.
  */
+/** A ZIP64 extended-information extra field (0x0001) in an extra area, read as SheetJS does. */
+export function zip64Extra(
+  view: DataView,
+  from: number,
+  length: number,
+): { size: number | null; compressed: number | null } | null {
+  const end = Math.min(from + length, view.byteLength);
+  for (let x = from; x + 4 <= end; x += 4 + view.getUint16(x + 2, true)) {
+    if (view.getUint16(x, true) !== 0x0001) continue;
+    const len = view.getUint16(x + 2, true);
+    const u64 = (at: number) =>
+      at + 8 <= Math.min(x + 4 + len, end)
+        ? view.getUint32(at + 4, true) * 2 ** 32 + view.getUint32(at, true)
+        : null;
+    return { size: u64(x + 4), compressed: u64(x + 12) };
+  }
+  return null;
+}
+
+/**
+ * Review 4 L-1: why a ZIP's end record and central directory could be read more than one way,
+ * or null when they have exactly one layout. Readers differ (SheetJS scans for the end record
+ * from the last 4 bytes and counts entries "on this disk"; the studio scans from the last 22
+ * and counts the total), so for files a viewer will open the studio insists that: no end
+ * record signature follows the one used; the end record's comment ends the file exactly; both
+ * disk numbers are 0 and the two entry counts agree; and the central directory runs exactly
+ * its stated size, from its stated offset up to the end record, holding exactly the counted
+ * entries (nothing hidden after them).
+ */
+export function zipLayoutProblem(b: Uint8Array): string | null {
+  const view = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  let eocd = -1;
+  for (let i = b.length - 22; i >= Math.max(0, b.length - 22 - 0xffff); i--)
+    if (view.getUint32(i, true) === 0x06054b50) {
+      eocd = i;
+      break;
+    }
+  if (eocd < 0) return 'no end record';
+  for (let i = b.length - 4; i > eocd; i--)
+    if (view.getUint32(i, true) === 0x06054b50)
+      return 'a second end record follows';
+  if (eocd + 22 + view.getUint16(eocd + 20, true) !== b.length)
+    return 'the end record does not end the file';
+  if (view.getUint16(eocd + 4, true) || view.getUint16(eocd + 6, true))
+    return 'more than one disk';
+  const total = view.getUint16(eocd + 10, true);
+  if (view.getUint16(eocd + 8, true) !== total)
+    return 'the entry counts disagree';
+  const size = view.getUint32(eocd + 12, true);
+  const start = view.getUint32(eocd + 16, true);
+  if (start + size !== eocd)
+    return 'the central directory does not end at the end record';
+  let at = start;
+  for (let n = 0; n < total; n++) {
+    if (at + 46 > eocd || view.getUint32(at, true) !== 0x02014b50)
+      return 'the central directory is shorter than its count';
+    at +=
+      46 +
+      view.getUint16(at + 28, true) +
+      view.getUint16(at + 30, true) +
+      view.getUint16(at + 32, true);
+  }
+  if (at !== eocd) return 'the central directory holds more than its count';
+  return null;
+}
+
 export function zipEntries(
   b: Uint8Array,
   /**
@@ -337,13 +406,7 @@ export function zipEntries(
     const raw = b.subarray(at + 46, at + 46 + nameLen);
     const name = (flags & 0x800 || names === 'utf8' ? utf8 : latin).decode(raw);
     const offset = view.getUint32(at + 42, true);
-    let zip64 = false;
-    for (
-      let x = at + 46 + nameLen, end = Math.min(x + extraLen, b.length);
-      x + 4 <= end;
-      x += 4 + view.getUint16(x + 2, true)
-    )
-      if (view.getUint16(x, true) === 0x0001) zip64 = true;
+    const zip64 = zip64Extra(view, at + 46 + nameLen, extraLen);
     entries.push({
       name,
       size: size === 0xffffffff ? null : size,
