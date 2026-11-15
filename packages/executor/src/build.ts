@@ -21,6 +21,7 @@ import {
   type BuildRecipe,
   type SpecBody,
   taskRecipe,
+  parseRoleAnswer,
 } from '@creator/contracts';
 import {
   checked,
@@ -593,7 +594,14 @@ export class BuildSupervisor {
           await active();
           if (r.status !== 'succeeded' || r.text === null)
             throw new Error(`Role stopped: ${r.status} ${r.reason_code}`);
-          return JSON.parse(r.text) as unknown;
+          // ADR-0110: one code fence around the whole answer is accepted, nothing else; the
+          // raw text stays in the plan request, and the unwrap is recorded beside the call.
+          const answer = parseRoleAnswer(r.text, 'one_json_fence');
+          if (answer.fenced)
+            await jsonWrite(join(dir, `call-${calls}-answer-form.json`), {
+              wrapping: 'one_json_fence',
+            });
+          return answer.json;
         }
         await jsonWrite(join(dir, `call-${calls}-intent.json`), {
           role,
