@@ -3889,6 +3889,8 @@ pre.commands {
 }
 .build-results p {
   margin: 0;
+}
+
 /* ADR-0101 (UX pass P-5): model drafts of a proposal's missing sections. */
 .proposal-drafts {
   margin: 1rem 0;

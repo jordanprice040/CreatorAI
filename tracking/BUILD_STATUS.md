@@ -6,7 +6,7 @@ What now works: each task's newest build on Build shows a live line and its step
 
 Checked in the cloud container: `pnpm typecheck`, `pnpm format:check`, `pnpm test:db` on a throwaway PostgreSQL 16 (1221 tests: 1187 pass, 29 skipped, the 5 PowerShell-wrapper failures that always fail in the cloud), the new `tests/src/build-progress.test.ts` (a repair round through the studio route with a python3 test double: first draft fails 2 cases, repair round verifies; the web build start fails on main), the repair benchmark tests (reference 32/32, 11 mistakes caught), a UI walk with screenshots and axe-core (0 violations at 1440 and 390 px), and both exported packages started outside the studio with their own startup command (10/10 each). Evidence: `tracking/evidence/b3-build-page/`.
 
-Not done: the live repair benchmark (3 attempts, at most 18 plan requests, $0) and the desktop preview look on Jordan's PC need his typed OK. The repair path is proven with a test double only, not live.
+Live (Jordan's PC, November 15): `p14-repair-v1` passed 3 of 3 on the dev studio running this branch, 6 plan requests, $0, and no attempt needed a repair, so a live repair round was not observed (decision D: that is the result; the repair path is proven with a test double only). The Build page's Windows run steps worked on Windows PowerShell 5.1; a piping caveat found there is now in the steps. Review 1 (1 M, 4 L, 3 nits) fixed except L-3, which belongs to whichever of #200 and #203 merges second. Not done: the desktop preview look on Jordan's PC.
 
 ## November 14 update — ChatGPT plan per-run cap default 30 and the held web-claims next step (PR #199)
 

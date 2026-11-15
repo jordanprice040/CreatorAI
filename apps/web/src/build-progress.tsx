@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { z } from '@creator/contracts';
 import {
   changedFiles,
+  headlineText,
   judgedRound,
-  nowLine,
+  nowParts,
   roundTitle,
   runSteps,
   stopExplanation,
@@ -46,6 +47,7 @@ export const BuildProgressSchema = z.object({
   cases: z.number(),
   held_out: z.number(),
   requests: z.number(),
+  codex_turns: z.number().optional(),
   approved: z.boolean(),
   rounds: z.array(
     z.object({
@@ -345,19 +347,24 @@ export function BuildDetails({
   const running = state === 'running';
   const now = useNow(running && !!progress?.now);
   const stopped = state === 'checkpoint' || state === 'failed';
+  const live = running && progress ? nowParts(progress, now) : null;
   const why =
     reason && stopped ? stopExplanation(reason, progress, plain) : null;
   return (
     <div className="build-details">
       {running && (
-        <p className="build-now" role="status" aria-live="polite">
-          {progress ? (nowLine(progress, now) ?? 'Starting…') : 'Starting…'}
+        <p className="build-now">
+          {/* Only the step is live: the seconds tick every second and would be re-announced. */}
+          <span role="status" aria-live="polite">
+            {live?.step ?? 'Starting…'}
+          </span>
+          {live?.time ? <span> ({live.time})</span> : null}.
         </p>
       )}
       {why && (
         <div className="build-stop">
           <p>
-            <strong>{why.headline}.</strong>
+            <strong>{headlineText(why.headline)}.</strong>
           </p>
           <p>
             <span className="next-label">Next:</span> {why.next}

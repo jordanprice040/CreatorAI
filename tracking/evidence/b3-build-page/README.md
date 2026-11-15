@@ -114,10 +114,56 @@ desktop app it opens in the default browser, which frames the site from `w<id>-<
 What remains to observe on Jordan's PC: in the installed app, Try › a static web package › Start
 private preview › Open: the default browser opens and the page shows. Not done here.
 
-## Not done (needs Jordan's typed OK)
+## Live repair benchmark (Jordan's PC, November 15, 2026)
 
-- **Live repair benchmark**: 3 attempts of `p14-repair-v1` on the ChatGPT plan, `plan_roles`,
-  gpt-6-astra, caps from `expectations.json` (2 repairs, 6 requests each), at most 18 plan requests,
-  $0, one run per attempt, on the dev studio running this branch, WSL2 worker. Records go to
-  `tracking/evidence/p14-benchmarks/` as before.
-- **Desktop preview look** as above, and the Windows export start with the PowerShell steps.
+Jordan's typed OK (thread, 2026-11-14 23:55 UTC). Dev studio on Jordan's PC running this branch
+(`d29ee31`, schema 63, backup `creator_studio-pre-b3-20261114T235716Z.dump` first), WSL2 worker,
+`plan_roles` on the ChatGPT-plan connection with gpt-6-astra, `FREEZE.json` `a6d18687…0eb47eea`,
+caps 2 repairs and 6 requests per attempt. One run per attempt in Jordan's Creator Studio (the
+empty Testing workspace has no plan connection; no connection was added or changed). Builds were
+started with the CLI because the Build page's Start build sends 3,000 output tokens, not the frozen
+6,000. Each build stopped once for its approval, given in place on the Build page.
+
+**3 of 3 verified, and no attempt needed a repair**, so a live repair round was not observed. Under
+decision D that is the result; nothing was re-run. 6 plan requests in total (0 → 6 that day), $0.
+
+| Attempt | Studio                                           | Change                | Grader (Bubblewrap)                     |
+| ------- | ------------------------------------------------ | --------------------- | --------------------------------------- |
+| 1       | verified; 2 requests, 0 repairs, 40 s; 4/4 + 6/6 | src/main.py, 66 lines | 10/10, 22/22 extended; 0.026 s, 11.7 MB |
+| 2       | verified; 2 requests, 0 repairs, 38 s; 4/4 + 6/6 | src/main.py, 75 lines | 10/10, 22/22; 0.025 s, 11.7 MB          |
+| 3       | verified; 2 requests, 0 repairs, 46 s; 4/4 + 6/6 | src/main.py, 65 lines | 10/10, 22/22; 0.029 s, 11.7 MB          |
+
+Reviewer approved each with no findings; `compare-spec` passed for each; no patch was refused.
+Records: `tracking/evidence/p14-benchmarks/RESULTS_REPAIR_V1_2026-11-14.json` and `live/` (added
+from Jordan's PC once he allows the push; until then they are on his PC in
+`C:\dev\creator_agent_main`, with full per-attempt files under `.creator\p14-benchmarks\repair-v1\`).
+
+Seen on the live Build page: the verified view read as intended ("4 you can see… 6 hidden", the
+approval's coverage, "2 model requests of 6 used", the archive name in the run steps). Not seen
+live: the live line, "Why did it fail?" and repair steps (nothing failed). Two limits found, not
+fixed here: a build started from the CLI runs in the CLI's own process, so Build shows it as
+"interrupted (not resent)" until it ends; and Build picks up a build started elsewhere only when the
+page is shown again or reloaded.
+
+**Windows export start** (Windows PowerShell 5.1, attempt 1's archive): `mkdir my-product; tar -xf
+… -C my-product` and `cd my-product; py -3 -I src\main.py` work as written; A1.1, A1.2 (`Cy 82.3
+(4)`), A2.1 and A3.1 matched. `python3` is the Microsoft Store stub (exit 9009), so `py -3` was
+the right call. Found: in a UTF-8 console, Windows PowerShell 5.1 adds a byte-order mark to text
+piped into a program, which breaks the first line (A1.2 printed `Cy 83.0 (3)` plus a separate
+`Cy 80.0 (1)`). The run steps now say how to send input safely (type it and end with Ctrl+Z, or
+`cmd /c "py -3 -I src\main.py < input.txt"`).
+
+## Review 1 fixes (November 15)
+
+`/mnt/project-files/reviews/PR203_REVIEW_1_2026-11-15.md`: M-1 the daily-cap next step points to
+adding 20 requests for 24 hours (the cap is a rolling 24 hours, not midnight UTC); L-1 only the step
+is in the live region, the seconds tick outside it (`nowParts`); L-2 "Build admission has no
+covering grant" reads as waiting for approval; L-4 main merged; N-1 Codex turns are counted apart
+from the request cap (`codex_turns`); N-2 headlines get exactly one period (`headlineText`); N-3
+screenshots 05 and 06 retaken (the banner above a stopped build now reads "Blocked: The last build
+stopped at a checkpoint"; axe-core 0 violations at 1440 and 390 px). L-3 (#200's trial label on
+verified web results) belongs to whichever of #200 and #203 merges second.
+
+## Not done
+
+- **Desktop preview look** on Jordan's PC as above.

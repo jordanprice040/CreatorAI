@@ -98,7 +98,10 @@ export interface BuildProgress {
   max_calls: number;
   cases: number;
   held_out: number;
+  /** Requests counted against `max_calls` (role calls). */
   requests: number;
+  /** Codex builder turns, counted apart from `max_calls` (0 on other routes). */
+  codex_turns: number;
   approved: boolean;
   rounds: BuildRound[];
   /** While the build runs: the step it is on now and since when. */
@@ -295,11 +298,11 @@ export async function readBuildProgress({
     max_calls: plan.max_calls,
     cases: plan.cases.length,
     held_out: heldOut.filter(Boolean).length,
-    requests:
+    requests: calls.length,
+    codex_turns:
       route === 'codex_plan'
-        ? calls.length +
-          [...names].filter((n) => /^codex-\d+-intent\.json$/.test(n)).length
-        : calls.length,
+        ? [...names].filter((n) => /^codex-\d+-intent\.json$/.test(n)).length
+        : 0,
     approved: names.has('admission-0.json'),
     rounds,
     now,

@@ -40,6 +40,8 @@ export interface BuildProgress {
   cases: number;
   held_out: number;
   requests: number;
+  /** Codex builder turns, counted apart from `max_calls`. */
+  codex_turns?: number | undefined;
   approved: boolean;
   rounds: BuildRound[];
   now: {
@@ -75,8 +77,14 @@ export function elapsed(since: string, now: number): string {
   return s < 60 ? `${s} s` : `${Math.floor(s / 60)} min ${s % 60} s`;
 }
 
-/** The one line that says what a running build is doing now. */
-export function nowLine(p: BuildProgress, now: number): string | null {
+/**
+ * The live line in two parts, without the final period: the step, announced when it changes,
+ * and the time so far, which ticks every second and so stays out of the live region.
+ */
+export function nowParts(
+  p: BuildProgress,
+  now: number,
+): { step: string; time: string } | null {
   const n = p.now;
   if (!n) return null;
   const repair =
@@ -94,7 +102,19 @@ export function nowLine(p: BuildProgress, now: number): string | null {
             ? `Testing: case ${n.case ?? 1} of ${p.cases}${repair}`
             : 'Deciding what comes next';
   const t = elapsed(n.since, now);
-  return t ? `${what} (${t} so far).` : `${what}.`;
+  return { step: what, time: t ? `${t} so far` : '' };
+}
+
+/** The one line that says what a running build is doing now. */
+export function nowLine(p: BuildProgress, now: number): string | null {
+  const parts = nowParts(p, now);
+  if (!parts) return null;
+  return parts.time ? `${parts.step} (${parts.time}).` : `${parts.step}.`;
+}
+
+/** A headline without a trailing period, so the page adds exactly one. */
+export function headlineText(h: string): string {
+  return h.replace(/[.\s]+$/, '');
 }
 
 function builderLine(r: BuildRound, p: BuildProgress): TimelineLine | null {
@@ -209,7 +229,8 @@ export function timeline(
     if (lines.length)
       groups.push({ title: roundTitle(r.round, p.max_repairs), lines });
   }
-  const used = `${plural(p.requests, 'model request')} of ${p.max_calls} used`;
+  const turns = p.codex_turns ?? 0;
+  const used = `${plural(p.requests, 'model request')} of ${p.max_calls} used${turns ? ` (plus ${plural(turns, 'Codex turn')})` : ''}`;
   const footer: TimelineLine | null =
     state === 'verified_candidate'
       ? {
@@ -294,7 +315,9 @@ export function stopExplanation(
   const t = reason.replace(/^(Contract)?Error: /, '');
   let m: RegExpExecArray | null;
   if ((m = /^Build admission ([a-z_]+)/.exec(t)))
-    return m[1] === 'waiting_human' || m[1] === 'needs_human'
+    return m[1] === 'waiting_human' ||
+      m[1] === 'needs_human' ||
+      /^Build admission has no covering grant/.test(t)
       ? {
           headline: 'The build is waiting for your approval',
           next: 'Approve it once below, then press Start build. One approval covers the whole build.',
@@ -364,7 +387,7 @@ export function stopExplanation(
   if (/daily request cap|daily_cap_reached/i.test(t))
     return {
       headline: 'Today’s plan request limit is used up',
-      next: 'Build again after midnight UTC, or raise the daily limit under Connections.',
+      next: 'Add 20 requests for the next 24 hours (the usage button at the top, or the connection under Models and connections), or build again once older requests are more than 24 hours old.',
     };
   if (/per-run request cap|cap_reached/i.test(t))
     return {
@@ -449,7 +472,7 @@ export function runSteps(
         `mkdir ${folder}; tar -xf ${archive} -C ${folder}`,
         `cd ${folder}; py -3 -I src\\main.py`,
       ],
-      note: 'Add the arguments your spec describes after main.py.',
+      note: 'Add the arguments your spec describes after main.py. If it reads input, type it and end with Ctrl+Z then Enter, or send a file with cmd /c "py -3 -I src\\main.py < input.txt". Piping text into it in Windows PowerShell 5 can add an invisible mark to the first line.',
     },
     {
       system: 'macOS or Linux',
@@ -457,7 +480,7 @@ export function runSteps(
         `mkdir ${folder} && tar -xf ${archive} -C ${folder}`,
         `cd ${folder} && python3 -I src/main.py`,
       ],
-      note: 'Add the arguments your spec describes after main.py.',
+      note: 'Add the arguments your spec describes after main.py. If it reads input, type it and end with Ctrl+D, or send a file with python3 -I src/main.py < input.txt.',
     },
   ];
 }

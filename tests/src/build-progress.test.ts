@@ -267,6 +267,18 @@ test('stop reasons read as what happened and one next step', async () => {
     said('ContractError: The per-run request cap of 30 is reached').headline,
     /This run’s request limit/,
   );
+  // Review 1 L-2: the API's "no covering grant" means the build needs your approval.
+  assert.match(
+    said('Error: Build admission has no covering grant').headline,
+    /waiting for your approval/,
+  );
+  // Review 1 M-1: the daily cap is a rolling 24 hours, and the owner can add 20 more.
+  const daily = said(
+    'ContractError: The studio daily request cap for this connection is reached. The workspace owner can add 20 more for the next 24 hours.',
+  );
+  assert.match(daily.next, /^Add 20 requests for the next 24 hours/);
+  assert.doesNotMatch(daily.next, /midnight/);
+  assert.equal(r.headlineText('Something stopped.'), 'Something stopped');
   assert.equal(said('Error: never seen before').headline, 'FALLBACK');
   // Every answer names a next step.
   for (const reason of [
@@ -293,7 +305,35 @@ test('run steps name the archive and both systems; untested items stay honest', 
     r.runSteps('python-build/1', 'x.tar')[1]!.lines.join('\n'),
     /python3 -I src\/main\.py/,
   );
+  // Found on Windows PowerShell 5.1 (Nov 15): piped text gets a byte-order mark, so a file goes through cmd.
+  const py = r.runSteps('python-build/1', 'x.tar');
+  assert.match(py[0]!.note, /cmd \/c "py -3 -I src\\main\.py < input\.txt"/);
+  assert.match(py[1]!.note, /python3 -I src\/main\.py < input\.txt/);
   assert.equal(r.elapsed(new Date(0).toISOString(), 125000), '2 min 5 s');
+  // Review 1 L-1: the live region gets the step only; the seconds sit outside it.
+  const p = {
+    max_repairs: 2,
+    cases: 10,
+    now: {
+      step: 'testing',
+      round: 1,
+      case: 3,
+      since: new Date(0).toISOString(),
+    },
+  };
+  assert.deepEqual(r.nowParts(p, 12000), {
+    step: 'Testing: case 3 of 10 (repair round 1 of 2)',
+    time: '12 s so far',
+  });
+  // Review 1 N-1: Codex turns are counted apart from the request cap.
+  const footer = r.timeline(
+    { ...p, now: null, rounds: [], requests: 1, codex_turns: 4, max_calls: 4 },
+    'failed',
+  ).footer;
+  assert.equal(
+    footer.text,
+    'Stopped. 1 model request of 4 used (plus 4 Codex turns).',
+  );
 });
 
 test(
