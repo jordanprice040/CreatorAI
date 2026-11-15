@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // ADR-0110: authors the fence-accepting copies of the current T12 role benchmarks. Each copy has
-// the same cases, packets, prompts and expected checks as its source, byte for byte; only the
-// name, the provenance and `answer_wrapping: "one_json_fence"` differ. The sources stay frozen
-// and strict. It never dispatches a model.
-// Usage: pnpm build:code && node scripts/author-fence-benchmarks.mjs <out-dir>
+// the same content as its source (cases, packets, prompts and expected checks; equal canonical
+// hash of the cases), written in the schema's key order; only the name, the provenance and
+// `answer_wrapping: "one_json_fence"` differ. The sources stay frozen and strict. It never
+// dispatches a model.
+// Usage: pnpm build:code && node scripts/author-fence-benchmarks.mjs <out-dir>, then pnpm format.
 import { mkdir, readFile, writeFile, access } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { BenchmarkManifestSchema } from '../packages/contracts/dist/index.js';

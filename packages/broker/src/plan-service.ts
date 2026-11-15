@@ -21,7 +21,7 @@ import {
   type Admission,
   type BenchmarkCheck,
   parseRoleAnswer,
-  unwrapOneJsonFence,
+  roleAnswerText,
 } from '@creator/contracts';
 import {
   BUILD_ROLE_PROMPTS,
@@ -1613,9 +1613,7 @@ export class PlanConnectionService {
               ? scorer!(
                   ctx,
                   c.check,
-                  text !== null && wrapping === 'one_json_fence'
-                    ? (unwrapOneJsonFence(text) ?? text)
-                    : text,
+                  text === null ? null : roleAnswerText(text, wrapping).text,
                 )
               : 'provider_error';
           let json: unknown = null;

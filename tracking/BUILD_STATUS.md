@@ -6,6 +6,8 @@
 What now works: the builder and reviewer may answer with their JSON inside exactly one ```` ```json ```` (or bare ```` ``` ````) fence and nothing else, in builds on the plan route and in qualifications on the new frozen versions `t12-builder-v3` and `t12-reviewer-v3` (same cases as `t12-builder-v1` and `t12-reviewer-v2`, which stay strict). Qualify a model offers the v3 versions. Any other text around the answer still fails. The failed Claude Code `t12-builder-v1` record (`7c054251`) stays as it is.
 
 Checked in the cloud container on a throwaway PostgreSQL 16 database: see the PR for typecheck, format and `pnpm test:db` counts. New tests: `tests/src/role-answer-fence.test.ts` (accepted and refused forms, the marker only on build-role classes, v3 equal to its sources), a plan qualification test (fenced answers qualify on a marked version, fail a strict one, prose around the fence fails, the patch scorer gets the inside) and a build test (fenced builder and reviewer answers reach review with `call-N-answer-form.json`; prose around the fence stops the build with nothing applied). Not run: packet H again on the installed app (needs Jordan's fresh typed OK).
+
+Review 1 (3 L, 5 nits; `/mnt/project-files/reviews/PR208_REVIEW_1_2026-11-15.md`): the dollar route now refuses fence-accepting benchmarks; only JSON whitespace is allowed outside the fence; the frozen files' hashes are pinned; main merged. Still open: `t12-builder-v3` is re-cut from `t12-builder-v2` once #207 merges, and packet H waits for both.
 =======
 ## November 15 update — specs drafted by a qualified model, checked by you (B2; ADR-0107, migration 67)
 

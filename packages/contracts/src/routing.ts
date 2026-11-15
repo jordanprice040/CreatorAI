@@ -588,7 +588,10 @@ export const BenchmarkCaseSchema = z.strictObject({
 export const RoleAnswerWrappingSchema = z.literal('one_json_fence');
 export type RoleAnswerWrapping = z.infer<typeof RoleAnswerWrappingSchema>;
 
-const ONE_JSON_FENCE = /^\s*```(?:json)?[ \t]*\r?\n([\s\S]*)\r?\n[ \t]*```\s*$/;
+// Outside the fence only JSON's own whitespace (space, tab, CR, LF) is allowed, as JSON.parse
+// allows around a raw answer; a BOM or a no-break space is not (review 1 N-1).
+const ONE_JSON_FENCE =
+  /^[ \t\r\n]*```(?:json)?[ \t]*\r?\n([\s\S]*)\r?\n[ \t]*```[ \t\r\n]*$/;
 
 /**
  * The text inside the one fence that wraps a whole build-role answer, or null when the answer is
@@ -601,22 +604,31 @@ export function unwrapOneJsonFence(text: string): string | null {
 }
 
 /**
- * Parses a build role's answer (ADR-0110). Strict JSON first; with `one_json_fence`, an answer
- * that is exactly one fence around JSON is parsed from inside the fence. Throws SyntaxError
- * otherwise. `fenced` says which form was accepted, for the record.
+ * The text a build-role answer is graded on (ADR-0110): with `one_json_fence`, what is inside
+ * the one fence when the answer is wrapped that way; otherwise the answer as it came. The one
+ * place the rule is applied, for both the JSON parse and the patch scorer.
+ */
+export function roleAnswerText(
+  text: string,
+  wrapping: RoleAnswerWrapping | null,
+): { text: string; fenced: boolean } {
+  const inner = wrapping === 'one_json_fence' ? unwrapOneJsonFence(text) : null;
+  return inner === null
+    ? { text, fenced: false }
+    : { text: inner, fenced: true };
+}
+
+/**
+ * Parses a build role's answer (ADR-0110). A raw answer is strict JSON; with `one_json_fence`,
+ * an answer that is exactly one fence around JSON is parsed from inside the fence. Throws
+ * SyntaxError otherwise. `fenced` says which form was accepted, for the record.
  */
 export function parseRoleAnswer(
   text: string,
   wrapping: RoleAnswerWrapping | null,
 ): { json: unknown; fenced: boolean } {
-  try {
-    return { json: JSON.parse(text) as unknown, fenced: false };
-  } catch (e) {
-    const inner =
-      wrapping === 'one_json_fence' ? unwrapOneJsonFence(text) : null;
-    if (inner === null) throw e;
-    return { json: JSON.parse(inner) as unknown, fenced: true };
-  }
+  const a = roleAnswerText(text, wrapping);
+  return { json: JSON.parse(a.text) as unknown, fenced: a.fenced };
 }
 
 export const BenchmarkManifestSchema = z

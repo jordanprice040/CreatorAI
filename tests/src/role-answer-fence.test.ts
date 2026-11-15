@@ -6,7 +6,7 @@ import {
   parseRoleAnswer,
   unwrapOneJsonFence,
 } from '@creator/contracts';
-import { BUILD_ROLE_PROMPTS } from '@creator/domain';
+import { BUILD_ROLE_PROMPTS, canonicalHash } from '@creator/domain';
 
 const root = new URL('../../', import.meta.url);
 const bench = (name: string) =>
@@ -28,6 +28,12 @@ test('ADR-0110: exactly one json or bare fence around the whole answer is accept
     `\n  \`\`\`json\n${ANSWER}\n\`\`\`\n`,
     `\`\`\`json\r\n${ANSWER}\r\n\`\`\``,
     `\`\`\`json\n{\n  "verdict": "approve",\n  "findings": []\n}\n\`\`\``,
+    // Spaces after the tag, an indented closing fence, blank lines inside and spaces after
+    // the closing fence are all plausible model output (review 1 N-5).
+    `\`\`\`json   \n${ANSWER}\n\`\`\``,
+    `\`\`\`json\n${ANSWER}\n   \`\`\``,
+    `\`\`\`json\n\n${ANSWER}\n\n\`\`\``,
+    `\`\`\`json\n${ANSWER}\n\`\`\`   \n\n`,
     // Backticks inside a JSON string (a README in a patch) do not end the fence.
     `\`\`\`json\n{"content":"\`\`\`py\\nx\\n\`\`\`"}\n\`\`\``,
   ]) {
@@ -55,6 +61,12 @@ test('ADR-0110: any other surrounding text, a second fence or another language s
     `\`\`\`json\n${ANSWER}`,
     `\`\`\`json\n\n\`\`\``,
     `~~~json\n${ANSWER}\n~~~`,
+    `\`\`\` json\n${ANSWER}\n\`\`\``,
+    // Outside the fence only JSON whitespace counts: a BOM or a no-break space fails, as it
+    // would before a raw answer (review 1 N-1).
+    `\uFEFF\`\`\`json\n${ANSWER}\n\`\`\``,
+    `\`\`\`json\n${ANSWER}\n\`\`\`\u00A0`,
+    `\u2028\`\`\`json\n${ANSWER}\n\`\`\``,
     `\`${ANSWER}\``,
   ])
     assert.throws(
@@ -110,4 +122,28 @@ test('ADR-0110: t12-builder-v3 and t12-reviewer-v3 are their sources plus the fe
     assert.match(b.provenance, /ADR-0110/);
     assert.match(b.provenance, /7c054251/);
   }
+});
+
+test('ADR-0110 review 1 N-4: the frozen T12 role benchmarks and their fence copies cannot change silently', () => {
+  // Canonical hashes as the server records them (startPlanQualification).
+  assert.deepEqual(
+    Object.fromEntries(
+      [
+        't12-builder-v1',
+        't12-builder-v3',
+        't12-reviewer-v2',
+        't12-reviewer-v3',
+      ].map((n) => [n, canonicalHash(bench(n))]),
+    ),
+    {
+      't12-builder-v1':
+        '52bf28770fa925a3d23befc448e605a92c7af65f6be2a4150c787ba5825ea85a',
+      't12-builder-v3':
+        '3342fac6e8b908b2512adbe7df2178a502aadb6c63afa6418ff929a8b8744032',
+      't12-reviewer-v2':
+        'a9ecee41b38f4e54222cec6cd49b0bb0a03adf36b778b48bf19bdb3b556d7bea',
+      't12-reviewer-v3':
+        '231007c89901ce4810e76c88cf56f05d1cb6be29033bb14b256e66a3da760271',
+    },
+  );
 });
