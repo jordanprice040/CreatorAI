@@ -148,6 +148,22 @@ export function ceilingRefusal(
   return null;
 }
 
+/**
+ * ADR-0113 (S0): what a refused run's starter reads. Studio-wide amounts (what is left under the
+ * ceiling or a limit, unknown-cost counts) go to `spending_refusals`, which only the studio
+ * spending manager reads, so the workspace-visible reservation never carries them.
+ */
+export const SPENDING_WAIT_EXPLANATION =
+  'Your run is waiting on the studio spending limit. Only the studio spending manager can see the amounts, in Settings.';
+
+/** The studio spending manager's actor id, or null on a studio with no workspace yet. */
+export async function spendingManagerId(c: PoolClient): Promise<string | null> {
+  const { rows } = await c.query<{ actor_id: string }>(
+    'select actor_id from studio_spending_manager',
+  );
+  return rows[0]?.actor_id ?? null;
+}
+
 /** No narrower limits: only the overall ceiling applies until the owner sets some. */
 export const NO_SPEND_LIMITS: SpendLimits = {
   per_run_nano_usd: null,

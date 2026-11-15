@@ -316,6 +316,8 @@ export const RuntimeCeilingSchema = z.strictObject({
   /** Settled cost plus held in-flight and unknown exposure, and open study holds. */
   exposure_nano_usd: nanoUsd,
   unknown_calls: counter,
+  /** ADR-0113: the one person who may read and change studio-wide spending. */
+  spending_manager_actor_id: id,
   history: z.array(RuntimeCeilingChangeSchema).max(50),
 });
 export type RuntimeCeiling = z.infer<typeof RuntimeCeilingSchema>;
@@ -394,6 +396,29 @@ export const SpendLimitsViewSchema = z.strictObject({
       }),
     )
     .max(10),
+  /**
+   * ADR-0113: the latest refusals by the ceiling or a limit, with the amounts the starter's
+   * record leaves out. Only the studio spending manager reads this view.
+   */
+  recent_refusals: z
+    .array(
+      z.strictObject({
+        reservation_id: id,
+        workspace_id: id,
+        run_id: id,
+        provider: ProviderSchema,
+        model_id: z.string().min(1).max(500),
+        reason_code: z.enum([
+          'runtime_ceiling',
+          'runtime_unknown_cost',
+          'runtime_run_limit',
+          'runtime_model_limit',
+        ]),
+        explanation: z.string().min(1).max(2000),
+        created_at: timestamp,
+      }),
+    )
+    .max(20),
   history: z.array(SpendLimitChangeSchema).max(50),
 });
 export type SpendLimitsView = z.infer<typeof SpendLimitsViewSchema>;

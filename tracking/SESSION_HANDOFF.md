@@ -1,5 +1,9 @@
 # Session handoff — November 10, 2026
 
+## November 15 handoff — S0 studio spending manager (ADR-0113, migration 69)
+
+Branch `claude/project-thread-55w1gx` from main f5728aa. Migration 69 `studio_spending_manager` (single immutable row, upgrade assignment in SQL) and `spending_refusals` (immutable, keyed by reservation). `budget-store.ts`: `isSpendingManager` / `requireSpendingManager` replace `isCeilingOwner`; `prepareAttempt`'s ceiling and limit refusals go through `spendingDeny` (generic reservation text, details row); `limitsView` adds `recent_refusals`; `ceilingView` adds `spending_manager_actor_id`. `runtime-ceiling.ts`: `SPENDING_WAIT_EXPLANATION`, `spendingManagerId`. `store.ts` `createWorkspace` assigns the first human creator. `backup.ts` counts both tables. Web: one line in `settings.tsx`, a folded refusal list in `spending-limits.tsx`. N1 must call `isSpendingManager` for spend alert recipients, not a copy. Next: independent review in a separate thread; before upgrading the dev studio, check migration 69 on a throwaway copy of it (Jordan's PC, typed OK for the upgrade). Next free numbers after this: ADR-0114, migration 70.
+
 ## November 15 handoff — autopilot fixes from the third live rerun
 
 Branch `claude/project-thread-77qqks`, restarted from main 42dce84 after #205 merged. No migration or ADR.

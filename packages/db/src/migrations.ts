@@ -3858,6 +3858,50 @@ alter table build_approval_asks add constraint build_approval_asks_max_repairs_c
  check (max_repairs between 0 and 5);
 `,
   },
+  {
+    // ADR-0113 (S0): one studio spending manager replaces "any workspace owner" for the
+    // studio-wide ceiling, limits and spend views. On upgrade the manager is the person who made
+    // the latest ceiling or limit change, else the human owner of the oldest workspace; a brand
+    // new studio gets one when its first person creates a workspace. Refusal amounts move to a
+    // table only the manager reads; the workspace-visible reservation keeps a generic text.
+    version: 69,
+    name: 'studio_spending_manager',
+    sql: `
+create table studio_spending_manager (
+ singleton boolean primary key default true check (singleton),
+ actor_id uuid not null references actors(id),
+ source text not null check (source in ('upgrade_latest_change', 'upgrade_oldest_owner', 'first_workspace')),
+ assigned_at timestamptz not null default clock_timestamp()
+);
+create trigger studio_spending_manager_immutable before update or delete on studio_spending_manager
+ for each row execute function creator_reject_change();
+insert into studio_spending_manager (actor_id, source)
+select actor_id, source from (
+  select x.actor_id, 'upgrade_latest_change' as source, 1 as rank, x.created_at as at
+    from (select actor_id, created_at from runtime_ceiling_changes
+          union all select actor_id, created_at from runtime_limit_changes) x
+    join actors a on a.id = x.actor_id and a.kind = 'human'
+   where not exists (select 1 from tester_accounts t where t.actor_id = x.actor_id)
+  union all
+  select m.actor_id, 'upgrade_oldest_owner', 2, w.created_at
+    from workspaces w
+    join workspace_members m on m.workspace_id = w.id and m.role = 'owner'
+    join actors a on a.id = m.actor_id and a.kind = 'human'
+   where not exists (select 1 from tester_accounts t where t.actor_id = m.actor_id)
+) c
+order by rank, case when rank = 1 then at end desc, case when rank = 2 then at end asc, actor_id
+limit 1;
+create table spending_refusals (
+ reservation_id uuid primary key references budget_reservations(id),
+ reason_code text not null check (reason_code in ('runtime_ceiling', 'runtime_unknown_cost', 'runtime_run_limit', 'runtime_model_limit')),
+ explanation text not null check (length(explanation) between 1 and 2000),
+ created_at timestamptz not null default clock_timestamp()
+);
+create trigger spending_refusals_immutable before update or delete on spending_refusals
+ for each row execute function creator_reject_change();
+create index spending_refusals_recent on spending_refusals (created_at desc);
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

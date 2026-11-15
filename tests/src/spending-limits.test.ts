@@ -537,7 +537,7 @@ test('the limits route needs a signed-in session, and a write needs its CSRF tok
   });
   assert.equal((await fetch(url)).status, 401);
   const auth = await login(base);
-  // Signed in but owning no workspace: refused by the store.
+  // Signed in on a studio with no spending manager yet: refused by the store (ADR-0113).
   assert.equal((await fetch(url, { headers: auth.read })).status, 403);
   await fetch(`${base}/workspaces`, {
     method: 'POST',

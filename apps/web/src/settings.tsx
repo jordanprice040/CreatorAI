@@ -156,6 +156,14 @@ export function Settings({
                     : `version ${c.version}, set ${when(c.history[0]!.created_at)}`}
                 </small>
               </dd>
+              <dt>Spending manager</dt>
+              <dd>
+                you{' '}
+                <small>
+                  only you can see and change studio-wide spending; owning a
+                  workspace does not grant it
+                </small>
+              </dd>
               <dt>Counted since</dt>
               <dd>{when(c.counted_since)}</dd>
               <dt>Used or held</dt>
