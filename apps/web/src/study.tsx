@@ -55,6 +55,10 @@ export function Studies({
   const [confirmStop, setConfirmStop] = useState(false);
   // ADR-0122 (F13): the current intervention step's timer, and the attempt's timed steps.
   const [step, setStep] = useState<StudyEffortStep | null>(null);
+  // Read by startStep after a save, when the `step` captured by the save handler is stale.
+  const stepRef = useRef<StudyEffortStep | null>(null);
+  const [starting, setStarting] = useState(false);
+  const editorOpen = useRef(false);
   const [effortSteps, setEffortSteps] = useState<StudyEffortStep[]>([]);
   const clock = useRef<EffortClock | null>(null);
   const attemptPanel = useRef<HTMLDivElement | null>(null);
@@ -139,6 +143,7 @@ export function Studies({
   }
   function stopTiming() {
     clock.current = null;
+    stepRef.current = null;
     setStep(null);
   }
   async function loadEffort(attemptId: string) {
@@ -150,12 +155,18 @@ export function Studies({
     );
   }
   async function startStep() {
-    if (!attempt || step) return;
-    const started = await api(
-      StudyEffortStepSchema,
-      `${base}/study-attempts/${attempt.id}/effort-steps`,
-      { body: {}, csrf: session.csrf_token },
-    );
+    if (!attempt || stepRef.current || starting) return;
+    setStarting(true);
+    let started: StudyEffortStep;
+    try {
+      started = await api(
+        StudyEffortStepSchema,
+        `${base}/study-attempts/${attempt.id}/effort-steps`,
+        { body: {}, csrf: session.csrf_token },
+      );
+    } finally {
+      setStarting(false);
+    }
     clock.current = new EffortClock(
       performance.now(),
       {
@@ -164,6 +175,7 @@ export function Studies({
       },
       STUDY_EFFORT_IDLE_MS,
     );
+    stepRef.current = started;
     setStep(started);
     await loadEffort(attempt.id);
   }
@@ -491,12 +503,21 @@ export function Studies({
               <InterventionEditor
                 busy={busy}
                 synthetic={attempt.synthetic}
-                timing={
-                  step && clock.current
-                    ? clock.current.totals(performance.now())
-                    : null
+                timer={
+                  attempt.participant_actor_id.toLowerCase() !==
+                  session.actor_id.toLowerCase()
+                    ? { state: 'not_participant' }
+                    : step && clock.current
+                      ? {
+                          state: 'running',
+                          totals: clock.current.totals(performance.now()),
+                        }
+                      : { state: starting ? 'starting' : 'off' }
                 }
-                onOpen={() => void perform(startStep)}
+                onToggle={(open) => {
+                  editorOpen.current = open;
+                }}
+                onStart={() => void perform(startStep)}
                 save={(body) =>
                   perform(async () => {
                     const c = clock.current;
@@ -519,12 +540,19 @@ export function Studies({
                         ? 'Intervention, reported effort and measured step time saved.'
                         : 'Intervention and reported effort saved.',
                     );
+                    // Review M-1 (#221): the editor stays open, so the next intervention is
+                    // a new step and is timed from now.
+                    if (editorOpen.current) await startStep();
                   })
                 }
               />
             )}
           {attempt.condition === 'human_in_loop' && effortSteps.length > 0 && (
-            <EffortSummary steps={effortSteps} synthetic={attempt.synthetic} />
+            <EffortSummary
+              steps={effortSteps}
+              running={step?.id ?? null}
+              synthetic={attempt.synthetic}
+            />
           )}
           <label>
             Reported waiting seconds
@@ -628,37 +656,89 @@ export function Studies({
 
 function EffortSummary({
   steps,
+  running,
   synthetic,
 }: {
   steps: StudyEffortStep[];
+  running: string | null;
   synthetic: boolean;
 }) {
   const timed = steps.flatMap((s) => (s.measured ? [s.measured] : []));
   const total = (k: keyof EffortTotals) =>
     effortText(timed.reduce((n, m) => n + m[k], 0));
-  const open = steps.length - timed.length;
+  // The step being timed now is not unfinished; one left open earlier (reload, other attempt) is.
+  const open = steps.filter((s) => !s.measured && s.id !== running).length;
   return (
     <p className="study-effort-summary">
       Measured on this attempt: {timed.length} timed{' '}
       {timed.length === 1 ? 'step' : 'steps'} · active {total('active_ms')} ·
-      waiting on the studio {total('wait_ms')} · away {total('away_ms')}
+      waiting on the studio {total('wait_ms')} · on the page, not editing{' '}
+      {total('idle_ms')} · page not in front {total('away_ms')}
       {open > 0 && ` · ${open} unfinished`}
       {synthetic && ' (synthetic: the operator, not a participant)'}
     </p>
   );
 }
 
+type TimerView =
+  | { state: 'running'; totals: EffortTotals }
+  | { state: 'starting' | 'off' | 'not_participant' };
+
+function TimerReadout({
+  timer,
+  busy,
+  onStart,
+}: {
+  timer: TimerView;
+  busy: boolean;
+  onStart: () => void;
+}) {
+  if (timer.state === 'running') {
+    const t = timer.totals;
+    return (
+      <span>
+        <strong>Timing this step</strong> · active {effortText(t.active_ms)} ·
+        waiting on the studio {effortText(t.wait_ms)} · on the page, not editing{' '}
+        {effortText(t.idle_ms)} · page not in front {effortText(t.away_ms)}
+      </span>
+    );
+  }
+  if (timer.state === 'starting') return <span>Starting the step timer…</span>;
+  if (timer.state === 'not_participant')
+    return (
+      <span>
+        Not timed: only the person assigned to this attempt has their steps
+        timed.
+      </span>
+    );
+  return (
+    <span>
+      Timer not running.{' '}
+      <button
+        type="button"
+        className="secondary"
+        disabled={busy}
+        onClick={onStart}
+      >
+        Start timing this step
+      </button>
+    </span>
+  );
+}
+
 function InterventionEditor({
   busy,
   synthetic,
-  timing,
-  onOpen,
+  timer,
+  onToggle,
+  onStart,
   save,
 }: {
   busy: boolean;
   synthetic: boolean;
-  timing: EffortTotals | null;
-  onOpen: () => void;
+  timer: TimerView;
+  onToggle: (open: boolean) => void;
+  onStart: () => void;
   save: (body: unknown) => Promise<void>;
 }) {
   const [fields, setFields] = useState({
@@ -685,25 +765,19 @@ function InterventionEditor({
   return (
     <details
       onToggle={(e) => {
-        if (e.currentTarget.open && !timing) onOpen();
+        const open = e.currentTarget.open;
+        onToggle(open);
+        if (open && timer.state === 'off') onStart();
       }}
     >
       <summary>Record human intervention</summary>
       <div className="study-effort">
-        <span>
-          {timing ? (
-            <>
-              <strong>Timing this step</strong> · active{' '}
-              {effortText(timing.active_ms)} · waiting on the studio{' '}
-              {effortText(timing.wait_ms)} · away {effortText(timing.away_ms)}
-            </>
-          ) : (
-            'Starting the step timer…'
-          )}
-        </span>
+        <TimerReadout timer={timer} busy={busy} onStart={onStart} />
         <span className="study-effort-note">
-          Active means this page is in front and you edited in the last minute.
-          Saving the intervention ends the step. The timer measures time only.
+          Active means this page is in front and you edited in the last minute;
+          time on the page without editing (reading, say) is counted on its own.
+          Saving the intervention ends the step and, while this form stays open,
+          starts timing the next one. The timer measures time only.
           {synthetic &&
             ' This is a synthetic study, so it times the operator testing the workflow, not a participant.'}
         </span>

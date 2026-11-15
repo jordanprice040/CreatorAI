@@ -98,13 +98,30 @@ check(
   `the attempt shows its timed step (${await summary.innerText()})`,
 );
 await page.screenshot({ path: join(out, '02-saved.png') });
+// Review M-1: the form stays open, so the next intervention is timed from the save.
+await box.getByText('Timing this step').waitFor();
+check(
+  true,
+  'after a save the next step starts timing while the form stays open',
+);
+await form.locator('textarea').first().pressSequentially('d', { delay: 200 });
+await form.getByRole('button', { name: 'Save intervention' }).click();
+await page.waitForFunction(() =>
+  /2 timed steps/.test(
+    document.querySelector('.study-effort-summary')?.textContent ?? '',
+  ),
+);
+check(true, 'a second intervention in a row is timed (2 timed steps)');
+await box.getByText('Timing this step').waitFor();
+await page.screenshot({ path: join(out, '03-second-step.png') });
 const steps = await get(`workspaces/${ws}/study-attempts/${b.id}/effort-steps`);
 const m = steps[0]?.measured;
 check(
-  steps.length === 1 &&
+  steps.length === 3 &&
+    steps.filter((s) => s.measured).length === 2 &&
     m &&
     m.active_ms > 0 &&
-    m.active_ms + m.wait_ms + m.away_ms <= m.wall_ms + 5000,
+    m.active_ms + m.wait_ms + m.idle_ms + m.away_ms <= m.wall_ms + 5000,
   `the API returns the measured step within its studio time (${JSON.stringify(m)})`,
 );
 const exported = await get(`workspaces/${ws}/studies/${seed.study.id}/export`);

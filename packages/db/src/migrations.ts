@@ -3881,6 +3881,7 @@ create table study_effort_measures (
  timer_version text not null,
  active_ms bigint not null check (active_ms >= 0),
  wait_ms bigint not null check (wait_ms >= 0),
+ idle_ms bigint not null check (idle_ms >= 0),
  away_ms bigint not null check (away_ms >= 0),
  wall_ms bigint not null check (wall_ms >= 0),
  recorded_at timestamptz not null default clock_timestamp()

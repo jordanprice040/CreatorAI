@@ -840,6 +840,8 @@ export class StudyStore extends RunbookStore {
     // Return denials after commit so the denial event is durable.
     return this.tx(async (c) => {
       const a = await this.lockAttemptForWrite(c, ctx, ws, attemptId);
+      // Review M-1 (#221): only the assigned person's own time is measured, never the owner's.
+      if (effort) notParticipant(a, ctx);
       if (action === 'helpers')
         return {
           allowed: false,
@@ -958,6 +960,7 @@ export class StudyStore extends RunbookStore {
     attemptId = uuid(attemptId);
     return this.tx(async (c) => {
       const a = await this.lockAttemptForWrite(c, ctx, ws, attemptId);
+      notParticipant(a, ctx);
       if (a.condition !== 'human_in_loop')
         throw fail(
           'INVALID_TRANSITION',
@@ -996,7 +999,8 @@ export class StudyStore extends RunbookStore {
   }
   async #effortRows(c: PoolClient, attemptId: string, synthetic: boolean) {
     const r = await c.query(
-      `select s.*, m.event_id, m.timer_version, m.active_ms, m.wait_ms, m.away_ms, m.wall_ms,
+      `select s.*, m.event_id, m.timer_version, m.active_ms, m.wait_ms, m.idle_ms,
+              m.away_ms, m.wall_ms,
               m.recorded_at
          from study_effort_steps s left join study_effort_measures m on m.step_id = s.id
         where s.attempt_id = $1 order by s.started_at, s.id`,
@@ -1028,7 +1032,7 @@ export class StudyStore extends RunbookStore {
     const row = step.rows[0];
     if (!row || String(row.actor_id).toLowerCase() !== ctx.actorId)
       throw fail(
-        'VERSION_CONFLICT',
+        'NOT_FOUND',
         'The timed step does not belong to this attempt and person; start a new step.',
       );
     if (row.measured)
@@ -1040,7 +1044,7 @@ export class StudyStore extends RunbookStore {
     const refusal = effortOverrun(effort, wallMs);
     if (refusal) throw fail('INVALID_CONTRACT', refusal);
     await c.query(
-      'insert into study_effort_measures(step_id,attempt_id,event_id,timer_version,active_ms,wait_ms,away_ms,wall_ms) values($1,$2,$3,$4,$5,$6,$7,$8)',
+      'insert into study_effort_measures(step_id,attempt_id,event_id,timer_version,active_ms,wait_ms,idle_ms,away_ms,wall_ms) values($1,$2,$3,$4,$5,$6,$7,$8,$9)',
       [
         effort.step_id,
         attemptId,
@@ -1048,6 +1052,7 @@ export class StudyStore extends RunbookStore {
         effort.timer_version,
         effort.active_ms,
         effort.wait_ms,
+        effort.idle_ms,
         effort.away_ms,
         wallMs,
       ],
@@ -1188,7 +1193,7 @@ export class StudyStore extends RunbookStore {
         );
         const effort = await this.#effortRows(c, a.id, a.synthetic);
         const timed = effort.flatMap((e) => (e.measured ? [e.measured] : []));
-        const seconds = (k: 'active_ms' | 'wait_ms' | 'away_ms') =>
+        const seconds = (k: 'active_ms' | 'wait_ms' | 'idle_ms' | 'away_ms') =>
           timed.reduce((n, m) => n + m[k], 0) / 1000;
         const rs = reservations.rows;
         const sum = (predicate: (r: Row) => boolean, column: string) =>
@@ -1217,6 +1222,7 @@ export class StudyStore extends RunbookStore {
             unfinished_steps: effort.length - timed.length,
             intervention_active_seconds: seconds('active_ms'),
             intervention_wait_seconds: seconds('wait_ms'),
+            intervention_idle_seconds: seconds('idle_ms'),
             intervention_away_seconds: seconds('away_ms'),
             steps: effort,
           },
@@ -1710,12 +1716,25 @@ export class StudyStore extends RunbookStore {
   }
 }
 
+/**
+ * The timer measures the assigned person only: the workspace owner may act on a participant's
+ * attempt, but their time is not the participant's, so they cannot time its steps.
+ */
+function notParticipant(a: StudyAttempt, ctx: CommandContext) {
+  if (a.participant_actor_id.toLowerCase() !== ctx.actorId)
+    throw fail(
+      'ACCESS_DENIED',
+      'Only the person assigned to this attempt can time its steps.',
+    );
+}
+
 /** Null when the measured totals fit inside the step's server time, else the reason. */
 export function effortOverrun(
-  effort: Pick<StudyEffort, 'active_ms' | 'wait_ms' | 'away_ms'>,
+  effort: Pick<StudyEffort, 'active_ms' | 'wait_ms' | 'idle_ms' | 'away_ms'>,
   wallMs: number,
 ): string | null {
-  const measured = effort.active_ms + effort.wait_ms + effort.away_ms;
+  const measured =
+    effort.active_ms + effort.wait_ms + effort.idle_ms + effort.away_ms;
   return measured > wallMs + STUDY_EFFORT_CLOCK_SLACK_MS
     ? `The measured time (${measured} ms) is longer than the step lasted on the studio clock (${wallMs} ms).`
     : null;
@@ -1740,6 +1759,7 @@ function effortStep(
           ) as typeof STUDY_EFFORT_TIMER_VERSION,
           active_ms: Number(m.active_ms),
           wait_ms: Number(m.wait_ms),
+          idle_ms: Number(m.idle_ms),
           away_ms: Number(m.away_ms),
           wall_ms: Number(m.wall_ms),
           recorded_at: iso(m.recorded_at),

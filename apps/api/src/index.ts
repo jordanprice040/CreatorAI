@@ -918,6 +918,7 @@ export function createApi(
         ws,
         attemptId: item,
         method,
+        body: () => readJson(req),
         send,
       }))
     )

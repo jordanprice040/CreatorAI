@@ -159,17 +159,22 @@ const effortMs = counter.max(86_400_000);
 /**
  * Measured totals for one step, in milliseconds. `active_ms`: the page was visible and focused
  * and the person edited within the idle window. `wait_ms`: otherwise, a studio request was in
- * flight (the person was waiting on the studio). `away_ms`: the rest of the step.
+ * flight (the person was waiting on the studio). `idle_ms`: otherwise, the page was visible and
+ * focused but the person was not editing (reading, say). `away_ms`: the rest (the page was hidden
+ * or another window had focus).
  */
 export const StudyEffortSchema = z.strictObject({
   step_id: id,
   timer_version: z.literal(STUDY_EFFORT_TIMER_VERSION),
   active_ms: effortMs,
   wait_ms: effortMs,
+  idle_ms: effortMs,
   away_ms: effortMs,
 });
 export type StudyEffort = z.infer<typeof StudyEffortSchema>;
 /** The intervention body the API accepts: the frozen intervention fields plus optional timing. */
+/** Starting a step takes no input. */
+export const StartStudyEffortStepSchema = z.strictObject({});
 export const StudyInterventionRequestSchema = StudyInterventionSchema.extend({
   effort: StudyEffortSchema.optional(),
 });
@@ -185,6 +190,7 @@ export const StudyEffortStepSchema = z.strictObject({
       timer_version: z.literal(STUDY_EFFORT_TIMER_VERSION),
       active_ms: effortMs,
       wait_ms: effortMs,
+      idle_ms: effortMs,
       away_ms: effortMs,
       wall_ms: counter,
       recorded_at: timestamp,

@@ -1,3 +1,4 @@
+import { StartStudyEffortStepSchema, parse } from '@creator/contracts';
 import type { CommandContext, StudyStore } from '@creator/db';
 
 /** ADR-0122 (F13): start timing an intervention step, or list an attempt's timed steps. */
@@ -14,14 +15,17 @@ export async function studyEffortRoutes(r: {
   ws: string;
   attemptId: string;
   method: string;
+  body: () => Promise<unknown>;
   send: (status: number, value: unknown, mutated: boolean) => Promise<boolean>;
 }): Promise<boolean> {
-  if (r.method === 'POST')
+  if (r.method === 'POST') {
+    parse(StartStudyEffortStepSchema, await r.body());
     return r.send(
       201,
       await r.store.startEffortStep(r.ctx, r.ws, r.attemptId),
       true,
     );
+  }
   if (r.method === 'GET')
     return r.send(
       200,
