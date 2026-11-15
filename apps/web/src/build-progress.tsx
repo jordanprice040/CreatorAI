@@ -358,13 +358,14 @@ export function BuildDetails({
           <span role="status" aria-live="polite">
             {live?.step ?? 'Starting…'}
           </span>
-          {live?.time ? <span> ({live.time})</span> : null}.
+          {live?.time ? <span> ({live.time})</span> : null}
+          {live ? '.' : null}
         </p>
       )}
       {why && (
         <div className="build-stop">
           <p>
-            <strong>{headlineText(why.headline)}.</strong>
+            <strong>{headlineText(why.headline)}</strong>
           </p>
           <p>
             <span className="next-label">Next:</span> {why.next}

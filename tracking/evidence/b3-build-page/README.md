@@ -114,7 +114,7 @@ desktop app it opens in the default browser, which frames the site from `w<id>-<
 What remains to observe on Jordan's PC: in the installed app, Try › a static web package › Start
 private preview › Open: the default browser opens and the page shows. Not done here.
 
-## Live repair benchmark (Jordan's PC, November 15, 2026)
+## Live repair benchmark (Jordan's PC, evening of November 14, 2026 Eastern; 00:00–00:10 UTC November 15)
 
 Jordan's typed OK (thread, 2026-11-14 23:55 UTC). Dev studio on Jordan's PC running this branch
 (`d29ee31`, schema 63, backup `creator_studio-pre-b3-20261114T235716Z.dump` first), WSL2 worker,
@@ -134,9 +134,11 @@ decision D that is the result; nothing was re-run. 6 plan requests in total (0 �
 | 3       | verified; 2 requests, 0 repairs, 46 s; 4/4 + 6/6 | src/main.py, 65 lines | 10/10, 22/22; 0.029 s, 11.7 MB          |
 
 Reviewer approved each with no findings; `compare-spec` passed for each; no patch was refused.
-Records: `tracking/evidence/p14-benchmarks/RESULTS_REPAIR_V1_2026-11-14.json` and `live/` (added
-from Jordan's PC once he allows the push; until then they are on his PC in
-`C:\dev\creator_agent_main`, with full per-attempt files under `.creator\p14-benchmarks\repair-v1\`).
+**Reported, not yet recorded in this repository:** the figures above come from the session on
+Jordan's PC. Its records (`tracking/evidence/p14-benchmarks/RESULTS_REPAIR_V1_2026-11-14.json`,
+two screenshots and the Windows notes under `live/`) are a local commit on Jordan's PC
+(branch `claude/project-thread-48x3x8`, `0616a077`, in `C:\dev\creator_agent_main`), waiting for
+his OK to push; full per-attempt files stay under `.creator\p14-benchmarks\repair-v1\`.
 
 Seen on the live Build page: the verified view read as intended ("4 you can see… 6 hidden", the
 approval's coverage, "2 model requests of 6 used", the archive name in the run steps). Not seen

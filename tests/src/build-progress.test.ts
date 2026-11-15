@@ -276,9 +276,14 @@ test('stop reasons read as what happened and one next step', async () => {
   const daily = said(
     'ContractError: The studio daily request cap for this connection is reached. The workspace owner can add 20 more for the next 24 hours.',
   );
-  assert.match(daily.next, /^Add 20 requests for the next 24 hours/);
+  assert.match(
+    daily.next,
+    /^The workspace owner can add 20 requests for the next 24 hours/,
+  );
   assert.doesNotMatch(daily.next, /midnight/);
-  assert.equal(r.headlineText('Something stopped.'), 'Something stopped');
+  assert.equal(r.headlineText('Something stopped.'), 'Something stopped.');
+  assert.equal(r.headlineText('Something stopped'), 'Something stopped.');
+  assert.equal(r.headlineText('What now?'), 'What now?');
   assert.equal(said('Error: never seen before').headline, 'FALLBACK');
   // Every answer names a next step.
   for (const reason of [

@@ -105,16 +105,10 @@ export function nowParts(
   return { step: what, time: t ? `${t} so far` : '' };
 }
 
-/** The one line that says what a running build is doing now. */
-export function nowLine(p: BuildProgress, now: number): string | null {
-  const parts = nowParts(p, now);
-  if (!parts) return null;
-  return parts.time ? `${parts.step} (${parts.time}).` : `${parts.step}.`;
-}
-
-/** A headline without a trailing period, so the page adds exactly one. */
+/** A headline ending in exactly one stop: a trailing period is trimmed and one added, unless it ends in ? or !. */
 export function headlineText(h: string): string {
-  return h.replace(/[.\s]+$/, '');
+  const t = h.replace(/[.\s]+$/, '');
+  return /[?!]$/.test(t) ? t : `${t}.`;
 }
 
 function builderLine(r: BuildRound, p: BuildProgress): TimelineLine | null {
@@ -387,7 +381,7 @@ export function stopExplanation(
   if (/daily request cap|daily_cap_reached/i.test(t))
     return {
       headline: 'Today’s plan request limit is used up',
-      next: 'Add 20 requests for the next 24 hours (the usage button at the top, or the connection under Models and connections), or build again once older requests are more than 24 hours old.',
+      next: 'The workspace owner can add 20 requests for the next 24 hours (the usage button at the top, or the connection under Models and connections); otherwise build again once older requests are more than 24 hours old.',
     };
   if (/per-run request cap|cap_reached/i.test(t))
     return {
