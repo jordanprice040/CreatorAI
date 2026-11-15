@@ -34,7 +34,8 @@ was synthetic. No API key was used. No connection setting was changed during the
 | H4 Claude `p14-larger-ledgercheck-v5` | `49fe5782` | **not qualified**: attempt 1 failed after 1 of 6 requests, 0 repairs, 27 s; attempts 2 and 3 were not run | 1 | 11:20:40–11:21:07 |
 
 H4's reason: "The build did not verify: SyntaxError: Unexpected token '<', "<invoke na"... is not valid
-JSON". The stored builder answer (call 1 outcome, request `8e62b9ea…`, 6,960 characters) is a stray
+JSON". The builder answer itself is not among these files: it was read in the app from the stored
+outcome of the build's call 1 (request `8e62b9ea…`, 6,960 characters). It is a stray
 `<invoke name="note">na</invoke>` / `</invoke>` preamble followed by one ```json fence holding a
 complete-looking patch. Even where ADR-0110's `one_json_fence` applies, one fence is accepted only
 when it wraps the whole answer with nothing but whitespace outside it

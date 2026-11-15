@@ -57,7 +57,7 @@ current ones (`onCurrentPrompts` in `apps/web/src/build-qualification.ts`, and t
 in `packages/contracts/src/web-recipe.ts`), and builder/1 role records no longer admit. So on main
 after #207, packet A's results here are not current: its builder step now uses `t12-builder-v2` or
 v3 (`docs/BUILD_QUALIFICATION_PACKETS_2026-11-14.md`). These files remain the record of what
-builder/1 did.
+builder/1 did. The rerun under builder/2 is recorded in `../2026-11-15-rerun/`.
 
 ## Files
 

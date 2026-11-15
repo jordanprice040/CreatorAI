@@ -4,9 +4,11 @@
 
 What now works: `node apps/desktop/build-studio.mjs` builds on Windows again. PR #201's licence list walked up from each viewer library's entry comparing backslash paths against `/node_modules/`, reached the drive root and failed with `ENOENT C:\package.json`. The walk (`apps/web/src/package-root.ts`, used by `apps/web/vite.config.ts`) now works in forward slashes on every platform, keeps POSIX names with a backslash intact, and stops with a clear error instead of reading a drive root. On Linux the built `THIRD_PARTY_LICENSES.txt` is byte-identical before and after (23 packages). New test `tests/src/web-package-root.test.ts` runs the walk with Windows (drive, pnpm store, scoped, UNC) and POSIX path rules; the old code walked to `C:\` on the same input.
 
-Records: `tracking/evidence/recipe-qualifications/2026-11-15-installed/` holds the installed-app packet A (GPT-6 Astra, passed: p15 3/3, p14 3/3 with 21/21 extended cases) and packet H (claude-sonnet-5-5, H1 failed 1/3 held out on a code fence) records at $0, with a README. They are bound to builder/1, so after #207 packet A must run again under builder/2.
+Records: `tracking/evidence/recipe-qualifications/2026-11-15-installed/` holds the installed-app packet A (GPT-6 Astra, passed: p15 3/3, p14 3/3 with 21/21 extended cases) and packet H (claude-sonnet-5-5, H1 failed 1/3 held out on a code fence) records at $0, with a README. They are bound to builder/1, so after #207 they no longer count.
 
-Checked in the cloud container: see PR #212 for typecheck, format and `pnpm test:db` counts. Not checked here: a Windows build after the refactor (the packets thread rebuilds the installer from this branch).
+Rerun under builder/2 (`tracking/evidence/recipe-qualifications/2026-11-15-rerun/`, installed app at fdc7ce0c, Jordan's typed OK, $0): GPT-6 Astra qualified as builder on `t12-builder-v3`; claude-sonnet-5-5 qualified as builder (`t12-builder-v3`) and reviewer (`t12-reviewer-v3`) and on `p15-small-signup-v5` 3/3, and failed `p14-larger-ledgercheck-v5` on attempt 1 because its answer began with a stray `<invoke …>` preamble before the fence. Not done: `p15-small-signup-v5` (and `p14`) on the ChatGPT connection under builder/2, so its web builds carry the trial label until then.
+
+Checked in the cloud container: typecheck, format, `pnpm test:db` (1350 tests: 1316 pass, 29 skipped, the 5 known PowerShell-wrapper failures) and `pnpm test:dev-safety` (19 pass, 3 skipped). On Windows, `build-studio.mjs` from f78d684f built, and its `THIRD_PARTY_LICENSES.txt` lists the same 23 packages as Linux.
 
 ## November 15 update — spec drafting fixed after its first live qualification (B2 follow-up; ADR-0107 amendment)
 
