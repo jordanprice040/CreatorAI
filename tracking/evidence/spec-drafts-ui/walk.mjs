@@ -336,6 +336,9 @@ await step(
     await page.waitForLoadState('networkidle');
     await openForm();
     await see(panel(), 'No model may draft specs yet.');
+    await panel()
+      .getByRole('button', { name: 'Open Models and connections' })
+      .waitFor();
     assert(
       (await panel()
         .getByRole('button', { name: /Draft with/ })
@@ -379,6 +382,11 @@ await step(
     await see(panel(), 'Fixture connection');
     await see(panel(), /Look: A2 case 2's expected output|Line 1 of A2 case 2/);
     await see(panel(), 'The cases are yours to check.');
+    await see(panel(), 'Drafting is for command-line programs only');
+    assert(
+      (await panel().getByRole('radio').count()) === 0,
+      'product choice offered',
+    );
     await panel()
       .getByText(/What the build will be checked against/)
       .click();

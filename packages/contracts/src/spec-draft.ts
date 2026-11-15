@@ -53,7 +53,6 @@ export const SPEC_DRAFT_INSTRUCTIONS = [
   'draft_spec: reply {"title": "...", "notes": "<at most 600 characters for the person: what you assumed and what they should check>", "spec": {"audience": "...", "problem_statement": "...", "user_flows": [{"key": "F1", "name": "...", "steps": ["..."]}], "scope": ["..."], "non_goals": ["..."], "acceptance_checks": [...], "risks": [{"risk": "...", "mitigation": "..."}], "tasks": [{"key": "T1", "title": "...", "role": "builder", "file_scope": ["..."], "depends_on": [], "acceptance": ["A1"], "deliverable": "..."}]}}. Every text is one line of at most 300 characters (the problem statement at most 1200). Keep the whole reply under 12000 characters.',
   'Scope lines are the exact rules the program must follow, precise enough that two people would write the same expected output: input format, output format character by character, ordering, rounding, error messages and exit codes. State only rules the request supports or that are needed to make the behaviour exact; list open questions in "notes".',
   'Product "cli": one Python 3 standard-library command-line program, entry point src/main.py. Every acceptance check has "method": "automated_test" and 2 to 6 "cases": {"args": ["..."], "stdin": "...", "stdout": "<the exact expected output, including the final newline>", "exit_code": 0}. One builder task with "file_scope": ["src"] delivers every check. Cover the normal path, empty input, invalid input and boundaries, and work out each expected output exactly by following the scope rules; never guess an output.',
-  'Product "web": one static page (site/index.html, site/style.css, site/app.js; no packages or network). Every acceptance check has "method": "browser_check" and 2 to 5 "browser_cases": {"page": "/", "steps": ["<one step per string>"]}. Steps are: click <selector>; check <selector>; fill <selector> = <text>; select <selector> = <option value>; press <selector> = Enter|Tab|Escape|Space|ArrowUp|ArrowDown|ArrowLeft|ArrowRight|Backspace; goto #/route; expect text <selector> = <exact text>; expect contains <selector> = <text>; expect visible <selector>; expect hidden <selector>; expect count <selector> = <number>; expect title = <exact title>. A selector is a CSS selector matching exactly one element, usually #id; name every id in the scope. Every case has at least one expect step. One builder task with "file_scope": ["site"] delivers every check.',
   'Do not mark cases as held out; the studio picks the held-out cases itself.',
   'edge_case: reply {"case": <one new case in the check\'s format>, "why": "<at most 600 characters: which edge it covers and how the expected output follows from the scope>"}. The case must differ from the check\'s existing cases and follow the same rules.',
   'explain_case: reply {"explanation": "<at most 1200 characters>"}: in plain words, what the named case checks and how its expected output follows from the scope rules. If the expected output looks wrong under those rules, say so plainly and say what you would expect instead.',
@@ -107,6 +106,12 @@ export const SpecDraftRequestSchema = z
       issue('Only an edge case or an explanation sends a check.');
     if ((r.kind === 'explain_case') !== (r.case_index !== null))
       issue('Only an explanation names a case.');
+    // Review 1 of PR #206, L-3: spec-cases-v1 tests command-line cases only, so a qualification
+    // on it admits drafts for command-line programs only, until a web benchmark exists.
+    if (r.product !== 'cli')
+      issue(
+        'Drafting is for command-line programs only: the drafting qualification (spec-cases-v1) tests command-line cases only. Write a web page’s spec yourself.',
+      );
     if (r.check) {
       const web = r.check.method === 'browser_check';
       if (web !== (r.product === 'web'))
@@ -881,15 +886,27 @@ export function specDraftInput(p: {
       '',
       `Check ${p.check.key}: ${esc(p.check.statement) || '(no statement yet)'}`,
       `Measured: ${esc(p.check.measure) || '(not written yet)'}`,
-      ...list.map(
-        (c, i) =>
-          `Case ${i + 1}${c.held_out ? ' (held out)' : ''}:\n${esc(
-            web
-              ? caseText(null, c as BrowserCase)
-              : caseText(c as SpecCase, null),
-          )}`,
+      // Review 1 of PR #206, N-3: held-out cases are counted, not sent, except the one case an
+      // explanation is about.
+      ...list.flatMap((c, i) =>
+        c.held_out && i !== p.case_index
+          ? []
+          : [
+              `Case ${i + 1}${c.held_out ? ' (held out)' : ''}:\n${esc(
+                web
+                  ? caseText(null, c as BrowserCase)
+                  : caseText(c as SpecCase, null),
+              )}`,
+            ],
       ),
     );
+    const hidden = list.filter(
+      (c, i) => c.held_out && i !== p.case_index,
+    ).length;
+    if (hidden)
+      parts.push(
+        `Plus ${hidden} held-out case${hidden === 1 ? '' : 's'}, not shown.`,
+      );
     if (p.case_index !== null)
       parts.push('', `Explain case ${p.case_index + 1}.`);
   }

@@ -515,6 +515,13 @@ export const BenchmarkCheckSchema = z.discriminatedUnion('kind', [
       .max(12),
     min_cases: z.number().int().min(1).max(60),
     min_caught: z.number().int().min(1).max(12),
+    /**
+     * The frozen behaviour of this program and the grader (review 1 of PR #206, L-2): a hash
+     * over the outputs of the reference and every broken version on fixed probe inputs and the
+     * grades of fixed probe replies. A change to the programs or the grading changes it, so
+     * the old benchmark stops grading and stops admitting drafts until spec-cases-v2.
+     */
+    fingerprint: hash,
   }),
   /**
    * T12 reviewer (ADR-0048): the answer binds the case's candidate and frozen hashes and gives

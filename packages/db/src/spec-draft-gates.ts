@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import type { PoolClient } from 'pg';
 import {
   BenchmarkCheckSchema,
@@ -14,7 +15,8 @@ import {
   type SpecDraft,
   type SpecDraftedMark,
 } from '@creator/contracts';
-import { canonicalHash } from '@creator/domain';
+import { canonicalHash, specCasesFingerprint } from '@creator/domain';
+import { BENCHMARKS_ROOT } from './discovery-benchmarks.js';
 import { iso, type Row } from './store.js';
 
 // ADR-0107 (B2): what an owner's press of Draft the spec, Add an edge case or Explain this case
@@ -69,25 +71,55 @@ export const toSpecDraft = (r: Row): SpecDraft => {
   };
 };
 
+let bundled: string | null | undefined;
 /**
- * ADR-0107: a specification qualification admits spec drafts only when every case is a spec
- * cases check on the current instructions version, whose system message is exactly the draft
- * instructions and whose user message is exactly the draft input for its request. The older
- * acceptance-check labelling benchmark (specification-synthetic-v1) never admits drafts.
+ * The hash of the bundled spec-cases-v1 file, read once per process (the file is frozen); null
+ * when it cannot be read, so nothing admits drafts.
+ */
+export function specCasesManifestHash(): string | null {
+  if (bundled === undefined) {
+    try {
+      bundled = canonicalHash(
+        JSON.parse(
+          readFileSync(new URL('spec-cases-v1.json', BENCHMARKS_ROOT), 'utf8'),
+        ),
+      );
+    } catch {
+      bundled = null;
+    }
+  }
+  return bundled;
+}
+
+/**
+ * ADR-0107: a specification qualification admits spec drafts only when it ran the bundled
+ * spec-cases-v1 file itself (review 1 of PR #206, L-1: never a hand-made manifest with a weaker
+ * bar), every case is a spec cases check on the current instructions version whose system
+ * message is exactly the draft instructions and whose user message is exactly the draft input
+ * for its request, and every case's fingerprint still matches its program and the grader
+ * (L-2). The older acceptance-check labelling benchmark (specification-synthetic-v1) never
+ * admits drafts.
  */
 export function currentForSpecDraftRole(r: Row): boolean {
   if (String(r.task_class) !== SPEC_DRAFT_TASK_CLASS) return false;
   const manifest = r.manifest as {
     cases?: { input?: { role: string; text: string }[]; check?: unknown }[];
   };
-  if (!manifest?.cases?.length || canonicalHash(manifest) !== r.manifest_hash)
+  const expected = specCasesManifestHash();
+  if (
+    !expected ||
+    r.manifest_hash !== expected ||
+    !manifest?.cases?.length ||
+    canonicalHash(manifest) !== expected
+  )
     return false;
   return manifest.cases.every((item) => {
     const parsed = BenchmarkCheckSchema.safeParse(item.check);
     if (
       !parsed.success ||
       parsed.data.kind !== 'spec_cases_contract' ||
-      parsed.data.role_version !== SPEC_DRAFT_INSTRUCTIONS_VERSION
+      parsed.data.role_version !== SPEC_DRAFT_INSTRUCTIONS_VERSION ||
+      parsed.data.fingerprint !== specCasesFingerprint(parsed.data.program)
     )
       return false;
     const of = (role: string) =>

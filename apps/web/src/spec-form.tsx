@@ -12,7 +12,6 @@ import {
   type SpecContent,
   type SpecDraft as ModelDraft,
   type SpecDraftCheck,
-  type SpecProduct,
   type SpecStatus,
   type StoredEntity,
 } from '@creator/contracts';
@@ -111,6 +110,7 @@ export function SpecForm({
   openBuild,
   owner = false,
   choice = null,
+  openModels,
 }: {
   base: string;
   session: SessionInfo;
@@ -123,6 +123,8 @@ export function SpecForm({
   cancel: () => void;
   /** Where a feedback revision that went stale sends the owner instead. */
   openBuild?: () => void;
+  /** Opens Models and connections, where a model is qualified to draft specs. */
+  openModels?: () => void;
 }) {
   // The draft the form opened with, so the folds can say what was changed here.
   const [start] = useState<SpecDraft>(() =>
@@ -164,11 +166,9 @@ export function SpecForm({
     session,
     choice,
     owner: canDraft,
+    selection: subject.selection_id,
     drafted: drafts.refresh,
   });
-  const [product, setProduct] = useState<SpecProduct>(() =>
-    start.checks.some((c) => c.method === 'browser_check') ? 'web' : 'cli',
-  );
   /** The whole-spec draft the form now holds, and the edge cases added from drafts. */
   const [usedSpec, setUsedSpec] = useState<string | null>(null);
   const [addedEdges, setAddedEdges] = useState<string[]>([]);
@@ -200,8 +200,7 @@ export function SpecForm({
       kind,
       selection_id: subject.selection_id,
       alternative: subject.alternative,
-      product: c.check.method === 'browser_check' ? 'web' : 'cli',
-      // The steps were parsed by parseBrowserSteps, so they are browser steps.
+      product: 'cli',
       check: c.check as SpecDraftCheck,
       case_index: caseIndex,
     });
@@ -216,7 +215,7 @@ export function SpecForm({
       kind: 'spec',
       selection_id: subject.selection_id,
       alternative: subject.alternative,
-      product,
+      product: 'cli',
       check: null,
       case_index: null,
     });
@@ -560,45 +559,35 @@ export function SpecForm({
         <fieldset className="spec-drafting">
           <legend>Draft it with a model</legend>
           {routesKnown && !route && (
-            <p className="small notice">
-              No model may draft specs yet. A model drafts specs once it is
-              qualified on the spec-cases-v1 benchmark (Connections, Qualify a
-              model). Until then, write the spec yourself below.
-            </p>
+            <div className="small notice">
+              <p>
+                No model may draft specs yet. A model drafts specs once it is
+                qualified on the spec-cases-v1 benchmark under Models and
+                connections, on a connection that allows specification work and
+                this problem&rsquo;s data. Until then, write the spec yourself
+                below.
+              </p>
+              {openModels && (
+                <button type="button" className="text" onClick={openModels}>
+                  Open Models and connections
+                </button>
+              )}
+            </div>
           )}
           {route && (
             <>
               <p className="small">
                 {route.model_id} proposes the requirements, acceptance checks
-                and suggested cases for this option. The studio checks the cases
-                and holds about a third of them out at random. You check and
-                edit everything; nothing is saved until you press Save spec.
+                and suggested cases for this option as a command-line program.
+                The studio checks the cases and holds about a third of them out
+                at random. You check and edit everything; nothing is saved until
+                you press Save spec.
               </p>
-              <div
-                role="radiogroup"
-                aria-label="What will be built"
-                className="sf-picks"
-              >
-                <span className="small">It is:</span>
-                <label>
-                  <input
-                    type="radio"
-                    name="sd-product"
-                    checked={product === 'cli'}
-                    onChange={() => setProduct('cli')}
-                  />
-                  a command-line program
-                </label>
-                <label>
-                  <input
-                    type="radio"
-                    name="sd-product"
-                    checked={product === 'web'}
-                    onChange={() => setProduct('web')}
-                  />
-                  a static web page
-                </label>
-              </div>
+              <p className="small">
+                Drafting is for command-line programs only: the drafting
+                qualification (spec-cases-v1) tests command-line cases only. For
+                a static web page, write the spec yourself.
+              </p>
               <DraftRoutePicker ask={ask} />
               <div className="actions">
                 <button
@@ -974,20 +963,6 @@ export function SpecForm({
                         Remove browser case {j + 1}
                       </button>
                       {problemsAt(k)}
-                      {canDraft &&
-                        c.method === 'browser_check' &&
-                        helperButton(
-                          `explain.${c.key}.browser_cases.${j}`,
-                          'Explain this case',
-                          'Asking for an explanation…',
-                          () =>
-                            void helper(
-                              `explain.${c.key}.browser_cases.${j}`,
-                              i,
-                              'explain_case',
-                              j,
-                            ),
-                        )}
                       {shown(`explain.${c.key}.browser_cases.${j}`).map(
                         ({ draft }) => (
                           <Explanation
@@ -1019,7 +994,7 @@ export function SpecForm({
             {err(`checks.${i}.covered`)}
             {problemsAt(`checks.${i}`)}
             {canDraft &&
-              (c.method === 'automated_test' || c.method === 'browser_check') &&
+              c.method === 'automated_test' &&
               helperButton(
                 `edge.${c.key}`,
                 'Add an edge case',

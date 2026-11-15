@@ -2,9 +2,11 @@ import {
   pickHeldOut,
   readSpecDraft,
   specCaseProblems,
+  SPEC_DRAFT_INSTRUCTIONS_VERSION,
   type BenchmarkCheck,
   type ObjectiveSignal,
 } from '@creator/contracts';
+import { canonicalHash } from './rules.js';
 
 // ADR-0107 (B2): the programs behind the frozen `spec-cases-v1` benchmark. Each is a small
 // command-line program the studio knows exactly (a reference) and a few known-broken versions
@@ -14,7 +16,10 @@ import {
 // arguments and input text, so nothing the model wrote is ever executed.
 //
 // The programs are frozen with the benchmark: changing one changes what a qualification means,
-// so a change needs a new benchmark version (spec-cases-v2) and new qualifications.
+// so a change needs a new benchmark version (spec-cases-v2) and new qualifications. Each case
+// of spec-cases-v1 carries its program's fingerprint (specCasesFingerprint below); a changed
+// program or grader no longer matches it, so the old benchmark stops grading and stops
+// admitting drafts.
 
 export type CaseRun = (
   args: readonly string[],
@@ -451,9 +456,23 @@ export interface SpecCasesGrade {
  * and at least `min_caught` broken versions must fail at least one case.
  */
 export function gradeSpecCases(
-  check: Extract<BenchmarkCheck, { kind: 'spec_cases_contract' }>,
+  check: SpecCasesCheck,
   text: string,
 ): SpecCasesGrade {
+  if (check.fingerprint !== specCasesFingerprint(check.program))
+    return {
+      signal: 'acceptance_check_failed',
+      detail:
+        'This benchmark was frozen with other programs or grading; it needs a new version.',
+      cases: 0,
+      caught: [],
+    };
+  return gradeCases(check, text);
+}
+
+type SpecCasesCheck = Extract<BenchmarkCheck, { kind: 'spec_cases_contract' }>;
+
+function gradeCases(check: SpecCasesCheck, text: string): SpecCasesGrade {
   const program = SPEC_BENCHMARK_PROGRAMS[check.program];
   const fail = (signal: ObjectiveSignal, detail: string, cases = 0) => ({
     signal,
@@ -508,4 +527,232 @@ export function gradeSpecCases(
       caught,
     };
   return { signal: 'accepted', detail: null, cases: cases.length, caught };
+}
+
+type ProbeInput = { args: string[]; stdin: string };
+
+/**
+ * Probe inputs per program, in acceptance-check groups. Run through the reference they make a
+ * case set that catches every broken version (the tests check it); the fingerprint also runs
+ * them through every broken version.
+ */
+export const SPEC_CASES_PROBES: Record<string, ProbeInput[][]> = {
+  wordtally: [
+    [
+      { args: [], stdin: 'one two\tthree\n' },
+      { args: [], stdin: '' },
+      { args: ['--lines'], stdin: 'a\nb\n' },
+    ],
+    [
+      { args: ['-x'], stdin: '' },
+      { args: ['--lines', '--lines'], stdin: '' },
+    ],
+  ],
+  slug: [
+    [
+      { args: ['Hello,  World!'], stdin: '' },
+      { args: ['--Hi--'], stdin: '' },
+      { args: ['ABC 123'], stdin: '' },
+    ],
+    [
+      { args: ['!!!'], stdin: '' },
+      { args: [], stdin: '' },
+    ],
+  ],
+  roman: [
+    [
+      { args: ['4'], stdin: '' },
+      { args: ['1994'], stdin: '' },
+      { args: ['007'], stdin: '' },
+    ],
+    [
+      { args: ['4000'], stdin: '' },
+      { args: ['0'], stdin: '' },
+      { args: [], stdin: '' },
+    ],
+  ],
+  csvsum: [
+    [
+      { args: ['b'], stdin: 'a,b\n1,-2\n\n3,4\n' },
+      { args: ['a'], stdin: 'a\nx\n' },
+      { args: ['b'], stdin: 'a,b\n1\n' },
+    ],
+    [
+      { args: ['z'], stdin: 'a,b\n' },
+      { args: [], stdin: '' },
+    ],
+  ],
+  dedupe: [
+    [
+      { args: [], stdin: 'b\na\nb\n' },
+      { args: ['-i'], stdin: 'Ann\nann\n' },
+      { args: [], stdin: 'x\ny' },
+    ],
+    [
+      { args: [], stdin: 'Ann\nann\n' },
+      { args: ['-c'], stdin: 'a\na\n' },
+      { args: ['-z'], stdin: '' },
+    ],
+  ],
+  rle: [
+    [
+      { args: ['abc'], stdin: '' },
+      { args: ['aaaaaaaaaaaa'], stdin: '' },
+    ],
+    [
+      { args: ['a1'], stdin: '' },
+      { args: ['aA'], stdin: '' },
+      { args: [], stdin: '' },
+    ],
+  ],
+  grade: [
+    [
+      { args: [], stdin: '90\n' },
+      { args: [], stdin: '100\n' },
+      { args: [], stdin: '80\n\n70\n' },
+    ],
+    [
+      { args: [], stdin: '50\n' },
+      { args: [], stdin: 'abc\n' },
+      { args: ['x'], stdin: '' },
+    ],
+  ],
+  brackets: [
+    [
+      { args: ['(]'], stdin: '' },
+      { args: ['a)'], stdin: '' },
+      { args: ['(('], stdin: '' },
+    ],
+    [
+      { args: ['f(x)'], stdin: '' },
+      { args: ['{[()]}'], stdin: '' },
+      { args: [], stdin: '' },
+    ],
+  ],
+};
+
+/** A whole draft_spec reply whose cases are `groups`, with outputs from `run`. */
+export function specCasesProbeReply(groups: ProbeInput[][], run: CaseRun) {
+  return JSON.stringify({
+    title: 'Drafted tool',
+    notes: 'Assumed ASCII input.',
+    spec: {
+      audience: 'Volunteers',
+      problem_statement: 'They need the tool.',
+      user_flows: [{ key: 'F1', name: 'Run it', steps: ['Run the tool'] }],
+      scope: ['Exactly the rules in the request'],
+      non_goals: ['A graphical interface'],
+      acceptance_checks: groups.map((g, i) => ({
+        key: `A${i + 1}`,
+        flow: 'F1',
+        statement: `Behaviour ${i + 1}`,
+        measure: 'Exact output and exit code',
+        method: 'automated_test',
+        cases: g.map((x) => ({ ...x, ...run(x.args, x.stdin) })),
+      })),
+      risks: [],
+      tasks: [
+        {
+          key: 'T1',
+          title: 'Write the tool',
+          role: 'builder',
+          file_scope: ['src'],
+          depends_on: [],
+          acceptance: groups.map((_, i) => `A${i + 1}`),
+          deliverable: 'src/main.py',
+        },
+      ],
+    },
+  });
+}
+
+/** Inputs every program also runs for the fingerprint: empty, unknown flags, odd input. */
+const COMMON_PROBES: ProbeInput[] = [
+  { args: [], stdin: '' },
+  { args: ['--help'], stdin: '' },
+  { args: ['a', 'b'], stdin: 'x y\n\nz' },
+  { args: ['-'], stdin: '1\n2\n' },
+  { args: [''], stdin: '\n' },
+];
+
+/** Bump with any change to how drafted cases are read, checked, picked or graded. */
+export const SPEC_CASES_GRADER_VERSION = 'spec-cases-grader/1' as const;
+
+const fingerprints = new Map<string, string | null>();
+
+/**
+ * The frozen behaviour behind one spec-cases-v1 program (review 1 of PR #206, L-2): its
+ * request text, the outputs of the reference and every broken version on the probe inputs,
+ * the studio's held-out pick of a probe reply, and the grades of fixed probe replies (good,
+ * too few, one wrong output, a broken version's outputs, unreadable). Null for an unknown
+ * program. Computed once per process.
+ */
+export function specCasesFingerprint(program: string): string | null {
+  if (fingerprints.has(program)) return fingerprints.get(program)!;
+  const p = SPEC_BENCHMARK_PROGRAMS[program];
+  const groups = SPEC_CASES_PROBES[program];
+  let value: string | null = null;
+  if (p && groups) {
+    const inputs = [...groups.flat(), ...COMMON_PROBES];
+    const runs = Object.fromEntries(
+      [
+        ['reference', p.run] as const,
+        ...Object.keys(p.mutants)
+          .sort()
+          .map((m) => [m, p.mutants[m]!] as const),
+      ].map(([name, run]) => [name, inputs.map((c) => runCase(run, c))]),
+    );
+    const mutants = Object.keys(p.mutants).sort();
+    const check: SpecCasesCheck = {
+      kind: 'spec_cases_contract',
+      role_version: SPEC_DRAFT_INSTRUCTIONS_VERSION,
+      program,
+      request: {
+        problem: {
+          title: p.title,
+          statement: p.statement,
+          affected_group: p.affected_group,
+        },
+        option: p.option,
+      },
+      mutants,
+      min_cases: 4,
+      min_caught: mutants.length - 1,
+      fingerprint: '0'.repeat(64),
+    };
+    const good = specCasesProbeReply(groups, p.run);
+    const wrong = JSON.parse(good) as {
+      spec: { acceptance_checks: { cases: { stdout: string }[] }[] };
+    };
+    wrong.spec.acceptance_checks[0]!.cases[0]!.stdout += 'x';
+    const read = readSpecDraft(good, {
+      owner: 'Benchmark',
+      obligations: ['Check that the acceptance checks still pass'],
+      review_interval: 'Every 3 months',
+    });
+    const graded = (text: string) => {
+      const g = gradeCases(check, text);
+      return { signal: g.signal, cases: g.cases, caught: g.caught };
+    };
+    value = canonicalHash({
+      grader: SPEC_CASES_GRADER_VERSION,
+      program,
+      request: check.request,
+      runs,
+      picked: read.ok
+        ? pickHeldOut(read.content, () => 0.5).content.acceptance_checks.map(
+            (a) => (a.cases ?? []).map((c) => !!c.held_out),
+          )
+        : null,
+      grades: {
+        good: graded(good),
+        few: graded(specCasesProbeReply([groups[0]!.slice(0, 3)], p.run)),
+        wrong: graded(JSON.stringify(wrong)),
+        broken: graded(specCasesProbeReply(groups, p.mutants[mutants[0]!]!)),
+        unreadable: graded('No.'),
+      },
+    });
+  }
+  fingerprints.set(program, value);
+  return value;
 }

@@ -6,7 +6,9 @@
 // least three of the four must fail a case). Each case's system message is the spec draft
 // instructions and its user message the exact draft input, so a changed prompt stops the old
 // qualification from admitting spec drafts until the model is qualified again.
-// The file is frozen once written: never edit it; write spec-cases-v2 instead.
+// The file is frozen once written: never edit it; write spec-cases-v2 instead. Each case also
+// carries its program's fingerprint (the outputs of the reference and broken versions on probe
+// inputs and the grades of probe replies), so a changed program or grader stops it admitting.
 import { writeFileSync } from 'node:fs';
 import {
   BenchmarkManifestSchema,
@@ -14,7 +16,10 @@ import {
   SPEC_DRAFT_INSTRUCTIONS_VERSION,
   specDraftInput,
 } from '../packages/contracts/dist/index.js';
-import { SPEC_BENCHMARK_PROGRAMS } from '../packages/domain/dist/index.js';
+import {
+  SPEC_BENCHMARK_PROGRAMS,
+  specCasesFingerprint,
+} from '../packages/domain/dist/index.js';
 
 const SPLITS = [
   ['wordtally', 'development'],
@@ -63,6 +68,7 @@ const cases = SPLITS.map(([program, split]) => {
       mutants,
       min_cases: 4,
       min_caught: mutants.length - 1,
+      fingerprint: specCasesFingerprint(program),
     },
   };
 });

@@ -74,20 +74,26 @@ export function useDraftAsk({
   session,
   choice,
   owner,
+  selection,
   drafted,
 }: {
   base: string;
   session: SessionInfo;
   choice: { connection_id: string; model_id: string } | null;
   owner: boolean;
+  /** The selection the spec is for: only connections allowing its data class are listed. */
+  selection: string;
   drafted: () => void;
 }) {
   const routes = useLoad(
     () =>
       owner
-        ? api(RoutesSchema, `${base}/spec-drafts/routes`)
+        ? api(
+            RoutesSchema,
+            `${base}/spec-drafts/routes?selection=${encodeURIComponent(selection)}`,
+          )
         : Promise.resolve({ routes: [] }),
-    [base, owner],
+    [base, owner, selection],
   );
   const [picked, setPicked] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);

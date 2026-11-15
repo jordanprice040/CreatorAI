@@ -2341,7 +2341,15 @@ export function createApi(
       // ADR-0107 (B2): model drafts of a build spec, an edge case or a case explanation. They
       // change no spec; a person uses a draft in the form and saves the spec themselves.
       if (item === 'routes' && !action && method === 'GET')
-        return send(200, await store.specDraftRoutes(ctx, ws), false);
+        return send(
+          200,
+          await store.specDraftRoutes(
+            ctx,
+            ws,
+            url.searchParams.get('selection'),
+          ),
+          false,
+        );
       if (!item && method === 'GET') {
         const alternative = url.searchParams.get('alternative');
         if (!alternative)

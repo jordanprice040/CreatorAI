@@ -22,6 +22,9 @@ import {
 } from '@creator/contracts';
 import {
   SPEC_BENCHMARK_PROGRAMS,
+  SPEC_CASES_PROBES,
+  specCasesFingerprint,
+  specCasesProbeReply,
   checkOutput,
   gradeSpecCases,
   canonicalHash,
@@ -75,147 +78,8 @@ const UPKEEP: SpecContent['maintenance'] = {
   review_interval: 'Every 3 months',
 };
 
-type Input = { args: string[]; stdin: string };
-
-/** Inputs that, run through the reference, make a case set catching every broken version. */
-const GOOD: Record<string, Input[][]> = {
-  wordtally: [
-    [
-      { args: [], stdin: 'one two\tthree\n' },
-      { args: [], stdin: '' },
-      { args: ['--lines'], stdin: 'a\nb\n' },
-    ],
-    [
-      { args: ['-x'], stdin: '' },
-      { args: ['--lines', '--lines'], stdin: '' },
-    ],
-  ],
-  slug: [
-    [
-      { args: ['Hello,  World!'], stdin: '' },
-      { args: ['--Hi--'], stdin: '' },
-      { args: ['ABC 123'], stdin: '' },
-    ],
-    [
-      { args: ['!!!'], stdin: '' },
-      { args: [], stdin: '' },
-    ],
-  ],
-  roman: [
-    [
-      { args: ['4'], stdin: '' },
-      { args: ['1994'], stdin: '' },
-      { args: ['007'], stdin: '' },
-    ],
-    [
-      { args: ['4000'], stdin: '' },
-      { args: ['0'], stdin: '' },
-      { args: [], stdin: '' },
-    ],
-  ],
-  csvsum: [
-    [
-      { args: ['b'], stdin: 'a,b\n1,-2\n\n3,4\n' },
-      { args: ['a'], stdin: 'a\nx\n' },
-      { args: ['b'], stdin: 'a,b\n1\n' },
-    ],
-    [
-      { args: ['z'], stdin: 'a,b\n' },
-      { args: [], stdin: '' },
-    ],
-  ],
-  dedupe: [
-    [
-      { args: [], stdin: 'b\na\nb\n' },
-      { args: ['-i'], stdin: 'Ann\nann\n' },
-      { args: [], stdin: 'x\ny' },
-    ],
-    [
-      { args: [], stdin: 'Ann\nann\n' },
-      { args: ['-c'], stdin: 'a\na\n' },
-      { args: ['-z'], stdin: '' },
-    ],
-  ],
-  rle: [
-    [
-      { args: ['abc'], stdin: '' },
-      { args: ['aaaaaaaaaaaa'], stdin: '' },
-    ],
-    [
-      { args: ['a1'], stdin: '' },
-      { args: ['aA'], stdin: '' },
-      { args: [], stdin: '' },
-    ],
-  ],
-  grade: [
-    [
-      { args: [], stdin: '90\n' },
-      { args: [], stdin: '100\n' },
-      { args: [], stdin: '80\n\n70\n' },
-    ],
-    [
-      { args: [], stdin: '50\n' },
-      { args: [], stdin: 'abc\n' },
-      { args: ['x'], stdin: '' },
-    ],
-  ],
-  brackets: [
-    [
-      { args: ['(]'], stdin: '' },
-      { args: ['a)'], stdin: '' },
-      { args: ['(('], stdin: '' },
-    ],
-    [
-      { args: ['f(x)'], stdin: '' },
-      { args: ['{[()]}'], stdin: '' },
-      { args: [], stdin: '' },
-    ],
-  ],
-};
-
-/** A whole draft_spec reply whose cases are `groups`, with outputs from `run`. */
-function reply(
-  groups: Input[][],
-  run: (
-    args: readonly string[],
-    stdin: string,
-  ) => {
-    stdout: string;
-    exit_code: number;
-  },
-) {
-  return JSON.stringify({
-    title: 'Drafted tool',
-    notes: 'Assumed ASCII input.',
-    spec: {
-      audience: 'Volunteers',
-      problem_statement: 'They need the tool.',
-      user_flows: [{ key: 'F1', name: 'Run it', steps: ['Run the tool'] }],
-      scope: ['Exactly the rules in the request'],
-      non_goals: ['A graphical interface'],
-      acceptance_checks: groups.map((g, i) => ({
-        key: `A${i + 1}`,
-        flow: 'F1',
-        statement: `Behaviour ${i + 1}`,
-        measure: 'Exact output and exit code',
-        method: 'automated_test',
-        cases: g.map((x) => ({ ...x, ...run(x.args, x.stdin) })),
-      })),
-      risks: [],
-      tasks: [
-        {
-          key: 'T1',
-          title: 'Write the tool',
-          role: 'builder',
-          file_scope: ['src'],
-          depends_on: [],
-          acceptance: groups.map((_, i) => `A${i + 1}`),
-          deliverable: 'src/main.py',
-        },
-      ],
-    },
-  });
-}
+const GOOD = SPEC_CASES_PROBES;
+const reply = specCasesProbeReply;
 
 const manifest = BenchmarkManifestSchema.parse(
   JSON.parse(
@@ -228,6 +92,7 @@ const manifest = BenchmarkManifestSchema.parse(
     ),
   ),
 );
+type SpecCasesCheck = Extract<BenchmarkCheck, { kind: 'spec_cases_contract' }>;
 const checkOf = (program: string) =>
   manifest.cases.find((c) => c.case_id === `spec-${program}`)!.check as Extract<
     BenchmarkCheck,
@@ -489,7 +354,25 @@ test('the drafting input: request text is escaped data under the fixed instructi
     maxChars: 50_000,
   })!;
   assert.match(explain, /<task>explain_case<\/task>/);
+  // The case an explanation is about is sent even when held out.
   assert.match(explain, /ABC/);
+  // Review 1 of PR #206, N-3: an edge case gets held-out cases as a count, not their contents.
+  const edge = specDraftInput({
+    kind: 'edge_case',
+    ...base,
+    check: {
+      ...check,
+      cases: [
+        { ...check.cases[0]!, held_out: false, args: ['Open'] },
+        check.cases[0]!,
+      ],
+    },
+    case_index: null,
+    maxChars: 50_000,
+  })!;
+  assert.match(edge, /Open/);
+  assert.doesNotMatch(edge, /ABC/);
+  assert.match(edge, /Plus 1 held-out case, not shown\./);
   assert.equal(
     specDraftInput({
       kind: 'spec',
@@ -527,6 +410,26 @@ test('spec-cases-v1 is current: every case runs under the spec draft instruction
   (older.cases[2]!.check as { role_version: string }).role_version =
     'spec-draft-v0';
   assert.equal(currentForSpecDraftRole(row(older)), false);
+  // Review 1 of PR #206, L-1: a manifest with a weaker bar is not the bundled file, so its
+  // passes never admit drafts, even with every prompt and request exact.
+  const weak = structuredClone(manifest);
+  weak.cases = weak.cases.slice(0, 2).map((c) => ({
+    ...c,
+    check: {
+      ...(c.check as SpecCasesCheck),
+      mutants: (c.check as SpecCasesCheck).mutants.slice(0, 1),
+      min_caught: 1,
+      min_cases: 1,
+    },
+  }));
+  assert.equal(currentForSpecDraftRole(row(weak)), false);
+  // L-2: each case carries its program's fingerprint; a program or grader that no longer
+  // matches it stops the benchmark admitting drafts (and grading, below).
+  for (const c of manifest.cases) {
+    const k = c.check as SpecCasesCheck;
+    assert.equal(k.fingerprint, specCasesFingerprint(k.program), k.program);
+  }
+  assert.equal(specCasesFingerprint('nope'), null);
   assert.equal(
     currentForSpecDraftRole({
       ...row(manifest),
@@ -568,6 +471,14 @@ test('spec-cases-v1 grading: good cases pass the reference and catch every broke
       good.caught.length,
       check.mutants.length,
       `${name} caught ${good.caught.join()}`,
+    );
+    assert.equal(
+      gradeSpecCases(
+        { ...check, fingerprint: 'f'.repeat(64) },
+        reply(groups, program.run),
+      ).signal,
+      'acceptance_check_failed',
+      'a benchmark frozen with other programs or grading does not grade',
     );
     assert.equal(
       checkOutput(

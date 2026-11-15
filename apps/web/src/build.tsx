@@ -483,6 +483,7 @@ export function BuildView({
                 mode={specForm}
                 owner={owner}
                 choice={choice}
+                openModels={() => open('models')}
                 cancel={() => setSpecForm(null)}
                 saved={(s) => {
                   setSpecForm(null);

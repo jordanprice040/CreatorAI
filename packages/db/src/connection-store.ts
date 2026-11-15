@@ -3071,12 +3071,21 @@ export class ConnectionStore extends AutomationStore {
   /**
    * The connections and models that may draft specs now: verified on the Responses path, with
    * a current spec draft qualification as the newest decided one for the model, on a
-   * connection without blockers. Admission checks everything again when a draft is sent.
+   * connection without blockers that allows specification work (review 1 of PR #206, N-2)
+   * and, given a selection, its data class. Admission checks everything again when a draft is
+   * sent.
    */
-  async specDraftRoutes(ctxIn: CommandContext, ws: string) {
+  async specDraftRoutes(
+    ctxIn: CommandContext,
+    ws: string,
+    selectionId: string | null = null,
+  ) {
     const ctx = normalize(ctxIn);
     return this.tx(async (c) => {
       await this.role(c, uuid(ws), ctx.actorId, false);
+      const dataClass = selectionId
+        ? await this.#selectionDataClass(c, uuid(ws), uuid(selectionId))
+        : null;
       const { rows } = await c.query(
         'select * from plan_connections where workspace_id = $1 order by created_at',
         [uuid(ws)],
@@ -3090,7 +3099,11 @@ export class ConnectionStore extends AutomationStore {
       }[] = [];
       for (const r of rows as Row[]) {
         const conn = toConnection(r);
-        if (connectionBlockers(conn).length) continue;
+        if (
+          connectionBlockers(conn).length ||
+          specDraftConnectionRefusal(conn, dataClass)
+        )
+          continue;
         const access = await this.#access(c, conn.id);
         const quals = await this.#specDraftQualifications(c, conn.id);
         for (const model of [...new Set(quals.map((q) => q.model_id))]) {
@@ -3220,13 +3233,10 @@ export class ConnectionStore extends AutomationStore {
           'ACCESS_DENIED',
           `${req.model_id} is not qualified for drafting specs on this connection. Qualify it on the spec-cases-v1 benchmark under Models and connections, or write the spec yourself.`,
         );
-      const dataClass = (
-        ['synthetic', 'public', 'private_approved'].includes(
-          String(sel.data_class),
-        )
-          ? String(sel.data_class)
-          : 'private_approved'
-      ) as 'synthetic' | 'public' | 'private_approved';
+      const dataClass = dataClassOf(sel.data_class);
+      // Review 1 of PR #206, N-2: refused before anything is recorded, in words.
+      const refusal = specDraftConnectionRefusal(conn, dataClass);
+      if (refusal) throw fail('ACCESS_DENIED', refusal);
       const ab = (alt.body ?? {}) as Record<string, unknown>;
       const pb = (problem.body ?? {}) as Record<string, unknown>;
       const input = specDraftInput({
@@ -4127,6 +4137,20 @@ export class ConnectionStore extends AutomationStore {
     return rows.rows
       .filter((r) => currentForWebDiscoveryRole(r as Row))
       .map((r) => toQualification(r as Row));
+  }
+
+  /** The data class a selection was admitted under (unknown counts as private, approved). */
+  async #selectionDataClass(c: PoolClient, ws: string, selectionId: string) {
+    const r = (
+      await c.query(
+        `select a.binding->>'data_class' as data_class from selections s
+           join action_admissions a on a.id = s.admission_id
+          where s.workspace_id = $1 and s.id = $2`,
+        [ws, selectionId],
+      )
+    ).rows[0] as Row | undefined;
+    if (!r) throw fail('NOT_FOUND', 'Selection not found.');
+    return dataClassOf(r.data_class);
   }
 
   /** ADR-0107: only qualifications on the current spec draft instructions admit drafts. */
@@ -7467,4 +7491,31 @@ function readDraftReply(
     problems: [],
     reason: null,
   };
+}
+
+const dataClassOf = (v: unknown) =>
+  (['synthetic', 'public', 'private_approved'].includes(String(v))
+    ? String(v)
+    : 'private_approved') as 'synthetic' | 'public' | 'private_approved';
+
+const DATA_WORDS = {
+  synthetic: 'synthetic',
+  public: 'public',
+  private_approved: 'approved private',
+} as const;
+
+/**
+ * Why a connection may not draft specs for this data class, in words, or null when it may
+ * (review 1 of PR #206, N-2): drafting is specification work, and the selection's data class
+ * must be one the connection allows.
+ */
+function specDraftConnectionRefusal(
+  conn: PlanConnection,
+  dataClass: 'synthetic' | 'public' | 'private_approved' | null,
+): string | null {
+  if (!conn.settings.allowed_task_classes.includes(SPEC_DRAFT_TASK_CLASS))
+    return `${conn.label} does not allow specification work, so it cannot draft specs. Allow it under Models and connections, or write the spec yourself.`;
+  if (dataClass && !conn.settings.allowed_data_classes.includes(dataClass))
+    return `${conn.label} does not allow ${DATA_WORDS[dataClass]} data, and this problem's data is ${DATA_WORDS[dataClass]}, so it cannot draft this spec. Allow that data class under Models and connections, or write the spec yourself.`;
+  return null;
 }

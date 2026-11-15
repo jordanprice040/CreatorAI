@@ -225,7 +225,63 @@ test('spec drafts: qualified route only, owner press only, one specification tas
   await qualify(bench('specification-synthetic-v1'));
   assert.deepEqual((await store.specDraftRoutes(owner, s.ws.id)).routes, []);
   await rejects('ACCESS_DENIED', ask(owner), /spec-cases-v1/);
+  // Review 1 of PR #206, L-1: a hand-made manifest with a weaker bar never admits, even with
+  // the exact instructions and inputs.
+  const weak = bench('spec-cases-v1') as { cases: Record<string, any>[] };
+  weak.cases = weak.cases.slice(0, 2).map((c) => ({
+    ...c,
+    check: { ...c.check, mutants: c.check.mutants.slice(0, 1), min_caught: 1 },
+  }));
+  await qualify(weak);
+  assert.deepEqual((await store.specDraftRoutes(owner, s.ws.id)).routes, []);
   await qualify(bench('spec-cases-v1'));
+  // L-3: drafting is for command-line programs only.
+  await rejects(
+    'INVALID_CONTRACT',
+    ask(owner, { product: 'web' }),
+    /command-line programs only/,
+  );
+  // N-2: a connection that does not allow specification work or the selection's data class
+  // is not listed, and a press there is refused in words before anything is recorded.
+  const settings = async (sql: string) =>
+    s.db.pool.query(
+      `update plan_connections set settings = ${sql} where id = $1`,
+      [conn.id],
+    );
+  await settings(
+    `jsonb_set(settings, '{allowed_task_classes}', (settings->'allowed_task_classes') - 'specification')`,
+  );
+  assert.deepEqual((await store.specDraftRoutes(owner, s.ws.id)).routes, []);
+  await rejects(
+    'ACCESS_DENIED',
+    ask(owner),
+    /does not allow specification work/,
+  );
+  await settings(
+    `jsonb_set(settings, '{allowed_task_classes}', (settings->'allowed_task_classes') || '["specification"]')`,
+  );
+  await settings(
+    `jsonb_set(settings, '{allowed_data_classes}', (settings->'allowed_data_classes') - 'synthetic')`,
+  );
+  assert.equal(
+    (await store.specDraftRoutes(owner, s.ws.id)).routes.length,
+    1,
+    'without a selection the data class is not known',
+  );
+  assert.deepEqual(
+    (await store.specDraftRoutes(owner, s.ws.id, selection.id)).routes,
+    [],
+  );
+  await rejects('ACCESS_DENIED', ask(owner), /does not allow synthetic data/);
+  await settings(
+    `jsonb_set(settings, '{allowed_data_classes}', (settings->'allowed_data_classes') || '["synthetic"]')`,
+  );
+  assert.deepEqual(
+    (await store.specDraftRoutes(owner, s.ws.id, selection.id)).routes.map(
+      (r) => [r.connection_id, r.model_id],
+    ),
+    [[conn.id, MODEL]],
+  );
   assert.deepEqual(
     (await store.specDraftRoutes(owner, s.ws.id)).routes.map((r) => [
       r.connection_id,
