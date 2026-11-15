@@ -536,6 +536,8 @@ export const PlanQualificationSchema = z.strictObject({
   admits_assessment: z.boolean().optional(),
   /** ADR-0086: a research-synthesis qualification bound to the web discovery prompts. */
   admits_web_discovery: z.boolean().optional(),
+  /** ADR-0107: a specification qualification on the current spec draft instructions. */
+  admits_spec_drafts: z.boolean().optional(),
   /**
    * ADR-0089 (P34): a research synthesis, candidate generation or scoring qualification bound to
    * the current discovery role prompts, the only kind discovery admission counts. A scoring
@@ -593,6 +595,9 @@ export const isDiscoveryQualified = (
  */
 export const forWebDiscovery = (qualifications: readonly PlanQualification[]) =>
   qualifications.filter((q) => q.admits_web_discovery === true);
+/** ADR-0107: the qualifications that admit spec drafts (spec-cases-v1 and later). */
+export const forSpecDrafts = (qualifications: readonly PlanQualification[]) =>
+  qualifications.filter((q) => q.admits_spec_drafts === true);
 export const isQualified = (
   qualifications: readonly PlanQualification[],
   model_id: string,

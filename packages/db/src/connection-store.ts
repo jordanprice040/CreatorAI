@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomInt, randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import {
   BenchmarkCheckSchema,
@@ -112,6 +112,22 @@ import {
   readSectionDrafts,
   type ProposalSectionDraft,
   type ProposalSectionDraftState,
+  SPEC_DRAFT_INSTRUCTIONS,
+  SPEC_DRAFT_INSTRUCTIONS_VERSION,
+  SPEC_DRAFT_BODY_MAX,
+  SPEC_DRAFT_OUTPUT_MAX,
+  SpecDraftRequestSchema,
+  pickHeldOut,
+  readEdgeCase,
+  readExplanation,
+  readSpecDraft,
+  specCaseProblems,
+  specDraftInput,
+  type SpecCaseProblem,
+  type SpecContent,
+  type SpecDraft,
+  type SpecDraftResult,
+  type SpecDraftState,
 } from '@creator/contracts';
 import {
   BUILD_ROLE_PROMPTS,
@@ -140,6 +156,13 @@ import {
   type WebDiscoveryBinding,
 } from './web-discovery-gates.js';
 import { usageSummary } from './usage-summary.js';
+import {
+  SPEC_DRAFT_TASK_CLASS,
+  currentForSpecDraftRole,
+  specDraftRequestGate,
+  toSpecDraft,
+  type SpecDraftBinding,
+} from './spec-draft-gates.js';
 import { toSectionDraft } from './proposal-store.js';
 import {
   CHAT_ANSWER_STALE_POINT,
@@ -431,6 +454,7 @@ const toQualification = (r: Row): PlanQualification => ({
   admits_assessment: currentForAssessmentRole(r),
   admits_discovery: admitsDiscovery(r),
   admits_web_discovery: currentForWebDiscoveryRole(r),
+  admits_spec_drafts: currentForSpecDraftRole(r),
 });
 const toRequest = (r: Row): PlanRequest => ({
   id: String(r.id),
@@ -688,6 +712,7 @@ export class ConnectionStore extends AutomationStore {
   readonly #liveChatFills = new Set<string>();
   /** ADR-0101: proposal drafts this process is still waiting on. */
   readonly #liveSectionDrafts = new Set<string>();
+  readonly #liveSpecDrafts = new Set<string>();
   /**
    * ADR-0064: plan requests this studio process admitted and has not settled yet. The owner
    * cannot close one of these from the app, whatever its age: its result can still come back.
@@ -2986,6 +3011,382 @@ export class ConnectionStore extends AutomationStore {
     }
   }
 
+  // ---- ADR-0107 (B2): model-drafted build specs ---------------------------------------------
+
+  /**
+   * A spec draft left pending by a studio that stopped mid-request is closed as failed once
+   * past the chat answers' stale point, on every read too, so the page's buttons are not held.
+   */
+  async #closeStaleSpecDrafts(c: PoolClient, ws: string, altId: string) {
+    await c.query(
+      `update spec_drafts set state = 'failed', finished_at = clock_timestamp(),
+         reason = 'The studio stopped before this draft was recorded. Nothing more is known about it.'
+       where workspace_id = $1 and alternative_id = $2 and state = 'pending'
+         and created_at < ${CHAT_ANSWER_STALE_POINT}
+         and not (id = any($3::uuid[]))`,
+      [ws, altId, [...this.#liveSpecDrafts]],
+    );
+  }
+
+  /** An option's spec drafts, newest first (at most 30), after closing any a stopped studio left. */
+  async listSpecDrafts(
+    ctxIn: CommandContext,
+    ws: string,
+    alternativeId: string,
+  ): Promise<SpecDraft[]> {
+    const ctx = normalize(ctxIn);
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, false);
+      await this.#closeStaleSpecDrafts(c, uuid(ws), uuid(alternativeId));
+      const { rows } = await c.query(
+        `select * from spec_drafts where workspace_id = $1 and alternative_id = $2
+          order by created_at desc, id desc limit 30`,
+        [uuid(ws), uuid(alternativeId)],
+      );
+      return rows.map((r) => toSpecDraft(r as Row));
+    });
+  }
+
+  /**
+   * The connections and models that may draft specs now: verified on the Responses path, with
+   * a current spec draft qualification as the newest decided one for the model, on a
+   * connection without blockers. Admission checks everything again when a draft is sent.
+   */
+  async specDraftRoutes(ctxIn: CommandContext, ws: string) {
+    const ctx = normalize(ctxIn);
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, false);
+      const { rows } = await c.query(
+        'select * from plan_connections where workspace_id = $1 order by created_at',
+        [uuid(ws)],
+      );
+      const routes: {
+        connection_id: string;
+        connection_kind: string;
+        label: string;
+        model_id: string;
+        fixture: boolean;
+      }[] = [];
+      for (const r of rows as Row[]) {
+        const conn = toConnection(r);
+        if (connectionBlockers(conn).length) continue;
+        const access = await this.#access(c, conn.id);
+        const quals = await this.#specDraftQualifications(c, conn.id);
+        for (const model of [...new Set(quals.map((q) => q.model_id))]) {
+          const verified = access.some(
+            (a) =>
+              a.model_id === model &&
+              a.path === 'responses' &&
+              a.access === 'verified',
+          );
+          if (
+            verified &&
+            latestDecided(quals, model, SPEC_DRAFT_TASK_CLASS)?.state ===
+              'qualified'
+          )
+            routes.push({
+              connection_id: conn.id,
+              connection_kind: conn.kind,
+              label: conn.label,
+              model_id: model,
+              fixture: conn.fixture,
+            });
+        }
+      }
+      return { routes };
+    });
+  }
+
+  /**
+   * ADR-0107: records one press of Draft the spec, Add an edge case or Explain this case and
+   * works out exactly what will be sent. Owner only, for an option the current selection chose
+   * for build, on a connection and model qualified for drafting specs. A retried press (same
+   * `client_id`) or a draft of this option still on its way returns that draft. Nothing is sent
+   * here, and nothing in any spec changes.
+   */
+  async beginSpecDraft(
+    ctxIn: CommandContext,
+    ws: string,
+    raw: unknown,
+  ): Promise<{
+    draft: SpecDraft;
+    replay: boolean;
+    input: string;
+    logical_operation_id: string;
+    connection_id: string;
+    data_class: 'synthetic' | 'public' | 'private_approved';
+  }> {
+    const ctx = normalize(ctxIn);
+    const req = parse(SpecDraftRequestSchema, raw);
+    const altId = uuid(req.alternative.id);
+    const begun = await this.tx(async (c) => {
+      await this.requireOwner(c, uuid(ws), ctx.actorId);
+      await this.#closeStaleSpecDrafts(c, uuid(ws), altId);
+      const prior = (
+        await c.query(
+          `select * from spec_drafts where workspace_id = $1
+             and (client_id = $2 or (alternative_id = $3 and state = 'pending'))
+           order by (client_id = $2) desc limit 1`,
+          [uuid(ws), uuid(req.client_id), altId],
+        )
+      ).rows[0] as Row | undefined;
+      if (prior)
+        return {
+          draft: toSpecDraft(prior),
+          replay: true,
+          input: String(prior.input),
+          logical_operation_id: String(prior.logical_operation_id),
+          connection_id: String(prior.connection_id),
+          data_class: String(prior.data_class) as
+            'synthetic' | 'public' | 'private_approved',
+        };
+      const sel = (
+        await c.query(
+          `select s.*, a.binding->>'data_class' as data_class,
+             (select l.id from selections l where l.workspace_id = s.workspace_id
+               and l.problem_id = s.problem_id order by l.created_at desc, l.id desc limit 1) as latest
+             from selections s join action_admissions a on a.id = s.admission_id
+            where s.workspace_id = $1 and s.id = $2`,
+          [uuid(ws), uuid(req.selection_id)],
+        )
+      ).rows[0] as Row | undefined;
+      if (!sel) throw fail('NOT_FOUND', 'Selection not found.');
+      const choice = (
+        sel.dispositions as {
+          alternative: { id: string; version: number };
+          disposition: string;
+        }[]
+      ).find((d) => d.alternative.id.toLowerCase() === altId);
+      if (sel.latest !== sel.id)
+        throw fail(
+          'INVALID_TRANSITION',
+          'A later selection for this problem replaced this one, so its option is not drafted.',
+        );
+      if (
+        choice?.disposition !== 'select_for_build' ||
+        choice.alternative.version !== req.alternative.version
+      )
+        throw fail(
+          'INVALID_TRANSITION',
+          'This selection did not choose this option version for build.',
+        );
+      const entity = async (id: string, version: number | null) =>
+        (
+          await c.query(
+            `select e.status, v.title, v.body, v.version from entities e
+               join entity_versions v on v.entity_id = e.id
+              where e.workspace_id = $1 and e.id = $2
+                and v.version = coalesce($3, e.current_version)`,
+            [uuid(ws), id, version],
+          )
+        ).rows[0] as Row | undefined;
+      const alt = await entity(altId, req.alternative.version);
+      const problem = await entity(String(sel.problem_id), null);
+      if (!alt || !problem)
+        throw fail('NOT_FOUND', 'The option or its problem was not found.');
+      if (alt.status === 'redacted' || problem.status === 'redacted')
+        throw fail(
+          'INVALID_TRANSITION',
+          'The option or its problem was redacted, so nothing about it is sent.',
+        );
+      const conn = await this.#connection(c, uuid(ws), req.connection_id);
+      const quals = await this.#specDraftQualifications(c, conn.id);
+      if (
+        latestDecided(quals, req.model_id, SPEC_DRAFT_TASK_CLASS)?.state !==
+        'qualified'
+      )
+        throw fail(
+          'ACCESS_DENIED',
+          `${req.model_id} is not qualified for drafting specs on this connection. Qualify it on the spec-cases-v1 benchmark under Models and connections, or write the spec yourself.`,
+        );
+      const dataClass = (
+        ['synthetic', 'public', 'private_approved'].includes(
+          String(sel.data_class),
+        )
+          ? String(sel.data_class)
+          : 'private_approved'
+      ) as 'synthetic' | 'public' | 'private_approved';
+      const ab = (alt.body ?? {}) as Record<string, unknown>;
+      const pb = (problem.body ?? {}) as Record<string, unknown>;
+      const input = specDraftInput({
+        kind: req.kind,
+        product: req.product,
+        problem: {
+          title: String(problem.title),
+          statement: String(pb.statement ?? ''),
+          affected_group: String(pb.affected_group ?? ''),
+        },
+        option: {
+          title: String(alt.title),
+          rationale: String(ab.rationale ?? ''),
+          tradeoffs: Array.isArray(ab.tradeoffs)
+            ? ab.tradeoffs.map(String)
+            : [],
+        },
+        check: req.check,
+        case_index: req.case_index,
+        maxChars:
+          conn.settings.caps.responses.max_input_chars -
+          SPEC_DRAFT_INSTRUCTIONS.length,
+      });
+      if (input === null)
+        throw fail(
+          'INVALID_CONTRACT',
+          `The connection's input limit (${conn.settings.caps.responses.max_input_chars} characters) cannot hold the drafting instructions and this request, so nothing was sent. Raise the limit in Models and connections, or write it yourself.`,
+        );
+      const id = randomUUID();
+      const op = randomUUID();
+      const { rows } = await c.query(
+        `insert into spec_drafts (id, workspace_id, client_id, kind, selection_id, problem_id,
+           alternative_id, alternative_version, product, state, connection_id, connection_kind,
+           fixture, model_id, data_class, logical_operation_id, instructions_version,
+           instructions_hash, request, input, input_hash, requested_by)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending',$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+         returning *`,
+        [
+          id,
+          uuid(ws),
+          uuid(req.client_id),
+          req.kind,
+          String(sel.id),
+          String(sel.problem_id),
+          altId,
+          req.alternative.version,
+          req.product,
+          conn.id,
+          conn.kind,
+          conn.fixture,
+          req.model_id,
+          dataClass,
+          op,
+          SPEC_DRAFT_INSTRUCTIONS_VERSION,
+          createHash('sha256').update(SPEC_DRAFT_INSTRUCTIONS).digest('hex'),
+          JSON.stringify({
+            check: req.check,
+            case_index: req.case_index,
+          }),
+          input,
+          createHash('sha256').update(input).digest('hex'),
+          ctx.actorId,
+        ],
+      );
+      await this.append(c, ctx, {
+        workspaceId: uuid(ws),
+        action: 'spec.draft_requested',
+        subjectKind: 'alternative',
+        subjectId: altId,
+        subjectVersion: req.alternative.version,
+        contentHash: canonicalHash({ input }),
+        // Ids, route and kind only; the words stay with the draft.
+        payload: {
+          draft_id: id,
+          kind: req.kind,
+          connection_id: conn.id,
+          model_id: req.model_id,
+        },
+      });
+      return {
+        draft: toSpecDraft(rows[0] as Row),
+        replay: false,
+        input,
+        logical_operation_id: op,
+        connection_id: conn.id,
+        data_class: dataClass,
+      };
+    });
+    if (!begun.replay) this.#liveSpecDrafts.add(begun.draft.id);
+    return begun;
+  }
+
+  /**
+   * ADR-0107: records how a pending spec draft ended and what the studio could use from the
+   * reply: a valid spec with its random held-out pick, one edge case, or an explanation, with
+   * the studio's case problems. A settled draft never changes (except a redaction's clearing).
+   */
+  async finishSpecDraft(
+    ctxIn: CommandContext,
+    ws: string,
+    draftId: string,
+    outcome: {
+      state: Exclude<SpecDraftState, 'pending'>;
+      plan_request_id: string | null;
+      text: string | null;
+      reason: string | null;
+    },
+  ): Promise<SpecDraft> {
+    const ctx = normalize(ctxIn);
+    try {
+      return await this.tx(async (c) => {
+        const cur = (
+          await c.query(
+            `select d.*, a.status as alternative_status, p.status as problem_status
+               from spec_drafts d
+               join entities a on a.workspace_id = d.workspace_id and a.id = d.alternative_id
+               join entities p on p.workspace_id = d.workspace_id and p.id = d.problem_id
+              where d.workspace_id = $1 and d.id = $2 for update of d`,
+            [uuid(ws), uuid(draftId)],
+          )
+        ).rows[0] as Row | undefined;
+        if (!cur) throw fail('NOT_FOUND', 'Draft not found.');
+        if (cur.state !== 'pending') return toSpecDraft(cur);
+        const reply =
+          outcome.state === 'completed'
+            ? (outcome.text ?? '').slice(0, SPEC_DRAFT_OUTPUT_MAX)
+            : null;
+        const read =
+          reply === null
+            ? { result: null, problems: [], reason: outcome.reason }
+            : readDraftReply(cur, reply);
+        // The option was redacted while this draft was on its way: keep the outcome, not the words.
+        const redacted =
+          cur.alternative_status === 'redacted' ||
+          cur.problem_status === 'redacted';
+        const { rows } = await c.query(
+          `update spec_drafts set state = $2, plan_request_id = $3, text = $4,
+             output_hash = $5, result = $6, problems = $7, reason = $8,
+             finished_at = clock_timestamp(),
+             request = case when $9 then '{}'::jsonb else request end,
+             input = case when $9 then '' else input end,
+             redacted_at = case when $9 then clock_timestamp() else null end
+           where id = $1 returning *`,
+          [
+            cur.id,
+            outcome.state,
+            outcome.plan_request_id || null,
+            reply === null ? null : redacted ? '' : reply,
+            reply === null
+              ? null
+              : createHash('sha256').update(reply).digest('hex'),
+            redacted || !read.result ? null : JSON.stringify(read.result),
+            JSON.stringify(redacted ? [] : read.problems),
+            read.reason?.slice(0, 2000) ?? null,
+            redacted,
+          ],
+        );
+        await this.append(c, ctx, {
+          workspaceId: uuid(ws),
+          action: 'spec.drafted',
+          subjectKind: 'alternative',
+          subjectId: String(cur.alternative_id),
+          subjectVersion: Number(cur.alternative_version),
+          contentHash: canonicalHash({ state: outcome.state, text: reply }),
+          payload: {
+            draft_id: String(cur.id),
+            kind: String(cur.kind),
+            state: outcome.state,
+            model_id: String(cur.model_id),
+            plan_request_id: outcome.plan_request_id || null,
+            usable: read.result !== null,
+            problems: read.problems.length,
+          },
+        });
+        return toSpecDraft(rows[0] as Row);
+      });
+    } finally {
+      this.#liveSpecDrafts.delete(draftId);
+    }
+  }
+
   /** ADR-0057: records how a pending chat answer ended. A settled answer never changes. */
   async finishChatAnswer(
     ctxIn: CommandContext,
@@ -3707,6 +4108,20 @@ export class ConnectionStore extends AutomationStore {
       .map((r) => toQualification(r as Row));
   }
 
+  /** ADR-0107: only qualifications on the current spec draft instructions admit drafts. */
+  async #specDraftQualifications(
+    c: PoolClient,
+    id: string,
+  ): Promise<PlanQualification[]> {
+    const rows = await c.query(
+      'select * from plan_qualifications where connection_id=$1 order by created_at desc',
+      [id],
+    );
+    return rows.rows
+      .filter((r) => currentForSpecDraftRole(r as Row))
+      .map((r) => toQualification(r as Row));
+  }
+
   async #discoveryQualifications(
     c: PoolClient,
     id: string,
@@ -4144,6 +4559,8 @@ export class ConnectionStore extends AutomationStore {
     workflow?: { task_id: string; lease_token: string; input_hash: string },
     /** ADR-0086: a web discovery's search or reading request, covered by its start. */
     webDiscovery?: WebDiscoveryBinding,
+    /** ADR-0107: a spec draft's one request, covered by the owner's press. */
+    specDraft?: SpecDraftBinding,
   ): Promise<{
     request_id: string;
     connection: PlanConnection;
@@ -4164,6 +4581,7 @@ export class ConnectionStore extends AutomationStore {
       qualificationCase,
       workflow,
       webDiscovery,
+      specDraft,
     );
     // ADR-0064: a newly admitted request is live in this process until it is settled.
     if (out.request_id && !out.replay && !out.admission)
@@ -4180,6 +4598,7 @@ export class ConnectionStore extends AutomationStore {
     workflow:
       { task_id: string; lease_token: string; input_hash: string } | undefined,
     webDiscovery?: WebDiscoveryBinding,
+    specDraft?: SpecDraftBinding,
   ): Promise<{
     request_id: string;
     connection: PlanConnection;
@@ -4296,6 +4715,12 @@ export class ConnectionStore extends AutomationStore {
           (runId) => this.lockRun(c, ws, runId),
           () => this.requireOwner(c, uuid(ws), ctx.actorId),
         );
+      // ADR-0107: the owner's press is the one approval for the draft's request; checked under
+      // the draft's lock, before the connection's.
+      if (specDraft) {
+        await this.requireOwner(c, uuid(ws), ctx.actorId);
+        await specDraftRequestGate(c, uuid(ws), ctx.actorId, req, specDraft);
+      }
       const conn = await this.#lock(c, ws, req.connection_id);
       if (
         wf &&
@@ -4339,7 +4764,9 @@ export class ConnectionStore extends AutomationStore {
           )
         : webDiscovery
           ? await this.#webDiscoveryQualifications(c, conn.id)
-          : await this.#qualifications(c, conn.id, true);
+          : specDraft
+            ? await this.#specDraftQualifications(c, conn.id)
+            : await this.#qualifications(c, conn.id, true);
       // ADR-0057: a chat answer is the owner's, under the workspace's chat setting.
       let chat: PlanChatAllowance | null = null;
       if (req.purpose === 'chat') {
@@ -6347,5 +6774,114 @@ function toApiKey(r: Row): WorkspaceApiKey {
     version: Number(r.version),
     saved_at: new Date(r.saved_at as string).toISOString(),
     saved_by: String(r.saved_by),
+  };
+}
+
+/**
+ * ADR-0107: what the studio can use from a completed spec draft's reply. A whole spec gets the
+ * studio's random held-out pick (crypto random, about a third of each check's cases) and its
+ * case problems; an edge case is checked against the check it was asked for.
+ */
+function readDraftReply(
+  cur: Row,
+  reply: string,
+): {
+  result: SpecDraftResult | null;
+  problems: SpecCaseProblem[];
+  reason: string | null;
+} {
+  const kind = String(cur.kind);
+  const req = (cur.request ?? {}) as {
+    check?: {
+      key: string;
+      statement: string;
+      measure: string;
+      method: 'automated_test' | 'browser_check';
+      cases: NonNullable<SpecContent['acceptance_checks'][number]['cases']>;
+      browser_cases: NonNullable<
+        SpecContent['acceptance_checks'][number]['browser_cases']
+      >;
+    } | null;
+    case_index?: number | null;
+  };
+  if (kind === 'spec') {
+    const read = readSpecDraft(reply, {
+      owner: 'Workspace owner',
+      obligations: ['Check that the acceptance checks still pass'],
+      review_interval: 'Every 3 months',
+    });
+    if (!read.ok) return { result: null, problems: [], reason: read.reason };
+    const bytes = Buffer.byteLength(
+      JSON.stringify({ title: read.title, content: read.content }),
+    );
+    if (bytes > SPEC_DRAFT_BODY_MAX)
+      return {
+        result: null,
+        problems: [],
+        reason: `The drafted spec is ${bytes.toLocaleString('en-US')} bytes; a saved spec holds at most about ${SPEC_DRAFT_BODY_MAX.toLocaleString('en-US')}, so it was not kept. Ask again, or write a shorter spec.`,
+      };
+    const picked = pickHeldOut(read.content, () => randomInt(0, 2 ** 31) / 2 ** 31);
+    return {
+      result: {
+        kind: 'spec',
+        title: read.title,
+        content: picked.content,
+        picks: picked.picks,
+        notes: read.notes,
+      },
+      problems: specCaseProblems(picked.content),
+      reason: read.dropped.length
+        ? `${read.dropped.length} drafted case${read.dropped.length === 1 ? ' was' : 's were'} left out: ${read.dropped.slice(0, 3).join('; ')}.`
+        : null,
+    };
+  }
+  const check = req.check;
+  if (!check)
+    return { result: null, problems: [], reason: 'The draft lost its check.' };
+  const web = check.method === 'browser_check';
+  if (kind === 'edge_case') {
+    const read = readEdgeCase(reply, web);
+    if (!read.ok) return { result: null, problems: [], reason: read.reason };
+    // The new case beside the existing ones, so a repeat or a contradiction is named.
+    const at = web ? check.browser_cases.length : check.cases.length;
+    const content = {
+      acceptance_checks: [
+        {
+          key: check.key,
+          flow: null,
+          statement: check.statement,
+          measure: check.measure,
+          method: check.method,
+          ...(web
+            ? { browser_cases: [...check.browser_cases, read.browser_case!] }
+            : { cases: [...check.cases, read.case!] }),
+        },
+      ],
+      tasks: [],
+    } as unknown as SpecContent;
+    return {
+      result: {
+        kind: 'edge_case',
+        check: check.key,
+        case: read.case,
+        browser_case: read.browser_case,
+        why: read.why,
+      },
+      problems: specCaseProblems(content).filter((p) => p.index === at),
+      reason: null,
+    };
+  }
+  const read = readExplanation(reply);
+  if (!read.ok) return { result: null, problems: [], reason: read.reason };
+  return {
+    result: {
+      kind: 'explain_case',
+      check: check.key,
+      list: web ? 'browser_cases' : 'cases',
+      index: req.case_index ?? 0,
+      explanation: read.explanation,
+    },
+    problems: [],
+    reason: null,
   };
 }

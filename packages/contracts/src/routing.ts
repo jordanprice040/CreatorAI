@@ -486,6 +486,37 @@ export const BenchmarkCheckSchema = z.discriminatedUnion('kind', [
     forbidden_refs: z.array(z.string().max(20)).max(20),
   }),
   /**
+   * ADR-0107 (B2): a drafted spec and its suggested cases for a command-line program the studio
+   * knows exactly. The reply is read as a spec draft; after the studio's held-out pick, its own
+   * case checks must find no error, there must be at least `min_cases` cases, every case must
+   * pass the reference program, and at least `min_caught` of the known-broken programs must fail
+   * a case. The programs are the studio's own (packages/domain spec-cases.ts) and run in
+   * process; the drafted cases are only their arguments and input.
+   */
+  z.strictObject({
+    kind: z.literal('spec_cases_contract'),
+    role_version: short,
+    program: z.string().regex(/^[a-z0-9-]{1,40}$/),
+    request: z.strictObject({
+      problem: z.strictObject({
+        title: short,
+        statement: z.string().min(1).max(2000),
+        affected_group: short,
+      }),
+      option: z.strictObject({
+        title: short,
+        rationale: z.string().min(1).max(2000),
+        tradeoffs: z.array(short).min(1).max(20),
+      }),
+    }),
+    mutants: z
+      .array(z.string().regex(/^[a-z0-9-]{1,40}\/[a-z0-9-]{1,40}$/))
+      .min(1)
+      .max(12),
+    min_cases: z.number().int().min(1).max(60),
+    min_caught: z.number().int().min(1).max(12),
+  }),
+  /**
    * T12 reviewer (ADR-0048): the answer binds the case's candidate and frozen hashes and gives
    * the expected verdict; approve needs no findings, changes_requested at least one.
    */
@@ -559,6 +590,18 @@ export const BenchmarkManifestSchema = z
             message: 'Discovery check task class/output format mismatch.',
           });
       }
+    for (const c of b.cases)
+      if (
+        c.check.kind === 'spec_cases_contract' &&
+        (b.task_class !== 'specification' ||
+          c.output_format !== 'json' ||
+          c.check.min_caught > c.check.mutants.length)
+      )
+        ctx.addIssue({
+          code: 'custom',
+          message:
+            'Spec cases check: specification task class, JSON output, and no more catches than broken programs.',
+        });
     for (const c of b.cases)
       if (
         c.check.kind === 'assessment_contract' &&

@@ -807,24 +807,50 @@ export const SpecContentSchema = z.strictObject({
     .max(40),
 });
 export type SpecContent = z.infer<typeof SpecContentSchema>;
+/**
+ * ADR-0107 (B2): how a saved spec version says model drafts went into it. The studio sets it
+ * from the draft ids the form sends; the person never types it. `edited` compares the saved
+ * content (routine upkeep fields and held-out ticks aside) with the drafted spec; `held_out`
+ * says whether the studio's random pick was kept or changed.
+ */
+export const SpecDraftedMarkSchema = z.strictObject({
+  drafts: z
+    .array(
+      z.strictObject({
+        id,
+        kind: z.enum(['spec', 'edge_case']),
+        model_id: z.string().max(120),
+      }),
+    )
+    .min(1)
+    .max(40),
+  edited: z.boolean(),
+  held_out: z.enum(['studio_pick', 'changed', 'none']),
+});
+export type SpecDraftedMark = z.infer<typeof SpecDraftedMarkSchema>;
 /** Stored `specification` body for T08 specs (the T02 summary form remains valid). */
 export const SpecBodySchema = SpecContentSchema.extend({
   format: z.literal('spec/1'),
   alternative: ref,
   selection_id: id,
+  drafted: SpecDraftedMarkSchema.optional(),
 });
 export type SpecBody = z.infer<typeof SpecBodySchema>;
+/** ADR-0107: the completed model drafts (a spec, edge cases) whose text the person used. */
+const draftIds = z.array(id).max(40).optional();
 export const CreateSpecRequestSchema = z.strictObject({
   selection_id: id,
   alternative: ref,
   title: short,
   content: SpecContentSchema,
+  draft_ids: draftIds,
 });
 export const ReviseSpecRequestSchema = z.strictObject({
   expected_version: version,
   title: short,
   content: SpecContentSchema,
   reason: short,
+  draft_ids: draftIds,
 });
 export const FreezeSpecRequestSchema = z.strictObject({
   spec: ref,

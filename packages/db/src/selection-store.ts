@@ -1,3 +1,4 @@
+import { draftedMark } from './spec-draft-gates.js';
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import {
@@ -1488,11 +1489,21 @@ export class SelectionStore extends TeamStore {
             'VERSION_CONFLICT',
             'The alternative changed since it was selected; select it again before writing a spec.',
           );
+        // ADR-0107: the studio records which model drafts went into this spec.
+        const drafted = await draftedMark(
+          c,
+          ws,
+          alt.id.toLowerCase(),
+          req.content,
+          req.draft_ids,
+          undefined,
+        );
         const body = validateBody('specification', {
           format: 'spec/1',
           alternative: { id: alt.id, version: alt.version },
           selection_id: selection.id,
           ...req.content,
+          ...(drafted ? { drafted } : {}),
         });
         const spec = await this.insertEntity(
           c,
@@ -1554,11 +1565,21 @@ export class SelectionStore extends TeamStore {
           'INVALID_TRANSITION',
           `A ${current.status} spec cannot be revised.`,
         );
+      // ADR-0107: drafts named now join those of earlier versions.
+      const drafted = await draftedMark(
+        c,
+        ws,
+        before.alternative.id.toLowerCase(),
+        req.content,
+        req.draft_ids,
+        before.drafted,
+      );
       const body = validateBody('specification', {
         format: 'spec/1',
         alternative: before.alternative,
         selection_id: before.selection_id,
         ...req.content,
+        ...(drafted ? { drafted } : {}),
       });
       const hash = contentHashOf('specification', req.title, body);
       if (hash === current.content_hash)

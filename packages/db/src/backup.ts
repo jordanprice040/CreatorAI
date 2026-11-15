@@ -102,6 +102,8 @@ const COUNTED = [
   'autopilot_settings',
   // ADR-0101: model drafts of a proposal's missing sections.
   'proposal_section_drafts',
+  // ADR-0107: model drafts of build specs, edge cases and case explanations.
+  'spec_drafts',
 ] as const;
 
 /** Splits the password out so it reaches pg tools by environment, never by argv or logs. */

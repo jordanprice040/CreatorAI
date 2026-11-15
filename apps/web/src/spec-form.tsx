@@ -4,15 +4,24 @@ import {
   FeedbackSchema,
   SpecStatusSchema,
   formatBrowserStep,
+  heldOutOf,
   parseBrowserSteps,
+  specCaseProblems,
   type BrowserStep,
   type SessionInfo,
+  type SpecContent,
+  type SpecDraft as ModelDraft,
+  type SpecDraftCheck,
+  type SpecProduct,
   type SpecStatus,
   type StoredEntity,
 } from '@creator/contracts';
 import { ApiError, api, message } from './oversight.js';
 import {
+  browserCaseDraft,
   buildNotes,
+  caseDraft,
+  checkForDraft,
   draftFromContent,
   draftToContent,
   emptyBrowserCase,
@@ -22,6 +31,7 @@ import {
   FEEDBACK_REVISION_STALE,
   feedbackReason,
   nextKey,
+  problemKey,
   SPEC_DEFAULTS,
   argsShowable,
   storedKeys,
@@ -32,6 +42,16 @@ import {
   type SpecDraft,
 } from './spec-fields.js';
 import { Routine, WhatWillHappen } from './routine.js';
+import {
+  CheckedAgainst,
+  DraftRoutePicker,
+  EdgeCaseOffer,
+  Explanation,
+  SpecDraftOffer,
+  StaleNote,
+  useDraftAsk,
+  useSpecDrafts,
+} from './spec-drafts.js';
 
 const METHODS: { value: Method; label: string }[] = [
   { value: 'automated_test', label: 'Automated test (cases below)' },
@@ -89,10 +109,16 @@ export function SpecForm({
   saved,
   cancel,
   openBuild,
+  owner = false,
+  choice = null,
 }: {
   base: string;
   session: SessionInfo;
   mode: SpecFormMode;
+  /** ADR-0107: only the owner may ask a model to draft. */
+  owner?: boolean;
+  /** The person's current model (top bar); drafts go there when it may draft specs. */
+  choice?: { connection_id: string; model_id: string } | null;
   saved: (s: SpecStatus) => void;
   cancel: () => void;
   /** Where a feedback revision that went stale sends the owner instead. */
@@ -120,6 +146,140 @@ export function SpecForm({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // ADR-0107 (B2): model drafts. The subject is the option the spec is written for.
+  const subject =
+    mode.kind === 'create'
+      ? { selection_id: mode.selection_id, alternative: mode.alternative }
+      : {
+          selection_id: String(mode.entity.body?.selection_id ?? ''),
+          alternative: (mode.entity.body?.alternative ?? {
+            id: '',
+            version: 1,
+          }) as { id: string; version: number },
+        };
+  const canDraft = owner && !!subject.selection_id && !!subject.alternative.id;
+  const drafts = useSpecDrafts(base, canDraft ? subject.alternative.id : '');
+  const ask = useDraftAsk({
+    base,
+    session,
+    choice,
+    owner: canDraft,
+    drafted: drafts.refresh,
+  });
+  const [product, setProduct] = useState<SpecProduct>(() =>
+    start.checks.some((c) => c.method === 'browser_check') ? 'web' : 'cli',
+  );
+  /** The whole-spec draft the form now holds, and the edge cases added from drafts. */
+  const [usedSpec, setUsedSpec] = useState<string | null>(null);
+  const [addedEdges, setAddedEdges] = useState<string[]>([]);
+  /** Edge cases and explanations asked in this form (by the button that asked), and dismissed. */
+  const [mine, setMine] = useState<{ key: string; draft: ModelDraft }[]>([]);
+  const [dismissed, setDismissed] = useState<string[]>([]);
+  const [helperError, setHelperError] = useState<{
+    key: string;
+    text: string;
+  } | null>(null);
+  const newestSpec = drafts.data?.find((x) => x.kind === 'spec');
+  const shown = (key: string) =>
+    mine.filter((m) => m.key === key && !dismissed.includes(m.draft.id));
+  const route = canDraft ? ask.route : null;
+  const routesKnown = !ask.routes.loading && !ask.routes.error;
+  async function helper(
+    key: string,
+    i: number,
+    kind: 'edge_case' | 'explain_case',
+    caseIndex: number | null,
+  ) {
+    setHelperError(null);
+    const c = checkForDraft(d, i, parseBrowserSteps);
+    if (c.error !== null) {
+      setHelperError({ key, text: c.error });
+      return;
+    }
+    const got = await ask.ask(key, {
+      kind,
+      selection_id: subject.selection_id,
+      alternative: subject.alternative,
+      product: c.check.method === 'browser_check' ? 'web' : 'cli',
+      // The steps were parsed by parseBrowserSteps, so they are browser steps.
+      check: c.check as SpecDraftCheck,
+      case_index: caseIndex,
+    });
+    if (got) setMine((m) => [...m, { key, draft: got }]);
+  }
+  const helperNote = (key: string) =>
+    (helperError?.key === key ? helperError.text : null) ??
+    (ask.error?.key === key ? ask.error.text : null);
+  const fmt = (step: unknown) => formatBrowserStep(step as BrowserStep);
+  async function draftSpec() {
+    await ask.ask('spec', {
+      kind: 'spec',
+      selection_id: subject.selection_id,
+      alternative: subject.alternative,
+      product,
+      check: null,
+      case_index: null,
+    });
+  }
+  /** Puts a whole-spec draft in the form; who maintains it stays as typed. */
+  function takeDraft(x: ModelDraft) {
+    if (x.result?.kind !== 'spec') return;
+    const next = draftFromContent(
+      x.result.title,
+      x.result.content as unknown as SpecContentShape,
+      fmt,
+    );
+    setD((prev) => ({ ...next, maintenance: prev.maintenance }));
+    setUsedSpec(x.id);
+    setAddedEdges([]);
+    setErrors({});
+  }
+  /** Adds a suggested edge case to its check (by key, so a removed check is never hit). */
+  function addEdge(x: ModelDraft): (() => void) | null {
+    const r = x.result?.kind === 'edge_case' ? x.result : null;
+    if (!r || addedEdges.includes(x.id)) return null;
+    const c = d.checks.find((y) => y.key === r.check);
+    if (!c) return null;
+    if (r.case ? c.cases.length >= 10 : c.browser_cases.length >= 10)
+      return null;
+    return () => {
+      set((y) => {
+        const t = y.checks.find((z) => z.key === r.check);
+        if (!t) return;
+        if (r.case) t.cases.push(caseDraft(r.case));
+        else if (r.browser_case)
+          t.browser_cases.push(browserCaseDraft(r.browser_case, fmt));
+      });
+      setAddedEdges((a) => [...a, x.id]);
+      setDismissed((a) => [...a, x.id]);
+    };
+  }
+  const helperButton = (
+    key: string,
+    label: string,
+    asking: string,
+    run: () => void,
+  ) =>
+    route ? (
+      <>
+        <button
+          type="button"
+          className="text"
+          disabled={!!ask.busy}
+          aria-busy={ask.busy === key}
+          onClick={run}
+        >
+          {ask.busy === key ? asking : label}
+        </button>
+        {helperNote(key) && (
+          <span className="error" role="alert">
+            {' '}
+            {helperNote(key)}
+          </span>
+        )}
+      </>
+    ) : null;
+  const dismiss = (id: string) => setDismissed((a) => [...a, id]);
   const set = (f: (x: SpecDraft) => void) =>
     setD((x) => {
       const y = structuredClone(x);
@@ -172,6 +332,10 @@ export function SpecForm({
   );
   const parsed = draftToContent(d, parseBrowserSteps);
   const notes = parsed.content ? buildNotes(parsed.content) : [];
+
+  /** ADR-0107: the drafts whose text is in the form; the studio checks and records them. */
+  const used = [...(usedSpec ? [usedSpec] : []), ...addedEdges];
+  const draftIds = used.length ? { draft_ids: used } : {};
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -242,12 +406,14 @@ export function SpecForm({
                   alternative: mode.alternative,
                   title: out.title,
                   content: out.content,
+                  ...draftIds,
                 }
               : {
                   expected_version: mode.spec.spec.version,
                   title: out.title,
                   content: out.content,
                   reason: reason.trim().slice(0, 300),
+                  ...draftIds,
                 },
         },
       );
@@ -273,6 +439,36 @@ export function SpecForm({
   const flowKeys = d.flows.map((f) => f.key);
   const checkKeys = d.checks.map((c) => c.key);
   const taskKeys = d.tasks.map((t) => t.key);
+  // ADR-0107: the studio's checks of the cases, in plain words, beside each case. The held-out
+  // rule is already among the notes below, so it is not repeated here.
+  const content = parsed.content as unknown as SpecContent | null;
+  const caseProblems = content
+    ? specCaseProblems(content).filter((p) => p.code !== 'no_held_out')
+    : [];
+  const problemsAt = (k: string) => {
+    const ps = caseProblems.filter((p) => problemKey(p, checkKeys) === k);
+    return ps.length ? (
+      <ul className="small case-problems">
+        {ps.map((p, n) => (
+          <li key={n} className={p.level === 'error' ? 'error' : undefined}>
+            {p.level === 'error' ? 'Fix: ' : 'Look: '}
+            {p.text}
+          </li>
+        ))}
+      </ul>
+    ) : null;
+  };
+  const usedDraft = usedSpec
+    ? drafts.data?.find((x) => x.id === usedSpec)
+    : undefined;
+  const pickKept = (() => {
+    if (usedDraft?.result?.kind !== 'spec' || !content) return null;
+    const key = (p: { check: string; list: string; index: number }) =>
+      `${p.check}/${p.list}/${p.index}`;
+    const a = usedDraft.result.picks.map(key).sort().join();
+    return { kept: a === heldOutOf(content).map(key).sort().join(), n: usedDraft.result.picks.length };
+  })();
+  const edited = JSON.stringify(d) !== JSON.stringify(start);
   const newFlow = nextKey('F', flowKeys, given);
   const newCheck = nextKey('A', checkKeys, given);
   const newTask = nextKey('T', taskKeys, given);
@@ -357,6 +553,84 @@ export function SpecForm({
           mode.spec.frozen_current &&
           ' This version is frozen: saving a revision means freezing again before the next build.'}
       </p>
+      {canDraft && mode.kind === 'create' && (
+        <fieldset className="spec-drafting">
+          <legend>Draft it with a model</legend>
+          {routesKnown && !route && (
+            <p className="small notice">
+              No model may draft specs yet. A model drafts specs once it is
+              qualified on the spec-cases-v1 benchmark (Connections, Qualify a
+              model). Until then, write the spec yourself below.
+            </p>
+          )}
+          {route && (
+            <>
+              <p className="small">
+                {route.model_id} proposes the requirements, acceptance checks and
+                suggested cases for this option. The studio checks the cases
+                and holds about a third of them out at random. You check and
+                edit everything; nothing is saved until you press Save spec.
+              </p>
+              <div
+                role="radiogroup"
+                aria-label="What will be built"
+                className="sf-picks"
+              >
+                <span className="small">It is:</span>
+                <label>
+                  <input
+                    type="radio"
+                    name="sd-product"
+                    checked={product === 'cli'}
+                    onChange={() => setProduct('cli')}
+                  />
+                  a command-line program
+                </label>
+                <label>
+                  <input
+                    type="radio"
+                    name="sd-product"
+                    checked={product === 'web'}
+                    onChange={() => setProduct('web')}
+                  />
+                  a static web page
+                </label>
+              </div>
+              <DraftRoutePicker ask={ask} />
+              <div className="actions">
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={!!ask.busy}
+                  aria-busy={ask.busy === 'spec'}
+                  onClick={() => void draftSpec()}
+                >
+                  {ask.busy === 'spec'
+                    ? `Drafting with ${route.model_id}…`
+                    : newestSpec
+                      ? `Draft again with ${route.model_id}`
+                      : `Draft with ${route.model_id}`}
+                </button>
+              </div>
+              {helperNote('spec') && (
+                <p className="error" role="alert">
+                  {helperNote('spec')}
+                </p>
+              )}
+            </>
+          )}
+          <StaleNote stale={drafts.stale} />
+          {newestSpec && (
+            <SpecDraftOffer
+              key={newestSpec.id}
+              draft={newestSpec}
+              used={usedSpec === newestSpec.id}
+              replaces={edited}
+              use={() => takeDraft(newestSpec)}
+            />
+          )}
+        </fieldset>
+      )}
       <fieldset>
         <legend>What and for whom</legend>
         {box('title', 'Title', d.title, (v) => set((x) => (x.title = v)), {
@@ -453,6 +727,13 @@ export function SpecForm({
           page), and at least one case is held out: QA runs it, but neither the
           builder nor the reviewer sees it.
         </p>
+        {pickKept && (
+          <p className="small notice" role="note">
+            {pickKept.kept
+              ? `The studio held out ${pickKept.n} drafted case${pickKept.n === 1 ? '' : 's'} at random. You can change which by ticking or unticking Held out on any case.`
+              : 'You changed which cases are held out from the studio’s random pick. The saved spec records that.'}
+          </p>
+        )}
         {d.checks.map((c, i) => (
           <div key={c.key} className="sf-item">
             <strong>{c.key}</strong>
@@ -596,6 +877,28 @@ export function SpecForm({
                       >
                         Remove case {j + 1}
                       </button>
+                      {problemsAt(k)}
+                      {canDraft &&
+                        c.method === 'automated_test' &&
+                        helperButton(
+                          `explain.${c.key}.cases.${j}`,
+                          'Explain this case',
+                          'Asking for an explanation…',
+                          () =>
+                            void helper(
+                              `explain.${c.key}.cases.${j}`,
+                              i,
+                              'explain_case',
+                              j,
+                            ),
+                        )}
+                      {shown(`explain.${c.key}.cases.${j}`).map(({ draft }) => (
+                        <Explanation
+                          key={draft.id}
+                          draft={draft}
+                          dismiss={() => dismiss(draft.id)}
+                        />
+                      ))}
                     </div>
                   );
                 })}
@@ -667,6 +970,30 @@ export function SpecForm({
                       >
                         Remove browser case {j + 1}
                       </button>
+                      {problemsAt(k)}
+                      {canDraft &&
+                        c.method === 'browser_check' &&
+                        helperButton(
+                          `explain.${c.key}.browser_cases.${j}`,
+                          'Explain this case',
+                          'Asking for an explanation…',
+                          () =>
+                            void helper(
+                              `explain.${c.key}.browser_cases.${j}`,
+                              i,
+                              'explain_case',
+                              j,
+                            ),
+                        )}
+                      {shown(`explain.${c.key}.browser_cases.${j}`).map(
+                        ({ draft }) => (
+                          <Explanation
+                            key={draft.id}
+                            draft={draft}
+                            dismiss={() => dismiss(draft.id)}
+                          />
+                        ),
+                      )}
                     </div>
                   );
                 })}
@@ -687,6 +1014,26 @@ export function SpecForm({
               </div>
             )}
             {err(`checks.${i}.covered`)}
+            {problemsAt(`checks.${i}`)}
+            {canDraft &&
+              (c.method === 'automated_test' || c.method === 'browser_check') && (
+                <div className="sf-helpers">
+                  {helperButton(
+                    `edge.${c.key}`,
+                    'Add an edge case',
+                    'Asking for an edge case…',
+                    () => void helper(`edge.${c.key}`, i, 'edge_case', null),
+                  )}
+                </div>
+              )}
+            {shown(`edge.${c.key}`).map(({ draft }) => (
+              <EdgeCaseOffer
+                key={draft.id}
+                draft={draft}
+                add={addEdge(draft)}
+                dismiss={() => dismiss(draft.id)}
+              />
+            ))}
             {d.checks.length > 1 && (
               <button
                 type="button"
@@ -1036,6 +1383,7 @@ export function SpecForm({
           )}
         </p>
       )}
+      {content && <CheckedAgainst content={content} />}
       <WhatWillHappen
         items={[
           {
@@ -1050,6 +1398,14 @@ export function SpecForm({
             value: `${d.flows.length} flow${d.flows.length === 1 ? '' : 's'}, ${d.checks.length} acceptance check${d.checks.length === 1 ? '' : 's'}, ${d.tasks.length} task${d.tasks.length === 1 ? '' : 's'}`,
           },
           { label: 'Upkeep', value: upkeepSummary },
+          ...(used.length
+            ? [
+                {
+                  label: 'Model drafts',
+                  value: `Records that ${used.length === 1 ? 'a model draft' : `${used.length} model drafts`} went into this spec, so it shows as drafted by the model and checked by you`,
+                },
+              ]
+            : []),
           {
             label: 'Next',
             value:
