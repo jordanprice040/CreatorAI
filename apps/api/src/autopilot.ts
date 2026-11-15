@@ -1580,12 +1580,11 @@ export class AutopilotRunner {
     return {
       done: {
         request: { ...req, then, added },
-        note: cutText(
-          `${[...linkNote(), ...notes].join(' ') || 'Nothing new was found.'} ${
-            then === 'select' && req.then === 'assess'
-              ? 'Nothing new to assess, so it goes on to choose.'
-              : `Going back to ${AUTOPILOT_STAGE_LABEL[then].toLowerCase()}.`
-          }`,
+        note: fitNote(
+          [...linkNote(), ...notes].join(' ') || 'Nothing new was found.',
+          then === 'select' && req.then === 'assess'
+            ? 'Nothing new to assess, so it goes on to choose.'
+            : `Going back to ${AUTOPILOT_STAGE_LABEL[then].toLowerCase()}.`,
           1200,
         ),
       },
@@ -1626,8 +1625,9 @@ export class AutopilotRunner {
           stop: {
             outcome: 'needs_authority',
             kind: 'approval',
-            note: cutText(
-              `${AUTOPILOT_STAGE_LABEL[step.stage]} is waiting for a decision (Monitor › Approvals): ${wf.reason}. Answer it, then continue the autopilot.`,
+            note: fitNote(
+              `${AUTOPILOT_STAGE_LABEL[step.stage]} is waiting for a decision (Monitor › Approvals): ${wf.reason}.`,
+              'Answer it, then continue the autopilot.',
               1200,
             ),
           },

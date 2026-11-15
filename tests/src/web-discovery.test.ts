@@ -1656,4 +1656,17 @@ test('review 2 N-3: every distinct quote that loses its page’s row is named, a
   assert.equal(d.get('p2')?.length, 1);
   assert.match(d.get('p2')![0]!, /a contrary quote.*“never/);
   assert.equal(d.has('p3'), false);
+  // Review 3: a repeated contrary quote is named once; past two, the rest are counted.
+  const many = droppedQuotes([
+    q('p4', 'supports', long('yes')),
+    q('p4', 'contradicts', long('no')),
+    q('p4', 'contradicts', long('no')),
+    q('p4', 'contradicts', long('never')),
+    q('p4', 'contradicts', long('rarely')),
+    q('p4', 'contradicts', long('seldom')),
+  ]).get('p4')!;
+  assert.equal(many.length, 3);
+  assert.match(many[0]!, /“no no/);
+  assert.match(many[1]!, /“never/);
+  assert.equal(many[2], 'It has 2 more quotes not recorded as their own rows.');
 });

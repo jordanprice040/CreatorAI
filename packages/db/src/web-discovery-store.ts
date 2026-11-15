@@ -63,15 +63,35 @@ export function droppedQuotes(
   const keeper = new Map<string, Quote>();
   for (const e of ordered)
     if (usable(e) && !keeper.has(e.passage_id!)) keeper.set(e.passage_id!, e);
-  const dropped = new Map<string, string[]>();
+  // Review 3 N-1: each distinct quote is named once per page.
+  const lost = new Map<string, Quote[]>();
   for (const e of ordered) {
     const kept = usable(e) ? keeper.get(e.passage_id!) : undefined;
     if (!kept || kept === e) continue;
-    if (kept.stance === e.stance && kept.quote === e.quote) continue;
-    dropped.set(e.passage_id!, [
-      ...(dropped.get(e.passage_id!) ?? []),
-      `The same page also has ${e.stance === 'supports' ? 'another supporting' : 'a contrary'} quote, not recorded as its own row: “${cutText(e.quote, 300)}”`,
-    ]);
+    const same = (x: Quote) => x.stance === e.stance && x.quote === e.quote;
+    const list = lost.get(e.passage_id!) ?? [];
+    if (same(kept) || list.some(same)) continue;
+    lost.set(e.passage_id!, [...list, e]);
+  }
+  // Review 3 N-2: two are quoted, the rest counted, so the rationale never cuts a quote.
+  const dropped = new Map<string, string[]>();
+  for (const [passage, list] of lost) {
+    const named = list
+      .slice(0, 2)
+      .map(
+        (e) =>
+          `The same page also has ${e.stance === 'supports' ? 'another supporting' : 'a contrary'} quote, not recorded as its own row: “${cutText(e.quote, 300)}”`,
+      );
+    const more = list.length - named.length;
+    dropped.set(
+      passage,
+      more > 0
+        ? [
+            ...named,
+            `It has ${more} more quote${more === 1 ? '' : 's'} not recorded as ${more === 1 ? 'its own row' : 'their own rows'}.`,
+          ]
+        : named,
+    );
   }
   return dropped;
 }
