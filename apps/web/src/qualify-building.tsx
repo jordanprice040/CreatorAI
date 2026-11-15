@@ -22,8 +22,8 @@ const POLL_MS = 10_000;
 /**
  * ADR-0105 (B1): qualify building on this connection. Three live builds of one frozen in-app
  * benchmark with the model as builder and reviewer, run by the studio in the background. Only a
- * qualified, non-fixture record lifts the web "unqualified trial" label, and only for builds on
- * this connection, this model and today's role prompts.
+ * qualified, non-fixture record lifts the "unqualified trial" label (web builds, and larger Python
+ * builds per ADR-0112), and only for builds on this connection, this model and today's role prompts.
  */
 export function QualifyBuilding({
   base,
@@ -132,7 +132,10 @@ export function QualifyBuilding({
         Building is qualified separately from the builder and reviewer tasks:
         the studio builds a frozen benchmark three times with this model as
         builder and reviewer, and checks every result itself. Until a model
-        passes here, its web packages are labelled unqualified trials.
+        passes the web benchmark here, its web packages are labelled unqualified
+        trials. Until it passes the larger Python benchmark, so are its larger
+        Python packages (more than one Python file or more than 10 cases); small
+        Python builds need no pass here.
       </p>
       {loadError && <p className="small">{loadError}</p>}
       {models.length === 0 ? (

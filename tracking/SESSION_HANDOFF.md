@@ -1,5 +1,9 @@
 # Session handoff — November 10, 2026
 
+## November 15 handoff — larger Python builds labelled (ADR-0112)
+
+Branch `claude/project-thread-py44h3` from main 8f190ac (with #212), no migration. Contracts `web-recipe.ts`: `SMALL_PYTHON_BUILD`, `BuildScale`, `pythonBuildScale(packagePaths, cases)`, `unqualifiedTrial(recipe, roles, passes, scale = 'small')`, `RECIPE_BENCHMARKS['python-build/1'] = ['p14-larger-ledgercheck-v5']`, `UNQUALIFIED_LARGER_PYTHON_NOTE`. Executor `artifacts.ts` `package` judges the scale from the extracted archive and `intent.plan.cases`, and looks up passes for web and larger Python builds. Web: gallery label wording per recipe, Qualify building text. Next: lifting the label needs a live `p14-larger-ledgercheck-v5` pass per connection and model (Jordan's typed OK); for Claude, ADR-0105's follow-up path.
+
 ## November 15 handoff — Windows web build and B1 records (PR #212)
 
 Branch `claude/project-thread-lvmxmx` from main 13744b4 (main 6886fcf with #210 merged in). `apps/web/src/package-root.ts`: `rootOf`, `packageRoot(entry, path)` (forward slashes, throws when no package directory is above the entry), `inNodeModules(entry, path)`; `vite.config.ts` `thirdPartyLicenses()` uses them with the platform `node:path`. The web app never imports the module; it lives under `src` so `loadWeb` tests can run it. Records and README in `tracking/evidence/recipe-qualifications/2026-11-15-installed/` (builder/1 run) and `2026-11-15-rerun/` (builder/2 rerun: A1', H1–H3 qualified, H4 failed on a preamble). Review 1 and its re-check: `/mnt/project-files/reviews/PR212_REVIEW_1_2026-11-15.md`. Windows build and licence list confirmed (23 packages). Next: Jordan's merge; then `p15-small-signup-v5` on the ChatGPT connection under builder/2, and a decision on the Claude H4 preamble (needs Jordan).

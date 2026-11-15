@@ -5,7 +5,9 @@ import {
   BuildManifestSchema,
   BrokerCallResultSchema,
   ContractError,
+  UNQUALIFIED_LARGER_PYTHON_NOTE,
   UNQUALIFIED_TRIAL_NOTE,
+  pythonBuildScale,
   unqualifiedTrial,
   type RecipeQualification,
   type BuildRoles,
@@ -38,7 +40,7 @@ import { readTar, writeTar, type PackageFile } from './tar.js';
  * ADR-0078 review L-9, ADR-0105: the recorded passes of a recipe's frozen benchmark that may lift
  * a build's "unqualified trial" label, for the roles that built it. The studio reads them from its
  * build qualification records (one connection, model and pair of role prompts each); a caller
- * with none passes nothing, and a web build is then a trial.
+ * with none passes nothing, and a web build or a larger Python build (ADR-0112) is then a trial.
  */
 export type RecipePassesFor = (
   roles: BuildRoles,
@@ -242,10 +244,19 @@ export class ArtifactSupervisor {
     const recipe = p.recipe ?? 'python-build/1';
     const web = recipe === 'static-web/1';
     const roles = buildRoles(intent);
+    // ADR-0112: a Python build's scale comes from the package it exported and its frozen cases.
+    const scale = web
+      ? 'small'
+      : pythonBuildScale(
+          extracted.map((f) => f.path),
+          intent.plan.cases.length,
+        );
+    const needsPass = web || scale === 'larger';
     const trial = unqualifiedTrial(
       recipe,
       roles,
-      recipe === 'python-build/1' || !roles ? [] : await passesFor(roles),
+      needsPass && roles ? await passesFor(roles) : [],
+      scale,
     );
     const template = templateOf(p.recipe);
     const browser =
@@ -410,7 +421,9 @@ export class ArtifactSupervisor {
       },
       lineage,
       limitations: [
-        ...(trial ? [UNQUALIFIED_TRIAL_NOTE] : []),
+        ...(trial
+          ? [web ? UNQUALIFIED_TRIAL_NOTE : UNQUALIFIED_LARGER_PYTHON_NOTE]
+          : []),
         ...(web
           ? [
               'Verifies one task commit and its owner-authored browser cases in one pinned headless browser (Chrome 156), not other browsers, screen sizes, accessibility, the whole product or real user needs.',

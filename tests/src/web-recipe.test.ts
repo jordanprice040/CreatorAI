@@ -38,6 +38,7 @@ import {
   parseBrowserSteps,
   specRecipe,
   unqualifiedTrial,
+  pythonBuildScale,
   RECIPE_BENCHMARKS,
   PINNED_BROWSER,
   browserRecheckDue,
@@ -770,6 +771,58 @@ test('review L-9: a web pass qualifies only the connection, model and role promp
     ]),
     true,
   );
+});
+
+test('ADR-0112: a Python build is larger past one Python file or 10 cases, and only then needs a larger benchmark pass', () => {
+  assert.equal(pythonBuildScale(['readme.md', 'src/main.py'], 10), 'small');
+  assert.equal(pythonBuildScale(['src/main.py', 'src/util.py'], 2), 'larger');
+  assert.equal(pythonBuildScale(['src/main.py'], 11), 'larger');
+  assert.equal(pythonBuildScale(['notes.pyc', 'src/main.py'], 1), 'small');
+  const roles = {
+    connection_id: 'a',
+    model_id: 'm',
+    builder_prompt_sha256: 'b1',
+    reviewer_prompt_sha256: 'r2',
+  };
+  const pass = {
+    ...roles,
+    recipe: 'python-build/1' as const,
+    benchmark_id: 'p14-larger-ledgercheck-v5',
+  };
+  // Small Python builds stay unlabelled, as before, with or without roles or passes.
+  assert.equal(unqualifiedTrial('python-build/1', null, [], 'small'), false);
+  assert.equal(unqualifiedTrial('python-build/1', roles, []), false);
+  // Larger ones need the larger pass on their own roles.
+  assert.equal(unqualifiedTrial('python-build/1', roles, [], 'larger'), true);
+  assert.equal(
+    unqualifiedTrial('python-build/1', null, [pass], 'larger'),
+    true,
+  );
+  assert.equal(
+    unqualifiedTrial('python-build/1', roles, [pass], 'larger'),
+    false,
+  );
+  for (const other of [
+    { benchmark_id: 'p14-small-wordtally-v5' },
+    { benchmark_id: 'p14-larger-ledgercheck-v4' },
+    { recipe: 'static-web/1' as const, benchmark_id: 'p15-small-signup-v5' },
+    { connection_id: 'b' },
+    { model_id: 'n' },
+    { builder_prompt_sha256: 'b2' },
+    { reviewer_prompt_sha256: 'r3' },
+  ])
+    assert.equal(
+      unqualifiedTrial(
+        'python-build/1',
+        roles,
+        [{ ...pass, ...other }],
+        'larger',
+      ),
+      true,
+      JSON.stringify(other),
+    );
+  // A larger Python pass never lifts a web build's label.
+  assert.equal(unqualifiedTrial('static-web/1', roles, [pass]), true);
 });
 
 test('the recorded web qualification is the live 3 of 3 result on its benchmark and prompts', () => {

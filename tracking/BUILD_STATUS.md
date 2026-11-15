@@ -1,5 +1,11 @@
 # Build status — November 10, 2026
 
+## November 15 update — larger Python builds labelled as unqualified trials (ADR-0112, no migration)
+
+What now works: a Python build whose exported package has more than one `.py` file, or whose task froze more than 10 cases, is packaged as an unqualified trial (manifest `toolchain.role_qualification`, a limitation note, the gallery label) unless its own connection, model and role prompts passed `p14-larger-ledgercheck-v5`. Small Python builds are unchanged. This makes ADR-0105's "Claude route qualified for small builds only" true in the app without blocking larger Claude builds. Today it also labels GPT-6 Astra's larger Python builds until it passes the larger benchmark under builder/2, and every larger build on the dollar broker route.
+
+Checked in the cloud container on a throwaway PostgreSQL 16 database: see the PR for typecheck, format and `pnpm test:db` counts. New tests: `pythonBuildScale` and `unqualifiedTrial` at both scales (`web-recipe.test.ts`), the small limits read from the frozen benchmarks (`recipe-qualification.test.ts`), and packaged builds with and without a matching larger pass (`artifacts.test.ts`). No live run.
+
 ## November 15 update — Windows web build fixed; packet A and H records (PR #212, no migration or ADR)
 
 What now works: `node apps/desktop/build-studio.mjs` builds on Windows again. PR #201's licence list walked up from each viewer library's entry comparing backslash paths against `/node_modules/`, reached the drive root and failed with `ENOENT C:\package.json`. The walk (`apps/web/src/package-root.ts`, used by `apps/web/vite.config.ts`) now works in forward slashes on every platform, keeps POSIX names with a backslash intact, and stops with a clear error instead of reading a drive root. On Linux the built `THIRD_PARTY_LICENSES.txt` is byte-identical before and after (23 packages). New test `tests/src/web-package-root.test.ts` runs the walk with Windows (drive, pnpm store, scoped, UNC) and POSIX path rules; the old code walked to `C:\` on the same input.
