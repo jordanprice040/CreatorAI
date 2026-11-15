@@ -1,7 +1,7 @@
 {
-  "when": "2026-11-15T02:49:25.031Z",
+  "when": "2026-11-15T03:31:52.849Z",
   "steps": [
-    "throwaway database with workspace 023b692b",
+    "throwaway database with workspace 7c1f497a",
     "empty workspace Discover: 0 console errors",
     "uploaded 15 samples through Add files",
     "kinds: analysis.py: Code; bomb.pptx: Presentation; broken.json: Text; bundle.zip: ZIP archive; liar.pptx: Presentation; logo.svg: Code; many-pages.pdf: PDF; outside-links.docx: Word document; page.html: Code; pilot.pptx: Presentation; report.docx: Word document; script.pdf: PDF; slots.xlsx: Spreadsheet; two-pages.pdf: PDF; utf16.txt: Text",
