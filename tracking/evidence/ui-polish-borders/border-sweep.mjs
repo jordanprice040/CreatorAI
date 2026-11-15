@@ -5,7 +5,7 @@ const { chromium } = require('playwright');
 const base = 'http://127.0.0.1:5183';
 const mode = process.argv[2] ?? 'advanced';
 const paths = [
-  'chat/conversations',
+  'chat/conversations', 'autopilot/run',
   'projects/path',
   'projects/discover',
   'projects/decide',

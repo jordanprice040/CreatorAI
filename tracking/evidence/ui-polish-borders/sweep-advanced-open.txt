@@ -1,4 +1,5 @@
 ## chat/conversations (0)
+## autopilot/run (0)
 ## projects/path (0)
 ## projects/discover (0)
 ## projects/decide (0)
