@@ -19,7 +19,7 @@ import type { Workspace } from '@creator/contracts';
 import {
   KIND_TEXT,
   noViewerText,
-  officeCheck,
+  officeOpen,
   svgDataUrl,
   viewerFor,
 } from './file-viewer-rules.js';
@@ -637,10 +637,13 @@ function BinaryView({
 }) {
   const bytes = useFileBytes(base, v.version);
   // Re-review L-1: an Office file is opened only after every part was inflated once, counted,
-  // and found within bounds (officeCheck), so a part that lies about its size is refused.
+  // and found within bounds (officeOpen), so a part that lies about its size is refused.
+  // Review 6: a spreadsheet is then handed to SheetJS only as a fresh stored ZIP of the parts
+  // checked here, so it never parses the original file's headers.
   const [check, setCheck] = useState<{
     bytes: ArrayBuffer;
     refusal: string | null;
+    repacked?: ArrayBuffer;
   } | null>(null);
   useEffect(() => {
     const data = bytes.data;
@@ -652,9 +655,11 @@ function BinaryView({
     )
       return;
     let stop = false;
-    void officeCheck(new Uint8Array(data)).then((refusal) => {
-      if (!stop) setCheck({ bytes: data, refusal });
-    });
+    void officeOpen(new Uint8Array(data), viewer === 'spreadsheet').then(
+      (opened) => {
+        if (!stop) setCheck({ bytes: data, ...opened });
+      },
+    );
     return () => {
       stop = true;
     };
@@ -678,7 +683,7 @@ function BinaryView({
         ) : viewer === 'document' ? (
           <DocxView bytes={data} name={name} />
         ) : viewer === 'spreadsheet' ? (
-          <SheetView bytes={data} />
+          <SheetView bytes={check?.repacked ?? data} />
         ) : viewer === 'presentation' ? (
           <SlidesView bytes={data} />
         ) : (

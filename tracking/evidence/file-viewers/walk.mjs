@@ -298,6 +298,14 @@ try {
     'liar.pptx (the same part, its headers saying 1,000 bytes): refused after counting, before a viewer opens it',
   );
 
+  await open('shortzip64s.xlsx');
+  await page
+    .getByText('The studio could not read this file; it may be damaged')
+    .waitFor({ timeout: 10_000 });
+  step(
+    'shortzip64s.xlsx (a ZIP64 field SheetJS would read past, review 6): refused as damaged',
+  );
+
   await open('many-pages.pdf');
   await page.locator('.pdf-page canvas').first().waitFor();
   await page.waitForTimeout(500);

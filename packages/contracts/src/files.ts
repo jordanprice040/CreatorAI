@@ -285,10 +285,12 @@ export type ZipEntry = {
   /** General-purpose flags (bit 0 encrypted, bit 3 sizes after the data, bit 11 UTF-8). */
   flags: number;
   /**
-   * The central entry's ZIP64 extra field, read as SheetJS reads it (the first two 8-byte values
-   * as uncompressed and compressed size; null when too short), or null when there is none.
+   * The central entry's ZIP64 extra field, read as SheetJS reads it (the two 8-byte values
+   * after the last such field's header), or null when there is none.
    */
-  zip64: { size: number | null; compressed: number | null } | null;
+  zip64: { size: number; compressed: number } | null;
+  /** The extra area could be read more than one way (see zip64Extra). */
+  extraMalformed: boolean;
 };
 /** Entries listed beyond this are not read; the listing says it stopped. */
 export const ZIP_ENTRY_MAX = 5000;
@@ -298,23 +300,37 @@ export const ZIP_ENTRY_MAX = 5000;
  * anything (so a ZIP bomb costs nothing to list). Null when the bytes are not a readable ZIP.
  * `more` is true when the archive holds more than ZIP_ENTRY_MAX entries.
  */
-/** A ZIP64 extended-information extra field (0x0001) in an extra area, read as SheetJS does. */
+/**
+ * A ZIP64 extended-information extra field (0x0001) in an extra area, read exactly as SheetJS
+ * reads it: the 16 bytes after the field header (uncompressed, then compressed size) whatever
+ * length the field declares, the last such field winning. Review 6: `malformed` is true when
+ * the extra area could be read more than one way: a ZIP64 field shorter than 16 bytes, more
+ * than one ZIP64 field, or fields that do not exactly fill the area.
+ */
 export function zip64Extra(
   view: DataView,
   from: number,
   length: number,
-): { size: number | null; compressed: number | null } | null {
-  const end = Math.min(from + length, view.byteLength);
-  for (let x = from; x + 4 <= end; x += 4 + view.getUint16(x + 2, true)) {
-    if (view.getUint16(x, true) !== 0x0001) continue;
+): {
+  zip64: { size: number; compressed: number } | null;
+  malformed: boolean;
+} {
+  const end = from + length;
+  let zip64: { size: number; compressed: number } | null = null;
+  let found = 0;
+  let x = from;
+  const u64 = (at: number) =>
+    view.getUint32(at + 4, true) * 2 ** 32 + view.getUint32(at, true);
+  while (x + 4 <= end && end <= view.byteLength) {
     const len = view.getUint16(x + 2, true);
-    const u64 = (at: number) =>
-      at + 8 <= Math.min(x + 4 + len, end)
-        ? view.getUint32(at + 4, true) * 2 ** 32 + view.getUint32(at, true)
-        : null;
-    return { size: u64(x + 4), compressed: u64(x + 12) };
+    if (view.getUint16(x, true) === 0x0001) {
+      found++;
+      if (len < 16 || x + 20 > end) return { zip64, malformed: true };
+      zip64 = { size: u64(x + 4), compressed: u64(x + 12) };
+    }
+    x += 4 + len;
   }
-  return null;
+  return { zip64, malformed: x !== end || found > 1 || end > view.byteLength };
 }
 
 /**
@@ -406,7 +422,11 @@ export function zipEntries(
     const raw = b.subarray(at + 46, at + 46 + nameLen);
     const name = (flags & 0x800 || names === 'utf8' ? utf8 : latin).decode(raw);
     const offset = view.getUint32(at + 42, true);
-    const zip64 = zip64Extra(view, at + 46 + nameLen, extraLen);
+    const { zip64, malformed: extraMalformed } = zip64Extra(
+      view,
+      at + 46 + nameLen,
+      extraLen,
+    );
     entries.push({
       name,
       size: size === 0xffffffff ? null : size,
@@ -416,6 +436,7 @@ export function zipEntries(
       offset: offset === 0xffffffff ? null : offset,
       flags,
       zip64,
+      extraMalformed,
     });
     at += 46 + nameLen + extraLen + commentLen;
   }

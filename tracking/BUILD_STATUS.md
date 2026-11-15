@@ -18,6 +18,8 @@ Review 4 fix (November 15): an Office file whose ZIP end record or central direc
 
 Review 5 fix (November 15): a part whose local header claims an uncompressed size other than 0 or the real one is refused, since SheetJS allocates that much before reading (a 4.9 KB workbook reached 3.2 GB). Checked: typecheck, format, build, `pnpm test:db` (1284 tests: 1250 pass, 29 skipped, the 5 known PowerShell-wrapper failures), the walk (15 samples; Word, Excel and PowerPoint open, both bombs refused, 0 outside requests, 0 dialogs, 0 console errors). Main with #200 (migration 65) merged in.
 
+Review 6 fix (November 15): SheetJS is given only a fresh stored ZIP rebuilt from the parts the check inflated, so it never reads the original file's ZIP headers (closing the run of parser differentials), and ZIP64 extra fields that are short, repeated or leave a partial field are refused. Checked: typecheck, format, build, `pnpm test:db` (1286 tests: 1252 pass, 29 skipped, the 5 known PowerShell-wrapper failures), the walk (16 samples; Word, Excel (through the re-pack) and PowerPoint open, both bombs and the reviewer-shaped `shortzip64s.xlsx` refused, 0 outside requests, 0 dialogs, 0 console errors).
+
 Open: a walk in the installed app after merge.
 
 ## November 14 update — building qualified in the app, per connection (B1; ADR-0105, migration 65)

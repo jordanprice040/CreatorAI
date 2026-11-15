@@ -191,6 +191,7 @@ test('the archive listing reads names and sizes without unpacking', () => {
       offset: 0,
       flags: 2048,
       zip64: null,
+      extraMalformed: false,
     },
     {
       name: 'docs/caf\u00e9.txt',
@@ -201,6 +202,7 @@ test('the archive listing reads names and sizes without unpacking', () => {
       offset: 35,
       flags: 2048,
       zip64: null,
+      extraMalformed: false,
     },
   ]);
   // Re-review N-2: a UTF-8 name saved without the UTF-8 flag reads as the ZIP format says

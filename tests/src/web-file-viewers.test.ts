@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
 import { deflateRawSync } from 'node:zlib';
 import { loadWeb } from './web-module.js';
 
@@ -22,6 +23,10 @@ type Rules = {
   linesText(n: number): string;
   officeRefusal(bytes: Uint8Array): string | null;
   officeCheck(bytes: Uint8Array): Promise<string | null>;
+  officeOpen(
+    bytes: Uint8Array,
+    repack: boolean,
+  ): Promise<{ refusal: string | null; repacked?: ArrayBuffer }>;
   svgDataUrl(text: string): string;
   OFFICE_PART_MAX_BYTES: number;
   KIND_TEXT: Record<string, string>;
@@ -225,6 +230,9 @@ function deflated(
      * sizes, and `local64` (if given) in a local ZIP64 field instead of `zip64`.
      */
     stream?: { size: number; local64?: [number, number] };
+    /** Raw extra areas, replacing what `zip64`/`stream` would write there. */
+    localExtra?: number[];
+    centralExtra?: number[];
   }[],
 ): Uint8Array {
   const u16 = (n: number) => [n & 0xff, (n >> 8) & 0xff];
@@ -243,8 +251,9 @@ function deflated(
     ];
     const z64 = (v?: [number, number]) =>
       v ? [...u16(1), ...u16(16), ...u64(v[0]), ...u64(v[1])] : [];
-    const extra = z64(p.zip64);
-    const localExtra = p.stream ? z64(p.stream.local64) : extra;
+    const extra = p.centralExtra ?? z64(p.zip64);
+    const localExtra =
+      p.localExtra ?? (p.stream ? z64(p.stream.local64) : z64(p.zip64));
     const flags = p.stream ? 8 : 0;
     const descriptor = p.stream
       ? [...u32(0x08074b50), ...u32(0), ...u32(body.length), ...u32(size)]
@@ -454,4 +463,105 @@ test('a streamed part must not claim another size in its local header', async ()
     (await r.officeCheck(part({ size: 0xffffffff, local64: [0, 0] }))) ?? '',
     /may be damaged/,
   );
+});
+
+// Review 6 L-1: SheetJS reads 16 bytes from any ZIP64 field whatever length it declares, and
+// keeps the last of several. An extra area that could be read two ways is refused, in the local
+// header or the central entry, and SheetJS is only ever given a fresh ZIP of checked parts.
+test('ZIP64 extra fields that could be read two ways are refused', async () => {
+  const r = await rules();
+  const data = new TextEncoder().encode('<worksheet/>'.repeat(100));
+  const packed = deflateRawSync(data);
+  const u16 = (n: number) => [n & 0xff, (n >> 8) & 0xff];
+  const u64 = (n: number) => [
+    ...u16(n & 0xffff),
+    ...u16(Math.floor(n / 2 ** 16) & 0xffff),
+    ...u16(Math.floor(n / 2 ** 32) & 0xffff),
+    0,
+    0,
+  ];
+  const field = (size: number, compressed: number) => [
+    ...u16(1),
+    ...u16(16),
+    ...u64(size),
+    ...u64(compressed),
+  ];
+  const honest = field(data.length, packed.length);
+  const lying = field(0x1fffff00, packed.length);
+  const part = (more: { localExtra?: number[]; centralExtra?: number[] }) =>
+    deflated([{ name: 'xl/workbook.xml', data, stream: { size: 0 }, ...more }]);
+  // The reviewer's shortzip64s.xlsx: a ZIP64 field of length 0, then a filler field whose
+  // header bytes read as 0x1FFFFF00 when taken as the field's 16 bytes.
+  const short = [...u16(1), ...u16(0), ...u16(0xff00), ...u16(0x1fff)];
+  const shortArea = [...short, ...new Array<number>(0x1fff).fill(0)];
+  for (const bad of [
+    shortArea,
+    [...honest, ...lying], // the first is honest, SheetJS keeps the last
+    [...honest, 0x00, 0x00], // a partial field at the end
+  ]) {
+    assert.match(
+      (await r.officeCheck(part({ localExtra: bad }))) ?? '',
+      /may be damaged/,
+    );
+    assert.match(
+      (await r.officeCheck(part({ centralExtra: bad }))) ?? '',
+      /may be damaged/,
+    );
+  }
+  // One well-formed ZIP64 field, as every writer tried writes it, still opens.
+  assert.equal(await r.officeCheck(part({ localExtra: honest })), null);
+});
+
+test('a spreadsheet is re-packed from its checked parts before SheetJS reads it', async () => {
+  const r = await rules();
+  const sheets = (await loadWeb('sheet-read.ts')) as {
+    readSheets(bytes: ArrayBuffer): { name: string; rows: string[][] }[];
+  };
+  const XLSX = createRequire(
+    new URL('../../apps/web/src/index.ts', import.meta.url),
+  )('xlsx') as {
+    utils: {
+      book_new(): unknown;
+      book_append_sheet(wb: unknown, ws: unknown, name: string): void;
+      aoa_to_sheet(rows: unknown[][]): unknown;
+    };
+    write(wb: unknown, o: Record<string, unknown>): ArrayBuffer;
+  };
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.aoa_to_sheet([
+      ['Name', 'Price'],
+      ['Café', 3.5],
+    ]),
+    'Prices',
+  );
+  const xlsx = new Uint8Array(
+    XLSX.write(wb, { type: 'array', bookType: 'xlsx', compression: true }),
+  );
+  const opened = await r.officeOpen(xlsx, true);
+  assert.equal(opened.refusal, null);
+  // Every part is stored as is: no compression and no extra fields left to read differently.
+  const z = new DataView(opened.repacked!);
+  assert.equal(z.getUint32(0, true), 0x04034b50);
+  assert.equal(z.getUint16(8, true), 0);
+  assert.equal(z.getUint16(28, true), 0);
+  const [sheet] = sheets.readSheets(opened.repacked!);
+  assert.equal(sheet!.name, 'Prices');
+  assert.deepEqual(sheet!.rows, [
+    ['Name', 'Price'],
+    ['Café', '3.5'],
+  ]);
+  // A check without re-packing returns no bytes; a refused file returns none either.
+  assert.equal((await r.officeOpen(xlsx, false)).repacked, undefined);
+  const bomb = deflated([
+    {
+      name: 'xl/workbook.xml',
+      data: new Uint8Array(4096),
+      declare: 10,
+    },
+  ]);
+  const refused = await r.officeOpen(bomb, true);
+  assert.ok(refused.refusal);
+  assert.equal(refused.repacked, undefined);
 });

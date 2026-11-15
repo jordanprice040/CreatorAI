@@ -112,6 +112,26 @@ def understate(src, dst, part, size):
     open(dst, 'wb').write(bytes(data))
 understate(p('bomb.pptx'), p('liar.pptx'), 'ppt/slides/slide99.xml', 1000)
 
+# Review 6 L-1, the reviewer's shortzip64s.xlsx: slots.xlsx re-written with data descriptors and
+# honest central sizes, each local extra area holding a ZIP64 field of length 0 and then a filler
+# field whose header bytes read as 0x1FFFFF00. SheetJS takes 16 bytes from a ZIP64 field
+# whatever its length, so it would size a part from the filler; the studio refuses the file.
+def short_zip64(src, dst):
+    with zipfile.ZipFile(src) as z:
+        parts = [(n, z.read(n)) for n in z.namelist()]
+    out, central = bytearray(), bytearray()
+    extra = struct.pack('<HHHH', 1, 0, 0xff00, 0x1fff) + bytes(0x1fff)
+    for n, b in parts:
+        name, packed, crc = n.encode(), zlib.compress(b)[2:-4], zlib.crc32(b)
+        at = len(out)
+        out += struct.pack('<IHHHHHIIIHH', 0x04034b50, 20, 8, 8, 0, 0, 0, 0, 0, len(name), len(extra))
+        out += name + extra + packed + struct.pack('<IIII', 0x08074b50, crc, len(packed), len(b))
+        central += struct.pack('<IHHHHHHIIIHHHHHII', 0x02014b50, 20, 20, 8, 8, 0, 0, crc,
+                               len(packed), len(b), len(name), 0, 0, 0, 0, 0, at) + name
+    end = struct.pack('<IHHHHIIH', 0x06054b50, 0, 0, len(parts), len(parts), len(central), len(out), 0)
+    open(dst, 'wb').write(bytes(out + central + end))
+short_zip64(p('slots.xlsx'), p('shortzip64s.xlsx'))
+
 # Eighty pages, to check that pages scrolled past give back their canvases (review M-1).
 c = canvas.Canvas(p('many-pages.pdf'), pagesize=letter)
 for i in range(80):

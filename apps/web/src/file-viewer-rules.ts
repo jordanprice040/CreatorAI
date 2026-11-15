@@ -87,9 +87,14 @@ const INFLATE_SLICE = 4096;
 
 /**
  * Inflates raw deflate data natively, counting what comes out, and stops as soon as it passes
- * `limit`. Returns the size, or -1 when it went past the limit.
+ * `limit`. Returns the output (or only its size when `keep` is false), or null when it went
+ * past the limit.
  */
-async function inflatedSize(data: Uint8Array, limit: number): Promise<number> {
+async function inflated(
+  data: Uint8Array,
+  limit: number,
+  keep: boolean,
+): Promise<{ size: number; bytes: Uint8Array | null } | null> {
   let at = 0;
   const input = new ReadableStream<BufferSource>(
     {
@@ -107,15 +112,82 @@ async function inflatedSize(data: Uint8Array, limit: number): Promise<number> {
     .pipeThrough(new DecompressionStream('deflate-raw'))
     .getReader();
   let n = 0;
+  const chunks: Uint8Array[] = [];
   for (;;) {
     const { done, value } = await reader.read();
-    if (done) return n;
+    if (done) break;
     n += value.byteLength;
     if (n > limit) {
       await reader.cancel().catch(() => {});
-      return -1;
+      return null;
     }
+    if (keep) chunks.push(value);
   }
+  if (!keep) return { size: n, bytes: null };
+  const out = new Uint8Array(n);
+  let o = 0;
+  for (const c of chunks) {
+    out.set(c, o);
+    o += c.byteLength;
+  }
+  return { size: n, bytes: out };
+}
+
+/**
+ * Review 6: a fresh ZIP of stored parts, written by the studio, for SheetJS to read instead of
+ * the original file. SheetJS then never parses a header the file's author wrote: every part
+ * is one the check above inflated and counted, at the size it counted. Names keep their bytes
+ * (UTF-8 when flagged, else Latin-1, as read). CRCs are left 0: SheetJS does not check them,
+ * and these bytes go nowhere else.
+ */
+export function storedZip(
+  parts: { name: string; utf8: boolean; data: Uint8Array }[],
+): ArrayBuffer {
+  const enc = new TextEncoder();
+  const names = parts.map((p) =>
+    p.utf8
+      ? enc.encode(p.name)
+      : Uint8Array.from(p.name, (ch) => ch.charCodeAt(0) & 0xff),
+  );
+  let localSize = 0;
+  let centralSize = 0;
+  parts.forEach((p, i) => {
+    localSize += 30 + names[i]!.length + p.data.length;
+    centralSize += 46 + names[i]!.length;
+  });
+  const out = new Uint8Array(localSize + centralSize + 22);
+  const v = new DataView(out.buffer);
+  let at = 0;
+  let c = localSize;
+  parts.forEach((p, i) => {
+    const name = names[i]!;
+    const flags = p.utf8 ? 0x800 : 0;
+    v.setUint32(at, 0x04034b50, true);
+    v.setUint16(at + 4, 20, true);
+    v.setUint16(at + 6, flags, true);
+    v.setUint32(at + 18, p.data.length, true);
+    v.setUint32(at + 22, p.data.length, true);
+    v.setUint16(at + 26, name.length, true);
+    out.set(name, at + 30);
+    out.set(p.data, at + 30 + name.length);
+    v.setUint32(c, 0x02014b50, true);
+    v.setUint16(c + 4, 20, true);
+    v.setUint16(c + 6, 20, true);
+    v.setUint16(c + 8, flags, true);
+    v.setUint32(c + 20, p.data.length, true);
+    v.setUint32(c + 24, p.data.length, true);
+    v.setUint16(c + 28, name.length, true);
+    v.setUint32(c + 42, at, true);
+    out.set(name, c + 46);
+    at += 30 + name.length + p.data.length;
+    c += 46 + name.length;
+  });
+  v.setUint32(c, 0x06054b50, true);
+  v.setUint16(c + 8, parts.length, true);
+  v.setUint16(c + 10, parts.length, true);
+  v.setUint32(c + 12, centralSize, true);
+  v.setUint32(c + 16, localSize, true);
+  return out.buffer;
 }
 
 /**
@@ -134,7 +206,8 @@ function localDisagrees(
     name: string;
     method: number;
     flags: number;
-    zip64: { size: number | null; compressed: number | null } | null;
+    zip64: { size: number; compressed: number } | null;
+    extraMalformed: boolean;
     size: number | null;
     compressed: number | null;
     offset: number | null;
@@ -157,7 +230,11 @@ function localDisagrees(
   // (its ZIP64 value when that is non-zero, else the 32-bit field), whether or not the sizes
   // also follow the data. So the sizes it will use must be 0 (a streaming writer's "unknown",
   // which SheetJS grows from) or the central ones, with or without a data descriptor.
-  const local64 = zip64Extra(view, at + 30 + nameLen, extraLen);
+  const localExtra = zip64Extra(view, at + 30 + nameLen, extraLen);
+  // Review 6: an extra area that could be read two ways (short or repeated ZIP64 fields, a
+  // partial field at the end) is refused, here and in the central entry.
+  if (e.extraMalformed || localExtra.malformed) return true;
+  const local64 = localExtra.zip64;
   const used = (field: number, wide: number | null | undefined) =>
     wide ? wide : view.getUint32(at + field, true);
   const sizeOk = (v: number, want: number | null) => v === 0 || v === want;
@@ -188,38 +265,60 @@ function localDisagrees(
  * Nothing inflated is kept. Null when the viewer may open the file.
  */
 export async function officeCheck(bytes: Uint8Array): Promise<string | null> {
+  return (await officeOpen(bytes, false)).refusal;
+}
+
+/**
+ * officeCheck, and for spreadsheets (`repack`) also a fresh stored ZIP of the parts it checked
+ * (storedZip), which is what SheetJS is given. `repacked` is absent when the bytes are not a
+ * ZIP (an old .xls, which SheetJS reads as a compound file).
+ */
+export async function officeOpen(
+  bytes: Uint8Array,
+  repack: boolean,
+): Promise<{ refusal: string | null; repacked?: ArrayBuffer }> {
   const declared = officeRefusal(bytes);
-  if (declared || bytes[0] !== 0x50 || bytes[1] !== 0x4b) return declared;
+  if (declared || bytes[0] !== 0x50 || bytes[1] !== 0x4b)
+    return { refusal: declared };
+  const refuse = (refusal: string) => ({ refusal });
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let total = 0;
+  const parts: { name: string; utf8: boolean; data: Uint8Array }[] = [];
   for (const e of zipEntries(bytes)!.entries) {
     if (e.offset === null || e.compressed === null || e.size === null)
-      return OFFICE_TOO_LARGE;
+      return refuse(OFFICE_TOO_LARGE);
     const at = e.offset;
     if (at + 30 > bytes.length || view.getUint32(at, true) !== 0x04034b50)
-      return OFFICE_DAMAGED;
-    if (localDisagrees(bytes, view, e)) return OFFICE_DAMAGED;
+      return refuse(OFFICE_DAMAGED);
+    if (localDisagrees(bytes, view, e)) return refuse(OFFICE_DAMAGED);
     const start =
       at + 30 + view.getUint16(at + 26, true) + view.getUint16(at + 28, true);
-    if (start + e.compressed > bytes.length) return OFFICE_DAMAGED;
+    if (start + e.compressed > bytes.length) return refuse(OFFICE_DAMAGED);
     const limit = Math.min(e.size, OFFICE_TOTAL_MAX_BYTES - total);
-    let size: number;
-    if (e.method === 0) size = e.compressed;
+    const raw = bytes.subarray(start, start + e.compressed);
+    let out: { size: number; bytes: Uint8Array | null } | null;
+    if (e.method === 0)
+      out = { size: raw.length, bytes: repack ? raw.slice() : null };
     else if (e.method === 8)
       try {
-        size = await inflatedSize(
-          bytes.subarray(start, start + e.compressed),
-          limit,
-        );
+        out = await inflated(raw, limit, repack);
       } catch {
-        return OFFICE_DAMAGED;
+        return refuse(OFFICE_DAMAGED);
       }
     // Office files use only stored and deflated parts; the viewers read nothing else.
-    else return OFFICE_DAMAGED;
-    if (size < 0 || size > limit) return OFFICE_TOO_LARGE;
-    total += size;
+    else return refuse(OFFICE_DAMAGED);
+    if (!out || out.size > limit) return refuse(OFFICE_TOO_LARGE);
+    total += out.size;
+    if (repack && !e.dir)
+      parts.push({
+        name: e.name,
+        utf8: Boolean(e.flags & 0x800),
+        data: out.bytes!,
+      });
   }
-  return null;
+  return repack
+    ? { refusal: null, repacked: storedZip(parts) }
+    : { refusal: null };
 }
 
 export function extensionOf(name: string): string {

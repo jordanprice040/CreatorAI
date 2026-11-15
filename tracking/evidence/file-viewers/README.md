@@ -12,7 +12,7 @@ samples through Sources › Files › Add files, opens each one and records what
 `walk.json`, with screenshots in `screens/`. It fails if the page makes any request outside
 the studio or opens a dialog. It also opens the SVG's picture URL and a slide picture's URL as
 their own pages (as "Open image in new tab" would) and fails if either is a studio page that
-could run something, checks that the PowerPoint bomb is refused unopened, and that scrolling
+could run something, checks that the PowerPoint bomb is refused unopened, that `shortzip64s.xlsx` (review 6: a ZIP64 field SheetJS would read past) is refused as damaged, and that scrolling
 to the end of the 80-page PDF leaves few canvases holding pixels.
 
 ```
