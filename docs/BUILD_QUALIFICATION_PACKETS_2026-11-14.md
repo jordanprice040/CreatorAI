@@ -30,8 +30,9 @@ uses synthetic data only. The runtime ceiling stays $20 and none of it is spent 
 Totals: about 20 plan requests typical (26 with A5); at most 68 (92 with A5). The connection's daily
 cap is 100, and the studio refuses a request past it instead of spending. A3 is what lifts the
 "unqualified trial" label from web builds on this connection, this model and today's prompts. A4
-and A5 are evidence that the build path works on this connection at both scales; Python builds carry
-no trial label today.
+(and H4 for Claude) lifts it from larger Python builds (more than one Python file or more than 10
+cases; ADR-0112, November 15). A5 is evidence that the build path works at the small scale; small
+Python builds carry no trial label.
 
 Each "most" assumes every attempt uses its full request cap and each is replaced once after an
 infrastructure stop (a request that got no answer: network, provider, rate or usage limit, sign-in,

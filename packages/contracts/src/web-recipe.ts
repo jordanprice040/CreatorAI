@@ -302,34 +302,65 @@ export type BuildRoles = {
   reviewer_prompt_sha256: string;
 };
 /**
- * Review L-10: the benchmark versions that currently qualify each non-Python recipe. A version is
- * replaced whenever its cases or checker change, so a pass on an older version never qualifies a
- * build. ADR-0105: p15-small-signup-v5 is the in-app copy of v4 (same spec, cases, reference and
+ * Review L-10: the benchmark versions that currently qualify each recipe. A version is replaced
+ * whenever its cases or checker change, so a pass on an older version never qualifies a build.
+ * ADR-0105: p15-small-signup-v5 is the in-app copy of v4 (same spec, cases, reference and
  * checker; only who checks the pass bars differs), so a pass on either counts.
  * scripts/p15-web-benchmark.mjs verify checks v4 is one it publishes; the recipe benchmark test
- * checks v5 against v4.
+ * checks v5 against v4. ADR-0112: for Python only the larger benchmark is listed, and it applies
+ * only to larger Python builds (see pythonBuildScale); small Python builds need no recipe pass.
  */
 export const RECIPE_BENCHMARKS: Readonly<
   Partial<Record<BuildRecipe, readonly string[]>>
-> = { 'static-web/1': ['p15-small-signup-v4', 'p15-small-signup-v5'] };
+> = {
+  'static-web/1': ['p15-small-signup-v4', 'p15-small-signup-v5'],
+  'python-build/1': ['p14-larger-ledgercheck-v5'],
+};
 /** A recorded live pass of a recipe's frozen benchmark by one set of roles. */
 export type RecipeQualification = BuildRoles & {
   recipe: BuildRecipe;
   benchmark_id: string;
 };
+
 /**
- * Whether a build is an unqualified trial. Python builds are admitted only on qualified roles
- * (ADR-0048/0049), so they never are. Any other recipe is a trial unless a recorded benchmark pass
- * matches this build's own connection, model and both role prompts it used, on the recipe's
- * current benchmark versions; a pass on another connection, model, prompt or benchmark version
- * never lifts the label.
+ * ADR-0112: the largest Python build the small benchmark (p14-small-wordtally-v5) stands for. Its
+ * reference is one Python file and its spec freezes 10 cases; the larger benchmark has 5 files
+ * and also 10 cases, so files are what tell the two apart, and more cases than the small one
+ * froze is also beyond what it showed. A test checks both numbers against the frozen files.
+ */
+export const SMALL_PYTHON_BUILD = { python_files: 1, cases: 10 } as const;
+export type BuildScale = 'small' | 'larger';
+/**
+ * ADR-0112: a Python build's scale, judged on the exact package it exported and the cases frozen
+ * for its task. Larger when either goes beyond SMALL_PYTHON_BUILD. Every non-empty `.py` file
+ * counts, tests included; an empty one (a package marker such as `__init__.py`) does not.
+ */
+export function pythonBuildScale(
+  packageFiles: readonly { path: string; size: number }[],
+  cases: number,
+): BuildScale {
+  const pythonFiles = packageFiles.filter(
+    (f) => f.path.endsWith('.py') && f.size > 0,
+  ).length;
+  return pythonFiles > SMALL_PYTHON_BUILD.python_files ||
+    cases > SMALL_PYTHON_BUILD.cases
+    ? 'larger'
+    : 'small';
+}
+/**
+ * Whether a build is an unqualified trial. A small Python build is admitted only on qualified
+ * roles (ADR-0048/0049), so it never is. A larger Python build (ADR-0112) and any other recipe
+ * are trials unless a recorded benchmark pass matches this build's own connection, model and both
+ * role prompts it used, on the recipe's current benchmark versions; a pass on another
+ * connection, model, prompt or benchmark version never lifts the label.
  */
 export function unqualifiedTrial(
   recipe: BuildRecipe,
   roles: BuildRoles | null,
   qualifications: readonly RecipeQualification[],
+  scale: BuildScale = 'small',
 ): boolean {
-  if (recipe === 'python-build/1') return false;
+  if (recipe === 'python-build/1' && scale === 'small') return false;
   return !(
     roles &&
     qualifications.some(
@@ -345,3 +376,13 @@ export function unqualifiedTrial(
 }
 export const UNQUALIFIED_TRIAL_NOTE =
   'Unqualified trial: the builder and reviewer were qualified on Python tasks only, not on static web pages, so this evidence is weaker than a qualified build until the frozen web benchmark passes live on the same connection, model and role prompts.';
+/** ADR-0112: the same label on a larger Python build whose plan roles may be qualified. */
+export const UNQUALIFIED_LARGER_PYTHON_NOTE =
+  'Unqualified trial: this is a larger Python build (more than one Python file or more than 10 cases), and the builder and reviewer have not passed the frozen larger Python benchmark live on the same connection, model and role prompts, so this evidence is weaker than a qualified build.';
+/**
+ * ADR-0112 review L-1: a larger Python build with no plan roles (the dollar broker route or the
+ * ChatGPT-plan Codex builder). Build qualification records exist only for plan roles, so nothing
+ * can lift this label on these routes.
+ */
+export const UNQUALIFIED_LARGER_PYTHON_NO_ROLES_NOTE =
+  'Unqualified trial: this is a larger Python build (more than one Python file or more than 10 cases) on a route without build qualification (the pay-per-use broker or the Codex builder), so it is always labelled a trial; builds on a plan connection whose builder and reviewer passed the frozen larger Python benchmark are not.';
