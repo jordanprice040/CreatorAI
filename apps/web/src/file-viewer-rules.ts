@@ -288,27 +288,34 @@ export async function officeOpen(
   const refuse = (refusal: string) => ({ refusal });
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const entries = zipEntries(bytes)!.entries;
+  // Review 8 N-1: every part's headers are checked before anything is allocated or inflated.
   let capacity = 22;
+  const checked: { at: number; nameLen: number; raw: Uint8Array }[] = [];
   for (const e of entries) {
     if (e.offset === null || e.compressed === null || e.size === null)
       return refuse(OFFICE_TOO_LARGE);
-    if (e.offset + 30 > bytes.length) return refuse(OFFICE_DAMAGED);
-    // The re-packed part: local and central headers with the local name, and its data.
-    if (!e.dir)
-      capacity += 76 + 2 * view.getUint16(e.offset + 26, true) + e.size;
-  }
-  let zip: StoredZip | null = null;
-  let total = 0;
-  for (const e of entries) {
-    const at = e.offset!;
+    const at = e.offset;
     if (at + 30 > bytes.length || view.getUint32(at, true) !== 0x04034b50)
       return refuse(OFFICE_DAMAGED);
     if (localDisagrees(bytes, view, e)) return refuse(OFFICE_DAMAGED);
+    // Office files use only stored and deflated parts; the viewers read nothing else.
+    if (e.method !== 0 && e.method !== 8) return refuse(OFFICE_DAMAGED);
     const nameLen = view.getUint16(at + 26, true);
     const start = at + 30 + nameLen + view.getUint16(at + 28, true);
-    if (start + e.compressed! > bytes.length) return refuse(OFFICE_DAMAGED);
+    if (start + e.compressed > bytes.length) return refuse(OFFICE_DAMAGED);
+    checked.push({
+      at,
+      nameLen,
+      raw: bytes.subarray(start, start + e.compressed),
+    });
+    // The re-packed part: local and central headers with the local name, and its data.
+    if (!e.dir) capacity += 76 + 2 * nameLen + e.size;
+  }
+  let zip: StoredZip | null = null;
+  let total = 0;
+  for (const [i, e] of entries.entries()) {
+    const { at, nameLen, raw } = checked[i]!;
     const limit = Math.min(e.size!, OFFICE_TOTAL_MAX_BYTES - total);
-    const raw = bytes.subarray(start, start + e.compressed!);
     let into: Uint8Array | null = null;
     if (repack && !e.dir) {
       zip ??= new StoredZip(capacity);
@@ -322,14 +329,12 @@ export async function officeOpen(
     if (e.method === 0) {
       size = raw.length > limit ? null : raw.length;
       if (size !== null) into?.set(raw);
-    } else if (e.method === 8)
+    } else
       try {
         size = await inflated(raw, limit, into);
       } catch {
         return refuse(OFFICE_DAMAGED);
       }
-    // Office files use only stored and deflated parts; the viewers read nothing else.
-    else return refuse(OFFICE_DAMAGED);
     if (size === null) return refuse(OFFICE_TOO_LARGE);
     total += size;
     if (into) zip!.end(size);

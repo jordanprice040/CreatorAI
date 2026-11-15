@@ -116,7 +116,7 @@ export function SheetView({
       )}
       <p className="small">
         {cut
-          ? `Showing the first ${Math.min(sheet.rows.length, SHEET_MAX_ROWS).toLocaleString('en-US')} rows and ${Math.min(sheet.totalCols, SHEET_MAX_COLS)} columns of ${sheet.totalRows.toLocaleString('en-US')} × ${sheet.totalCols}; download for the rest. `
+          ? `Showing the first ${Math.min(sheet.rows.length, SHEET_MAX_ROWS).toLocaleString('en-US')} rows and ${Math.min(sheet.totalCols, SHEET_MAX_COLS)} columns of ${sheet.totalRows.toLocaleString('en-US')} × ${sheet.totalCols.toLocaleString('en-US')}; download for the rest. `
           : ''}
         Values as Excel last saved them; formulas are not recalculated (a
         formula saved without a value shows as its formula) and macros never
