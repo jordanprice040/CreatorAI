@@ -3,22 +3,26 @@ import type { PlanQualification } from '@creator/contracts';
 /**
  * ADR-0089: which role a qualification counts for. One task class can serve two roles (scoring:
  * the assessor and the discovery skeptic; research synthesis: the discovery locator and, with
- * P12, Search the web), and the server admits each role only with qualifications bound to that
+ * P12, Search the web; specification: the old acceptance-check labelling and, with ADR-0107,
+ * drafting specs), and the server admits each role only with qualifications bound to that
  * role's prompts. `null` is a task class with one role (specification, the build roles) or a
  * qualification no role admits any more (an older prompt).
  */
-export type Admits = 'assessment' | 'discovery' | 'web_discovery' | null;
+export type Admits =
+  'assessment' | 'discovery' | 'web_discovery' | 'spec_drafts' | null;
 
 type Flags = {
   admits_assessment?: PlanQualification['admits_assessment'] | undefined;
   admits_discovery?: PlanQualification['admits_discovery'] | undefined;
   admits_web_discovery?: PlanQualification['admits_web_discovery'] | undefined;
+  admits_spec_drafts?: PlanQualification['admits_spec_drafts'] | undefined;
 };
 
 export function roleOf(q: Flags): Admits {
   if (q.admits_assessment === true) return 'assessment';
   if (q.admits_discovery === true) return 'discovery';
   if (q.admits_web_discovery === true) return 'web_discovery';
+  if (q.admits_spec_drafts === true) return 'spec_drafts';
   return null;
 }
 
@@ -30,6 +34,7 @@ const ROLE_NAME: Record<Exclude<Admits, null>, string> = {
   assessment: 'assessments',
   discovery: 'discovery',
   web_discovery: 'Search the web',
+  spec_drafts: 'drafting specs',
 };
 
 /** "scoring for discovery", "research synthesis for Search the web", "specification". */
@@ -122,5 +127,8 @@ export function manifestRole(m: {
     )
   )
     return 'web_discovery';
+  // ADR-0107: the spec cases benchmark qualifies drafting specs on Build › Write a spec.
+  if (kinds.size === 1 && kinds.has('spec_cases_contract'))
+    return 'spec_drafts';
   return null;
 }

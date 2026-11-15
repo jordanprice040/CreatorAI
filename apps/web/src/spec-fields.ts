@@ -263,6 +263,33 @@ export function emptySpecDraft(
   };
 }
 
+/** A stored (or model-suggested) case, as the form edits it. */
+export function caseDraft(c: Case): CaseDraft {
+  return {
+    args: c.args.join('\n'),
+    stored: [...c.args],
+    stdin: c.stdin,
+    stdout: c.stdout.endsWith('\n') ? c.stdout.slice(0, -1) : c.stdout,
+    newline: c.stdout.endsWith('\n'),
+    exit_code: String(c.exit_code),
+    held_out: c.held_out,
+  };
+}
+
+/** A stored (or model-suggested) browser case, as the form edits it. */
+export function browserCaseDraft(
+  c: BrowserCase,
+  formatStep: (step: unknown) => string = (x) => JSON.stringify(x),
+): BrowserCaseDraft {
+  const text = c.steps.map(formatStep).join('\n');
+  return {
+    page: c.page,
+    steps: text,
+    stored: { text, steps: [...c.steps] },
+    held_out: c.held_out,
+  };
+}
+
 /** A stored spec version, as the form edits it when revising. */
 export function draftFromContent(
   title: string,
@@ -288,24 +315,10 @@ export function draftFromContent(
       statement: a.statement,
       measure: a.measure,
       method: a.method,
-      cases: (a.cases ?? []).map((c) => ({
-        args: c.args.join('\n'),
-        stored: [...c.args],
-        stdin: c.stdin,
-        stdout: c.stdout.endsWith('\n') ? c.stdout.slice(0, -1) : c.stdout,
-        newline: c.stdout.endsWith('\n'),
-        exit_code: String(c.exit_code),
-        held_out: c.held_out,
-      })),
-      browser_cases: (a.browser_cases ?? []).map((c) => {
-        const text = c.steps.map(formatStep).join('\n');
-        return {
-          page: c.page,
-          steps: text,
-          stored: { text, steps: [...c.steps] },
-          held_out: c.held_out,
-        };
-      }),
+      cases: (a.cases ?? []).map(caseDraft),
+      browser_cases: (a.browser_cases ?? []).map((c) =>
+        browserCaseDraft(c, formatStep),
+      ),
     })),
     risks: s.risks.map((r) => ({ ...r })),
     maintenance: {
@@ -713,3 +726,127 @@ export function feedbackSuperseded(
 /** Shown when the spec or the feedback moved on while the revision form was open (L-2). */
 export const FEEDBACK_REVISION_STALE =
   'The spec changed after this form opened (another revision was saved), so this feedback can no longer revise it. Your edits here were not saved. Make the change in the current version on Build.';
+
+/**
+ * ADR-0107 (B2): one acceptance check of the form as an edge-case or explanation request sends
+ * it, with the form's own rules applied to its cases (the rest of the form may still be
+ * incomplete), or the first problem to fix. The scope lines go with it: they are the rules a
+ * case follows.
+ */
+export function checkForDraft(
+  d: SpecDraft,
+  i: number,
+  parseSteps?: StepParser,
+):
+  | {
+      check: {
+        key: string;
+        statement: string;
+        measure: string;
+        method: 'automated_test' | 'browser_check';
+        cases: Case[];
+        browser_cases: BrowserCase[];
+        scope: string[];
+      };
+      error: null;
+    }
+  | { check: null; error: string } {
+  const c = d.checks[i];
+  if (!c) return { check: null, error: 'That check is not in the form.' };
+  if (c.method !== 'automated_test' && c.method !== 'browser_check')
+    return {
+      check: null,
+      error:
+        'Pick Automated test or Browser check first; only those have cases.',
+    };
+  // The check alone in an otherwise filled-in draft, so only its own fields are checked.
+  const probe: SpecDraft = {
+    ...emptySpecDraft({ title: 'x', audience: 'x', problem_statement: 'x' }),
+    flows: [{ key: 'F1', name: 'x', steps: 'x' }],
+    scope: 'x',
+    non_goals: 'x',
+    maintenance: { owner: 'x', obligations: 'x', review_interval: 'x' },
+    checks: [
+      {
+        ...c,
+        flow: '',
+        statement: c.statement.trim() || 'x',
+        measure: c.measure.trim() || 'x',
+      },
+    ],
+    tasks: [
+      {
+        key: 'T1',
+        title: 'x',
+        role: 'builder',
+        file_scope: '',
+        depends_on: [],
+        acceptance: [c.key],
+        deliverable: 'x',
+      },
+    ],
+  };
+  const out = draftToContent(probe, parseSteps);
+  if (out.errors) {
+    const [k, v] = Object.entries(out.errors)[0]!;
+    const m = /^checks\.0\.(cases|browser_cases)\.(\d+)/.exec(k);
+    return {
+      check: null,
+      error: m
+        ? `Fix ${m[1] === 'cases' ? 'case' : 'browser case'} ${Number(m[2]) + 1} first: ${v}`
+        : `Fix this check first: ${v}`,
+    };
+  }
+  const a = out.content.acceptance_checks[0]!;
+  return {
+    error: null,
+    check: {
+      key: c.key,
+      statement: c.statement.trim().slice(0, SHORT),
+      measure: c.measure.trim().slice(0, SHORT),
+      method: c.method,
+      cases: a.cases ?? [],
+      browser_cases: a.browser_cases ?? [],
+      scope: lines(d.scope)
+        .slice(0, 20)
+        .map((l) => l.slice(0, SHORT)),
+    },
+  };
+}
+
+/** Where a case problem shows in the form: the case's field key, else the check's. */
+export function problemKey(
+  p: {
+    check: string;
+    list: 'cases' | 'browser_cases' | null;
+    index: number | null;
+  },
+  checkKeys: readonly string[],
+): string | null {
+  const i = checkKeys.indexOf(p.check);
+  if (i < 0) return null;
+  return p.list && p.index !== null
+    ? `checks.${i}.${p.list}.${p.index}`
+    : `checks.${i}`;
+}
+
+/**
+ * The route a draft goes to: the person's current model when it may draft specs, else the
+ * first route that may. Never a route the server did not list.
+ */
+export function draftRoute<
+  R extends { connection_id: string; model_id: string },
+>(
+  routes: readonly R[],
+  choice: { connection_id: string; model_id: string } | null,
+  picked: string | null,
+): R | null {
+  const key = (r: { connection_id: string; model_id: string }) =>
+    `${r.connection_id}/${r.model_id}`;
+  return (
+    (picked ? routes.find((r) => key(r) === picked) : undefined) ??
+    (choice ? routes.find((r) => key(r) === key(choice)) : undefined) ??
+    routes[0] ??
+    null
+  );
+}
