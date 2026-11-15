@@ -3800,6 +3800,29 @@ test('live rerun 3 (November 15): a usage-limit refusal is a limit to wait out, 
     /daily request cap was reached too; add requests/,
   );
   assert.equal(capAlso(quota), '');
+  // Review 3: only the per-run cap is named as such; another cap is quoted.
+  const capOf = (text: string) =>
+    capAlso(
+      new ContractError(
+        'ACCESS_DENIED',
+        'Not admitted.',
+        ['x'],
+        [
+          { code: 'quota_exhausted', text: 'x' },
+          { code: 'cap_reached', text },
+        ],
+      ),
+    );
+  assert.match(
+    capOf('The per-run request cap was reached.'),
+    /per-run request cap/,
+  );
+  const input = capOf('The input is above the per-request input cap.');
+  assert.doesNotMatch(input, /per-run/);
+  assert.match(
+    input,
+    /A connection cap was reached too \(The input is above the per-request input cap\)/,
+  );
   assert.equal(capAlso(both), '');
 });
 

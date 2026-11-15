@@ -325,10 +325,16 @@ export function capAlso(e: unknown): string {
     return '';
   const codes = e.reasons.map((r) => r.code);
   const out: string[] = [];
-  if (codes.includes('cap_reached'))
+  // PR #211 review 3: cap_reached also covers the input, chat and Codex caps; only the per-run
+  // cap is named as such (as refusalKind reads it), any other is quoted.
+  for (const r of e.reasons.filter((x) => x.code === 'cap_reached')) {
+    const text = (r.text ?? '').trim().replace(/[.\s]*$/, '');
     out.push(
-      "The connection's per-run request cap was reached too; raise it under Models and connections › Change caps.",
+      /per-run/i.test(text)
+        ? "The connection's per-run request cap was reached too; raise it under Models and connections › Change caps."
+        : `A connection cap was reached too${text ? ` (${cutWords(text, 200)})` : ''}; see Models and connections.`,
     );
+  }
   if (codes.includes('daily_cap_reached'))
     out.push(
       "The connection's daily request cap was reached too; add requests under Models and connections.",

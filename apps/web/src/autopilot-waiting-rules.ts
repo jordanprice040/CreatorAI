@@ -22,12 +22,17 @@ export function waitingAutopilot(
   );
   // PR #211 review 2 N-1: while one is working on this problem, no older one offers Continue.
   if (on.some((a) => a.state === 'running')) return null;
-  return (
+  const pick =
     on
       .filter((a) => autopilotContinuable(a, now).ok)
       .sort((x, y) => Date.parse(y.created_at) - Date.parse(x.created_at))[0] ??
-    null
-  );
+    null;
+  // Review 3: a run has one running autopilot at a time, so one running in the same run (on
+  // another problem) would refuse Continue too.
+  return pick &&
+    autopilots.some((a) => a.state === 'running' && a.run_id === pick.run_id)
+    ? null
+    : pick;
 }
 
 /** The Continue button's words: where the autopilot picks up. */

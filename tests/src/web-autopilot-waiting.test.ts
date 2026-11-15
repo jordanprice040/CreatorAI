@@ -16,10 +16,17 @@ const NOW = Date.parse('2026-11-15T10:00:00.000Z');
 
 function autopilot(
   id: string,
-  over: { problem?: string; created?: string; ends?: string; state?: string },
+  over: {
+    problem?: string;
+    created?: string;
+    ends?: string;
+    state?: string;
+    run?: string;
+  },
 ): Autopilot {
   return {
     id,
+    run_id: over.run ?? 'r1',
     state: over.state ?? 'finished',
     outcome: 'needs_person',
     stage: 'select',
@@ -60,8 +67,15 @@ test('Decide offers Continue only for the newest live autopilot on that problem'
   // Review 2 N-1: while one is running on this problem, none offers Continue; one running on
   // another problem does not matter.
   assert.equal(r.waitingAutopilot([old, newest, running], 'p1', NOW), null);
-  const elsewhere = autopilot('elsewhere', { state: 'running', problem: 'p2' });
+  const elsewhere = autopilot('elsewhere', {
+    state: 'running',
+    problem: 'p2',
+    run: 'r2',
+  });
   assert.equal(r.waitingAutopilot([newest, elsewhere], 'p1', NOW)?.id, 'new');
+  // Review 3: one running in the same run, on another problem, hides it too.
+  const sameRun = autopilot('same-run', { state: 'running', problem: 'p2' });
+  assert.equal(r.waitingAutopilot([newest, sameRun], 'p1', NOW), null);
   // The end time is read at the time given, so a later check hides it.
   assert.equal(
     r.waitingAutopilot([newest], 'p1', Date.parse('2026-11-15T12:00:00.000Z')),
