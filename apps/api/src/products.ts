@@ -43,6 +43,9 @@ import {
   type Product,
 } from '@creator/executor';
 
+/** A build start's answer; `note` says what happened first (review N-7). */
+type BuildStarted = { build_id: string; state: 'running'; note?: string };
+
 /**
  * ADR-0046: product builds and packaging started from the studio itself (the desktop app has
  * no CLI). The same supervisors the CLI uses run in this process; their ports call the store
@@ -549,7 +552,7 @@ export class StudioBuilds {
     ws: string,
     productId: string,
     raw: unknown,
-  ): Promise<{ build_id: string; state: 'running' }> {
+  ): Promise<BuildStarted> {
     const req = parse(StartBuildBody, raw);
     const p = await this.product(ctx, ws, productId);
     if (this.building.has(p.id))
@@ -570,12 +573,18 @@ export class StudioBuilds {
     ws: string,
     p: Product,
     req: z.infer<typeof StartBuildBody>,
-  ): Promise<{ build_id: string; state: 'running' }> {
+  ): Promise<BuildStarted> {
     const ports = this.ports(ctx, ws, p);
     const { spec } = await ports.current();
     const task = await this.artifacts.products.task(p.id, req.task_id);
     // ADR-0121: a checkout removed by storage cleanup comes back from its branch first.
-    await restoreTaskWorkspace(this.artifacts.products, p.id, task.id);
+    let note: string | undefined;
+    await restoreTaskWorkspace(this.artifacts.products, p.id, task.id, {
+      // Review N-7: a broken leftover moved out of the way is said, not done silently.
+      onMovedAside: (folder) => {
+        note = `A half-removed workspace was moved to ${folder} first; the build starts from the task's branch. It is listed under Monitor › Storage.`;
+      },
+    });
     // Said in words before the build starts; the build supervisor enforces the same rules.
     const blockers = buildBlockers(spec, task.key, req.plan.data_class);
     if (blockers.length)
@@ -623,7 +632,11 @@ export class StudioBuilds {
           (buildId) => {
             started = buildId;
             this.builds.set(buildId, { state: 'running' });
-            resolve({ build_id: buildId, state: 'running' });
+            resolve({
+              build_id: buildId,
+              state: 'running',
+              ...(note ? { note } : {}),
+            });
           },
         )
         .finally(() => this.building.delete(p.id))

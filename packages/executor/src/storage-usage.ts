@@ -618,8 +618,12 @@ export async function restoreTaskWorkspace(
   products: ProductSupervisor,
   productId: string,
   taskId: string,
-  /** Review N-6: make a missing checkout only; never move anything (for reads). */
-  o: { onlyIfMissing?: boolean } = {},
+  o: {
+    /** Review N-6: make a missing checkout only; never move anything (for reads). */
+    onlyIfMissing?: boolean;
+    /** Review N-7: told where a broken leftover was moved, so the caller can say so. */
+    onMovedAside?: (folder: string) => void;
+  } = {},
 ): Promise<boolean> {
   await products.task(productId, taskId);
   const tree = products.worktree(productId, taskId);
@@ -632,10 +636,11 @@ export async function restoreTaskWorkspace(
   if (o.onlyIfMissing && (await exists(tree))) return false;
   return withLock(products.dir(productId), async () => {
     if (await fine()) return false;
-    if (
-      (await exists(tree)) &&
-      !(await moveAside(products, productId, tree, taskId))
-    )
+    const moved = (await exists(tree))
+      ? await moveAside(products, productId, tree, taskId)
+      : undefined;
+    if (moved) o.onMovedAside?.(join(products.dir(productId), moved));
+    if (moved === null)
       throw new Error(
         "This task's workspace was left half-removed and could not be moved aside. Close any program using it and try again, or move the folder out of worktrees by hand; its commit is safe on its branch.",
       );
@@ -655,7 +660,7 @@ export async function restoreBuildWorkspace(
   products: ProductSupervisor,
   productId: string,
   buildId: string,
-  o: { onlyIfMissing?: boolean } = {},
+  o: Parameters<typeof restoreTaskWorkspace>[3] = {},
 ): Promise<boolean> {
   const intent = (await readJson(
     join(
