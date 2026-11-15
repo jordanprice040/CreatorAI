@@ -3232,7 +3232,7 @@ export class ConnectionStore extends AutomationStore {
       )
         throw fail(
           'ACCESS_DENIED',
-          `${req.model_id} is not qualified for drafting specs on this connection. Qualify it on the spec-cases-v1 benchmark under Models and connections, or write the spec yourself.`,
+          `${req.model_id} is not qualified for drafting specs on this connection. Qualify it on the spec-cases-v2 benchmark under Models and connections, or write the spec yourself.`,
         );
       const dataClass = dataClassOf(sel.data_class);
       // Review 1 of PR #206, N-2: refused before anything is recorded, in words.
@@ -5343,7 +5343,7 @@ export class ConnectionStore extends AutomationStore {
     >,
     actorId: string,
   ): Promise<PlanQualification> {
-    // Review 2 of PR #206, L-1: the server sets spec-cases-v1's pass bar itself.
+    // Review 2 of PR #206, L-1: the server sets spec-cases-v2's pass bar itself.
     req = specCasesBar(req);
     const tc = req.manifest.task_class;
     const qid = randomUUID();

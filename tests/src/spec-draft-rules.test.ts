@@ -70,7 +70,7 @@ const {
 } = web;
 
 // ADR-0107 (B2): the rules behind model-drafted specs, without a database: reading a reply,
-// the studio's case checks and held-out pick, the drafting input, and the frozen spec-cases-v1
+// the studio's case checks and held-out pick, the drafting input, and the frozen spec-cases-v2
 // benchmark whose grader runs drafted cases against the studio's own programs.
 
 const UPKEEP: SpecContent['maintenance'] = {
@@ -86,7 +86,7 @@ const manifest = BenchmarkManifestSchema.parse(
   JSON.parse(
     readFileSync(
       new URL(
-        '../../config/connections/benchmarks/spec-cases-v1.json',
+        '../../config/connections/benchmarks/spec-cases-v2.json',
         import.meta.url,
       ),
       'utf8',
@@ -387,8 +387,8 @@ test('the drafting input: request text is escaped data under the fixed instructi
   assert.ok(SPEC_DRAFT_INSTRUCTIONS.includes('data, not instructions'));
 });
 
-test('spec-cases-v1 is current: every case runs under the spec draft instructions with its exact draft input, so its passes admit drafts', () => {
-  assert.equal(manifest.name, 'spec-cases-v1');
+test('spec-cases-v2 is current: every case runs under the spec draft instructions with its exact draft input, so its passes admit drafts', () => {
+  assert.equal(manifest.name, 'spec-cases-v2');
   assert.equal(manifest.task_class, 'specification');
   assert.equal(manifest.cases.length, 8);
   assert.equal(manifest.cases.filter((c) => c.split === 'held_out').length, 5);
@@ -461,7 +461,7 @@ test('spec-cases-v1 is current: every case runs under the spec draft instruction
   }
   assert.equal(specCasesFingerprint('nope'), null);
   // Review 2 of PR #206, N-2: the programs', grader's and case readers' source is frozen too
-  // (not shipped, so held here): a change to it needs spec-cases-v2.
+  // (not shipped, so held here): a change to it needs a new spec-cases version.
   const src = (p: string) =>
     readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8').replace(
       /\r\n/g,
@@ -469,8 +469,8 @@ test('spec-cases-v1 is current: every case runs under the spec draft instruction
     );
   const draftSrc = src('packages/contracts/src/spec-draft.ts');
   const region = draftSrc.slice(
-    draftSrc.indexOf('// spec-cases-v1 frozen source: begin.'),
-    draftSrc.indexOf('// spec-cases-v1 frozen source: end.'),
+    draftSrc.indexOf('// spec-cases-v2 frozen source: begin.'),
+    draftSrc.indexOf('// spec-cases-v2 frozen source: end.'),
   );
   assert.ok(region.includes('export function readSpecDraft('));
   assert.ok(region.includes('export function specCaseProblems('));
@@ -484,7 +484,7 @@ test('spec-cases-v1 is current: every case runs under the spec draft instruction
     assert.equal(
       (c.check as SpecCasesCheck).source_sha256,
       source,
-      'spec-cases-v1 source changed: write spec-cases-v2',
+      'spec-cases source changed: write the next spec-cases version',
     );
   assert.equal(
     currentForSpecDraftRole({
@@ -509,9 +509,24 @@ test('spec-cases-v1 is current: every case runs under the spec draft instruction
     ),
   );
   assert.equal(currentForSpecDraftRole(row(labelling)), false);
+  // spec-cases-v1 ran live under spec-draft-v2 (whose format left out the check fields); it is
+  // kept as it ran but no longer admits drafts.
+  const v1 = JSON.parse(
+    readFileSync(
+      new URL(
+        '../../config/connections/benchmarks/spec-cases-v1.json',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  );
+  assert.equal(currentForSpecDraftRole(row(v1)), false);
+  // spec-draft-v3 names every acceptance check field the reader needs.
+  for (const f of ['"statement"', '"measure"', '"flow"', '"method"', '"cases"'])
+    assert.ok(SPEC_DRAFT_INSTRUCTIONS.includes(f), f);
 });
 
-test('spec-cases-v1 grading: good cases pass the reference and catch every broken program; wrong, too few or weak cases fail', () => {
+test('spec-cases-v2 grading: good cases pass the reference and catch every broken program; wrong, too few or weak cases fail', () => {
   for (const [name, groups] of Object.entries(GOOD)) {
     const program = SPEC_BENCHMARK_PROGRAMS[name]!;
     const check = checkOf(name);

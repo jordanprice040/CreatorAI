@@ -1,9 +1,9 @@
 {
-  "when": "2026-11-15T05:01:38.518Z",
+  "when": "2026-11-15T08:56:52.433Z",
   "mode": "fixture",
   "stand_ins": [
     "loopback ChatGPT plan with canned draft replies",
-    "spec-cases-v1 qualification recorded directly (no live qualification)"
+    "spec-cases-v2 qualification recorded directly (no live qualification)"
   ],
   "steps": [
     {
@@ -12,7 +12,7 @@
       "detail": "axe: 0 violations"
     },
     {
-      "name": "qualified on spec-cases-v1, Draft with m shows the draft beside the form, checked",
+      "name": "qualified on spec-cases-v2, Draft with m shows the draft beside the form, checked",
       "ok": true,
       "detail": "axe: 0 violations"
     },

@@ -809,8 +809,8 @@ export const SpecContentSchema = z.strictObject({
 export type SpecContent = z.infer<typeof SpecContentSchema>;
 /**
  * The spec schema as JSON Schema: every limit, key pattern and case field a drafted spec is read
- * into. spec-cases-v1's fingerprint includes it (review 3 of PR #206), so a change to case
- * limits or held-out fields changes the fingerprint and needs spec-cases-v2.
+ * into. spec-cases-v2's fingerprint includes it (review 3 of PR #206), so a change to case
+ * limits or held-out fields changes the fingerprint and needs a new spec-cases version.
  */
 export function specContentSchemaJson(): unknown {
   return z.toJSONSchema(SpecContentSchema);

@@ -1,5 +1,9 @@
 # Build status — November 10, 2026
 
+## November 15 update — spec drafting fixed after its first live qualification (B2 follow-up; ADR-0107 amendment)
+
+The first live `spec-cases-v1` qualification (gpt-6-astra, ChatGPT plan, dev studio at main 334d0e5 schema 67, 8 requests, $0) failed every case as `schema_invalid`: the drafting instructions never listed an acceptance check's fields, so the model wrote `name` instead of `statement` and left out `measure` and `flow`. Fixed: instructions `spec-draft-v3` list the fields; benchmark `spec-cases-v2` (same programs and pass bar; v1 kept as it ran); the Qualify result row names the drafting-specs role. Not yet run live: a `spec-cases-v2` qualification (about 8 requests, $0; needs Jordan's typed OK). Checks: typecheck, format check, full `pnpm test:db` (1316 tests, 1282 pass, 29 skipped, the 5 known PowerShell-wrapper failures) and the fixture browser walk again (7 of 7, 0 axe violations).
+
 ## November 15 update — the dev studio moves off the installed app's ports (ADR-0108, no migration)
 
 What now works: `pnpm dev` (and `dev:api`, `dev:web`, `smoke`, `pnpm cli`) default to 5273/4410/4420, so a dev studio and the installed app (5173/4310/4320, unchanged) can run at once. When a port is busy, the installed app's status window, `pnpm dev` and `dev:api` name the program holding it (`node.exe (process 1234)`) where the system can tell. `pnpm dev` moves a default port that an unrelated program holds to the next free one and prints the new address; it refuses, naming the holder, for an explicit port, OIDC sign-in, `CREATOR_PORT_FALLBACK=off`, or another Creator Agent already answering there. The installed app never falls back (reasons in ADR-0108).

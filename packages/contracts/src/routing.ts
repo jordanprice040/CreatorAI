@@ -519,7 +519,7 @@ export const BenchmarkCheckSchema = z.discriminatedUnion('kind', [
      * The frozen behaviour of this program and the grader (review 1 of PR #206, L-2): a hash
      * over the outputs of the reference and every broken version on fixed probe inputs and the
      * grades of fixed probe replies. A change to the programs or the grading changes it, so
-     * the old benchmark stops grading and stops admitting drafts until spec-cases-v2.
+     * the old benchmark stops grading and stops admitting drafts until a new spec-cases version.
      */
     fingerprint: hash,
     /**

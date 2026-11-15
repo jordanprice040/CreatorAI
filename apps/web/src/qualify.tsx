@@ -11,7 +11,7 @@ import {
 } from '@creator/contracts';
 import assessment from '../../../config/connections/benchmarks/assessment-synthetic-v3.json';
 import specification from '../../../config/connections/benchmarks/specification-synthetic-v1.json';
-import specCases from '../../../config/connections/benchmarks/spec-cases-v1.json';
+import specCases from '../../../config/connections/benchmarks/spec-cases-v2.json';
 import summarization from '../../../config/connections/benchmarks/summarization-synthetic-v1.json';
 import builder from '../../../config/connections/benchmarks/t12-builder-v1.json';
 import reviewer from '../../../config/connections/benchmarks/t12-reviewer-v2.json';
@@ -33,7 +33,7 @@ import { api, words } from './oversight.js';
  * They are the files under config/connections/benchmarks that a Responses plan role uses
  * today; t12-reviewer-v1 is left out because its reviewer prompt was replaced (ADR-0049) and
  * the server refuses it. assessment-synthetic-v3 qualifies the automatic assessor (ADR-0074);
- * spec-cases-v1 qualifies drafting specs on Build (ADR-0107).
+ * spec-cases-v2 qualifies drafting specs on Build (ADR-0107).
  * The server checks the manifest, the task class, the data class and
  * that the model is verified before it records anything.
  */

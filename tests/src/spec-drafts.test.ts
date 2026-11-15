@@ -27,7 +27,7 @@ import { FAKE_MODEL as MODEL, connect, fakeHost } from './proposal-harness.js';
 import { SUBSCRIBED, fakeCalls, setFake } from './claude-fake.js';
 
 // ADR-0107 (B2) on PostgreSQL: Draft the spec, Add an edge case and Explain this case on
-// Build › Write a spec. Drafts go only to a model qualified on spec-cases-v1, only for the
+// Build › Write a spec. Drafts go only to a model qualified on spec-cases-v2, only for the
 // option the current selection chose for build, only at the owner's press; each is one
 // specification task outside any run. Nothing in a spec changes until the person saves it, and
 // a saved spec records which drafts went into it, whether they were edited and whether the
@@ -229,10 +229,10 @@ test('spec drafts: qualified route only, owner press only, one specification tas
   // The older acceptance-check labelling benchmark does not admit drafts.
   await qualify(bench('specification-synthetic-v1'));
   assert.deepEqual((await store.specDraftRoutes(owner, s.ws.id)).routes, []);
-  await rejects('ACCESS_DENIED', ask(owner), /spec-cases-v1/);
+  await rejects('ACCESS_DENIED', ask(owner), /spec-cases-v2/);
   // Review 1 of PR #206, L-1: a hand-made manifest with a weaker bar never admits, even with
   // the exact instructions and inputs.
-  const weak = bench('spec-cases-v1') as { cases: Record<string, any>[] };
+  const weak = bench('spec-cases-v2') as { cases: Record<string, any>[] };
   weak.cases = weak.cases.slice(0, 2).map((c) => ({
     ...c,
     check: { ...c.check, mutants: c.check.mutants.slice(0, 1), min_caught: 1 },
@@ -240,9 +240,9 @@ test('spec drafts: qualified route only, owner press only, one specification tas
   await qualify(weak);
   assert.deepEqual((await store.specDraftRoutes(owner, s.ws.id)).routes, []);
   // Review 2 of PR #206, L-1: nor does the bundled file under a lowered pass bar.
-  await qualify(bench('spec-cases-v1'), { numerator: 0, denominator: 1 });
+  await qualify(bench('spec-cases-v2'), { numerator: 0, denominator: 1 });
   assert.deepEqual((await store.specDraftRoutes(owner, s.ws.id)).routes, []);
-  await qualify(bench('spec-cases-v1'));
+  await qualify(bench('spec-cases-v2'));
   // L-3: drafting is for command-line programs only.
   await rejects(
     'INVALID_CONTRACT',
@@ -530,7 +530,7 @@ test('spec drafts: qualified route only, owner press only, one specification tas
   assert.equal(words.rows[0].n, 0);
 });
 
-test('review 2 of PR #206, L-1: a start of spec-cases-v1 runs under the server’s pass bar, whatever the request asked for', async (t) => {
+test('review 2 of PR #206, L-1: a start of spec-cases-v2 runs under the server’s pass bar, whatever the request asked for', async (t) => {
   const db = await freshDatabase(t);
   if (!db) return;
   const store = new ConnectionStore(db.pool);
@@ -571,7 +571,7 @@ test('review 2 of PR #206, L-1: a start of spec-cases-v1 runs under the server�
   const started = await store.startPlanQualification(owner, w.id, c.id, {
     expected_version: c.version,
     model_id: 'm',
-    manifest: bench('spec-cases-v1'),
+    manifest: bench('spec-cases-v2'),
     min_held_out_cases: 3,
     floor: { numerator: 0, denominator: 1 },
   });
