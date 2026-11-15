@@ -1,5 +1,9 @@
 # Session handoff — November 10, 2026
 
+## November 15 handoff — Storage page and cleanup (F10, ADR-0121)
+
+Branch `claude/project-thread-qe5sz6` from main f5728aa, no migration (71 unused). Executor `storage-usage.ts`: `diskSize`, `productDiskUsage`, `checkPackages`, `planWorkspaceCleanup` (per-checkout `judge`), `cleanupPlanHash`, `removeWorkspaces` (build lock then product lock, judged again, `git worktree remove` without force), `restoreTaskWorkspace`, `restoreBuildWorkspace`. `products.ts`: `taskHead` reads `task/<id>` when the checkout is gone; `assertQuiet` skips a removed checkout. API `storage.ts` `createStorage` (`GET /api/storage?older_than_days=`, `POST /api/storage/cleanup` with `plan_hash` and the typed `STORAGE_CLEANUP_CONFIRMATION`), wired beside `createOps`; `products.ts` restores before `begin` and `packageReserved`. DB `storage-store.ts` (`StorageStore`: owned workspaces with file bytes and preview counts, study workspaces, verified packages, audit events under `STORAGE_SUBJECT_ID`); `LIVE_PREVIEW_SQL` now exported. Contracts `disk-usage.ts`. Web `storage.tsx`, `storage-text.ts`, `storage.css`; `pages.ts` Monitor section `storage`. Tests `tests/src/storage-cleanup.test.ts`. Next: an independent review thread; then F1 can fill in backup sizes.
+
 ## November 15 handoff — autopilot fixes from the third live rerun
 
 Branch `claude/project-thread-77qqks`, restarted from main 42dce84 after #205 merged. No migration or ADR.

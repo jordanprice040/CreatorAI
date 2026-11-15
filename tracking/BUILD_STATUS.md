@@ -1,5 +1,11 @@
 # Build status — November 10, 2026
 
+## November 15 update — Monitor › Storage and a confirmed cleanup of old build workspaces (F10, ADR-0121, no migration)
+
+What now works: **Monitor › Storage** (`#/monitor/storage`) shows, for each project you own, the disk used by product repositories, build workspaces, packages, build and run records, uploaded files, and preview counts (previews keep no files of their own). The studio owner also sees the qualification product stores; backups are named but not measured, since they go to a folder you choose. **Remove old build workspaces** lists exactly what it would remove and why everything else stays, asks you to confirm that exact list, removes only task and merge checkouts that are clean, saved on their branch, unchanged for the days you pick (14 by default) and, for a task, already in a verified package whose files still match their recorded hashes. Every verified package is hashed before and after; the cleanup is recorded in the audit (`storage.cleanup.intent` before, `storage.cleanup.outcome` after) and listed on the page. Products in a project with a thesis study, or with a build running, are never touched. A removed task's commits stay on its branch; building that task again, or packaging one of its builds, brings the checkout back first. Migration 71 was reserved and is not used.
+
+CHECKS_PLACEHOLDER
+
 ## November 15 update — autopilot fixes from the third live rerun (no migration or ADR)
 
 These fix the findings in `/mnt/project-files/reviews/LIVE_AUTOPILOT_RERUN_205_2026-11-15.md` (autopilot e8b36bd9 on main 42dce84).
