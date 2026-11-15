@@ -8,7 +8,7 @@ Review 1 (1 High, 6 Lows, 7 nits) fixed: an autopilot past its end time no longe
 
 Review 2 (3 Lows, 3 nits) fixed: an ended card under Earlier autopilots says why it ended instead of "Waiting for you"; How much is automated no longer counts an expired autopilot; names load once instead of every refresh; the server's Allow and continue refuses an expired autopilot as `EXPIRED`, like Continue.
 
-Checks (cloud container, throwaway PostgreSQL 16): `pnpm typecheck` and `pnpm format:check` pass, and so do the targeted web and autopilot suites. Full `pnpm test:db` at ab1f11e: 1349 tests, 1315 pass, 29 skipped, and only the 5 known PowerShell-wrapper failures. The browser walk (`tracking/evidence/autopilot-page/`, fixture provider, $0) passes 22 of 22 checks, including an autopilot whose end time passes while the page is open and a link to one autopilot (`#/autopilot/run?ws=…&id=<autopilot id>`) that opens its card.
+Checks (cloud container, throwaway PostgreSQL 16): `pnpm typecheck` and `pnpm format:check` pass, and so do the targeted web and autopilot suites. Full `pnpm test:db` at 3ed9c34 (after review 2): 1351 tests, 1317 pass, 29 skipped, and only the 5 known PowerShell-wrapper failures. Re-review 3 found nothing left. The browser walk (`tracking/evidence/autopilot-page/`, fixture provider, $0) passes 22 of 22 checks, including an autopilot whose end time passes while the page is open and a link to one autopilot (`#/autopilot/run?ws=…&id=<autopilot id>`) that opens its card.
 
 ## November 15 update — Windows web build fixed; packet A and H records (PR #212, no migration or ADR)
 
