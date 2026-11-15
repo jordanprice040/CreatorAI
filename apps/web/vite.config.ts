@@ -1,8 +1,9 @@
 import { createReadStream, readFileSync, readdirSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
+import path, { dirname, join } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 import { serviceConfig } from '@creator/domain';
+import { inNodeModules, packageRoot, rootOf } from './src/package-root.js';
 const config = serviceConfig(process.env);
 
 /**
@@ -84,13 +85,6 @@ const VIEWER_PACKAGES = [
  */
 function thirdPartyLicenses(): Plugin {
   const require = createRequire(import.meta.url);
-  const rootOf = (id: string): string | null => {
-    const i = id.lastIndexOf('/node_modules/');
-    if (i < 0) return null;
-    const rest = id.slice(i + 14).split('/');
-    const n = rest[0]?.startsWith('@') ? 2 : 1;
-    return id.slice(0, i + 14) + rest.slice(0, n).join('/');
-  };
   return {
     name: 'creator-third-party-licenses',
     apply: 'build',
@@ -104,21 +98,17 @@ function thirdPartyLicenses(): Plugin {
       // package they depend on.
       const walked = new Set<string>();
       const add = (name: string, from: NodeRequire) => {
-        let d: string;
+        let entry: string;
         try {
           // Some packages do not export ./package.json: walk up from their entry instead.
-          const entry = from.resolve(name);
-          // A Node built-in (readable-stream's "util") is not a bundled package.
-          if (
-            !entry.includes('/node_modules/') &&
-            !entry.includes('\\node_modules\\')
-          )
-            return;
-          d = dirname(entry);
+          entry = from.resolve(name);
         } catch {
           return;
         }
-        while (rootOf(`${d}/x`) !== d && dirname(d) !== d) d = dirname(d);
+        // A Node built-in (readable-stream's "util") is not a bundled package.
+        if (!inNodeModules(entry, path)) return;
+        // Forward slashes on every platform, so the walk also stops at the package on Windows.
+        const d = packageRoot(entry, path);
         if (walked.has(d)) return;
         walked.add(d);
         roots.add(d);

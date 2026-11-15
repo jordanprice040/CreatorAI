@@ -3,6 +3,9 @@
 ## November 15 handoff — sidebar, borders and top bar polish
 
 Branch `claude/project-thread-lfuisg`, no migration or ADR. `main.tsx`: `.sidebar-controls` (theme button with its name, then `ViewModeSwitch`) above `.sidebar-foot`. `style.css`: `.sidebar-controls`, Back to top `margin-right: 16px`, the low-specificity button-then-block rule and `.assess-run`/nested `.explain` margins. `usage.css`: `.usage { margin-top: 0 }`. Sweep: `tracking/evidence/ui-polish-borders/border-sweep.mjs`. The Autopilot page is a separate thread.
+## November 15 handoff — Windows web build and B1 records (PR #212)
+
+Branch `claude/project-thread-lvmxmx` from main 13744b4 (main 6886fcf with #210 merged in). `apps/web/src/package-root.ts`: `rootOf`, `packageRoot(entry, path)` (forward slashes, throws when no package directory is above the entry), `inNodeModules(entry, path)`; `vite.config.ts` `thirdPartyLicenses()` uses them with the platform `node:path`. The web app never imports the module; it lives under `src` so `loadWeb` tests can run it. Records and README in `tracking/evidence/recipe-qualifications/2026-11-15-installed/` (builder/1 run) and `2026-11-15-rerun/` (builder/2 rerun: A1', H1–H3 qualified, H4 failed on a preamble). Review 1 and its re-check: `/mnt/project-files/reviews/PR212_REVIEW_1_2026-11-15.md`. Windows build and licence list confirmed (23 packages). Next: Jordan's merge; then `p15-small-signup-v5` on the ChatGPT connection under builder/2, and a decision on the Claude H4 preamble (needs Jordan).
 
 ## November 15 handoff — B2 follow-up after the live run (branch `claude/project-thread-m8yaok`, restarted from main aa922f9)
 
