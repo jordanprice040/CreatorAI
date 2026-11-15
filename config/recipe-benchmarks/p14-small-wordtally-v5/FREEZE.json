@@ -1,0 +1,11 @@
+{
+  "format": "recipe-benchmark-freeze/1",
+  "benchmark_id": "p14-small-wordtally-v5",
+  "files": {
+    "expectations.json": "bd6a6a568a90c1a6d6fb050d430a71b9ef8f0691a833ffe004b065cbcfd80ea5",
+    "extended-cases.json": "815a94ad8ea598adb46c4521ce7620618ab62298d2cc5d071ec7ac938d0d3c65",
+    "reference/src/main.py": "6ca4c7b7f426abe617e7dd03611801cef42f6012e9f65867009277f2b097ad1f",
+    "spec.json": "94930efc1ff637a3a321d9783ae775e2aa8c0ef965dc8902cdc4aea01c3777cd",
+    "scorer:recipe-scoring.ts": "2ea55f832b7b8ae7422f87191a48568393572fba51548d08b5ff00bbbc2fbd28"
+  }
+}

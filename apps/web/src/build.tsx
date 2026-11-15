@@ -36,10 +36,14 @@ import {
   type StoredEntity,
   type Workspace,
   PINNED_BROWSER,
+  RecipeBenchmarkOffersSchema,
+  RecipeQualificationListSchema,
   browserRecheckDue,
   SpecDraftedMarkSchema,
   draftedMarkText,
+  specRecipe,
 } from '@creator/contracts';
+import { webBuildNote } from './build-qualification.js';
 import { api, message, when, words } from './oversight.js';
 import {
   Empty,
@@ -223,6 +227,22 @@ export function BuildView({
         ),
       ),
     );
+    // ADR-0105: each connection's build qualifications and today's role prompts, so a web
+    // build says before it starts whether its package will be a qualified build or a trial.
+    const recipeOffers = connections.length
+      ? await api(
+          RecipeBenchmarkOffersSchema,
+          `${base}/recipe-benchmarks`,
+        ).catch(() => null)
+      : null;
+    const recipeRecords = await Promise.all(
+      connections.map((c) =>
+        api(
+          RecipeQualificationListSchema,
+          `${base}/plan-connections/${c.id}/recipe-qualifications`,
+        ).catch(() => []),
+      ),
+    );
     // Plan roles (ADR-0048): a verified Responses model serves builder and reviewer requests.
     // Listed first: the $0 plan route is the default builder when there is one.
     const builders = connections.flatMap((c, i) =>
@@ -249,6 +269,14 @@ export function BuildView({
                 (tc) => !isQualified(access[i]!.qualifications, m.model_id, tc),
               )
             : [],
+        web_note:
+          m.path === 'responses'
+            ? webBuildNote(
+                recipeRecords[i]!,
+                { connection_id: c.id, model_id: m.model_id },
+                recipeOffers?.role_prompts ?? null,
+              )
+            : null,
       })),
     );
     return {
@@ -909,6 +937,8 @@ type Data = {
     build_timeout_ms: number;
     /** Plan-role task classes this model is not qualified for (empty for Codex). */
     unqualified: readonly string[];
+    /** ADR-0105: whether web packages built with these roles are qualified (null for Codex). */
+    web_note: { qualified: boolean; text: string } | null;
   }[];
   /** ADR-0081: the owner's current model from the top bar, if any. */
   choice: Choice | null;
@@ -1367,6 +1397,14 @@ function StartBuild({
   const preferred = planBuilderDefault(data.builders, data.choice);
   const planDefault = preferred.builder;
   const chosenRoles = preferred.fromChoice ? preferred.builder : undefined;
+  // ADR-0105: a static web spec's package is a qualified build or an unqualified trial.
+  const specBody = data.specEntities.find(
+    (e) => e.id === specId && e.version === specVersion,
+  )?.body;
+  const webSpec = (() => {
+    const parsed = SpecBodySchema.safeParse(specBody);
+    return parsed.success && specRecipe(parsed.data) === 'static-web/1';
+  })();
   // Once the plan route is shown as the default, it counts as chosen: if it later stops being
   // verified, the form says so instead of quietly switching to the metered broker.
   useEffect(() => {
@@ -1646,6 +1684,14 @@ function StartBuild({
             setPicked(true);
           }}
         />
+      )}
+      {connection?.kind === 'roles' && webSpec && connection.web_note && (
+        <p
+          className={`small model-note${connection.web_note.qualified ? '' : ' model-note-warn'}`}
+          role="note"
+        >
+          {connection.web_note.text}
+        </p>
       )}
       {connection?.kind === 'roles' &&
         connection === chosenRoles &&

@@ -12,3 +12,5 @@ export * from './plan-qualification.js';
 export { jsonPublish, lockHolder, withLock } from './files.js';
 export * from './terminal.js';
 export * from './cli-options.js';
+export * from './recipe-benchmarks.js';
+export * from './recipe-scoring.js';

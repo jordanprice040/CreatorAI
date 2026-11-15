@@ -131,6 +131,7 @@ import {
   planBuildRolesReady,
   PLAN_BUILD_CALL_MAX_BODY,
 } from './connections.js';
+import { RecipeQualificationRunner } from './recipe-qualification.js';
 import { contextRoutes } from './context.js';
 import { searchRoutes } from './search.js';
 import {
@@ -273,6 +274,8 @@ export function createApi(
     ) => PlanConnectionService;
     /** Test seam: runs a built-in capability check's program (ADR-0090). */
     capabilityRunner?: CapabilityRunner;
+    /** Test seam: the build qualification harness's worker (ADR-0105). */
+    recipeExecutor?: (products: ProductSupervisor) => ExecutionSupervisor;
     /** Test seam (B3): wraps each studio build's ports, for scripted fixture role answers. */
     buildPorts?: (ports: BuildPorts) => BuildPorts;
   } = {},
@@ -391,6 +394,32 @@ export function createApi(
           onError: (e) =>
             console.error(
               `Qualification queue could not record its state (${e instanceof Error ? e.message : String(e)}).`,
+            ),
+        })
+      : null;
+  // ADR-0105 (B1): build qualifications build in a product store of their own beside the
+  // studio's (never its products, Gallery or catalog), through the same isolated worker.
+  const recipeProducts = new ProductSupervisor(
+    resolve(
+      dirname(resolve(env.CREATOR_PRODUCTS_ROOT ?? '.creator/products')),
+      'recipe-qualification-products',
+    ),
+  );
+  const recipeQualifications =
+    store && planService
+      ? new RecipeQualificationRunner({
+          store,
+          service: planService,
+          products: recipeProducts,
+          executor:
+            deps.recipeExecutor?.(recipeProducts) ??
+            new ExecutionSupervisor(
+              recipeProducts,
+              env.CREATOR_WORKER_DISTRO ?? 'Ubuntu',
+            ),
+          onError: (e) =>
+            console.error(
+              `Build qualification could not record its state (${e instanceof Error ? e.message : String(e)}).`,
             ),
         })
       : null;
@@ -640,6 +669,7 @@ export function createApi(
     await maintenance.run('outbox', () => store.drainOutbox());
     worker?.start();
     qualificationQueue?.start();
+    recipeQualifications?.start();
     // Autopilots a stopped studio left running carry on (each step's start is idempotent).
     autopilot?.watch();
     if (portfolioScheduler === 'on') portfolio?.start();
@@ -1414,6 +1444,7 @@ export function createApi(
         service: planService,
         codex: codexLauncher,
         queue: qualificationQueue,
+        recipes: recipeQualifications,
         ctx,
         ws,
         collection,
@@ -2875,6 +2906,7 @@ export function createApi(
     if (relay) clearInterval(relay);
     await worker?.stop();
     await qualificationQueue?.stop();
+    await recipeQualifications?.stop();
     await autopilot?.close();
     await portfolio?.stop();
     server.closeAllConnections();

@@ -102,7 +102,13 @@ import {
   type ChatMessage,
   usageOffStatement,
   CLAUDE_CODE_MIN_VERSION,
+  PLAN_RECONCILE_HINT,
   claudeCodeVersionSupported,
+  isQualified,
+  StartRecipeQualificationRequestSchema,
+  StopRecipeQualificationRequestSchema,
+  type RecipeAttemptResult,
+  type RecipeQualificationRecord,
   PROPOSAL_DRAFT_INSTRUCTIONS,
   PROPOSAL_DRAFT_INSTRUCTIONS_VERSION,
   PROPOSAL_DRAFT_OUTPUT_MAX,
@@ -151,6 +157,15 @@ import {
   scoutInput,
 } from '@creator/domain';
 import { AutomationStore } from './automation-store.js';
+import {
+  finishRecipeAttempt,
+  heldAttempt,
+  lockRecipeQualification,
+  nextRecipeAttempt,
+  recipeRecords,
+  type NextRecipeAttempt,
+  type RecipeRoom,
+} from './recipe-qualification-store.js';
 import {
   webDiscoveryRequestGate,
   type WebDiscoveryBinding,
@@ -4559,6 +4574,8 @@ export class ConnectionStore extends AutomationStore {
     workflow?: { task_id: string; lease_token: string; input_hash: string },
     /** ADR-0086: a web discovery's search or reading request, covered by its start. */
     webDiscovery?: WebDiscoveryBinding,
+    /** ADR-0105: a build-role request of one build qualification attempt, covered by its start. */
+    recipeAttemptId?: string,
     /** ADR-0107: a spec draft's one request, covered by the owner's press. */
     specDraft?: SpecDraftBinding,
   ): Promise<{
@@ -4574,6 +4591,16 @@ export class ConnectionStore extends AutomationStore {
         'INVALID_CONTRACT',
         'Qualification requests name exactly one benchmark case.',
       );
+    if (recipeAttemptId && (workflow || webDiscovery || specDraft))
+      throw fail(
+        'INVALID_CONTRACT',
+        'A build qualification request is bound to its attempt only.',
+      );
+    if (specDraft && (workflow || webDiscovery || qualificationCase))
+      throw fail(
+        'INVALID_CONTRACT',
+        'A spec draft request is bound to its draft only.',
+      );
     const out = await this.#admitPlanRequest(
       ctx,
       ws,
@@ -4581,6 +4608,7 @@ export class ConnectionStore extends AutomationStore {
       qualificationCase,
       workflow,
       webDiscovery,
+      recipeAttemptId,
       specDraft,
     );
     // ADR-0064: a newly admitted request is live in this process until it is settled.
@@ -4598,6 +4626,7 @@ export class ConnectionStore extends AutomationStore {
     workflow:
       { task_id: string; lease_token: string; input_hash: string } | undefined,
     webDiscovery?: WebDiscoveryBinding,
+    recipeAttemptId?: string,
     specDraft?: SpecDraftBinding,
   ): Promise<{
     request_id: string;
@@ -4670,9 +4699,20 @@ export class ConnectionStore extends AutomationStore {
       }
       if (wf) await this.lockRun(c, ws, String(wf.run_id));
       // A build-role task outside a workflow (ADR-0048) still needs a live, AI-enabled run.
+      // ADR-0105: a build qualification attempt's request is covered by the owner's start of
+      // the qualification, within the attempt's request limit; it has no run.
+      if (recipeAttemptId)
+        await this.#recipeAttemptGate(
+          c,
+          uuid(ws),
+          ctx.actorId,
+          req,
+          recipeAttemptId,
+        );
       const buildRole =
         req.purpose === 'task' &&
         !workflow &&
+        !recipeAttemptId &&
         (req.task_class === 'patch_build' ||
           req.task_class === 'independent_review');
       if (buildRole) {
@@ -4893,6 +4933,11 @@ export class ConnectionStore extends AutomationStore {
         await c.query(
           'update plan_requests set workflow_task_id=$2, input_hash=$3 where id=$1',
           [rid, workflow.task_id, workflow.input_hash],
+        );
+      if (recipeAttemptId)
+        await c.query(
+          'update plan_requests set recipe_attempt_id = $2 where id = $1',
+          [rid, uuid(recipeAttemptId)],
         );
       if (webDiscovery)
         await c.query(
@@ -6482,6 +6527,535 @@ export class ConnectionStore extends AutomationStore {
           ? { ...q, executing: this.#runningQualifications.has(q.id) }
           : q;
       });
+  }
+
+  // ---- ADR-0105 (B1): build (recipe) qualifications ----------------------------------------
+
+  /**
+   * Why a build-role request of a build qualification attempt is refused: the owner who started
+   * the qualification, still running, on this connection and model, for the build the attempt
+   * recorded, with synthetic data and within the attempt's request limit. Locks the
+   * qualification, then the attempt, before the connection (the runner's order).
+   */
+  async #recipeAttemptGate(
+    c: PoolClient,
+    ws: string,
+    actorId: string,
+    req: PlanAdmissionRequest,
+    attemptId: string,
+  ) {
+    const peek = (
+      await c.query(
+        'select qualification_id from recipe_qualification_attempts where id = $1',
+        [uuid(attemptId)],
+      )
+    ).rows[0] as Row | undefined;
+    const q = peek
+      ? ((
+          await c.query(
+            'select * from recipe_qualifications where id = $1 and workspace_id = $2 for update',
+            [peek.qualification_id, ws],
+          )
+        ).rows[0] as Row | undefined)
+      : undefined;
+    const a = q
+      ? ((
+          await c.query(
+            'select * from recipe_qualification_attempts where id = $1 for update',
+            [uuid(attemptId)],
+          )
+        ).rows[0] as Row)
+      : undefined;
+    if (!q || !a)
+      throw fail('NOT_FOUND', 'The build qualification attempt was not found.');
+    await this.requireOwner(c, ws, actorId);
+    const refusals: string[] = [];
+    if (q.state !== 'running' || a.state !== 'running')
+      refusals.push('The build qualification attempt is no longer running.');
+    if (String(q.created_by) !== actorId)
+      refusals.push(
+        'Only the owner who started this build qualification can run it.',
+      );
+    if (
+      req.purpose !== 'task' ||
+      req.run_id !== null ||
+      (req.task_class !== 'patch_build' &&
+        req.task_class !== 'independent_review')
+    )
+      refusals.push(
+        'A build qualification request is a builder or reviewer request with no run.',
+      );
+    if (
+      String(q.connection_id) !== req.connection_id ||
+      q.model_id !== req.model_id
+    )
+      refusals.push(
+        'The request names another connection or model than the qualification.',
+      );
+    if (req.data_class !== 'synthetic')
+      refusals.push('Build qualifications use synthetic data only.');
+    if (!a.build_id || String(a.build_id) !== req.build_id)
+      refusals.push(
+        'The request names another build than the attempt recorded.',
+      );
+    const used = (
+      await c.query(
+        'select count(*)::int as n from plan_requests where recipe_attempt_id = $1',
+        [a.id],
+      )
+    ).rows[0].n as number;
+    if (used >= Number(a.request_limit))
+      refusals.push(
+        `This attempt has used its ${Number(a.request_limit)} requests.`,
+      );
+    if (refusals.length)
+      throw new ContractError(
+        'ACCESS_DENIED',
+        'This build qualification request is not covered by its start.',
+        refusals,
+      );
+  }
+
+  /** A connection's build qualifications, newest first, with their attempts. */
+  async listRecipeQualifications(
+    ctxIn: CommandContext,
+    ws: string,
+    connectionId: string,
+  ): Promise<RecipeQualificationRecord[]> {
+    const ctx = normalize(ctxIn);
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, false);
+      await this.#connection(c, uuid(ws), uuid(connectionId));
+      const rows = (
+        await c.query(
+          'select * from recipe_qualifications where workspace_id = $1 and connection_id = $2 order by created_at desc',
+          [uuid(ws), uuid(connectionId)],
+        )
+      ).rows as Row[];
+      return recipeRecords(c, rows);
+    });
+  }
+
+  /** One build qualification of this workspace. */
+  async getRecipeQualification(
+    ctxIn: CommandContext,
+    ws: string,
+    id: string,
+  ): Promise<RecipeQualificationRecord> {
+    const ctx = normalize(ctxIn);
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, false);
+      const rows = (
+        await c.query(
+          'select * from recipe_qualifications where id = $1 and workspace_id = $2',
+          [uuid(id), uuid(ws)],
+        )
+      ).rows as Row[];
+      if (!rows[0]) throw fail('NOT_FOUND', 'Build qualification not found.');
+      return (await recipeRecords(c, rows))[0]!;
+    });
+  }
+
+  /**
+   * The owner's start of a build qualification: the one approval for every builder and reviewer
+   * request its attempts make, within each attempt's request limit. Refused, in words, unless
+   * the connection allows both build roles and synthetic data, the model has verified access and
+   * is qualified for both roles under the current prompts, and nothing else runs on it. The
+   * frozen benchmark's identity and prompt hashes come from the studio, not the caller.
+   */
+  async startRecipeQualification(
+    ctxIn: CommandContext,
+    ws: string,
+    connectionId: string,
+    body: unknown,
+    bound: {
+      recipe: RecipeQualificationRecord['recipe'];
+      attempts_needed: number;
+      freeze_sha256: string;
+      builder_prompt_sha256: string;
+      reviewer_prompt_sha256: string;
+      /**
+       * Third review L-1: the fewest characters the benchmark's first builder request can be
+       * (the builder prompt and the frozen spec). Start refuses a connection whose per-request
+       * input cap is below it, so the cap can't refuse a request before the roles wrote anything.
+       */
+      min_input_chars: number;
+    },
+  ): Promise<RecipeQualificationRecord> {
+    const ctx = normalize(ctxIn);
+    const req = parse(StartRecipeQualificationRequestSchema, body);
+    return this.tx(async (c) => {
+      await this.requireOwner(c, uuid(ws), ctx.actorId);
+      await this.refuseTester(c, ctx.actorId, 'start build qualifications');
+      const conn = await this.#lock(c, uuid(ws), uuid(connectionId));
+      const problems: string[] = [];
+      for (const tc of ['patch_build', 'independent_review'] as const)
+        if (!conn.settings.allowed_task_classes.includes(tc))
+          problems.push(
+            `This connection doesn't allow ${tc === 'patch_build' ? 'the builder (patch_build)' : 'the reviewer (independent_review)'}. Allow it under Models and connections.`,
+          );
+      if (!conn.settings.allowed_data_classes.includes('synthetic'))
+        problems.push(
+          "This connection doesn't allow synthetic data, which the benchmarks use.",
+        );
+      const verified = (await this.#access(c, conn.id)).some(
+        (a) =>
+          a.model_id === req.model_id &&
+          a.path === 'responses' &&
+          a.access === 'verified',
+      );
+      if (!verified)
+        problems.push(
+          `Check model access for ${req.model_id} on this connection first.`,
+        );
+      const admitting = await this.#qualifications(c, conn.id, true);
+      for (const tc of ['patch_build', 'independent_review'] as const)
+        if (!isQualified(admitting, req.model_id, tc))
+          problems.push(
+            `${req.model_id} isn't qualified as the ${tc === 'patch_build' ? 'builder (t12-builder benchmark)' : 'reviewer (t12-reviewer benchmark)'} on this connection yet. Run that qualification first, above.`,
+          );
+      const cap = conn.settings.caps.responses.max_input_chars;
+      if (cap < bound.min_input_chars)
+        problems.push(
+          `This connection's per-request input cap (${cap} characters) is smaller than this benchmark's first builder request (at least ${bound.min_input_chars}). Raise it under Models and connections, then start again.`,
+        );
+      const room = await this.#recipeRoom(c, conn, false);
+      if (room.kind === 'stop')
+        problems.push(
+          room.reason.charAt(0).toUpperCase() + room.reason.slice(1),
+        );
+      const running = await c.query(
+        "select 1 from recipe_qualifications where connection_id = $1 and state = 'running'",
+        [conn.id],
+      );
+      if (running.rows[0])
+        problems.push(
+          'A build qualification is already running on this connection; wait for it or stop it.',
+        );
+      if (problems.length)
+        throw new ContractError(
+          'INVALID_TRANSITION',
+          "This build qualification can't start yet.",
+          problems,
+        );
+      const id = randomUUID();
+      await c.query(
+        `insert into recipe_qualifications (id, workspace_id, connection_id, recipe, benchmark_id,
+           model_id, builder_prompt_sha256, reviewer_prompt_sha256, freeze_sha256, source, fixture,
+           state, attempts_needed, created_by, max_input_chars, min_input_chars)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,'in_app',$10,'running',$11,$12,$13,$14)`,
+        [
+          id,
+          uuid(ws),
+          conn.id,
+          bound.recipe,
+          req.benchmark_id,
+          req.model_id,
+          bound.builder_prompt_sha256,
+          bound.reviewer_prompt_sha256,
+          bound.freeze_sha256,
+          conn.fixture,
+          bound.attempts_needed,
+          ctx.actorId,
+          cap,
+          bound.min_input_chars,
+        ],
+      );
+      const rows = (
+        await c.query('select * from recipe_qualifications where id = $1', [id])
+      ).rows as Row[];
+      return (await recipeRecords(c, rows))[0]!;
+    });
+  }
+
+  /** The owner stops a running build qualification; a running attempt ends without a verdict. */
+  async stopRecipeQualification(
+    ctxIn: CommandContext,
+    ws: string,
+    id: string,
+    body: unknown,
+  ): Promise<RecipeQualificationRecord> {
+    const ctx = normalize(ctxIn);
+    parse(StopRecipeQualificationRequestSchema, body);
+    return this.tx(async (c) => {
+      await this.requireOwner(c, uuid(ws), ctx.actorId);
+      const q = await lockRecipeQualification(c, ws, id);
+      if (q.state !== 'running')
+        throw fail(
+          'INVALID_TRANSITION',
+          'This qualification has already ended.',
+        );
+      await c.query(
+        `update recipe_qualification_attempts set state = 'invalid', finished_at = clock_timestamp(),
+           reason = 'Stopped by the owner before a verdict.'
+         where qualification_id = $1 and state = 'running'`,
+        [q.id],
+      );
+      const passed = (
+        await c.query(
+          `select count(distinct slot)::int as n from recipe_qualification_attempts
+            where qualification_id = $1 and state = 'passed'`,
+          [q.id],
+        )
+      ).rows[0].n as number;
+      await c.query(
+        `update recipe_qualifications set state = 'stopped', passed = $2,
+           reason = 'Stopped by the owner.', finished_at = clock_timestamp(),
+           lease_holder = null, lease_until = null, version = version + 1 where id = $1`,
+        [q.id, passed],
+      );
+      const rows = (
+        await c.query('select * from recipe_qualifications where id = $1', [
+          q.id,
+        ])
+      ).rows as Row[];
+      return (await recipeRecords(c, rows))[0]!;
+    });
+  }
+
+  /** The runner takes one running qualification no live process holds. */
+  async leaseRecipeQualification(
+    holder: string,
+    ms: number,
+    exclude: readonly string[] = [],
+  ): Promise<{
+    id: string;
+    workspace_id: string;
+    connection_id: string;
+    created_by: string;
+  } | null> {
+    return this.tx(async (c) => {
+      const { rows } = await c.query(
+        `update recipe_qualifications set lease_holder = $1,
+           lease_until = clock_timestamp() + make_interval(secs => $2::double precision / 1000)
+         where id = (select id from recipe_qualifications where state = 'running'
+             and (lease_until is null or lease_until < clock_timestamp())
+             and not (id = any($3::uuid[]))
+           order by created_at limit 1 for update skip locked)
+         returning id, workspace_id, connection_id, created_by`,
+        [holder, ms, exclude],
+      );
+      const r = rows[0] as Row | undefined;
+      return r
+        ? {
+            id: String(r.id),
+            workspace_id: String(r.workspace_id),
+            connection_id: String(r.connection_id),
+            created_by: String(r.created_by),
+          }
+        : null;
+    });
+  }
+
+  async renewRecipeQualificationLease(id: string, holder: string, ms: number) {
+    const { rowCount } = await this.pool.query(
+      `update recipe_qualifications set
+         lease_until = clock_timestamp() + make_interval(secs => $3::double precision / 1000)
+       where id = $1 and lease_holder = $2 and state = 'running'`,
+      [uuid(id), holder, ms],
+    );
+    return (rowCount ?? 0) > 0;
+  }
+
+  async releaseRecipeQualificationLease(id: string, holder: string) {
+    await this.pool.query(
+      `update recipe_qualifications set lease_holder = null, lease_until = null
+        where id = $1 and lease_holder = $2`,
+      [uuid(id), holder],
+    );
+  }
+
+  /** The next attempt to run, or the end (the qualification is then decided). */
+  async nextRecipeAttempt(
+    id: string,
+    holder: string,
+    requestLimit: number,
+  ): Promise<NextRecipeAttempt> {
+    return this.tx((c) =>
+      nextRecipeAttempt(
+        c,
+        id,
+        holder,
+        requestLimit,
+        async (connectionId, recordedCap) => {
+          const ws = (
+            await c.query(
+              'select workspace_id from plan_connections where id = $1',
+              [connectionId],
+            )
+          ).rows[0] as Row | undefined;
+          if (!ws)
+            return { kind: 'stop', reason: 'The connection no longer exists.' };
+          const conn = await this.#lock(
+            c,
+            String(ws.workspace_id),
+            connectionId,
+          );
+          const cap = conn.settings.caps.responses.max_input_chars;
+          // Third review L-1: a cap lowered since Start is a setting changed during the run.
+          if (recordedCap != null && cap < recordedCap.max)
+            return {
+              kind: 'stop',
+              reason: `the connection's per-request input cap was lowered from ${recordedCap.max} to ${cap} characters since the start. Start the qualification again with the cap you want it to run under (at least ${recordedCap.min} characters for this benchmark).`,
+            };
+          return this.#recipeRoom(c, conn);
+        },
+      ),
+    );
+  }
+
+  /**
+   * Third review L-1: whether the connection's per-request input cap is now below the one
+   * recorded when this attempt's qualification started (a setting changed during the run, so an
+   * input-cap refusal judges nothing about the roles). False when the attempt is unknown.
+   */
+  async recipeInputCapLowered(attemptId: string): Promise<boolean> {
+    const r = (
+      await this.pool.query(
+        `select q.max_input_chars as recorded,
+                (pc.settings->'caps'->'responses'->>'max_input_chars')::int as current
+           from recipe_qualification_attempts a
+           join recipe_qualifications q on q.id = a.qualification_id
+           join plan_connections pc on pc.id = q.connection_id
+          where a.id = $1`,
+        [uuid(attemptId)],
+      )
+    ).rows[0] as
+      { recorded: number | null; current: number | null } | undefined;
+    return r?.recorded != null && r.current != null && r.current < r.recorded;
+  }
+
+  /**
+   * Review 1 M-1: whether the connection can take a build qualification attempt's requests
+   * now, by the admission rules that would otherwise refuse them mid-build: no request with an
+   * unknown outcome, room under the daily cap for a build (2 requests), and no other request
+   * running. A request left running past its timeout (the studio stopped during it) needs the
+   * owner, like an unknown one.
+   */
+  async #recipeRoom(
+    c: PoolClient,
+    conn: PlanConnection,
+    /** Start words the class checks its own way, so it leaves them out here. */
+    classes = true,
+  ): Promise<RecipeRoom> {
+    // Re-review N-4: the connection's own refusals (sign-in, credits, caps, eligibility, quota)
+    // and the build roles' classes stop it at once, before a replacement is spent on them.
+    const own = connectionRefusals(conn).map((r) => r.text);
+    const allowed = conn.settings;
+    if (classes && !allowed.allowed_task_classes.includes('patch_build'))
+      own.push('the connection no longer allows the builder (patch_build).');
+    if (classes && !allowed.allowed_task_classes.includes('independent_review'))
+      own.push(
+        'the connection no longer allows the reviewer (independent_review).',
+      );
+    if (classes && !allowed.allowed_data_classes.includes('synthetic'))
+      own.push('the connection no longer allows synthetic data.');
+    if (own.length)
+      return {
+        kind: 'stop',
+        reason: `the connection can't take requests now: ${own.join(' ')} Start the qualification again once that is resolved.`,
+      };
+    const usage = await this.#usage(c, conn.id, null, null);
+    const caps = conn.settings.caps;
+    if (usage.unresolved > 0)
+      return {
+        kind: 'stop',
+        reason: `an earlier plan request on this connection has an unknown outcome; ${PLAN_RECONCILE_HINT}, then start the qualification again.`,
+      };
+    const room = dailyCap(caps, usage) - usage.last_24h_requests;
+    if (room < 2)
+      return {
+        kind: 'stop',
+        reason: `the connection's daily request cap leaves room for ${Math.max(0, room)} more request${room === 1 ? '' : 's'}, and a build needs at least 2. Start it again when the cap has room.`,
+      };
+    if (usage.in_flight > 0) {
+      const stale = (
+        await c.query(
+          `select count(*)::int as n from plan_requests where connection_id = $1
+             and state = 'in_flight'
+             and started_at < clock_timestamp() - make_interval(secs => $2::double precision / 1000)`,
+          [conn.id, caps.responses.request_timeout_ms + 60_000],
+        )
+      ).rows[0].n as number;
+      if (stale > 0)
+        return {
+          kind: 'stop',
+          reason: `a plan request on this connection has been running past its time limit (the studio may have stopped during it); ${PLAN_RECONCILE_HINT}, then start the qualification again.`,
+        };
+      return {
+        kind: 'wait',
+        reason:
+          'Waiting for another plan request on this connection to finish.',
+      };
+    }
+    return { kind: 'ok' };
+  }
+
+  /** The attempt's build, recorded once, when the build asks for its approval. */
+  async recordRecipeAttemptBuild(
+    attemptId: string,
+    holder: string,
+    b: { product_id: string; build_id: string },
+  ): Promise<boolean> {
+    return this.tx(async (c) => {
+      const a = await heldAttempt(c, attemptId, holder);
+      if (!a || a.build_id) return false;
+      await c.query(
+        'update recipe_qualification_attempts set product_id = $2, build_id = $3 where id = $1',
+        [a.id, uuid(b.product_id), uuid(b.build_id)],
+      );
+      return true;
+    });
+  }
+
+  /** Whether the attempt still runs (the build's assertActive). */
+  async recipeAttemptRunning(attemptId: string, holder: string) {
+    return this.tx(async (c) =>
+      Boolean(await heldAttempt(c, attemptId, holder)),
+    );
+  }
+
+  async finishRecipeAttempt(
+    attemptId: string,
+    holder: string,
+    out: {
+      state: 'passed' | 'failed' | 'invalid';
+      reason: string;
+      repairs: number | null;
+      result: RecipeAttemptResult | null;
+    },
+  ): Promise<boolean> {
+    return this.tx((c) => finishRecipeAttempt(c, attemptId, holder, out));
+  }
+
+  /** After repeated unexpected errors: the qualification stops with the error as its reason. */
+  async abandonRecipeQualification(id: string, holder: string, reason: string) {
+    await this.tx(async (c) => {
+      const q = (
+        await c.query(
+          'select * from recipe_qualifications where id = $1 for update',
+          [uuid(id)],
+        )
+      ).rows[0] as Row | undefined;
+      if (!q || q.state !== 'running' || q.lease_holder !== holder) return;
+      await c.query(
+        `update recipe_qualification_attempts set state = 'invalid', finished_at = clock_timestamp(),
+           reason = 'The studio could not finish this attempt.' where qualification_id = $1 and state = 'running'`,
+        [q.id],
+      );
+      await c.query(
+        `update recipe_qualifications set state = 'stopped',
+           reason = $2, finished_at = clock_timestamp(), lease_holder = null, lease_until = null,
+           version = version + 1 where id = $1`,
+        [
+          q.id,
+          `The studio stopped this qualification after repeated errors: ${reason}`.slice(
+            0,
+            4000,
+          ),
+        ],
+      );
+    });
   }
 
   /** Qualifications that may admit work now: build-role ones only under the current prompts. */

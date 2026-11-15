@@ -1,0 +1,138 @@
+{
+  "format": "recipe-benchmark-expectations/1",
+  "benchmark_id": "p14-larger-ledgercheck-v5",
+  "copied_from": "p14-larger-ledgercheck-v4",
+  "copy_note": "Same task as p14-larger-ledgercheck-v4: spec content, studio cases, extended cases and reference are unchanged; only benchmark_id, these expectations and how the pass bars are checked differ. Owner decision 2026-11-14 (ADR-0105): in-app qualification uses its own frozen version because the p14-larger-ledgercheck-v4 pass bars name a Linux-only script, and frozen pass bars are never reworded.",
+  "scale": "larger",
+  "recipe": "python-build/1",
+  "declared_scale": "Entry point plus a package of at least 3 modules with an internal API, one builder task, 6 automated checks with 10 studio cases (5 held out), plus 21 extended held-out cases and a structure check run after the build",
+  "build_plan_caps": {
+    "max_repairs": 2,
+    "max_calls": 6,
+    "max_output_tokens": 12000,
+    "timeout_ms": 120000,
+    "data_class": "synthetic"
+  },
+  "expected_requests": {
+    "typical": 2,
+    "maximum": 6,
+    "note": "A repair round is measured, not required"
+  },
+  "expected_cost_usd": "0.00 on a plan-backed route (plan_roles). Any metered route is out of this packet",
+  "attempts": 3,
+  "one_build_per_attempt": "Each attempt is its own product and build in the studio qualification harness, from this spec.json content exactly (no catalog run, selection or spec is created)",
+  "qualified_at_declared_scale_when": "All 3 attempts meet every pass bar. Fewer is recorded as k of 3 and is not qualified; nothing is re-run to replace a failure",
+  "invalid_attempt_when": "An infrastructure fault outside the roles stops the attempt before a verdict: a role request that got no answer (network, provider, rate or usage limit, sign-in, token or timeout), a request the studio refused for a reason the roles' work did not cause (an earlier request with an unknown outcome, another request still running past a 4-minute wait, the daily cap, a lost sign-in, a connection setting changed during the run), a worker that did not finish a case, or a studio restart. It is recorded with its cause, and each attempt may be replaced at most once. A role answer the role itself caused to end without the contract (output too long or incomplete, out of turns, a model other than the one asked for, or a refusal to serve the model asked for, on any route) is a failed attempt, not an infrastructure fault; so is a request refused because the roles' own output made its input larger than the per-request input cap recorded at Start, or because the attempt used its request limit. An input-cap refusal of an attempt's first request (the roles wrote nothing yet), or after the cap was lowered since Start, is an infrastructure fault",
+  "pass_bar_per_attempt": [
+    "Studio build reaches verified_candidate: QA passes every frozen studio case, held-out ones included, in the isolation worker, and the reviewer approves with no findings (the studio's own rule)",
+    "Requests used are at most the plan's max_calls (6)",
+    "The exported package is verified by the studio: every frozen case re-run on the extracted archive in the isolation worker",
+    "All 21 extended cases pass on the exported package, run by the studio in the isolation worker with the studio case rule (exact output and exit status)",
+    "Structure check passes (studio check, packages/executor/src/recipe-scoring.ts, the rule of v4's grader): src/ledger has parse.py, rules.py and report.py, each with a top-level def statement, and src/main.py imports from ledger (from ledger... import, or ledger among the names of an import) anywhere; text in strings and comments is not code. A checked file that can't be read as Python (a string or bracket left open, a bracket closed that was never opened, a backslash continuation on the file's last line) fails the bar, as v4's parse did; other syntax errors are left to the frozen cases, which run the package"
+  ],
+  "measure_and_record": [
+    "requests used and repair rounds used",
+    "wall time from start to verdict",
+    "reviewer verdict and the build reason",
+    "package manifest SHA-256 and archive SHA-256",
+    "extended case results"
+  ],
+  "known_failure_cases": [
+    {
+      "id": "no-sys-path",
+      "description": "import ledger without adding src to sys.path (python3 -I): every case fails",
+      "caught_by": [
+        "A1.1"
+      ]
+    },
+    {
+      "id": "float-money",
+      "description": "Floating-point money (0.1 + 0.2 compared with a 0.3 cap, -0.00)",
+      "caught_by": [
+        "E16",
+        "E17"
+      ]
+    },
+    {
+      "id": "trimmed-fields",
+      "description": "Fields trimmed of spaces",
+      "caught_by": [
+        "E12"
+      ]
+    },
+    {
+      "id": "plus-amount",
+      "description": "+ accepted in amounts",
+      "caught_by": [
+        "E8"
+      ]
+    },
+    {
+      "id": "month-unvalidated",
+      "description": "Rows outside --month not validated",
+      "caught_by": [
+        "E9"
+      ]
+    },
+    {
+      "id": "errors-with-report",
+      "description": "Errors and report printed together",
+      "caught_by": [
+        "A5.1"
+      ]
+    },
+    {
+      "id": "first-error-only",
+      "description": "Only the first invalid row reported",
+      "caught_by": [
+        "A5.2"
+      ]
+    },
+    {
+      "id": "absent-cap-omitted",
+      "description": "Capped categories with no rows omitted",
+      "caught_by": [
+        "A2.2"
+      ]
+    },
+    {
+      "id": "json-separators",
+      "description": "JSON separators different from json.dumps(sort_keys=True)",
+      "caught_by": [
+        "A3.1"
+      ]
+    },
+    {
+      "id": "json-key-order",
+      "description": "JSON keys not sorted",
+      "caught_by": [
+        "A3.1"
+      ]
+    },
+    {
+      "id": "month-repeated",
+      "description": "Repeated --month accepted",
+      "caught_by": [
+        "E19"
+      ]
+    },
+    {
+      "id": "format-repeated",
+      "description": "Repeated --format accepted",
+      "caught_by": [
+        "E20"
+      ]
+    },
+    {
+      "id": "cap-name-rule",
+      "description": "Cap name not checked against the category rule",
+      "caught_by": [
+        "E15",
+        "E21"
+      ]
+    }
+  ],
+  "before_each_attempt": "The studio checks the connection before starting an attempt or a replacement: a lost sign-in or another connection refusal, a connection that no longer allows both build roles or synthetic data, a per-request input cap lowered since Start, an earlier request with an unknown outcome, a request running past its time limit, or a daily cap without room for 2 requests stops the qualification (state stopped, not a failure) without starting it; another request still running makes it wait. During an attempt, a role request waits up to 4 minutes for another request on the connection to finish",
+  "recut_note": "Re-cut five times on 2026-11-15, before any run (PR #200 reviews 1 to 5; the fifth only names the scorer recipe-scorer/5): the infrastructure rule above, the model-refusal rule on every route, the refusal codes the roles' work causes, the input cap recorded at Start and, for the larger benchmark, the structure check (a backslash on the last line, read as Python reads it) now match the rules they copy. The earlier cuts never ran",
+  "start_requires": "Start records the connection's per-request input cap and refuses a cap below the benchmark's first builder request (the builder prompt plus the frozen spec content)"
+}

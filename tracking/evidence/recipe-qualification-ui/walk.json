@@ -1,0 +1,36 @@
+{
+  "when": "2026-11-14T23:36:00.326Z",
+  "mode": "fixture",
+  "stand_ins": [
+    "loopback ChatGPT plan",
+    "test-double executor (not isolation evidence)"
+  ],
+  "steps": [
+    {
+      "name": "sign in and open the connection on Models",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "before both roles qualify, the section says what blocks a start",
+      "ok": true,
+      "detail": "axe: 0 violations"
+    },
+    {
+      "name": "with both roles qualified, the confirm packet states the bound before anything is sent",
+      "ok": true,
+      "detail": "axe: 0 violations"
+    },
+    {
+      "name": "Start runs three builds to qualified, and each attempt shows its bars",
+      "ok": true,
+      "detail": "axe: 0 violations"
+    },
+    {
+      "name": "phone width: no horizontal page scroll",
+      "ok": true,
+      "detail": "axe: 0 violations"
+    }
+  ],
+  "problems": []
+}
