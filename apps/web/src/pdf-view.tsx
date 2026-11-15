@@ -6,6 +6,7 @@ import {
   TextLayer,
   getDocument,
   type PDFDocumentProxy,
+  type PDFPageProxy,
 } from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
@@ -43,6 +44,10 @@ function PdfPage({
   const [near, setNear] = useState(false);
   const [size, setSize] = useState<Size | null>(null);
   const [failed, setFailed] = useState(false);
+  /** The page drawn last, so a far page can also drop pdf.js's decoded data (re-review L-2). */
+  const drawn = useRef<{ page: PDFPageProxy; done: Promise<unknown> } | null>(
+    null,
+  );
   useEffect(() => {
     const el = box.current;
     if (!el) return;
@@ -63,6 +68,12 @@ function PdfPage({
         c.height = 0;
       }
       text.current?.replaceChildren();
+      // Also drop pdf.js's operator list and decoded images, once the cancelled render has
+      // settled (cleanup() does nothing while a render is pending, so it is safe if the page
+      // came back near meanwhile).
+      const d = drawn.current;
+      drawn.current = null;
+      if (d) void d.done.then(() => d.page.cleanup());
       return;
     }
     let stop = false;
@@ -92,6 +103,7 @@ function PdfPage({
           annotationMode: AnnotationMode.ENABLE,
         });
         task = render;
+        drawn.current = { page, done: render.promise.catch(() => {}) };
         await render.promise;
         if (stop || !text.current) return;
         text.current.replaceChildren();

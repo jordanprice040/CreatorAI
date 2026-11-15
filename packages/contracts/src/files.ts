@@ -279,6 +279,9 @@ export type ZipEntry = {
   size: number | null;
   compressed: number | null;
   dir: boolean;
+  /** Compression method (0 stored, 8 deflate) and where the entry's local header starts. */
+  method: number;
+  offset: number | null;
 };
 /** Entries listed beyond this are not read; the listing says it stopped. */
 export const ZIP_ENTRY_MAX = 5000;
@@ -290,6 +293,11 @@ export const ZIP_ENTRY_MAX = 5000;
  */
 export function zipEntries(
   b: Uint8Array,
+  /**
+   * How to decode names without the UTF-8 flag: 'spec' (CP437, read as Latin-1, as the ZIP
+   * format says) or 'utf8', as JSZip and Office do (so names match the parts a viewer opens).
+   */
+  names: 'spec' | 'utf8' = 'spec',
 ): { entries: ZipEntry[]; total: number; more: boolean } | null {
   if (
     !startsWith(b, [0x50, 0x4b, 0x03, 0x04]) &&
@@ -315,6 +323,7 @@ export function zipEntries(
     if (at + 46 > b.length || view.getUint32(at, true) !== 0x02014b50)
       return null;
     const flags = view.getUint16(at + 8, true);
+    const method = view.getUint16(at + 10, true);
     const compressed = view.getUint32(at + 20, true);
     const size = view.getUint32(at + 24, true);
     const nameLen = view.getUint16(at + 28, true);
@@ -322,12 +331,15 @@ export function zipEntries(
     const commentLen = view.getUint16(at + 32, true);
     if (at + 46 + nameLen > b.length) return null;
     const raw = b.subarray(at + 46, at + 46 + nameLen);
-    const name = (flags & 0x800 ? utf8 : latin).decode(raw);
+    const name = (flags & 0x800 || names === 'utf8' ? utf8 : latin).decode(raw);
+    const offset = view.getUint32(at + 42, true);
     entries.push({
       name,
       size: size === 0xffffffff ? null : size,
       compressed: compressed === 0xffffffff ? null : compressed,
       dir: name.endsWith('/'),
+      method,
+      offset: offset === 0xffffffff ? null : offset,
     });
     at += 46 + nameLen + extraLen + commentLen;
   }

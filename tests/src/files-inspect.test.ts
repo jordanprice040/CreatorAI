@@ -182,9 +182,24 @@ test('the archive listing reads names and sizes without unpacking', () => {
   assert.equal(z.total, 2);
   assert.equal(z.more, false);
   assert.deepEqual(z.entries, [
-    { name: 'docs/', size: 0, compressed: 0, dir: true },
-    { name: 'docs/caf\u00e9.txt', size: 5, compressed: 5, dir: false },
+    { name: 'docs/', size: 0, compressed: 0, dir: true, method: 0, offset: 0 },
+    {
+      name: 'docs/caf\u00e9.txt',
+      size: 5,
+      compressed: 5,
+      dir: false,
+      method: 0,
+      offset: 35,
+    },
   ]);
+  // Re-review N-2: a UTF-8 name saved without the UTF-8 flag reads as the ZIP format says
+  // (Latin-1 here), or as UTF-8 the way JSZip and Office read it.
+  const unflagged = zip({ 'caf\u00e9.png': 'x' });
+  assert.equal(zipEntries(unflagged)!.entries[0]!.name, 'caf\u00c3\u00a9.png');
+  assert.equal(
+    zipEntries(unflagged, 'utf8')!.entries[0]!.name,
+    'caf\u00e9.png',
+  );
   // Truncated or not-ZIP bytes give null, never an exception.
   const whole = zip({ 'a.txt': 'x' });
   assert.equal(zipEntries(whole.subarray(0, whole.length - 30)), null);

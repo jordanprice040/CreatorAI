@@ -18,12 +18,15 @@ export function ArchiveView({ bytes }: { bytes: ArrayBuffer }) {
     );
   const files = zip.entries.filter((e) => !e.dir);
   const total = files.reduce((n, e) => n + (e.size ?? 0), 0);
+  // A size stored as ZIP64 is not read, so the total is then a lower bound.
+  const unknown = files.some((e) => e.size === null);
   const shown = all ? files : files.slice(0, SHOWN);
   return (
     <div className="archive-view">
       <p className="small">
         {files.length.toLocaleString('en-US')} file
-        {files.length === 1 ? '' : 's'}, {bytesText(total)} unpacked
+        {files.length === 1 ? '' : 's'}, {unknown ? 'at least ' : ''}
+        {bytesText(total)} unpacked
         {zip.more
           ? ` (the first ${zip.entries.length.toLocaleString('en-US')} entries are listed)`
           : ''}

@@ -19,7 +19,7 @@ import type { Workspace } from '@creator/contracts';
 import {
   KIND_TEXT,
   noViewerText,
-  officeRefusal,
+  officeCheck,
   svgDataUrl,
   viewerFor,
 } from './file-viewer-rules.js';
@@ -636,16 +636,40 @@ function BinaryView({
   viewer: 'pdf' | 'document' | 'spreadsheet' | 'presentation' | 'archive';
 }) {
   const bytes = useFileBytes(base, v.version);
+  // Re-review L-1: an Office file is opened only after every part was inflated once, counted,
+  // and found within bounds (officeCheck), so a part that lies about its size is refused.
+  const [check, setCheck] = useState<{
+    bytes: ArrayBuffer;
+    refusal: string | null;
+  } | null>(null);
+  useEffect(() => {
+    const data = bytes.data;
+    if (
+      !data ||
+      (viewer !== 'document' &&
+        viewer !== 'spreadsheet' &&
+        viewer !== 'presentation')
+    )
+      return;
+    let stop = false;
+    void officeCheck(new Uint8Array(data)).then((refusal) => {
+      if (!stop) setCheck({ bytes: data, refusal });
+    });
+    return () => {
+      stop = true;
+    };
+  }, [bytes.data, viewer]);
   if (bytes.error) return <p className="error">{bytes.error}</p>;
   if (!bytes.data) return <p className="small">Reading the file…</p>;
   const data = bytes.data;
-  const refusal =
+  const office =
     viewer === 'document' ||
     viewer === 'spreadsheet' ||
-    viewer === 'presentation'
-      ? officeRefusal(new Uint8Array(data))
-      : null;
-  if (refusal) return <p className="notice">{refusal}</p>;
+    viewer === 'presentation';
+  if (office && check?.bytes !== data)
+    return <p className="small">Checking the file…</p>;
+  if (office && check?.refusal)
+    return <p className="notice">{check.refusal}</p>;
   return (
     <div className="file-view">
       <Suspense fallback={LOADING}>
@@ -729,8 +753,9 @@ function TextFileView({
  * An SVG drawn as an image: a browser never runs scripts, loads other files or follows links
  * in an SVG shown through <img>. Review H-1: the picture comes from a data: URL, never a blob:
  * URL, because a blob: URL belongs to the studio's origin, so "Open image in new tab" would run
- * the SVG's scripts as the studio. A data: URL has no origin of its own, and browsers refuse to
- * open one as a page. Falls back to the source if it does not draw.
+ * the SVG's scripts as the studio. A data: URL has an opaque origin: opened as a page, its
+ * scripts can run but get no studio cookie (SameSite=Strict), no CSRF token and no CORS access,
+ * and the installed app refuses to navigate to it. Falls back to the source if it does not draw.
  */
 function SvgPicture({ text, name }: { text: string; name: string }) {
   const url = useMemo(() => svgDataUrl(text), [text]);

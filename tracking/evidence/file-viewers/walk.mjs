@@ -6,7 +6,8 @@
 // the page makes: nothing may go anywhere but the studio, and no dialog may open (the samples
 // carry scripts, an outside link and an outside picture). Review L-5: the SVG's picture URL and a
 // slide picture's URL are also opened as their own pages, as "Open image in new tab" would, and
-// must not run as the studio or read its API. Also a compression bomb refused, PDF pages giving
+// must not run as the studio or read its API. Also compression bombs refused (one whose headers
+// understate its size), PDF pages giving
 // back their canvases after scrolling, 390 px width and console errors.
 // Usage (after `pnpm build`, with a loopback test server whose role may CREATE DATABASE):
 //   python3 tracking/evidence/file-viewers/make-samples.py /tmp/fv-samples
@@ -288,6 +289,14 @@ try {
     .getByText('This file expands to more than the studio opens in the page')
     .waitFor();
   step('bomb.pptx (100 MiB part in a small file): refused before it is opened');
+
+  await open('liar.pptx');
+  await page
+    .getByText('This file expands to more than the studio opens in the page')
+    .waitFor({ timeout: 10_000 });
+  step(
+    'liar.pptx (the same part, its headers saying 1,000 bytes): refused after counting, before a viewer opens it',
+  );
 
   await open('many-pages.pdf');
   await page.locator('.pdf-page canvas').first().waitFor();

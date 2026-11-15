@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { deflateRawSync } from 'node:zlib';
 import { loadWeb } from './web-module.js';
 
 // ADR-0106: which inert viewer a file opens in comes from the studio's kind; the extension only
@@ -20,6 +21,7 @@ type Rules = {
   noViewerText(name: string): string;
   linesText(n: number): string;
   officeRefusal(bytes: Uint8Array): string | null;
+  officeCheck(bytes: Uint8Array): Promise<string | null>;
   svgDataUrl(text: string): string;
   OFFICE_PART_MAX_BYTES: number;
   KIND_TEXT: Record<string, string>;
@@ -204,4 +206,99 @@ test('Office files that expand too far are refused before they are opened', asyn
     r.officeRefusal(new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1])),
     null,
   );
+});
+
+/** A real ZIP with deflated parts; `declare` overrides the size its headers state. */
+function deflated(
+  parts: {
+    name: string;
+    data: Uint8Array;
+    declare?: number;
+    raw?: Uint8Array;
+  }[],
+): Uint8Array {
+  const u16 = (n: number) => [n & 0xff, (n >> 8) & 0xff];
+  const u32 = (n: number) => [...u16(n & 0xffff), ...u16(n >>> 16)];
+  const chunks: number[][] = [];
+  const central: number[] = [];
+  let offset = 0;
+  for (const p of parts) {
+    const n = [...Buffer.from(p.name)];
+    const body = [...(p.raw ?? deflateRawSync(p.data))];
+    const size = p.declare ?? p.data.length;
+    const head = [
+      ...u32(0x04034b50),
+      ...u16(20),
+      ...u16(0),
+      ...u16(8),
+      ...u32(0),
+      ...u32(0),
+      ...u32(body.length),
+      ...u32(size),
+      ...u16(n.length),
+      ...u16(0),
+      ...n,
+    ];
+    chunks.push(head, body);
+    central.push(...u32(0x02014b50), ...u16(20), ...u16(20), ...u16(0));
+    central.push(...u16(8), ...u32(0), ...u32(0), ...u32(body.length));
+    central.push(...u32(size), ...u16(n.length), ...u16(0), ...u16(0));
+    central.push(...u16(0), ...u16(0), ...u32(0), ...u32(offset), ...n);
+    offset += head.length + body.length;
+  }
+  const end = [
+    ...u32(0x06054b50),
+    ...u16(0),
+    ...u16(0),
+    ...u16(parts.length),
+    ...u16(parts.length),
+    ...u32(central.length),
+    ...u32(offset),
+    ...u16(0),
+  ];
+  return new Uint8Array([...chunks.flat(), ...central, ...end]);
+}
+
+// Re-review L-1: a part whose headers understate its size is caught by inflating it once,
+// counting, and stopping just past the stated size, before any viewer inflates it in full.
+test('an Office part that lies about its size is refused without inflating it all', async () => {
+  const r = await rules();
+  const text = new TextEncoder().encode('<p:presentation/>'.repeat(1000));
+  const honest = deflated([
+    { name: '[Content_Types].xml', data: new TextEncoder().encode('<x/>') },
+    { name: 'ppt/presentation.xml', data: text },
+  ]);
+  assert.equal(r.officeRefusal(honest), null);
+  assert.equal(await r.officeCheck(honest), null);
+  // 32 MiB of zeros saying they are 1,000 bytes: the stated sizes pass, the check does not.
+  const liar = deflated([
+    { name: 'ppt/presentation.xml', data: text },
+    {
+      name: 'ppt/slides/slide1.xml',
+      data: new Uint8Array(32 * 1024 * 1024),
+      declare: 1000,
+    },
+  ]);
+  assert.equal(r.officeRefusal(liar), null);
+  const t = Date.now();
+  assert.match(
+    (await r.officeCheck(liar)) ?? '',
+    /expands to more than the studio opens/,
+  );
+  assert.ok(Date.now() - t < 2000, 'stopped early, not after inflating it all');
+  // A damaged deflate stream is refused as damaged.
+  assert.match(
+    (await r.officeCheck(
+      deflated([
+        {
+          name: 'word/document.xml',
+          data: text,
+          raw: new Uint8Array([0xff, 0xff, 0xff, 0xff]),
+        },
+      ]),
+    )) ?? '',
+    /may be damaged/,
+  );
+  // Not a ZIP: left to its viewer.
+  assert.equal(await r.officeCheck(new Uint8Array([0xd0, 0xcf, 0x11])), null);
 });

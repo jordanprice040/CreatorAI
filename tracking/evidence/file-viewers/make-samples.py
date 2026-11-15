@@ -96,6 +96,22 @@ with zipfile.ZipFile(p('bomb.pptx'), 'w', zipfile.ZIP_DEFLATED, compresslevel=9)
         z.writestr(n, b)
     z.writestr('ppt/slides/slide99.xml', b' ' * (100 * 1024 * 1024))
 
+# The same, but every header says that part is 1,000 bytes (re-review L-1): only inflating it
+# shows it is not, so the studio inflates each part once, counting, before a viewer opens it.
+def understate(src, dst, part, size):
+    data = bytearray(open(src, 'rb').read())
+    name = part.encode()
+    i = data.find(b'PK\x01\x02')
+    while i >= 0:
+        n = struct.unpack('<H', data[i + 28:i + 30])[0]
+        if data[i + 46:i + 46 + n] == name:
+            struct.pack_into('<I', data, i + 24, size)
+            local = struct.unpack('<I', data[i + 42:i + 46])[0]
+            struct.pack_into('<I', data, local + 22, size)
+        i = data.find(b'PK\x01\x02', i + 4)
+    open(dst, 'wb').write(bytes(data))
+understate(p('bomb.pptx'), p('liar.pptx'), 'ppt/slides/slide99.xml', 1000)
+
 # Eighty pages, to check that pages scrolled past give back their canvases (review M-1).
 c = canvas.Canvas(p('many-pages.pdf'), pagesize=letter)
 for i in range(80):

@@ -35,8 +35,9 @@ export function SheetView({ bytes }: { bytes: ArrayBuffer }) {
       setResult({ sheets: [], error: failure('') });
       worker.terminate();
     };
-    // A copy, so the bytes stay usable by the page.
-    worker.postMessage(bytes.slice(0));
+    // A copy handed over (transferred, not cloned again), so the page keeps its own bytes.
+    const copy = bytes.slice(0);
+    worker.postMessage(copy, [copy]);
     return () => worker.terminate();
   }, [bytes]);
   const [tab, setTab] = useState(0);

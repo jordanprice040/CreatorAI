@@ -1,10 +1,10 @@
 {
-  "when": "2026-11-15T00:11:04.567Z",
+  "when": "2026-11-15T02:05:48.830Z",
   "steps": [
-    "throwaway database with workspace 669bd6c8",
+    "throwaway database with workspace 4c215cf7",
     "empty workspace Discover: 0 console errors",
-    "uploaded 14 samples through Add files",
-    "kinds: analysis.py: Code; bomb.pptx: Presentation; broken.json: Text; bundle.zip: ZIP archive; logo.svg: Code; many-pages.pdf: PDF; outside-links.docx: Word document; page.html: Code; pilot.pptx: Presentation; report.docx: Word document; script.pdf: PDF; slots.xlsx: Spreadsheet; two-pages.pdf: PDF; utf16.txt: Text",
+    "uploaded 15 samples through Add files",
+    "kinds: analysis.py: Code; bomb.pptx: Presentation; broken.json: Text; bundle.zip: ZIP archive; liar.pptx: Presentation; logo.svg: Code; many-pages.pdf: PDF; outside-links.docx: Word document; page.html: Code; pilot.pptx: Presentation; report.docx: Word document; script.pdf: PDF; slots.xlsx: Spreadsheet; two-pages.pdf: PDF; utf16.txt: Text",
     "PDF: Page of 2 − 75% + Fit width; text layer has “Selectable text on page one.”",
     "PDF zoom in: 100%",
     "screenshot 01-pdf.png",
@@ -22,6 +22,7 @@
     "screenshot 04-pptx.png",
     "slide picture opened as its own page: image/png (a raster picture, nothing to run)",
     "bomb.pptx (100 MiB part in a small file): refused before it is opened",
+    "liar.pptx (the same part, its headers saying 1,000 bytes): refused after counting, before a viewer opens it",
     "PDF of 80 pages scrolled to the end: 2 canvases still hold pixels",
     "ZIP: 3 files, 619 bytes unpacked. Nothing inside is opened; download the original to unpack it.",
     "screenshot 05-zip.png",

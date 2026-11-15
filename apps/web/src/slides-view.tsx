@@ -97,9 +97,9 @@ function rid(el: Element | undefined, name: string) {
 export async function readDeck(bytes: ArrayBuffer): Promise<Deck> {
   const zip = await JSZip.loadAsync(bytes);
   // Review L-1/L-4: each part's size from the central directory, so a picture over the budget
-  // is skipped before it is inflated.
+  // is skipped before it is inflated. Names read as JSZip reads them (UTF-8), so they match.
   const sizes = new Map(
-    (zipEntries(new Uint8Array(bytes))?.entries ?? []).map((e) => [
+    (zipEntries(new Uint8Array(bytes), 'utf8')?.entries ?? []).map((e) => [
       e.name,
       e.size,
     ]),

@@ -50,25 +50,106 @@ export const SHEET_MAX_COLS = 100;
 export const OFFICE_PART_MAX_BYTES = 64 * 1024 * 1024;
 export const OFFICE_TOTAL_MAX_BYTES = 256 * 1024 * 1024;
 
+const OFFICE_TOO_LARGE =
+  'This file expands to more than the studio opens in the page. Download the original to open it.';
+const OFFICE_DAMAGED =
+  'The studio could not read this file; it may be damaged. Download the original to open it.';
+
 /**
- * Why an Office file (a ZIP) is too large to open in the studio, or null when it may be opened.
- * Bytes that are not a ZIP (an old .xls) are left to their viewer; a ZIP whose central directory
- * cannot be read is refused.
+ * Why an Office file (a ZIP) is too large to open in the studio by the sizes its central
+ * directory declares, or null when they are within bounds. Bytes that are not a ZIP (an old
+ * .xls) are left to their viewer; a ZIP whose central directory cannot be read is refused.
  */
 export function officeRefusal(bytes: Uint8Array): string | null {
   if (bytes[0] !== 0x50 || bytes[1] !== 0x4b) return null;
-  const refuse =
-    'This file expands to more than the studio opens in the page. Download the original to open it.';
   // A ZIP whose directory the studio cannot read (ZIP64, damaged) is not handed to a viewer.
   const list = zipEntries(bytes);
-  if (!list) return refuse;
-  if (list.more || list.entries.length < list.total) return refuse;
+  if (!list) return OFFICE_TOO_LARGE;
+  if (list.more || list.entries.length < list.total) return OFFICE_TOO_LARGE;
   let total = 0;
   for (const e of list.entries) {
-    if (e.size === null || e.size > OFFICE_PART_MAX_BYTES) return refuse;
+    if (e.size === null || e.size > OFFICE_PART_MAX_BYTES)
+      return OFFICE_TOO_LARGE;
     total += e.size;
   }
-  return total > OFFICE_TOTAL_MAX_BYTES ? refuse : null;
+  return total > OFFICE_TOTAL_MAX_BYTES ? OFFICE_TOO_LARGE : null;
+}
+
+/** Compressed bytes handed to the inflater at a time, so one step makes at most ~4 MiB. */
+const INFLATE_SLICE = 4096;
+
+/**
+ * Inflates raw deflate data natively, counting what comes out, and stops as soon as it passes
+ * `limit`. Returns the size, or -1 when it went past the limit.
+ */
+async function inflatedSize(data: Uint8Array, limit: number): Promise<number> {
+  let at = 0;
+  const input = new ReadableStream<BufferSource>(
+    {
+      pull(c) {
+        if (at >= data.length) c.close();
+        else {
+          c.enqueue(data.slice(at, at + INFLATE_SLICE));
+          at += INFLATE_SLICE;
+        }
+      },
+    },
+    { highWaterMark: 0 },
+  );
+  const reader = input
+    .pipeThrough(new DecompressionStream('deflate-raw'))
+    .getReader();
+  let n = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) return n;
+    n += value.byteLength;
+    if (n > limit) {
+      await reader.cancel().catch(() => {});
+      return -1;
+    }
+  }
+}
+
+/**
+ * Re-review L-1: the sizes a ZIP declares can lie, and JSZip, docx-preview and SheetJS inflate
+ * a whole part before they compare it. So before an Office viewer opens a file, every part is
+ * inflated once here (natively, a slice at a time, counting the output) and the file is
+ * refused as soon as a part passes its declared size or 64 MiB, or all parts pass 256 MiB.
+ * Nothing inflated is kept. Null when the viewer may open the file.
+ */
+export async function officeCheck(bytes: Uint8Array): Promise<string | null> {
+  const declared = officeRefusal(bytes);
+  if (declared || bytes[0] !== 0x50 || bytes[1] !== 0x4b) return declared;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let total = 0;
+  for (const e of zipEntries(bytes)!.entries) {
+    if (e.offset === null || e.compressed === null || e.size === null)
+      return OFFICE_TOO_LARGE;
+    const at = e.offset;
+    if (at + 30 > bytes.length || view.getUint32(at, true) !== 0x04034b50)
+      return OFFICE_DAMAGED;
+    const start =
+      at + 30 + view.getUint16(at + 26, true) + view.getUint16(at + 28, true);
+    if (start + e.compressed > bytes.length) return OFFICE_DAMAGED;
+    const limit = Math.min(e.size, OFFICE_TOTAL_MAX_BYTES - total);
+    let size: number;
+    if (e.method === 0) size = e.compressed;
+    else if (e.method === 8)
+      try {
+        size = await inflatedSize(
+          bytes.subarray(start, start + e.compressed),
+          limit,
+        );
+      } catch {
+        return OFFICE_DAMAGED;
+      }
+    // Office files use only stored and deflated parts; the viewers read nothing else.
+    else return OFFICE_DAMAGED;
+    if (size < 0 || size > limit) return OFFICE_TOO_LARGE;
+    total += size;
+  }
+  return null;
 }
 
 export function extensionOf(name: string): string {
@@ -115,7 +196,10 @@ export function viewerFor(
   return v.kind;
 }
 
-/** Review H-1: an SVG's picture URL; a data: URL has no origin and cannot open as a page. */
+/**
+ * Review H-1: an SVG's picture URL. A data: URL has an opaque origin, so if it is opened as a
+ * page its scripts run with no studio cookie, CSRF token or API access (never as the studio).
+ */
 export function svgDataUrl(text: string): string {
   const bytes = new TextEncoder().encode(text);
   let bin = '';
