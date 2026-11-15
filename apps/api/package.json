@@ -11,6 +11,14 @@
     "./studio": {
       "types": "./dist/studio.d.ts",
       "default": "./dist/studio.js"
+    },
+    "./ports": {
+      "types": "./dist/ports.d.ts",
+      "default": "./dist/ports.js"
+    },
+    "./studio-guard": {
+      "types": "./dist/studio-guard.d.ts",
+      "default": "./dist/studio-guard.js"
     }
   },
   "dependencies": {

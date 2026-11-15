@@ -23,6 +23,7 @@ import {
   type BuildPorts,
 } from '@creator/executor';
 import {
+  APP_PORT_ENV,
   BUILD_FIXTURE_CASES,
   BUILD_FIXTURE_FEEDBACK,
   BUILD_FIXTURE_REVISION_CASES,
@@ -73,11 +74,16 @@ test('owner inspects, downloads, previews, gives feedback and compares a revisio
     },
     reap: async () => ({ cleaned: true, unit_state: 'inactive' }),
   });
+  const nativeGate = process.env.CREATOR_TEST_NATIVE === '1';
   const api = createApi(
-    { CREATOR_DATABASE_URL: db.url, CREATOR_DEV_LOGIN_CODE: LOGIN_CODE },
+    {
+      CREATOR_DATABASE_URL: db.url,
+      CREATOR_DEV_LOGIN_CODE: LOGIN_CODE,
+      // ADR-0108: the native shell talks to the installed app's ports, not the dev range.
+      ...(nativeGate ? APP_PORT_ENV : {}),
+    },
     { artifacts, terminals },
   );
-  const nativeGate = process.env.CREATOR_TEST_NATIVE === '1';
   api.server.listen(nativeGate ? 4310 : 0, '127.0.0.1');
   api.preview.listen(0, '127.0.0.1');
   await Promise.all([
@@ -562,7 +568,12 @@ test('owner inspects, downloads, previews, gives feedback and compares a revisio
           '5173',
           '--strictPort',
         ],
-        { cwd: resolve('apps/web'), windowsHide: true, stdio: 'ignore' },
+        {
+          cwd: resolve('apps/web'),
+          env: { ...process.env, ...APP_PORT_ENV },
+          windowsHide: true,
+          stdio: 'ignore',
+        },
       );
       try {
         for (let i = 0; i < 50; i++) {
