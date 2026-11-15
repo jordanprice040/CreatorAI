@@ -6,7 +6,7 @@ import {
   portHolder,
   portInUseText,
 } from '../apps/api/dist/ports.js';
-import { databaseUrl, takeStudioLock } from '../packages/db/dist/index.js';
+import { guardStudio } from '../apps/api/dist/studio-guard.js';
 import { DEV_PORTS } from '../packages/domain/dist/index.js';
 import { requireSupportedNode } from './runtime.mjs';
 import { inferenceNotice } from './dev-status.mjs';
@@ -31,23 +31,23 @@ if (ports.moved.length)
     'Browser settings saved for the usual address do not carry over to a moved web port.',
   );
 
-// ADR-0108: one studio per database, whatever ports it uses (review 1 M-1). Held until exit.
-let studioLock = null;
-const dbUrl = databaseUrl(process.env.CREATOR_DATABASE_URL);
-if (dbUrl) {
-  const taken = await takeStudioLock(
-    dbUrl,
-    `pnpm dev, web port ${ports.env.CREATOR_WEB_PORT}, process ${process.pid}`,
-  ).catch((e) => ({
-    held: false,
-    message: `Could not reach the database to check that no other studio uses it (${e.message}). Start the database, then run this again.`,
-  }));
-  if (!taken.held) {
-    console.error(taken.message);
-    process.exit(1);
-  }
-  studioLock = taken.lock;
+// ADR-0108: one studio per database, whatever ports it uses (review 1 M-1). Held until exit;
+// if another studio takes it while this one's database connection is down, this one stops.
+let stopping = null;
+const guard = await guardStudio(
+  process.env,
+  `pnpm dev, web port ${ports.env.CREATOR_WEB_PORT}, process ${process.pid}`,
+  (message) => {
+    console.error(message);
+    process.exitCode = 1;
+    void shutdown();
+  },
+);
+if (!guard.ok) {
+  console.error(guard.message);
+  process.exit(1);
 }
+let studioLock = guard.lock;
 const release = async () => {
   await studioLock?.release();
   studioLock = null;
@@ -122,9 +122,13 @@ try {
   await release();
   process.exitCode = 1;
 }
-for (const signal of ['SIGINT', 'SIGTERM'])
-  process.on(signal, async () => {
+async function shutdown() {
+  stopping ??= (async () => {
     await close();
     await web?.close();
     await release();
-  });
+  })();
+  return stopping;
+}
+for (const signal of ['SIGINT', 'SIGTERM'])
+  process.on(signal, () => void shutdown());

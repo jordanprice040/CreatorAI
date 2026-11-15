@@ -35,9 +35,10 @@ address is fixed), or with `CREATOR_PORT_FALLBACK=off` (also `false`, `0` or `no
 studio already answers there, it stops instead of starting a second studio on the
 same database. Browser settings saved for one address do not carry over to
 another, and `pnpm cli` needs `CREATOR_API_URL` when the API moved (the printed
-login command includes it). With a database configured, `pnpm dev` refuses to
-start while another studio uses that database, and stops if the database cannot
-be reached. `pnpm dev:api`
+login command includes it). With a database configured, `pnpm dev` and `pnpm dev:api`
+refuse to start while another studio uses that database, and stop if the
+database cannot be reached. After a database restart a running studio takes its
+claim again; if another studio started on that database meanwhile, it stops. `pnpm dev:api`
 on its own never moves (`dev:web` would not follow); it names the holder. Ctrl+C stops development processes. Web edits hot reload;
 restart after backend/contracts changes. No Docker, Temporal or provider key is
 needed for the stateless fixture demo. That demo saves nothing.

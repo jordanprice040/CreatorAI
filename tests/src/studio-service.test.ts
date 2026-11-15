@@ -15,7 +15,12 @@ import {
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import pg from 'pg';
-import { migrationChecksum, migrations, takeStudioLock } from '@creator/db';
+import {
+  STUDIO_LOCK_KEY,
+  migrationChecksum,
+  migrations,
+  takeStudioLock,
+} from '@creator/db';
 import {
   guardOwnership,
   inspectDatabase,
@@ -436,6 +441,49 @@ test('a database another studio holds is refused before any port is taken (ADR-0
   t.after(() => (other.held ? other.lock.release() : undefined));
   const s = studio('serve', input(fresh.url, dir));
   const e = await s.next('error', 60000);
+  assert.equal(e.code, 'STUDIO_RUNNING');
+  assert.match(String(e.message), /\(pnpm dev, web port 5273\)/);
+  assert.equal(await s.exit, 7);
+  await assert.rejects(get(4310, '/api/health'));
+});
+
+test('a serving studio stops if another studio takes its database while its lock connection is down (review 2 L-1)', async (t) => {
+  const fresh = await freshDatabase(t);
+  if (!fresh) return;
+  const dir = await home();
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const s = studio('serve', input(fresh.url, dir));
+  t.after(() => s.proc.kill());
+  await s.next('ready', 60000);
+  const holder = async () =>
+    (
+      await fresh.pool.query<{ pid: number }>(
+        `select pid from pg_locks where locktype = 'advisory' and granted and objid = $1
+           and database = (select oid from pg_database where datname = current_database())`,
+        [STUDIO_LOCK_KEY],
+      )
+    ).rows[0]?.pid;
+  const other = new pg.Client({
+    connectionString: fresh.url,
+    application_name: 'creator-agent-studio pnpm dev, web port 5273',
+  });
+  other.on('error', () => undefined);
+  await other.connect();
+  t.after(() => other.end().catch(() => undefined));
+  const pid = await holder();
+  assert.ok(pid);
+  const waiting = other.query('select pg_advisory_lock($1)', [STUDIO_LOCK_KEY]);
+  for (let i = 0; i < 100; i++) {
+    const r = await fresh.pool.query(
+      `select count(*)::int as n from pg_locks where locktype = 'advisory' and not granted and objid = $1`,
+      [STUDIO_LOCK_KEY],
+    );
+    if (r.rows[0].n === 1) break;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  await fresh.pool.query('select pg_terminate_backend($1)', [pid]);
+  await waiting;
+  const e = await s.next('error', 30000);
   assert.equal(e.code, 'STUDIO_RUNNING');
   assert.match(String(e.message), /\(pnpm dev, web port 5273\)/);
   assert.equal(await s.exit, 7);

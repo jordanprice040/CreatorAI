@@ -1,5 +1,6 @@
 import { createApi } from './index.js';
 import { portHolder, portInUseText } from './ports.js';
+import { guardStudio } from './studio-guard.js';
 
 /** ADR-0108: a busy port names its holder. `dev:api` alone never moves (dev:web wouldn't follow). */
 const listenError =
@@ -22,6 +23,22 @@ export function loginNotice(
     return 'Sign-in: OIDC (open the web page and choose Sign in).';
   if (!code) return 'Sign-in: development code from CREATOR_DEV_LOGIN_CODE.';
   return `Sign-in (local development, this run only): open http://127.0.0.1:${webPort}/#login=${code}\n  or run: pnpm cli login ${code}`;
+}
+// ADR-0108 (review 2 L-3): `pnpm dev:api` runs the in-process workflow worker too, so it
+// holds the one-studio-per-database lock like `pnpm dev` (not in a hosted deployment).
+let shutdown: () => Promise<void> = async () => undefined;
+const guard = await guardStudio(
+  process.env,
+  `pnpm dev:api, process ${process.pid}`,
+  (message) => {
+    console.error(message);
+    process.exitCode = 1;
+    void shutdown();
+  },
+);
+if (!guard.ok) {
+  console.error(guard.message);
+  process.exit(1);
 }
 try {
   const {
@@ -65,11 +82,18 @@ try {
       `Private previews: http://${config.host}:${config.preview_port} (separate origin)`,
     ),
   );
+  let stopping: Promise<void> | null = null;
+  shutdown = () =>
+    (stopping ??= (async () => {
+      await close();
+      await guard.lock?.release();
+    })());
   for (const signal of ['SIGINT', 'SIGTERM'] as const)
-    process.on(signal, () => void close());
+    process.on(signal, () => void shutdown());
 } catch (error) {
   console.error(
     error instanceof Error ? error.message : 'Invalid configuration',
   );
+  await guard.lock?.release();
   process.exitCode = 1;
 }

@@ -579,10 +579,28 @@ export async function serveStudio(
     );
   });
   // ADR-0108: one studio per database (review 1 M-1), e.g. a dev studio pointed at it.
-  const taken = await takeStudioLock(
-    input.database_url,
-    `desktop app, web port ${PORTS.web}, process ${process.pid}`,
-  );
+  // Review 2: a lost lock connection is taken again; if another studio took it meanwhile,
+  // this one stops. A database that doesn't answer within 10 s is DATABASE_UNAVAILABLE.
+  let lost: (message: string) => void = () => undefined;
+  const lockLost = new Promise<string>((r) => (lost = r));
+  let taken;
+  try {
+    taken = await takeStudioLock(
+      input.database_url,
+      `desktop app, web port ${PORTS.web}, process ${process.pid}`,
+      {
+        onLost: (message) => lost(message),
+        onNote: (note) => process.stderr.write(`${note}\n`),
+      },
+    );
+  } catch (e) {
+    emit({
+      event: 'error',
+      code: 'DATABASE_UNAVAILABLE',
+      message: e instanceof Error ? e.message : 'Database unavailable',
+    });
+    return 4;
+  }
   if (!taken.held) {
     emit({ event: 'error', code: 'STUDIO_RUNNING', message: taken.message });
     return 7;
@@ -649,7 +667,12 @@ export async function serveStudio(
     schema_version: state.expected,
     worker: api.worker ? 'in_process' : 'off',
   });
-  await stop;
+  const lostMessage = await Promise.race([stop.then(() => null), lockLost]);
+  if (lostMessage !== null) {
+    emit({ event: 'error', code: 'STUDIO_RUNNING', message: lostMessage });
+    await closeAll();
+    return 7;
+  }
   emit({ event: 'stopping' });
   await closeAll();
   emit({ event: 'stopped' });
