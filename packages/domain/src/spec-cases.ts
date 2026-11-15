@@ -48,7 +48,13 @@ const OPTION = {
 // ---- wordtally (development) --------------------------------------------------------------
 
 const wordtally =
-  (o: { words?: (s: string) => number; lines?: (s: string) => number; strict?: boolean } = {}): CaseRun =>
+  (
+    o: {
+      words?: (s: string) => number;
+      lines?: (s: string) => number;
+      strict?: boolean;
+    } = {},
+  ): CaseRun =>
   (args, stdin) => {
     const strict = o.strict ?? true;
     const flag = args[0] === '--lines';
@@ -64,12 +70,19 @@ const wordtally =
 // ---- slug (development) -------------------------------------------------------------------
 
 const slug =
-  (o: { lower?: boolean; collapse?: boolean; trim?: boolean; emptyOk?: boolean } = {}): CaseRun =>
+  (
+    o: {
+      lower?: boolean;
+      collapse?: boolean;
+      trim?: boolean;
+      emptyOk?: boolean;
+    } = {},
+  ): CaseRun =>
   (args) => {
     if (args.length !== 1) return out('usage: slug TITLE\n', 2);
     let t = args[0]!;
     if (o.lower ?? true) t = t.replace(/[A-Z]/g, (c) => c.toLowerCase());
-    t = t.replace(o.collapse ?? true ? /[^a-z0-9]+/g : /[^a-z0-9]/g, '-');
+    t = t.replace((o.collapse ?? true) ? /[^a-z0-9]+/g : /[^a-z0-9]/g, '-');
     if (o.trim ?? true) t = t.replace(/^-+|-+$/g, '');
     if (!t && !o.emptyOk) return out('empty\n', 1);
     return out(`${t}\n`);
@@ -94,11 +107,18 @@ const ROMAN: [number, string][] = [
 ];
 const ADDITIVE = ROMAN.filter(([, s]) => s.length === 1);
 const roman =
-  (o: { additive?: boolean; max?: number; zero?: boolean; zeros?: boolean } = {}): CaseRun =>
+  (
+    o: {
+      additive?: boolean;
+      max?: number;
+      zero?: boolean;
+      zeros?: boolean;
+    } = {},
+  ): CaseRun =>
   (args) => {
     if (args.length !== 1) return out('usage: roman N\n', 2);
     const a = args[0]!;
-    const ok = /^[0-9]+$/.test(a) && (o.zeros ?? true ? true : !/^0/.test(a));
+    const ok = /^[0-9]+$/.test(a) && ((o.zeros ?? true) ? true : !/^0/.test(a));
     const n = ok ? Number(a) : NaN;
     if (o.zero && n === 0) return out('\n');
     if (!ok || !(n >= 1 && n <= (o.max ?? 3999)))
@@ -116,7 +136,14 @@ const roman =
 // ---- csvsum (held out) --------------------------------------------------------------------
 
 const csvsum =
-  (o: { negative?: boolean; blankOk?: boolean; offset?: number; missingZero?: boolean } = {}): CaseRun =>
+  (
+    o: {
+      negative?: boolean;
+      blankOk?: boolean;
+      offset?: number;
+      missingZero?: boolean;
+    } = {},
+  ): CaseRun =>
   (args, stdin) => {
     if (args.length !== 1) return out('usage: csvsum COLUMN\n', 2);
     const lines = inputLines(stdin);
@@ -130,8 +157,9 @@ const csvsum =
       if (!l && (o.blankOk ?? true)) continue;
       if (col < 0) continue;
       const v = l.split(',')[col];
-      const re = o.negative ?? true ? /^-?[0-9]+$/ : /^[0-9]+$/;
-      if (v === undefined || !re.test(v)) return out(`line ${n}: not a number\n`, 1);
+      const re = (o.negative ?? true) ? /^-?[0-9]+$/ : /^[0-9]+$/;
+      if (v === undefined || !re.test(v))
+        return out(`line ${n}: not a number\n`, 1);
       sum += BigInt(v);
     }
     return out(`${sum}\n`);
@@ -140,7 +168,14 @@ const csvsum =
 // ---- dedupe (held out) --------------------------------------------------------------------
 
 const dedupe =
-  (o: { sorted?: boolean; lastSpelling?: boolean; dropOpen?: boolean; alwaysFold?: boolean } = {}): CaseRun =>
+  (
+    o: {
+      sorted?: boolean;
+      lastSpelling?: boolean;
+      dropOpen?: boolean;
+      alwaysFold?: boolean;
+    } = {},
+  ): CaseRun =>
   (args, stdin) => {
     const flags = new Set(args);
     if (
@@ -150,7 +185,8 @@ const dedupe =
       return out('usage: dedupe [-i] [-c]\n', 2);
     const fold = flags.has('-i') || !!o.alwaysFold;
     let lines = inputLines(stdin);
-    if (o.dropOpen && stdin && !stdin.endsWith('\n')) lines = lines.slice(0, -1);
+    if (o.dropOpen && stdin && !stdin.endsWith('\n'))
+      lines = lines.slice(0, -1);
     const seen = new Map<string, { text: string; n: number }>();
     for (const l of lines) {
       const k = fold ? l.replace(/[A-Z]/g, (c) => c.toLowerCase()) : l;
@@ -161,7 +197,10 @@ const dedupe =
       } else seen.set(k, { text: l, n: 1 });
     }
     let rows = [...seen.values()];
-    if (o.sorted) rows = rows.sort((a, b) => (a.text < b.text ? -1 : a.text > b.text ? 1 : 0));
+    if (o.sorted)
+      rows = rows.sort((a, b) =>
+        a.text < b.text ? -1 : a.text > b.text ? 1 : 0,
+      );
     return out(
       rows
         .map((r) => `${flags.has('-c') ? `${r.n} ` : ''}${r.text}\n`)
@@ -172,7 +211,14 @@ const dedupe =
 // ---- rle (held out) -----------------------------------------------------------------------
 
 const rle =
-  (o: { ones?: boolean; splitNine?: boolean; digitsOk?: boolean; fold?: boolean } = {}): CaseRun =>
+  (
+    o: {
+      ones?: boolean;
+      splitNine?: boolean;
+      digitsOk?: boolean;
+      fold?: boolean;
+    } = {},
+  ): CaseRun =>
   (args) => {
     if (args.length !== 1) return out('usage: rle TEXT\n', 2);
     const chars = Array.from(args[0]!);
@@ -181,7 +227,7 @@ const rle =
     const same = (a: string, b: string) =>
       o.fold ? a.toLowerCase() === b.toLowerCase() : a === b;
     let r = '';
-    for (let i = 0; i < chars.length; ) {
+    for (let i = 0; i < chars.length;) {
       let j = i;
       while (j < chars.length && same(chars[j]!, chars[i]!)) j++;
       let n = j - i;
@@ -201,7 +247,14 @@ const rle =
 // ---- grade (held out) ---------------------------------------------------------------------
 
 const grade =
-  (o: { aAbove90?: boolean; noHundred?: boolean; blankInvalid?: boolean; noCount?: boolean } = {}): CaseRun =>
+  (
+    o: {
+      aAbove90?: boolean;
+      noHundred?: boolean;
+      blankInvalid?: boolean;
+      noCount?: boolean;
+    } = {},
+  ): CaseRun =>
   (args, stdin) => {
     if (args.length) return out('usage: grade < scores\n', 2);
     let text = '';
@@ -223,7 +276,14 @@ const grade =
 
 const PAIRS: Record<string, string> = { ')': '(', ']': '[', '}': '{' };
 const brackets =
-  (o: { kindBlind?: boolean; zeroBased?: boolean; atOpener?: boolean; strictChars?: boolean } = {}): CaseRun =>
+  (
+    o: {
+      kindBlind?: boolean;
+      zeroBased?: boolean;
+      atOpener?: boolean;
+      strictChars?: boolean;
+    } = {},
+  ): CaseRun =>
   (args) => {
     if (args.length !== 1) return out('usage: brackets TEXT\n', 2);
     const chars = Array.from(args[0]!);
@@ -258,7 +318,9 @@ export const SPEC_BENCHMARK_PROGRAMS: Record<string, SpecBenchmarkProgram> = {
       'wordtally/empty-is-one': wordtally({
         words: (s) => s.trim().split(/[ \t\r\n]+/).length,
       }),
-      'wordtally/line-pieces': wordtally({ lines: (s) => s.split('\n').length }),
+      'wordtally/line-pieces': wordtally({
+        lines: (s) => s.split('\n').length,
+      }),
       'wordtally/ignores-arguments': wordtally({ strict: false }),
     },
   },
@@ -409,8 +471,7 @@ export function gradeSpecCases(
   // A fixed pick, so the grade does not depend on chance.
   const picked = pickHeldOut(read.content, () => 0.5).content;
   const errors = specCaseProblems(picked).filter((p) => p.level === 'error');
-  if (errors.length)
-    return fail('acceptance_check_failed', errors[0]!.text);
+  if (errors.length) return fail('acceptance_check_failed', errors[0]!.text);
   const cases = picked.acceptance_checks.flatMap((a) => a.cases ?? []);
   if (cases.length < check.min_cases)
     return fail(
@@ -439,9 +500,10 @@ export function gradeSpecCases(
   if (caught.length < check.min_caught)
     return {
       signal: 'acceptance_check_failed',
-      detail: `The cases caught ${caught.length} of ${check.mutants.length} broken programs; ${check.min_caught} are needed (missed: ${check.mutants
-        .filter((m) => !caught.includes(m))
-        .join(', ')}).`.slice(0, 200),
+      detail:
+        `The cases caught ${caught.length} of ${check.mutants.length} broken programs; ${check.min_caught} are needed (missed: ${check.mutants
+          .filter((m) => !caught.includes(m))
+          .join(', ')}).`.slice(0, 200),
       cases: cases.length,
       caught,
     };

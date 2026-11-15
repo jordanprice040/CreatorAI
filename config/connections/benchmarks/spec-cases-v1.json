@@ -33,9 +33,7 @@
           "option": {
             "title": "A small command-line tool",
             "rationale": "A single Python script the person runs in a terminal. It needs nothing else installed, and the rules below say exactly what it must print.",
-            "tradeoffs": [
-              "Terminal only, no graphical interface"
-            ]
+            "tradeoffs": ["Terminal only, no graphical interface"]
           }
         },
         "mutants": [
@@ -76,9 +74,7 @@
           "option": {
             "title": "A small command-line tool",
             "rationale": "A single Python script the person runs in a terminal. It needs nothing else installed, and the rules below say exactly what it must print.",
-            "tradeoffs": [
-              "Terminal only, no graphical interface"
-            ]
+            "tradeoffs": ["Terminal only, no graphical interface"]
           }
         },
         "mutants": [
@@ -119,9 +115,7 @@
           "option": {
             "title": "A small command-line tool",
             "rationale": "A single Python script the person runs in a terminal. It needs nothing else installed, and the rules below say exactly what it must print.",
-            "tradeoffs": [
-              "Terminal only, no graphical interface"
-            ]
+            "tradeoffs": ["Terminal only, no graphical interface"]
           }
         },
         "mutants": [
@@ -162,9 +156,7 @@
           "option": {
             "title": "A small command-line tool",
             "rationale": "A single Python script the person runs in a terminal. It needs nothing else installed, and the rules below say exactly what it must print.",
-            "tradeoffs": [
-              "Terminal only, no graphical interface"
-            ]
+            "tradeoffs": ["Terminal only, no graphical interface"]
           }
         },
         "mutants": [
@@ -205,9 +197,7 @@
           "option": {
             "title": "A small command-line tool",
             "rationale": "A single Python script the person runs in a terminal. It needs nothing else installed, and the rules below say exactly what it must print.",
-            "tradeoffs": [
-              "Terminal only, no graphical interface"
-            ]
+            "tradeoffs": ["Terminal only, no graphical interface"]
           }
         },
         "mutants": [
@@ -248,9 +238,7 @@
           "option": {
             "title": "A small command-line tool",
             "rationale": "A single Python script the person runs in a terminal. It needs nothing else installed, and the rules below say exactly what it must print.",
-            "tradeoffs": [
-              "Terminal only, no graphical interface"
-            ]
+            "tradeoffs": ["Terminal only, no graphical interface"]
           }
         },
         "mutants": [
@@ -291,9 +279,7 @@
           "option": {
             "title": "A small command-line tool",
             "rationale": "A single Python script the person runs in a terminal. It needs nothing else installed, and the rules below say exactly what it must print.",
-            "tradeoffs": [
-              "Terminal only, no graphical interface"
-            ]
+            "tradeoffs": ["Terminal only, no graphical interface"]
           }
         },
         "mutants": [
@@ -334,9 +320,7 @@
           "option": {
             "title": "A small command-line tool",
             "rationale": "A single Python script the person runs in a terminal. It needs nothing else installed, and the rules below say exactly what it must print.",
-            "tradeoffs": [
-              "Terminal only, no graphical interface"
-            ]
+            "tradeoffs": ["Terminal only, no graphical interface"]
           }
         },
         "mutants": [

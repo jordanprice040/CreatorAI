@@ -1,5 +1,5 @@
 // Writes config/connections/benchmarks/spec-cases-v1.json (ADR-0107, B2). Run after
-// `pnpm build:code`: node scripts/spec-cases-benchmark.mjs
+// `pnpm build:code`: node scripts/spec-cases-benchmark.mjs, then format the file with Prettier.
 // Each case asks the model to draft a spec with suggested cases for a small command-line
 // program the studio knows exactly (packages/domain spec-cases.ts). The drafted cases are run
 // against the reference program (every case must pass) and against known-broken versions (at
@@ -78,7 +78,10 @@ const manifest = BenchmarkManifestSchema.parse({
     'ADR-0107 (B2), frozen 2026-11-15: eight synthetic command-line programs written for this benchmark (three development, five held out). Each case asks for a drafted spec with suggested cases under the spec draft instructions; the studio grades the cases by running them against its own reference program and four known-broken versions in process (packages/domain spec-cases.ts). Not customer data; never edit, write spec-cases-v2 instead.',
 });
 writeFileSync(
-  new URL('../config/connections/benchmarks/spec-cases-v1.json', import.meta.url),
+  new URL(
+    '../config/connections/benchmarks/spec-cases-v1.json',
+    import.meta.url,
+  ),
   `${JSON.stringify(manifest, null, 2)}\n`,
 );
 console.log(`spec-cases-v1: ${cases.length} cases`);
