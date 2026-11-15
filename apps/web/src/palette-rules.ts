@@ -3,7 +3,7 @@
 // palette only moves the person somewhere: every item opens a page, a form, a record or a
 // panel. Nothing here starts work; that still takes the page's own form and approvals.
 
-import { PAGES, placeLabel, type View } from './pages.js';
+import { PAGES, pageOf, placeLabel, sectionOf, type View } from './pages.js';
 
 export type PaletteGroup =
   | 'Actions'
@@ -84,6 +84,12 @@ const ACTIONS: {
   },
 ];
 
+/** Where a view is, naming a one-tab page once ("Autopilot", not "Autopilot › Autopilot"). */
+function placeName(view: View): string {
+  const page = pageOf(view);
+  return sectionOf(view).label === page.label ? page.label : placeLabel(view);
+}
+
 /** The items that need no server read: actions for this role, then every tab of every page. */
 export function staticItems(role: Role): PaletteItem[] {
   const actions = ACTIONS.filter((a) => a.roles.includes(role)).map(
@@ -91,7 +97,7 @@ export function staticItems(role: Role): PaletteItem[] {
       key: `action:${a.label}`,
       group: 'Actions',
       label: a.label,
-      hint: a.view ? `Opens ${placeLabel(a.view)}` : '',
+      hint: a.view ? `Opens ${placeName(a.view)}` : '',
       words: a.words,
       target: a.target ?? { to: 'view', view: a.view! },
     }),
@@ -209,8 +215,13 @@ type TargetLike = {
 } | null;
 
 /** Ctrl+K (Cmd+K on a Mac) opens or closes the palette, from anywhere, even a text field. */
-export const isPaletteKey = (e: KeyLike) =>
-  (e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'k';
+export const isPaletteKey = (e: KeyLike, mac = false) =>
+  // Cmd on a Mac (Ctrl+K there deletes to the end of a line), Ctrl elsewhere; never with
+  // Shift or Alt, so Ctrl+Shift+K stays the browser's (review 1, N-1).
+  (mac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey) &&
+  !e.altKey &&
+  !e.shiftKey &&
+  e.key.toLowerCase() === 'k';
 
 const TEXT_INPUTS = new Set([
   '',

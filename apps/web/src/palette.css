@@ -63,6 +63,26 @@
 .palette-search:focus-within {
   box-shadow: inset 0 -2px 0 var(--focus);
 }
+.palette-close {
+  flex-shrink: 0;
+  min-width: 44px;
+  min-height: 32px;
+  padding: 2px 8px;
+}
+.palette-close kbd {
+  cursor: pointer;
+}
+/* The top bar's "Go to…" (review 1, L-4). */
+.palette-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.palette-trigger kbd {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
 .palette-note,
 .palette-notice,
 .palette-empty {
@@ -161,6 +181,9 @@
   gap: 8px;
 }
 @media (max-width: 560px) {
+  .palette-trigger kbd {
+    display: none;
+  }
   .palette {
     margin-top: 16px;
   }

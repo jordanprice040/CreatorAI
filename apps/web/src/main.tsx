@@ -61,7 +61,7 @@ import { FirstRun } from './first-run.js';
 import { nextStep } from './next-rules.js';
 import { hiddenTabs, routeHash, shownSections } from './pages.js';
 import { Chat } from './chat.js';
-import { CommandPalette } from './command-palette.js';
+import { CommandPalette, PaletteButton } from './command-palette.js';
 import type { Prefill } from './prefill.js';
 
 // Declared once: visited pages keep their component identity and session-memory drafts.
@@ -1174,6 +1174,7 @@ function App() {
                   </button>
                 </span>
               )}
+              {inStudio && signedIn && <PaletteButton />}
               {inStudio &&
                 signedIn &&
                 workspace?.role === 'owner' &&

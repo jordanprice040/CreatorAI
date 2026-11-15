@@ -23,7 +23,7 @@ type Rules = {
   rankItems: (items: Item[], q: string) => Item[];
   grouped: (items: Item[]) => { group: string; items: Item[] }[];
   moveActive: (i: number, n: number, key: string) => number | null;
-  isPaletteKey: (e: object) => boolean;
+  isPaletteKey: (e: object, mac?: boolean) => boolean;
   isShortcutsKey: (e: object, t: object | null) => boolean;
   isTyping: (t: object | null) => boolean;
   SHORTCUTS: { keys: string[]; does: string }[];
@@ -71,6 +71,11 @@ test('forms are offered only to roles that may use them', async () => {
   ])
     assert.ok(!actions('viewer').includes(writing), writing);
   assert.ok(actions('viewer').includes('Review approvals'));
+  // A one-tab page is named once (review 1, N-3).
+  const hint = (label: string) =>
+    r.staticItems('owner').find((i) => i.label === label)!.hint;
+  assert.equal(hint('Start an autopilot'), 'Opens Autopilot');
+  assert.equal(hint('Start a discovery'), 'Opens Projects › Discover');
 });
 
 test('every item only moves the person somewhere', async () => {
@@ -164,10 +169,15 @@ test('arrow keys wrap, Home and End jump, other keys do nothing', async () => {
 
 test('Ctrl+K and Cmd+K open the palette; "?" never fires inside a text field', async () => {
   const r = await rules();
+  // Ctrl elsewhere, Cmd on a Mac (where Ctrl+K deletes to the end of a line).
   assert.ok(r.isPaletteKey(key('k', { ctrlKey: true })));
-  assert.ok(r.isPaletteKey(key('K', { metaKey: true })));
+  assert.ok(!r.isPaletteKey(key('k', { metaKey: true })));
+  assert.ok(r.isPaletteKey(key('K', { metaKey: true }), true));
+  assert.ok(!r.isPaletteKey(key('k', { ctrlKey: true }), true));
   assert.ok(!r.isPaletteKey(key('k')));
   assert.ok(!r.isPaletteKey(key('k', { ctrlKey: true, altKey: true })));
+  // Ctrl+Shift+K stays the browser's (review 1, N-1).
+  assert.ok(!r.isPaletteKey(key('K', { ctrlKey: true, shiftKey: true })));
   const q = key('?', { shiftKey: true });
   assert.ok(r.isShortcutsKey(q, null));
   assert.ok(r.isShortcutsKey(q, { tagName: 'BUTTON' }));

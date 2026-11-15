@@ -2,7 +2,7 @@
 
 ## November 15 handoff — command palette and shortcuts (F6, ADR-0119)
 
-Branch `claude/project-thread-7lv90w` from main f5728aa, no migration. `apps/web/src/palette-rules.ts`: `staticItems(role)`, `workspaceItems`, `rankItems`, `grouped`, `moveActive`, `isPaletteKey`, `isTyping`, `isShortcutsKey`, `SHORTCUTS`. `command-palette.tsx` (`CommandPalette`: two native dialogs; records from `workspaces/<ws>/search` with `types=record,decision`, problems as `kind=problem` browse; subjects open through `useOpenSubject`). `palette.css`. Mounted after `RightSidebar` in `main.tsx` with `key={workspace.id}`. Tests: `tests/src/web-palette.test.ts`. Next: review in a separate thread; F12 term help could add its definitions to the palette later.
+Branch `claude/project-thread-7lv90w` from main f5728aa, no migration. `apps/web/src/palette-rules.ts`: `staticItems(role)`, `workspaceItems`, `rankItems`, `grouped`, `moveActive`, `isPaletteKey`, `isTyping`, `isShortcutsKey`, `SHORTCUTS`. `command-palette.tsx` (`CommandPalette`: two native dialogs; records from `workspaces/<ws>/search` with `types=record,decision`, problems as `kind=problem` browse; subjects open through `useOpenSubject`). `palette.css`. Mounted after `RightSidebar` in `main.tsx` with `key={workspace.id}`. Tests: `tests/src/web-palette.test.ts`. Review 1 fixes: `PaletteButton` (top bar, before the model switch) opens the palette with the `creator:open-palette` window event; `isPaletteKey(e, mac)`; `ownKey` stops Esc and Ctrl/Cmd+. at both dialogs; `newest` sorts hits before the slice; `placeName` in palette-rules. Next: re-review; F12 term help could add its definitions to the palette later.
 
 ## November 15 handoff — autopilot fixes from the third live rerun
 

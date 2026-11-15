@@ -134,7 +134,7 @@ export function CommandPalette({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.isComposing) return;
-      if (isPaletteKey(e)) {
+      if (isPaletteKey(e, MAC)) {
         e.preventDefault();
         if (shown) close();
         else openPalette();
@@ -147,8 +147,16 @@ export function CommandPalette({
         openSheet();
       }
     };
+    // The topbar's "Go to…" button (PaletteButton) asks for the palette with an event.
+    const onAsk = () => {
+      if (!shown) openPalette();
+    };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener(OPEN_EVENT, onAsk);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener(OPEN_EVENT, onAsk);
+    };
   });
 
   // The native modal dialog keeps focus inside and makes the page behind it inert.
@@ -188,10 +196,10 @@ export function CommandPalette({
         const read = (p: Record<string, string>) =>
           api(SearchResultSchema, `${base}?${new URLSearchParams(p)}`);
         const reads = q
-          ? [read({ q, types: 'record,decision', limit: '8' })]
+          ? [read({ q, types: 'record,decision', limit: `${MATCHING}` })]
           : [
               read({ q: '', types: 'record', kind: 'problem', limit: '5' }),
-              read({ q: '', types: 'record,decision', limit: '6' }),
+              read({ q: '', types: 'record,decision', limit: `${RECENT}` }),
             ];
         Promise.all(reads)
           .then((results) => {
@@ -200,9 +208,17 @@ export function CommandPalette({
             setRemote({
               key: remoteKey,
               projects: q ? [] : hitItems(first!.hits, 'Projects'),
+              // The search reads each type on its own, so merge them newest first and keep
+              // the newest few (review 1, N-2).
               records: q
-                ? hitItems(first!.hits, 'Matching records')
-                : hitItems(second!.hits, 'Recent records'),
+                ? hitItems(newest(first!.hits), 'Matching records').slice(
+                    0,
+                    MATCHING,
+                  )
+                : hitItems(newest(second!.hits), 'Recent records').slice(
+                    0,
+                    RECENT,
+                  ),
               fixture: results.some((r) => r.fixture),
               error: '',
             });
@@ -319,8 +335,8 @@ export function CommandPalette({
           close();
         }}
         onKeyDown={(e) => {
-          // Esc belongs to the palette here, not to the side panel behind it.
-          if (e.key === 'Escape') e.stopPropagation();
+          // Esc and Ctrl+. belong to the palette here, not to the side panel behind it.
+          if (ownKey(e)) e.stopPropagation();
         }}
         onClick={(e) => {
           // A click on the backdrop (the dialog box itself, outside its content) closes it.
@@ -351,9 +367,16 @@ export function CommandPalette({
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={onInputKey}
               />
-              <kbd className="palette-esc" aria-hidden="true">
-                Esc
-              </kbd>
+              <button
+                type="button"
+                className="ghost palette-close"
+                title="Close"
+                onClick={close}
+              >
+                {/* Named "Close Esc", so the visible "Esc" is part of its name. */}
+                <span className="sr-only">Close </span>
+                <kbd>Esc</kbd>
+              </button>
             </div>
             <p className="palette-note small">
               Opens pages and forms only. Nothing starts until you use the form
@@ -365,6 +388,12 @@ export function CommandPalette({
                 </>
               )}
             </p>
+            {fresh && remote.error && (
+              <p className="palette-notice small">
+                Records could not be read ({remote.error}). Pages and forms
+                still open.
+              </p>
+            )}
             {opener.notice && (
               <p className="palette-notice small" role="alert">
                 {opener.notice.text}
@@ -419,9 +448,6 @@ export function CommandPalette({
                 </p>
               )}
             </div>
-            <p className="sr-only" role="status">
-              {status}
-            </p>
             <p className="palette-foot small" aria-hidden="true">
               <span>
                 <kbd>↑</kbd> <kbd>↓</kbd> move
@@ -430,12 +456,16 @@ export function CommandPalette({
                 <kbd>Enter</kbd> open
               </span>
               <span>
-                <kbd>?</kbd> shortcuts
+                <kbd>Esc</kbd> close
               </span>
               {!fresh && <span>Searching…</span>}
             </p>
           </div>
         )}
+        {/* Mounted with the dialog, so its first count after opening is announced (N-4). */}
+        <p className="sr-only" role="status">
+          {shown ? status : ''}
+        </p>
       </dialog>
       <dialog
         ref={sheetDialog}
@@ -446,7 +476,7 @@ export function CommandPalette({
           setSheet(false);
         }}
         onKeyDown={(e) => {
-          if (e.key === 'Escape') e.stopPropagation();
+          if (ownKey(e)) e.stopPropagation();
         }}
         onClick={(e) => {
           if (e.target === sheetDialog.current) setSheet(false);
@@ -456,7 +486,9 @@ export function CommandPalette({
           <div className="sheet-body">
             <h2 id="shortcut-title">Keyboard shortcuts</h2>
             <p className="small">
-              On a Mac, use <kbd>Cmd</kbd> where this says <kbd>Ctrl</kbd>.
+              On a Mac, use <kbd>Cmd</kbd> where this says <kbd>Ctrl</kbd>. You
+              can also open the palette with <strong>Go to…</strong> at the top
+              of the page.
             </p>
             <table className="shortcut-table">
               <thead>
@@ -493,6 +525,40 @@ export function CommandPalette({
         )}
       </dialog>
     </>
+  );
+}
+
+const OPEN_EVENT = 'creator:open-palette';
+const MATCHING = 8;
+const RECENT = 6;
+const MAC =
+  typeof navigator !== 'undefined' &&
+  /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+
+/** Hits newest first; ties keep the server's order. */
+const newest = (hits: readonly SearchHit[]) =>
+  [...hits].sort((a, b) => b.occurred_at.localeCompare(a.occurred_at));
+
+/** Keys a dialog keeps from the window listeners behind it: Esc and Ctrl/Cmd+. */
+const ownKey = (e: { key: string; ctrlKey: boolean; metaKey: boolean }) =>
+  e.key === 'Escape' || ((e.ctrlKey || e.metaKey) && e.key === '.');
+
+/**
+ * The visible way in (review 1, L-4): "Go to…" in the top bar, for mouse, touch and anyone
+ * who doesn't know Ctrl+K.
+ */
+export function PaletteButton() {
+  return (
+    <button
+      type="button"
+      className="ghost palette-trigger"
+      aria-haspopup="dialog"
+      aria-keyshortcuts={MAC ? 'Meta+K' : 'Control+K'}
+      onClick={() => window.dispatchEvent(new Event(OPEN_EVENT))}
+    >
+      <span>Go to…</span>
+      <kbd aria-hidden="true">{MAC ? '⌘K' : 'Ctrl K'}</kbd>
+    </button>
   );
 }
 
