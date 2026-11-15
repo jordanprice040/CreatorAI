@@ -5,7 +5,7 @@ import { loadWeb } from './web-module.js';
 // Final UX pass P-6 and P-7 (ADR-0103): Discover's one-panel-at-a-time rules and the plain-words
 // discovery progress shown on Discover and Decide instead of Monitor › Runs.
 
-type Choice = { key: string };
+type Choice = { key: string; page?: string };
 type Panels = {
   PANEL_CHOICES: Choice[];
   panelsFor(standard: boolean, open?: string): Choice[];
@@ -75,8 +75,15 @@ test('Discover lists its start choices with the theme draft in Advanced only', a
     'web',
     'claims',
     'autopilot',
-    'automation',
   ]);
+  // Run it for me opens the Autopilot page: it is never a panel here, nor opened first.
+  assert.equal(
+    p.PANEL_CHOICES.find((c) => c.key === 'autopilot')?.page,
+    'autopilot',
+  );
+  assert.equal(p.isPanel('autopilot'), false);
+  assert.equal(p.firstPanel('autopilot', true), 'explore');
+  assert.equal(p.firstPanel('automation', false), 'explore');
   assert.deepEqual(keys(p.panelsFor(false)), keys(p.PANEL_CHOICES));
   // The open panel stays listed, so Standard can still close it by picking another.
   assert.ok(keys(p.panelsFor(true, 'theme')).includes('theme'));

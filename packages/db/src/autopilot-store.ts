@@ -632,6 +632,14 @@ export class AutopilotStore extends WebDiscoveryStore {
         'VERSION_CONFLICT',
         `The autopilot is at version ${cur.version}.`,
       );
+    if (
+      cur.state !== 'running' &&
+      Date.parse(cur.config.limits.ends_at) <= Date.now()
+    )
+      throw fail(
+        'EXPIRED',
+        "The autopilot's end time has passed; start a new autopilot.",
+      );
     const can = autopilotContinuable(cur);
     if (!can.ok)
       throw fail(
@@ -639,11 +647,6 @@ export class AutopilotStore extends WebDiscoveryStore {
         cur.state === 'running'
           ? 'The autopilot is still running.'
           : can.reason,
-      );
-    if (Date.parse(cur.config.limits.ends_at) <= Date.now())
-      throw fail(
-        'EXPIRED',
-        "The autopilot's end time has passed; start a new autopilot.",
       );
     await this.lockRun(c, ws, cur.run_id);
     const run = (
@@ -867,6 +870,15 @@ export class AutopilotStore extends WebDiscoveryStore {
           throw fail(
             'VERSION_CONFLICT',
             `The autopilot is at version ${cur.version}.`,
+          );
+        // Review 2 of #213, N-2: past its end time it is EXPIRED, as for Continue.
+        if (
+          cur.state !== 'running' &&
+          Date.parse(cur.config.limits.ends_at) <= Date.now()
+        )
+          throw fail(
+            'EXPIRED',
+            "The autopilot's end time has passed; start a new autopilot.",
           );
         const can = autopilotContinuable(cur);
         if (!can.ok) throw fail('INVALID_TRANSITION', can.reason);

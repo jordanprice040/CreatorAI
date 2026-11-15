@@ -21,6 +21,7 @@ import {
   AutopilotConfigSchema,
   AutopilotSchema,
   autopilotContinuable,
+  autopilotEndsApprovals,
   ContractError,
   WebDiscoveryScopeSchema,
   autopilotSummary,
@@ -603,6 +604,34 @@ test('a person’s choice under Decide carries the autopilot on; part-way starts
   assert.ok(
     !autopilotContinuable({ ...finished, outcome: 'proposal' as const }).ok,
   );
+  // Review 1 of #213, H-1: past its end time it cannot continue (the server says EXPIRED),
+  // so the Autopilot page and its nav count stop offering it. The approvals rule ignores it.
+  const limits = (endsAt: string) => ({
+    config: {
+      limits: { max_calls: 40, ends_at: endsAt },
+    } as AutopilotConfig,
+  });
+  const T = Date.parse('2026-11-15T12:00:00Z');
+  const ended = { ...finished, ...limits('2026-11-15T11:59:59Z') };
+  const expired = autopilotContinuable(ended, T);
+  assert.ok(
+    !expired.ok &&
+      expired.reason === 'Its end time has passed; start a new autopilot.',
+  );
+  assert.ok(
+    autopilotContinuable({ ...finished, ...limits('2026-11-15T12:00:01Z') }, T)
+      .ok,
+  );
+  assert.equal(autopilotEndsApprovals(ended), false);
+  // The server reads its next steps at the real time, so this end time is long past.
+  const endedNext = autopilotNextSteps({
+    ...ended,
+    ...limits('2020-01-01T00:00:00Z'),
+    steps: [{ ...step('select', 'stopped'), stop_kind: 'tie' }],
+  });
+  assert.ok(!endedNext.some((n) => n.kind === 'allow_and_continue'));
+  assert.ok(!endedNext.some((n) => n.kind === 'continue'));
+  assert.ok(endedNext.some((n) => n.kind === 'new_autopilot'));
   // Review N-2: fewer calls than the shortest path needs is refused up front.
   assert.equal(AUTOPILOT_MIN_CALLS, 8);
   const lim = autopilotChildLimits({

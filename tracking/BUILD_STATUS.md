@@ -1,5 +1,15 @@
 # Build status — November 10, 2026
 
+## November 15 update — the Autopilot page (ADR-0111, no migration)
+
+What now works: **Autopilot** is its own page in the left nav, just below Projects (`#/autopilot/run`). It holds the whole autopilot flow: autopilots working or waiting for you first (steps as they happen, Stop, what to do next, **Continue the autopilot from …**, Allow and continue), then the start form, How much is automated, Autopilot settings (now its own section) and earlier autopilots, folded. The nav entry counts autopilots waiting to be continued and shows a dot while one works. Discover no longer holds the autopilot panels; its Run it for me choice opens the page. A stopped card's Search the web and Open the exploration go to Discover and open that panel.
+
+Review 1 (1 High, 6 Lows, 7 nits) fixed: an autopilot past its end time no longer shows Continue or counts as waiting. It moves to Earlier autopilots, even while the page is open.
+
+Review 2 (3 Lows, 3 nits) fixed: an ended card under Earlier autopilots says why it ended instead of "Waiting for you"; How much is automated no longer counts an expired autopilot; names load once instead of every refresh; the server's Allow and continue refuses an expired autopilot as `EXPIRED`, like Continue.
+
+Checks (cloud container, throwaway PostgreSQL 16): `pnpm typecheck` and `pnpm format:check` pass, and so do the targeted web and autopilot suites. Full `pnpm test:db` at 3ed9c34 (after review 2): 1351 tests, 1317 pass, 29 skipped, and only the 5 known PowerShell-wrapper failures. Re-review 3 found nothing left. The browser walk (`tracking/evidence/autopilot-page/`, fixture provider, $0) passes 22 of 22 checks, including an autopilot whose end time passes while the page is open and a link to one autopilot (`#/autopilot/run?ws=…&id=<autopilot id>`) that opens its card.
+
 ## November 15 update — Windows web build fixed; packet A and H records (PR #212, no migration or ADR)
 
 What now works: `node apps/desktop/build-studio.mjs` builds on Windows again. PR #201's licence list walked up from each viewer library's entry comparing backslash paths against `/node_modules/`, reached the drive root and failed with `ENOENT C:\package.json`. The walk (`apps/web/src/package-root.ts`, used by `apps/web/vite.config.ts`) now works in forward slashes on every platform, keeps POSIX names with a backslash intact, and stops with a clear error instead of reading a drive root. On Linux the built `THIRD_PARTY_LICENSES.txt` is byte-identical before and after (23 packages). New test `tests/src/web-package-root.test.ts` runs the walk with Windows (drive, pnpm store, scoped, UNC) and POSIX path rules; the old code walked to `C:\` on the same input.
