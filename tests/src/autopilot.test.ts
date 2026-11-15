@@ -57,14 +57,17 @@ import {
   autopilotKey,
   createApi,
   cutWords,
+  failedNote,
   fitNote,
   gatherQuestion,
   namesOf,
   nextGatherQuestion,
   refusalKind,
+  refusalStop,
   spentCandidates,
   spentSettled,
   trimSpent,
+  unknownCount,
   type SpentDetail,
   type AutopilotWeb,
 } from '@creator/api';
@@ -3671,4 +3674,95 @@ test('review 1 L-3: a later gather round never repeats a question; it moves to t
     nextGatherQuestion(opts, 'Volunteers miss shifts', asked),
     undefined,
   );
+});
+
+test('live rerun 3 (November 15): a usage-limit refusal is a limit to wait out, not an approval or a broken connection', () => {
+  const quota = new ContractError(
+    'ACCESS_DENIED',
+    'This plan request is not admitted.',
+    ['The ChatGPT plan usage limit was reached.'],
+    [
+      {
+        code: 'quota_exhausted',
+        text: 'The ChatGPT plan usage limit was reached. Plan requests pause; check ChatGPT Settings > Usage.',
+      },
+    ],
+  );
+  assert.deepEqual(refusalStop(quota), {
+    outcome: 'limit_reached',
+    kind: 'usage_limit',
+  });
+  // Other refusals keep their outcome.
+  const caps = new ContractError(
+    'ACCESS_DENIED',
+    'Not admitted.',
+    ['x'],
+    [{ code: 'caps_not_accepted', text: 'x' }],
+  );
+  assert.equal(refusalStop(caps).kind, 'connection');
+  assert.equal(refusalStop(caps).outcome, 'needs_authority');
+  // The finished autopilot offers Continue, not "Fix the connection".
+  const next = autopilotNextSteps({
+    state: 'finished',
+    outcome: 'limit_reached',
+    steps: [
+      {
+        stage: 'assess',
+        state: 'stopped',
+        stop_kind: 'usage_limit',
+      } as unknown as AutopilotStep,
+    ],
+  });
+  assert.equal(next[0]?.kind, 'continue');
+  assert.match(next[0]!.label, /usage limit resets/);
+});
+
+test('live rerun 3: notes and questions stay whole, and a failed step says why once', () => {
+  assert.equal(
+    failedNote('Assess the options', { state: 'failed', reason: 'failed' }),
+    'Assess the options failed.',
+  );
+  assert.equal(
+    failedNote('Assess the options', {
+      state: 'failed',
+      reason: 'The model answer was not valid.',
+    }),
+    'Assess the options failed: The model answer was not valid.',
+  );
+  assert.equal(
+    failedNote('Find the problem', { state: 'cancelled', reason: null }),
+    'Find the problem was cancelled.',
+  );
+  // Long titles and three unknowns: the question keeps its closing quote and question mark.
+  const q = gatherQuestion(
+    {
+      title:
+        'Conditional handoff protocol with existing-system support; defer a custom build until the pilot shows where the handoffs fail',
+      unknown: [
+        'feasibility_burden',
+        'maintenance_burden',
+        'stakeholder_acceptability',
+      ],
+    },
+    'Disparate systems delay nonprofit operations because staff re-enter the same records in several tools every week',
+  );
+  assert.ok(q.length <= 300, String(q.length));
+  assert.match(q, /”\?$/);
+  assert.match(q, /feasibility burden and maintenance burden of/);
+  assert.doesNotMatch(q, /stakeholder/);
+  // A long ending leaves the reason at least two fifths of the note.
+  const reason =
+    'Choose stopped: 3 options are not fully scored (unknown: feasibility burden).';
+  const note = fitNote(reason, 'x '.repeat(400).trim(), 120);
+  assert.ok(note.length <= 120);
+  assert.ok(note.startsWith('Choose stopped: 3 options'), note);
+});
+
+test('live rerun 3: gathering counts the unknown ratings it asked about', () => {
+  const rows = [
+    { unknown_criteria: ['effort', 'maintenance'] },
+    { unknown_criteria: ['acceptability'] },
+  ];
+  assert.equal(unknownCount('unknown_ratings', rows), 3);
+  assert.equal(unknownCount('gate_blocked', rows), null);
 });

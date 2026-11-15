@@ -650,6 +650,14 @@ const NEXT: Record<AutopilotStopKind, Omit<AutopilotNext, 'setting'>[]> = {
         'Adds 20 requests for 24 hours without changing caps; then continue.',
     },
   ],
+  usage_limit: [
+    {
+      kind: 'continue',
+      label: 'Continue after the usage limit resets',
+      detail:
+        'The plan account’s own usage limit (ChatGPT Settings › Usage) pauses requests until it resets; then continue. If Continue is still refused, recheck usage under Models and connections.',
+    },
+  ],
   call_limit: [
     {
       kind: 'new_autopilot',

@@ -1,5 +1,16 @@
 # Session handoff — November 10, 2026
 
+## November 15 handoff — autopilot fixes from the third live rerun
+
+Branch `claude/project-thread-77qqks`, restarted from main 42dce84 after #205 merged. No migration or ADR.
+
+- **New helpers in `autopilot.ts`:** `refusalStop`, `failedNote`, `unknownCount`, `USAGE_LIMIT_NOTE` and `#usageLimited`, which reads the plan connection's quota state.
+- **New stop kind:** `usage_limit`, with its next steps in contracts.
+- **Gather requests** carry `unknowns`.
+- **`#gathered`** returns `lastUnknowns`.
+
+Next: independent review in a separate thread. Autopilot e8b36bd9 waits for Jordan to confirm his ChatGPT usage reset before it continues.
+
 ## November 15 handoff — autopilot fixes from the live rerun (findings 1–7)
 
 Branch `claude/project-thread-77qqks` from main 3473b05, no migration or ADR. `web-discovery-store.ts`: `#admitOne` adds supports first and one support row per passage; `CLAIMS_MARK` replaces the summary's claim count. `autopilot.ts`: exported `cutWords`, `fitNote`, `namesOf`, `gatherQuestion`; `#gather` builds one link note; `#trimSpent` runs after every step and before `#finish`/`#redo`, and `advanceAutopilot` now receives `calls_reserved` on every path. `autopilot-store.ts` cuts explanations at 1200. Web: `ap-question` input and the broad-search hint. Next: independent review in a separate thread; a live rerun after merge needs Jordan's typed OK.

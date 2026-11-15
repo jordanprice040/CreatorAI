@@ -1,5 +1,23 @@
 # Build status — November 10, 2026
 
+## November 15 update — autopilot fixes from the third live rerun (no migration or ADR)
+
+These fix the findings in `/mnt/project-files/reviews/LIVE_AUTOPILOT_RERUN_205_2026-11-15.md` (autopilot e8b36bd9 on main 42dce84).
+
+- **Usage limit.** A plan refusal for the account's usage limit (`quota_exhausted`) is now its own stop kind, `usage_limit`. It ends as limit reached rather than needs an approval, and offers "Continue after the usage limit resets" instead of "Fix the connection" (`refusalStop`). A failed step is not retried while the autopilot's plan connection shows its usage limit reached; it stops on that limit instead.
+- **Failed-step note.** It now reads "Assess the options failed: …" instead of "ended failed: failed" (`failedNote`).
+- **Gather questions.** They shorten the option and problem titles and name at most two unknowns, so the question stays whole.
+- **Note length.** `fitNote` keeps at least two fifths of a note for its reason.
+- **Gather loop.** A gather round asked for after the unknown ratings did not shrink is not run; the choice goes to the person or the settings, and the stop says why (`unknownCount`, `unknowns` on the gather request).
+- **Search note.** The claim count reads on in lower case after "Claims so far:".
+
+Checked in the cloud container on a throwaway PostgreSQL 16 database:
+- `pnpm typecheck` and `pnpm format:check`.
+- `autopilot.test.ts` and `web-discovery.test.ts`: 79/79 pass.
+- Full `pnpm test:db`: RESULT3.
+
+Not covered end to end: the retry check against a plan connection whose usage is exhausted, and the stalled-gather rule. Both are tested through their pure helpers only.
+
 ## November 15 update — autopilot fixes from the live rerun on main 9172584 (no migration or ADR)
 
 Fixes findings 1–7 of `/mnt/project-files/reviews/LIVE_AUTOPILOT_RERUN_MAIN_2026-11-15.md`. Accepting a web claim whose proposal quotes one passage twice adds one support row per passage instead of failing with a raw `claim_support_active` error, and a contract refusal while the autopilot accepts claims is reported in its own words. A discovery's "Claims so far" summary replaces the earlier one, so it no longer says claims wait after they were accepted. Autopilot notes are cut at a word (`cutWords`, `fitNote`), the choice's gather note keeps its ending and names at most three options (`namesOf`), and a gather round says once how many recorded claims it linked. A finished workflow step keeps only the calls its work used (`#trimSpent`: attempts or plan requests, only when nothing is in flight or unresolved), so the 40-call budget is no longer held by worst-case reservations. A gather round asks what evidence shows the option's unknown criteria for the problem (`gatherQuestion`). The autopilot form takes an optional search question and says when a search with no question or interests starts from broad public topics.
