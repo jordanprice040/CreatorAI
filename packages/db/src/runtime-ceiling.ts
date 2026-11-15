@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import type { PoolClient } from 'pg';
 import {
@@ -154,14 +155,34 @@ export function ceilingRefusal(
  * spending manager reads, so the workspace-visible reservation never carries them.
  */
 export const SPENDING_WAIT_EXPLANATION =
-  'Your run is waiting on the studio spending limit. Only the studio spending manager can see the amounts, in Settings.';
+  'Your run is waiting on the studio spending limit. The amounts are in Settings → Spending limits, for the studio spending manager.';
 
-/** The studio spending manager's actor id, or null on a studio with no workspace yet. */
-export async function spendingManagerId(c: PoolClient): Promise<string | null> {
-  const { rows } = await c.query<{ actor_id: string }>(
-    'select actor_id from studio_spending_manager',
+/** Records a refusal's full explanation where only the studio spending manager reads it. */
+export async function recordSpendingRefusal(
+  c: PoolClient,
+  r: {
+    reservationId?: string;
+    studyAttemptId?: string;
+    ws: string;
+    runId: string;
+    reasonCode: string;
+    explanation: string;
+  },
+) {
+  await c.query(
+    `insert into spending_refusals
+       (id, reservation_id, study_attempt_id, workspace_id, run_id, reason_code, explanation)
+     values ($1, $2, $3, $4, $5, $6, $7)`,
+    [
+      randomUUID(),
+      r.reservationId ?? null,
+      r.studyAttemptId ?? null,
+      r.ws,
+      r.runId,
+      r.reasonCode,
+      r.explanation,
+    ],
   );
-  return rows[0]?.actor_id ?? null;
 }
 
 /** No narrower limits: only the overall ceiling applies until the owner sets some. */

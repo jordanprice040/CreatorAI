@@ -10,7 +10,12 @@ import type {
   StudyInput,
 } from '@creator/contracts';
 import { createApi } from '@creator/api';
-import { BudgetStore, StudyStore, type CommandContext } from '@creator/db';
+import {
+  BudgetStore,
+  budgetRefusal,
+  StudyStore,
+  type CommandContext,
+} from '@creator/db';
 import { freshDatabase, LOGIN_CODE, login } from './pg-harness.js';
 
 const owner: CommandContext = { actorId: randomUUID() };
@@ -265,7 +270,7 @@ test('every applicable limit applies: run, model and the overall ceiling', async
   assert.equal(reason(await a.prepare(r3)), 'runtime_ceiling');
 });
 
-test('only a workspace owner changes limits, with a reason, never above the ceiling', async (t) => {
+test('only the spending manager changes limits, with a reason, never above the ceiling', async (t) => {
   const s = await setup(t);
   if (!s) return;
   await s.workspace('real');
@@ -280,11 +285,16 @@ test('only a workspace owner changes limits, with a reason, never above the ceil
     kind: 'agent',
     display_name: 'Worker agent',
   });
+  // ADR-0113: a person who owns a workspace of their own is still not the spending manager.
   const stranger: CommandContext = { actorId: randomUUID() };
   await s.store.ensureActor({
     id: stranger.actorId,
     kind: 'human',
-    display_name: 'Not an owner',
+    display_name: 'Owns another workspace',
+  });
+  await s.store.createWorkspace(stranger, {
+    name: 'Their own',
+    record_mode: 'real',
   });
   for (const who of [agent, stranger]) {
     await assert.rejects(s.store.spendLimits(who), { code: 'ACCESS_DENIED' });
@@ -431,18 +441,20 @@ test('a final study attempt whose cap is above the per-run limit is refused befo
   const probe = new HoldProbe(s.db.pool);
   probe.spending = s.store.spending;
   const attempt = async (cap: bigint) => {
-    const { studyId, attemptId } = await s.openFinalHold(
-      a.ws.id,
-      await a.run(),
-      null,
-    );
+    const runId = await a.run();
+    const { studyId, attemptId } = await s.openFinalHold(a.ws.id, runId, null);
     const c = await s.db.pool.connect();
     try {
       await c.query('begin');
       const refused = await probe.hold(
         c,
         a.ws.id,
-        { id: attemptId, study_id: studyId } as StudyAttempt,
+        {
+          id: attemptId,
+          study_id: studyId,
+          workspace_id: a.ws.id,
+          run_id: runId,
+        } as StudyAttempt,
         {
           governance: {},
           synthetic: false,
@@ -464,11 +476,31 @@ test('a final study attempt whose cap is above the per-run limit is refused befo
     "select payload from study_events where attempt_id = $1 and kind = 'budget_refused'",
     [over.attemptId],
   );
+  // ADR-0113 (review L-1): the study's event names the limit but holds no studio-wide amount;
+  // the amounts are in the record only the spending manager reads.
+  const limit = String(EXPOSURE * 2n);
   assert.equal(events.rows[0]?.payload.ledger, 'runtime-run-limit');
-  // Above the overall ceiling, the ceiling refuses first.
+  assert.equal(events.rows[0]?.payload.amounts, 'studio_spending_manager_only');
+  assert.ok(!JSON.stringify(events.rows[0]?.payload).includes(limit));
+  const message = budgetRefusal(over.refused!);
+  assert.ok(
+    !JSON.stringify([message.message, message.details]).includes(limit),
+  );
+  const refusals = (await s.store.spendLimits(owner)).recent_refusals;
+  assert.equal(refusals[0]?.study_attempt_id, over.attemptId);
+  assert.equal(refusals[0]?.reservation_id, null);
+  assert.equal(refusals[0]?.reason_code, 'runtime_run_limit');
+  assert.match(
+    refusals[0]!.explanation,
+    new RegExp(`per-run limit of ${limit}`),
+  );
+  // Above the overall ceiling, the ceiling refuses first, also without amounts.
+  const ceiling = await attempt(EXPOSURE * 11n);
+  assert.equal(ceiling.refused?.ledger, 'runtime-ceiling');
+  assert.ok(!JSON.stringify(ceiling.refused).includes(String(EXPOSURE * 10n)));
   assert.equal(
-    (await attempt(EXPOSURE * 11n)).refused?.ledger,
-    'runtime-ceiling',
+    (await s.store.spendLimits(owner)).recent_refusals[0]?.reason_code,
+    'runtime_ceiling',
   );
   // At the limit it is held.
   const fits = await attempt(EXPOSURE * 2n);
@@ -481,11 +513,8 @@ test('a limit save waits for an uncommitted study hold and then sees it', async 
   const a = await s.workspace('real');
   const probe = new HoldProbe(s.db.pool);
   probe.spending = s.store.spending;
-  const { studyId, attemptId } = await s.openFinalHold(
-    a.ws.id,
-    await a.run(),
-    null,
-  );
+  const runId = await a.run();
+  const { studyId, attemptId } = await s.openFinalHold(a.ws.id, runId, null);
   const c = await s.db.pool.connect();
   try {
     // A final attempt places a hold of three calls and has not committed yet.

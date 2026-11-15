@@ -46,6 +46,7 @@ import {
   currentSpendLimits,
   lockRuntimeCeiling,
   runtimeExposure,
+  recordSpendingRefusal,
 } from './runtime-ceiling.js';
 import {
   AUDIT_CHAIN_LOCK,
@@ -308,34 +309,50 @@ export class StudyStore extends RunbookStore {
       return detail;
     }
     // The T15 ledger sits inside the owner's overall runtime ceiling (2026-10-20).
+    // ADR-0113: the ceiling and limit amounts are studio-wide, so the study's event and error
+    // (readable by the workspace's owners) say only which limit refused it; the amounts go to
+    // the record only the studio spending manager reads.
     if (!input.synthetic) {
-      const runtime = await runtimeExposure(c, this.spending);
-      if (ceilingRefusal(runtime, cap)) {
+      const studio = async (
+        ledger: 'runtime-ceiling' | 'runtime-run-limit',
+        reasonCode: string,
+        explanation: string,
+      ) => {
+        await recordSpendingRefusal(c, {
+          studyAttemptId: a.id,
+          ws: a.workspace_id,
+          runId: a.run_id,
+          reasonCode,
+          explanation,
+        });
         const over = {
-          ledger: 'runtime-ceiling',
-          ledger_cap_nano_usd: runtime.ceiling_nano_usd,
+          ledger,
           attempt_cap_nano_usd: cap.toString(),
-          exposure_before_nano_usd: runtime.exposure_nano_usd,
+          amounts: 'studio_spending_manager_only' as const,
         };
         await this.event(c, ctx, a.study_id, a.id, 'budget_refused', over);
         return over;
-      }
+      };
+      const runtime = await runtimeExposure(c, this.spending);
+      const refusal = ceilingRefusal(runtime, cap);
+      if (refusal)
+        return studio(
+          'runtime-ceiling',
+          refusal.reason_code,
+          `A final study attempt with a frozen cap of ${cap} nano-USD does not fit under the overall runtime ceiling of ${runtime.ceiling_nano_usd} nano-USD, with ${runtime.exposure_nano_usd} already held or spent${runtime.unknown_calls > 0 ? ` and ${runtime.unknown_calls} call(s) of unknown cost` : ''}.`,
+        );
       // An attempt whose frozen cap is above the owner's per-run limit (ADR-0044) would be cut
       // off part-way by dispatch, so it is refused before it starts instead.
       const { limits } = await currentSpendLimits(c);
       if (
         limits.per_run_nano_usd !== null &&
         cap > BigInt(limits.per_run_nano_usd)
-      ) {
-        const over = {
-          ledger: 'runtime-run-limit',
-          ledger_cap_nano_usd: limits.per_run_nano_usd,
-          attempt_cap_nano_usd: cap.toString(),
-          exposure_before_nano_usd: '0',
-        };
-        await this.event(c, ctx, a.study_id, a.id, 'budget_refused', over);
-        return over;
-      }
+      )
+        return studio(
+          'runtime-run-limit',
+          'runtime_run_limit',
+          `A final study attempt with a frozen cap of ${cap} nano-USD is above the per-run limit of ${limits.per_run_nano_usd} nano-USD.`,
+        );
     }
     await c.query(
       'insert into study_budget_holds(attempt_id,ledger,cap_nano,ledger_cap_nano) values($1,$2,$3,$4)',
@@ -1569,12 +1586,26 @@ export class StudyStore extends RunbookStore {
   }
 }
 
-export function budgetRefusal(d: {
-  ledger: string;
-  ledger_cap_nano_usd: string;
-  attempt_cap_nano_usd: string;
-  exposure_before_nano_usd: string;
-}) {
+export function budgetRefusal(
+  d:
+    | {
+        ledger: string;
+        ledger_cap_nano_usd: string;
+        attempt_cap_nano_usd: string;
+        exposure_before_nano_usd: string;
+      }
+    | {
+        ledger: string;
+        attempt_cap_nano_usd: string;
+        amounts: 'studio_spending_manager_only';
+      },
+) {
+  if ('amounts' in d)
+    return new ContractError(
+      'BUDGET_EXCEEDED',
+      `This attempt's frozen cap does not fit under the studio spending limit (${d.ledger}); nothing was dispatched. The amounts are in Settings → Spending limits, for the studio spending manager.`,
+      [`ledger ${d.ledger}`, `attempt cap ${d.attempt_cap_nano_usd}`],
+    );
   return new ContractError(
     'BUDGET_EXCEEDED',
     "This attempt's frozen cap does not fit in what remains of the study ledger; nothing was dispatched.",

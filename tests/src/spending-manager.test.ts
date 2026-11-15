@@ -162,10 +162,9 @@ test('S0-1: only the spending manager reads or changes studio spending; a refuse
   // 1. A reads the ceiling and limits and changes both.
   const readA = await fetch(spending, { headers: a.read });
   assert.equal(readA.status, 200);
-  assert.equal(
-    ((await readA.json()) as { spending_manager_actor_id: string })
-      .spending_manager_actor_id,
-    DEFAULT_OWNER_ACTOR_ID,
+  assert.deepEqual(
+    (await managerRow(db.pool)).map((r) => r.actor_id),
+    [DEFAULT_OWNER_ACTOR_ID],
   );
   assert.equal((await fetch(limits, { headers: a.read })).status, 200);
   const setCeiling = await fetch(spending, {
@@ -213,40 +212,101 @@ test('S0-1: only the spending manager reads or changes studio spending; a refuse
 
   // 4. A's per-run limit refuses a dispatch in B's run. B reads that run's record: the reason
   // code and the waiting text, with no studio-wide amounts.
-  const run = await dispatchable(store, { actorId: bId }, bWs);
-  const denied = await run.prepare();
-  assert.equal(denied.kind, 'denied');
-  assert.equal(denied.reservation.reason_code, 'runtime_run_limit');
-  const seen = await fetch(
-    `${base}/workspaces/${bWs}/reservations?run=${run.runId}`,
-    { headers: b.read },
-  );
-  assert.equal(seen.status, 200);
-  const records = (await seen.json()) as {
-    reason_code: string;
-    explanation: string;
-  }[];
-  assert.equal(records.length, 1);
-  assert.equal(records[0]!.reason_code, 'runtime_run_limit');
-  assert.equal(records[0]!.explanation, SPENDING_WAIT_EXPLANATION);
-  assert.doesNotMatch(records[0]!.explanation, /\d/);
-  // The details, with amounts, are A's to read.
-  const view = (await (await fetch(limits, { headers: a.read })).json()) as {
-    recent_refusals: {
-      reservation_id: string;
-      workspace_id: string;
-      run_id: string;
+  const refusedFor = async (code: string, amounts: RegExp) => {
+    const run = await dispatchable(store, { actorId: bId }, bWs);
+    const denied = await run.prepare();
+    assert.equal(denied.kind, 'denied');
+    assert.equal(denied.reservation.reason_code, code);
+    const seen = await fetch(
+      `${base}/workspaces/${bWs}/reservations?run=${run.runId}`,
+      { headers: b.read },
+    );
+    assert.equal(seen.status, 200);
+    const records = (await seen.json()) as {
       reason_code: string;
       explanation: string;
     }[];
+    assert.equal(records.length, 1);
+    assert.equal(records[0]!.reason_code, code);
+    assert.equal(records[0]!.explanation, SPENDING_WAIT_EXPLANATION);
+    assert.doesNotMatch(records[0]!.explanation, /\d/);
+    // The details, with amounts, are A's to read.
+    const view = (await (await fetch(limits, { headers: a.read })).json()) as {
+      recent_refusals: {
+        reservation_id: string | null;
+        study_attempt_id: string | null;
+        workspace_id: string;
+        workspace_name: string;
+        run_id: string;
+        provider: string | null;
+        model_id: string | null;
+        reason_code: string;
+        explanation: string;
+      }[];
+    };
+    const detail = view.recent_refusals[0]!;
+    assert.equal(detail.reservation_id, denied.reservation.id);
+    assert.equal(detail.study_attempt_id, null);
+    assert.equal(detail.workspace_id, bWs);
+    assert.equal(detail.workspace_name, 'B');
+    assert.equal(detail.run_id, run.runId);
+    assert.equal(detail.provider, 'openai');
+    assert.equal(detail.model_id, 'gpt-6-astra');
+    assert.equal(detail.reason_code, code);
+    assert.match(detail.explanation, amounts);
+    return view.recent_refusals.length;
   };
-  assert.equal(view.recent_refusals.length, 1);
-  const detail = view.recent_refusals[0]!;
-  assert.equal(detail.reservation_id, denied.reservation.id);
-  assert.equal(detail.workspace_id, bWs);
-  assert.equal(detail.run_id, run.runId);
-  assert.equal(detail.reason_code, 'runtime_run_limit');
-  assert.match(detail.explanation, new RegExp(`this needs ${EXPOSURE}`));
+  assert.equal(
+    await refusedFor('runtime_run_limit', new RegExp(`this needs ${EXPOSURE}`)),
+    1,
+  );
+  // Review L-3: a per-model limit and the ceiling itself refuse the same way.
+  const saveLimits = async (v: number, limits: unknown) =>
+    assert.equal(
+      (
+        await fetch(`${base}/settings/spending-limits`, {
+          method: 'POST',
+          headers: { ...json, ...a.write },
+          body: JSON.stringify({
+            expected_version: v,
+            limits,
+            reason: 'S0 test.',
+          }),
+        })
+      ).status,
+      200,
+    );
+  await saveLimits(1, {
+    per_run_nano_usd: null,
+    per_model: [
+      {
+        provider: 'openai',
+        model_id: 'gpt-6-astra',
+        limit_nano_usd: String(EXPOSURE - 1n),
+      },
+    ],
+  });
+  assert.equal(
+    await refusedFor(
+      'runtime_model_limit',
+      new RegExp(`openai/gpt-6-astra has ${EXPOSURE - 1n} nano-USD left`),
+    ),
+    2,
+  );
+  await saveLimits(2, { per_run_nano_usd: null, per_model: [] });
+  const lowered = await fetch(spending, {
+    method: 'POST',
+    headers: { ...json, ...a.write },
+    body: ceilingBody(1, String(EXPOSURE - 1n)),
+  });
+  assert.equal(lowered.status, 200);
+  assert.equal(
+    await refusedFor(
+      'runtime_ceiling',
+      new RegExp(`ceiling has ${EXPOSURE - 1n} nano-USD left`),
+    ),
+    3,
+  );
   // The detail record cannot be rewritten.
   await assert.rejects(
     db.pool.query(`update spending_refusals set explanation = 'x'`),
@@ -343,11 +403,7 @@ test('S0-1 upgrade: the latest ceiling or limit changer becomes the manager, els
     await assert.rejects(store.runtimeCeiling(other), {
       code: 'ACCESS_DENIED',
     });
-    assert.equal(
-      (await store.runtimeCeiling({ actorId: expected[0]! }))
-        .spending_manager_actor_id,
-      expected[0],
-    );
+    await store.runtimeCeiling({ actorId: expected[0]! });
   }
 });
 

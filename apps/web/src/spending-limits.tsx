@@ -310,8 +310,17 @@ export function SpendingLimits({ session }: { session: SessionInfo }) {
                 <ul className="small">
                   {v.recent_refusals.map((r) => (
                     <li key={r.reservation_id}>
-                      {when(r.created_at)} · {label(r.provider, r.model_id)} ·{' '}
-                      {r.explanation} <small>run {r.run_id.slice(0, 8)}</small>
+                      {when(r.created_at)} ·{' '}
+                      {r.provider && r.model_id
+                        ? `${label(r.provider, r.model_id)} · `
+                        : ''}
+                      {r.explanation}{' '}
+                      <small>
+                        {r.workspace_name}
+                        {r.study_attempt_id
+                          ? ' · final study attempt'
+                          : ` · run ${r.run_id.slice(0, 8)}`}
+                      </small>
                     </li>
                   ))}
                 </ul>

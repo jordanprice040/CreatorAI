@@ -9,7 +9,7 @@ import {
   currentSpendLimits,
   spendLimitRefusal,
   SPENDING_WAIT_EXPLANATION,
-  spendingManagerId,
+  recordSpendingRefusal,
 } from './runtime-ceiling.js';
 import type { Pool, PoolClient } from 'pg';
 import {
@@ -368,7 +368,6 @@ export class BudgetStore extends OversightStore {
       counted_since: iso(this.spending.effective_from),
       exposure_nano_usd: exposure.exposure_nano_usd,
       unknown_calls: exposure.unknown_calls,
-      spending_manager_actor_id: await spendingManagerId(c),
       history: history.rows.map((r: Row) => ({
         version: Number(r.version),
         ceiling_nano_usd: String(r.ceiling),
@@ -499,10 +498,12 @@ export class BudgetStore extends OversightStore {
     );
     // ADR-0113: the full refusal details, with amounts, for the manager only.
     const refusals = await c.query(
-      `select s.reservation_id, s.reason_code, s.explanation, s.created_at,
-              r.workspace_id, r.run_id, r.provider, r.model_id
-         from spending_refusals s join budget_reservations r on r.id = s.reservation_id
-        order by s.created_at desc, s.reservation_id limit 20`,
+      `select s.id, s.reservation_id, s.study_attempt_id, s.reason_code, s.explanation,
+              s.created_at, s.workspace_id, w.name as workspace_name, s.run_id,
+              r.provider, r.model_id
+         from spending_refusals s join workspaces w on w.id = s.workspace_id
+         left join budget_reservations r on r.id = s.reservation_id
+        order by s.created_at desc, s.id limit 20`,
     );
     return parse(SpendLimitsViewSchema, {
       version: cur.version,
@@ -527,11 +528,16 @@ export class BudgetStore extends OversightStore {
           exposure_nano_usd: r.exposure,
         })),
       recent_refusals: refusals.rows.map((r: Row) => ({
-        reservation_id: String(r.reservation_id),
+        id: String(r.id),
+        reservation_id: r.reservation_id ? String(r.reservation_id) : null,
+        study_attempt_id: r.study_attempt_id
+          ? String(r.study_attempt_id)
+          : null,
         workspace_id: String(r.workspace_id),
+        workspace_name: String(r.workspace_name),
         run_id: String(r.run_id),
-        provider: String(r.provider),
-        model_id: String(r.model_id),
+        provider: r.provider ? String(r.provider) : null,
+        model_id: r.model_id ? String(r.model_id) : null,
         reason_code: String(r.reason_code),
         explanation: String(r.explanation),
         created_at: iso(r.created_at),
@@ -1464,11 +1470,13 @@ export class BudgetStore extends OversightStore {
             SPENDING_WAIT_EXPLANATION,
             extra,
           );
-          await c.query(
-            `insert into spending_refusals (reservation_id, reason_code, explanation)
-             values ($1, $2, $3)`,
-            [out.reservation.id, r.reason_code, r.explanation],
-          );
+          await recordSpendingRefusal(c, {
+            reservationId: out.reservation.id,
+            ws,
+            runId,
+            reasonCode: r.reason_code,
+            explanation: r.explanation,
+          });
           return out;
         };
         if (over) return spendingDeny(over);

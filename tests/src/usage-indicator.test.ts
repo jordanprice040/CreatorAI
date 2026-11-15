@@ -281,8 +281,15 @@ test('API cost follows the ceiling in force and is shown only to its audience', 
   assert.equal(v.api_cost, null);
   assert.match(v.api_cost_hidden_reason ?? '', /studio spending manager/);
   // ADR-0113: owning a workspace of their own does not show them the studio-wide cost.
-  await store.createWorkspace(viewer, { name: 'Own', record_mode: 'real' });
+  const own = await store.createWorkspace(viewer, {
+    name: 'Own',
+    record_mode: 'real',
+  });
   assert.equal((await store.usageSummary(viewer, ws.id)).api_cost, null);
+  // Not even on the workspace they own (review N-5).
+  const mine = await store.usageSummary(viewer, own.id);
+  assert.equal(mine.api_cost, null);
+  assert.match(mine.api_cost_hidden_reason ?? '', /studio spending manager/);
   // A non-member cannot learn the workspace exists.
   const stranger: CommandContext = { actorId: randomUUID() };
   await assert.rejects(
