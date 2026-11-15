@@ -146,6 +146,9 @@ test('ADR-0105: the freezes name the scorer and the web checker the studio runs'
   const checker = digest(
     readFileSync(path('packages/executor/worker/web_recipe.py')),
   );
+  const structureScorer = digest(
+    readFileSync(path('packages/executor/src/recipe-structure.ts')),
+  );
   for (const id of RECIPE_BENCHMARK_IDS) {
     const f = json(`config/recipe-benchmarks/${id}/FREEZE.json`) as {
       files: Record<string, string>;
@@ -154,6 +157,17 @@ test('ADR-0105: the freezes name the scorer and the web checker the studio runs'
       f.files['scorer:recipe-scoring.ts'],
       scorer,
       `${id}: scorer changed`,
+    );
+    // ADR-0114: a benchmark with a frozen structure rule names the code that checks it too.
+    const rule = (
+      json(`config/recipe-benchmarks/${id}/expectations.json`) as {
+        structure?: unknown;
+      }
+    ).structure;
+    assert.equal(
+      f.files['scorer:recipe-structure.ts'],
+      rule ? structureScorer : undefined,
+      `${id}: structure scorer`,
     );
     if (RECIPE_BENCHMARK_INFO[id].recipe === 'static-web/1')
       assert.equal(
@@ -166,6 +180,11 @@ test('ADR-0105: the freezes name the scorer and the web checker the studio runs'
 
 test('ADR-0105: a v5 copy has the same task, spec, cases and reference as its source', () => {
   for (const id of RECIPE_BENCHMARK_IDS) {
+    // ADR-0114: a benchmark written new copies nothing.
+    if (RECIPE_BENCHMARK_INFO[id].copied_from === null) {
+      assert.equal(SOURCES[id], undefined, id);
+      continue;
+    }
     const base = SOURCES[id]!;
     assert.equal(RECIPE_BENCHMARK_INFO[id].copied_from, base.split('/').at(-1));
     const a = json(`${base}/spec.json`) as { content: unknown };
@@ -1204,7 +1223,7 @@ test('third review L-1: Start needs an input cap that fits the first builder req
   await rejects(
     'INVALID_TRANSITION',
     s.start('p15-small-signup-v5'),
-    /per-request input cap \(\d+ characters\) is smaller than this benchmark's first builder request/,
+    /per-request input cap \(\d+ characters\) is smaller than this benchmark needs \(at least \d+: its first builder request/,
   );
   // At the floor, Start is allowed; the real first request is larger, so admission refuses it.
   await setInputCap(s, floor);

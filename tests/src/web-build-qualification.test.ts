@@ -64,6 +64,8 @@ const offer: Offer = {
   },
   typical_requests: 2,
   extended_cases: 0,
+  attempt_deadline_ms: 3600000,
+  min_input_chars: 0,
   max_requests: 24,
   freeze_problems: [],
 };

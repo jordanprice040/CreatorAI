@@ -1,5 +1,9 @@
 # Session handoff — November 10, 2026
 
+## November 15 handoff — p14-xl-v1 frozen (ADR-0114)
+
+Branch `claude/project-thread-hvtmvi` from main f5728aa, no migration. Benchmark files `config/recipe-benchmarks/p14-xl-v1/` (spec, expectations with `structure`, `min_input_chars`, `attempt_deadline_ms`, extended cases, reference, FREEZE). Contracts `recipe-qualification.ts`: `p14-xl-v1` in `RECIPE_BENCHMARK_IDS`/`INFO`, `copied_from` nullable, `attempt_deadline_ms` and `min_input_chars` on every benchmark and in the offers, `RECIPE_ATTEMPT_DEADLINE_MS` moved here (the API re-exports it). Executor: `recipe-structure.ts` (`packageStructureBar`, `importedNames`, `PackageStructureRule`); `loadRecipeBenchmark` returns `structure` and checks the new limits against the info. API: the runner uses `info.attempt_deadline_ms` and the frozen structure rule when there is one; Start's floor is the larger of `firstBuilderInputFloor` and `info.min_input_chars`. DB: Start's input-cap refusal wording. `scripts/recipe-benchmarks.mjs` adds `scorer:recipe-structure.ts` to a freeze whose expectations hold a structure rule. Tests: `tests/src/p14-xl.test.ts` (new); `recipe-qualification.test.ts` pins the structure scorer and skips the copy check for a benchmark written new. The authoring scripts that wrote the JSON were scratch work and are not in the repository; the files are frozen, so a change means `p14-xl-v2`. Next: review in a separate thread, then a live run with Jordan's typed OK.
+
 ## November 15 handoff — autopilot fixes from the third live rerun
 
 Branch `claude/project-thread-77qqks`, restarted from main 42dce84 after #205 merged. No migration or ADR.

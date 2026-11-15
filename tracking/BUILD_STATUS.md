@@ -1,5 +1,13 @@
 # Build status — November 10, 2026
 
+## November 15 update — the frozen extra-large build benchmark p14-xl-v1 (ADR-0114, no migration)
+
+What now works: `config/recipe-benchmarks/p14-xl-v1` is written and frozen. It is a stock and order simulator CLI, a package of 11 named modules (the reference is 13 Python files, about 600 lines). It has 25 studio cases (11 held out), 28 extended held-out cases and a package structure rule. The studio loads it with its own limits: 20 requests, 3 repair rounds, a 2-hour attempt and an input floor of 120,000 characters. Qualify building offers it beside the v5 benchmarks. A pass lifts no label (ADR-0112 is unchanged).
+
+CHECKS_PLACEHOLDER
+
+Not done: no live run (3 attempts, up to 120 plan requests, needs Jordan's typed OK, an input cap of at least 120,000, and room under the daily and per-run caps), and no review yet.
+
 ## November 15 update — autopilot fixes from the third live rerun (no migration or ADR)
 
 These fix the findings in `/mnt/project-files/reviews/LIVE_AUTOPILOT_RERUN_205_2026-11-15.md` (autopilot e8b36bd9 on main 42dce84).
