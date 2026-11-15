@@ -9,4 +9,4 @@ Jordan's UI notes of 2026-11-15 (the Autopilot page is a separate thread). Check
 
 The sweep only sees the throwaway studio's state (one fixture workspace with a recorded selection and one automatic assessment); screens that need other records were not checked.
 
-Checks (cloud, throwaway PostgreSQL 16): `pnpm typecheck` and `pnpm format:check` pass; `pnpm test:db` 1348 tests, 1314 pass, 29 skipped, 5 known PowerShell-wrapper failures (need Windows).
+Checks (cloud, throwaway PostgreSQL 16): `pnpm typecheck` and `pnpm format:check` pass; `pnpm test:db` at 540c2ab (main with #213 merged in) 1351 tests, 1317 pass, 29 skipped, 5 known PowerShell-wrapper failures (need Windows).
