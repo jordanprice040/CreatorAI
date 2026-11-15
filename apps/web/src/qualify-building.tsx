@@ -132,10 +132,11 @@ export function QualifyBuilding({
         Building is qualified separately from the builder and reviewer tasks:
         the studio builds a frozen benchmark three times with this model as
         builder and reviewer, and checks every result itself. Until a model
-        passes the web benchmark here, its web packages are labelled unqualified
-        trials. Until it passes the larger Python benchmark, so are its larger
-        Python packages (more than one Python file or more than 10 cases); small
-        Python builds need no pass here.
+        passes the web benchmark (p15-small-signup-v5) here, its web packages
+        are labelled unqualified trials. Until it passes the larger Python
+        benchmark (p14-larger-ledgercheck-v5), so are its larger Python packages
+        (more than one Python file or more than 10 cases); small Python builds
+        need no pass here.
       </p>
       {loadError && <p className="small">{loadError}</p>}
       {models.length === 0 ? (

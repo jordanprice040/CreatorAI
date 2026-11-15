@@ -6,6 +6,7 @@ import {
   BrokerCallResultSchema,
   ContractError,
   UNQUALIFIED_LARGER_PYTHON_NOTE,
+  UNQUALIFIED_LARGER_PYTHON_NO_ROLES_NOTE,
   UNQUALIFIED_TRIAL_NOTE,
   pythonBuildScale,
   unqualifiedTrial,
@@ -248,7 +249,7 @@ export class ArtifactSupervisor {
     const scale = web
       ? 'small'
       : pythonBuildScale(
-          extracted.map((f) => f.path),
+          extracted.map((f) => ({ path: f.path, size: f.content.length })),
           intent.plan.cases.length,
         );
     const needsPass = web || scale === 'larger';
@@ -422,7 +423,13 @@ export class ArtifactSupervisor {
       lineage,
       limitations: [
         ...(trial
-          ? [web ? UNQUALIFIED_TRIAL_NOTE : UNQUALIFIED_LARGER_PYTHON_NOTE]
+          ? [
+              web
+                ? UNQUALIFIED_TRIAL_NOTE
+                : roles
+                  ? UNQUALIFIED_LARGER_PYTHON_NOTE
+                  : UNQUALIFIED_LARGER_PYTHON_NO_ROLES_NOTE,
+            ]
           : []),
         ...(web
           ? [

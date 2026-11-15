@@ -26,6 +26,7 @@ import {
 } from '@creator/domain';
 import {
   UNQUALIFIED_LARGER_PYTHON_NOTE,
+  UNQUALIFIED_LARGER_PYTHON_NO_ROLES_NOTE,
   UNQUALIFIED_TRIAL_NOTE,
   type BrokerCallResult,
   type BuildRoles,
@@ -316,6 +317,38 @@ test('a build with more than 10 cases and more than 6 plan requests packages (AD
   assert.equal(manifest.toolchain.role_qualification, 'unqualified_trial');
   assert.ok(manifest.limitations.includes(UNQUALIFIED_LARGER_PYTHON_NOTE));
   assert.ok(!manifest.limitations.includes(UNQUALIFIED_TRIAL_NOTE));
+});
+
+test('ADR-0112 review L-1: a larger Python build with no plan roles is always a trial, without a lookup', async (t) => {
+  // The dollar broker route: 22 frozen cases, so larger, and no plan roles to match.
+  const s = await verifiedBuild(t, { manyCases: true });
+  let looked = 0;
+  const { manifest } = await new ArtifactSupervisor(
+    s.products,
+    s.double,
+  ).package(
+    s.product.id,
+    s.build.id,
+    s.ports,
+    undefined,
+    undefined,
+    async (roles) => {
+      looked++;
+      return [
+        {
+          ...roles,
+          recipe: 'python-build/1' as const,
+          benchmark_id: 'p14-larger-ledgercheck-v5',
+        },
+      ];
+    },
+  );
+  assert.equal(looked, 0);
+  assert.equal(manifest.toolchain.role_qualification, 'unqualified_trial');
+  assert.ok(
+    manifest.limitations.includes(UNQUALIFIED_LARGER_PYTHON_NO_ROLES_NOTE),
+  );
+  assert.ok(!manifest.limitations.includes(UNQUALIFIED_LARGER_PYTHON_NOTE));
 });
 
 test('ADR-0112: only a larger Python benchmark pass on the build’s own roles lifts a larger Python build’s label', async (t) => {

@@ -774,10 +774,29 @@ test('review L-9: a web pass qualifies only the connection, model and role promp
 });
 
 test('ADR-0112: a Python build is larger past one Python file or 10 cases, and only then needs a larger benchmark pass', () => {
-  assert.equal(pythonBuildScale(['readme.md', 'src/main.py'], 10), 'small');
-  assert.equal(pythonBuildScale(['src/main.py', 'src/util.py'], 2), 'larger');
-  assert.equal(pythonBuildScale(['src/main.py'], 11), 'larger');
-  assert.equal(pythonBuildScale(['notes.pyc', 'src/main.py'], 1), 'small');
+  const f = (path: string, size = 10) => ({ path, size });
+  assert.equal(
+    pythonBuildScale([f('readme.md'), f('src/main.py')], 10),
+    'small',
+  );
+  assert.equal(
+    pythonBuildScale([f('src/main.py'), f('src/util.py')], 2),
+    'larger',
+  );
+  assert.equal(pythonBuildScale([f('src/main.py')], 11), 'larger');
+  assert.equal(
+    pythonBuildScale([f('notes.pyc'), f('src/main.py')], 1),
+    'small',
+  );
+  // Review N-1: an empty package marker is not a module.
+  assert.equal(
+    pythonBuildScale([f('src/__init__.py', 0), f('src/main.py')], 1),
+    'small',
+  );
+  assert.equal(
+    pythonBuildScale([f('src/__init__.py', 1), f('src/main.py')], 1),
+    'larger',
+  );
   const roles = {
     connection_id: 'a',
     model_id: 'm',

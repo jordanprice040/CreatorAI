@@ -43,7 +43,11 @@ import {
   draftedMarkText,
   specRecipe,
 } from '@creator/contracts';
-import { webBuildNote } from './build-qualification.js';
+import {
+  largerPythonQualified,
+  pythonBuildNote,
+  webBuildNote,
+} from './build-qualification.js';
 import {
   REPAIR_OPTIONS,
   buildLimits,
@@ -278,6 +282,14 @@ export function BuildView({
         web_note:
           m.path === 'responses'
             ? webBuildNote(
+                recipeRecords[i]!,
+                { connection_id: c.id, model_id: m.model_id },
+                recipeOffers?.role_prompts ?? null,
+              )
+            : null,
+        larger_python_qualified:
+          m.path === 'responses'
+            ? largerPythonQualified(
                 recipeRecords[i]!,
                 { connection_id: c.id, model_id: m.model_id },
                 recipeOffers?.role_prompts ?? null,
@@ -944,6 +956,8 @@ type Data = {
     unqualified: readonly string[];
     /** ADR-0105: whether web packages built with these roles are qualified (null for Codex). */
     web_note: { qualified: boolean; text: string } | null;
+    /** ADR-0112: whether larger Python packages built with these roles are qualified (null for Codex). */
+    larger_python_qualified: boolean | null;
   }[];
   /** ADR-0081: the owner's current model from the top bar, if any. */
   choice: Choice | null;
@@ -1010,6 +1024,15 @@ function Product({
         {spec?.spec.title ?? 'Spec'} v{p.binding.spec_version}
         {!standard && ` · product ${shortId(p.id)}`}
       </h4>
+      {p.recipe !== 'static-web/1' &&
+        newestPackage?.role_qualification === 'unqualified_trial' && (
+          <p className="notice">
+            This product&apos;s newest package is an unqualified trial: it is a
+            larger Python build (more than one Python file or more than 10
+            cases) whose route, model or role prompts were not qualified for
+            larger Python builds; its limitations in the Gallery say why.
+          </p>
+        )}
       {p.recipe === 'static-web/1' && (
         <p className="notice">
           Static web builds are unqualified trials unless the builder and
@@ -1483,6 +1506,19 @@ function StartBuild({
       connection?.kind === 'codex' ? connection.build_timeout_ms : 0,
     requestMs: connection?.kind === 'roles' ? 120000 : 30000,
   });
+  // ADR-0112 (review L-2): whether this Python build's package may be an unqualified trial.
+  const pythonNote = lostBuilder
+    ? null
+    : pythonBuildNote(
+        connection?.kind === 'roles'
+          ? {
+              kind: 'roles',
+              model_id: connection.model_id,
+              qualified: connection.larger_python_qualified === true,
+            }
+          : { kind: connection ? 'codex' : 'broker' },
+        limits.cases,
+      );
   const refusedClass = connection
     ? connectionDataBlocker(
         connection.data_classes,
@@ -1695,6 +1731,11 @@ function StartBuild({
             setPicked(true);
           }}
         />
+      )}
+      {!webSpec && pythonNote && (
+        <p className="small model-note model-note-warn" role="note">
+          {pythonNote}
+        </p>
       )}
       {connection?.kind === 'roles' && webSpec && connection.web_note && (
         <p

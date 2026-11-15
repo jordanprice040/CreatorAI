@@ -31,6 +31,17 @@ const m = (await loadWeb('build-qualification.ts')) as {
     r: RecipeQualificationRecord,
     p: RecipeBenchmarkOffers['role_prompts'] | null,
   ) => string;
+  largerPythonQualified: (
+    r: readonly RecipeQualificationRecord[],
+    roles: { connection_id: string; model_id: string },
+    prompts: RecipeBenchmarkOffers['role_prompts'] | null,
+  ) => boolean;
+  pythonBuildNote: (
+    route:
+      | { kind: 'roles'; model_id: string; qualified: boolean }
+      | { kind: 'codex' | 'broker' },
+    cases: number,
+  ) => string | null;
 };
 
 const prompts = {
@@ -189,4 +200,59 @@ test("the Build note says qualified only for a non-fixture pass on these roles a
   );
   // Review 4 N-1: the line names the input cap the result ran under.
   assert.match(m.recordLine(record({}), prompts), /input cap 64000 characters/);
+});
+
+test('ADR-0112 review L-2: the Build note says when a Python package will or may be a trial', () => {
+  const roles = { connection_id: conn, model_id: 'm' };
+  const larger = (over: Partial<RecipeQualificationRecord> = {}) =>
+    record({
+      recipe: 'python-build/1',
+      benchmark_id: 'p14-larger-ledgercheck-v5',
+      ...over,
+    });
+  assert.equal(m.largerPythonQualified([larger()], roles, prompts), true);
+  for (const r of [
+    record(),
+    larger({ benchmark_id: 'p14-small-wordtally-v5' }),
+    larger({ fixture: true }),
+    larger({ model_id: 'other' }),
+    larger({ builder_prompt_sha256: 'e'.repeat(64) }),
+  ])
+    assert.equal(m.largerPythonQualified([r], roles, prompts), false);
+  assert.equal(m.largerPythonQualified([larger()], roles, null), false);
+  assert.equal(
+    m.pythonBuildNote({ kind: 'roles', model_id: 'm', qualified: true }, 22),
+    null,
+  );
+  assert.match(
+    m.pythonBuildNote({ kind: 'roles', model_id: 'm', qualified: false }, 22)!,
+    /froze 22 cases, so its package will be an unqualified trial: m has not passed p14-larger-ledgercheck-v5/,
+  );
+  assert.match(
+    m.pythonBuildNote({ kind: 'roles', model_id: 'm', qualified: false }, 10)!,
+    /^If the package has more than one Python file/,
+  );
+  assert.match(
+    m.pythonBuildNote({ kind: 'codex' }, 3)!,
+    /the Codex builder\) has no build qualification/,
+  );
+  assert.match(
+    m.pythonBuildNote({ kind: 'broker' }, 12)!,
+    /will be an unqualified trial: this route \(the pay-per-use broker\)/,
+  );
+  // Review N-3: a small Python record on older prompts never lifted a label, so it does not say so.
+  assert.doesNotMatch(
+    m.recordLine(
+      larger({
+        benchmark_id: 'p14-small-wordtally-v5',
+        reviewer_prompt_sha256: 'e'.repeat(64),
+      }),
+      prompts,
+    ),
+    /no longer lifts/,
+  );
+  assert.match(
+    m.recordLine(larger({ reviewer_prompt_sha256: 'e'.repeat(64) }), prompts),
+    /no longer lifts the trial label/,
+  );
 });

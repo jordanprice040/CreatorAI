@@ -331,14 +331,17 @@ export type RecipeQualification = BuildRoles & {
 export const SMALL_PYTHON_BUILD = { python_files: 1, cases: 10 } as const;
 export type BuildScale = 'small' | 'larger';
 /**
- * ADR-0112: a Python build's scale, judged on the exact package it exported (every `.py` path in
- * it) and the cases frozen for its task. Larger when either goes beyond SMALL_PYTHON_BUILD.
+ * ADR-0112: a Python build's scale, judged on the exact package it exported and the cases frozen
+ * for its task. Larger when either goes beyond SMALL_PYTHON_BUILD. Every non-empty `.py` file
+ * counts, tests included; an empty one (a package marker such as `__init__.py`) does not.
  */
 export function pythonBuildScale(
-  packagePaths: readonly string[],
+  packageFiles: readonly { path: string; size: number }[],
   cases: number,
 ): BuildScale {
-  const pythonFiles = packagePaths.filter((p) => p.endsWith('.py')).length;
+  const pythonFiles = packageFiles.filter(
+    (f) => f.path.endsWith('.py') && f.size > 0,
+  ).length;
   return pythonFiles > SMALL_PYTHON_BUILD.python_files ||
     cases > SMALL_PYTHON_BUILD.cases
     ? 'larger'
@@ -373,6 +376,13 @@ export function unqualifiedTrial(
 }
 export const UNQUALIFIED_TRIAL_NOTE =
   'Unqualified trial: the builder and reviewer were qualified on Python tasks only, not on static web pages, so this evidence is weaker than a qualified build until the frozen web benchmark passes live on the same connection, model and role prompts.';
-/** ADR-0112: the same label on a larger Python build. */
+/** ADR-0112: the same label on a larger Python build whose plan roles may be qualified. */
 export const UNQUALIFIED_LARGER_PYTHON_NOTE =
   'Unqualified trial: this is a larger Python build (more than one Python file or more than 10 cases), and the builder and reviewer have not passed the frozen larger Python benchmark live on the same connection, model and role prompts, so this evidence is weaker than a qualified build.';
+/**
+ * ADR-0112 review L-1: a larger Python build with no plan roles (the dollar broker route or the
+ * ChatGPT-plan Codex builder). Build qualification records exist only for plan roles, so nothing
+ * can lift this label on these routes.
+ */
+export const UNQUALIFIED_LARGER_PYTHON_NO_ROLES_NOTE =
+  'Unqualified trial: this is a larger Python build (more than one Python file or more than 10 cases) on a route without build qualification (the pay-per-use broker or the Codex builder), so it is always labelled a trial; builds on a plan connection whose builder and reviewer passed the frozen larger Python benchmark are not.';
