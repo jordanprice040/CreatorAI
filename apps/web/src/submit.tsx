@@ -48,8 +48,6 @@ import { envelopesFor } from './build-defaults.js';
 import { money } from './budgets.js';
 import { ThemeIntent } from './theme-intent.js';
 import { Explore, type ExploredPick } from './explore.js';
-import { Autopilot } from './autopilot.js';
-import { Automation } from './automation.js';
 import { WebDiscover } from './web-discovery.js';
 import {
   Empty,
@@ -968,19 +966,32 @@ export function Submit({
     >
       <h2 id="sub-title">Discover</h2>
       <div className="start-choices" role="group" aria-label="How to start">
-        {panelsFor(guided, panel).map((c) => (
-          <button
-            key={c.key}
-            type="button"
-            className="start-choice"
-            aria-expanded={panel === c.key}
-            aria-controls={`discover-panel-${c.key}`}
-            onClick={() => choose(c.key)}
-          >
-            <strong>{c.label}</strong>
-            <span>{c.text}</span>
-          </button>
-        ))}
+        {panelsFor(guided, panel).map((c) =>
+          c.page ? (
+            // Run it for me has its own Autopilot page (November 15); the choice opens it.
+            <button
+              key={c.key}
+              type="button"
+              className="start-choice"
+              onClick={() => open(c.page!)}
+            >
+              <strong>{c.label}</strong>
+              <span>{c.text}</span>
+            </button>
+          ) : (
+            <button
+              key={c.key}
+              type="button"
+              className="start-choice"
+              aria-expanded={panel === c.key}
+              aria-controls={`discover-panel-${c.key}`}
+              onClick={() => choose(c.key as DiscoverPanel)}
+            >
+              <strong>{c.label}</strong>
+              <span>{c.text}</span>
+            </button>
+          ),
+        )}
       </div>
       {guided && panel !== 'theme' && (
         // Review N-4 and re-review N-C: the switch's whole effect is in visible text, not a tooltip.
@@ -1027,28 +1038,6 @@ export function Submit({
       <div id="discover-panel-web" data-panel="web" hidden={panel !== 'web'}>
         <WebDiscover
           key={`web-${workspace.id}`}
-          session={session}
-          workspace={workspace}
-        />
-      </div>
-      <div
-        id="discover-panel-autopilot"
-        data-panel="autopilot"
-        hidden={panel !== 'autopilot'}
-      >
-        <Autopilot
-          key={`autopilot-${workspace.id}`}
-          session={session}
-          workspace={workspace}
-        />
-      </div>
-      <div
-        id="discover-panel-automation"
-        data-panel="automation"
-        hidden={panel !== 'automation'}
-      >
-        <Automation
-          key={`automation-${workspace.id}`}
           session={session}
           workspace={workspace}
         />

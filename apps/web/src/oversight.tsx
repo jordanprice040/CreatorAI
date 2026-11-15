@@ -877,7 +877,7 @@ export function Oversight({
                   asked (for example Decide, Scores and specs or Build) and
                   press the same button again, or its “I approved it” button
                   where one shows. If an autopilot asked, press Continue on its
-                  card under Projects › Discover.
+                  card on the Autopilot page.
                 </span>
               </p>
             )}

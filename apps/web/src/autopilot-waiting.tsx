@@ -60,9 +60,7 @@ export function WaitingAutopilot({
         csrf: session.csrf_token,
         body: { expected_version: x.version },
       });
-      setDone(
-        'The autopilot is going on; follow it under Discover › Run it for me.',
-      );
+      setDone('The autopilot is going on; follow it on the Autopilot page.');
       window.dispatchEvent(new Event(AUTOPILOTS_CHANGED));
     } catch (err) {
       setError(message(err));

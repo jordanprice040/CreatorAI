@@ -32,10 +32,18 @@ const TONE_TEXT: Record<ProgressTone, string> = {
  * the Discover panel that holds it.
  */
 export function revealWhenShown(heading: string) {
+  whenShown(heading, (page) => reveal(page, heading));
+}
+
+/**
+ * Runs `then` once the page in view holds `heading` (it may be mounting for the first time),
+ * looking every 100 ms for up to 2 s.
+ */
+export function whenShown(heading: string, then: (page: Element) => void) {
   let tries = 0;
   const look = () => {
     const page = document.querySelector('.draft-page:not([hidden])');
-    if (page?.querySelector(`#${CSS.escape(heading)}`)) reveal(page, heading);
+    if (page?.querySelector(`#${CSS.escape(heading)}`)) then(page);
     else if (++tries < 20) setTimeout(look, 100);
   };
   setTimeout(look, 0);

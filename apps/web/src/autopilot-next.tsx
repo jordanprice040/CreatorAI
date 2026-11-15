@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
+  autopilotContinuable,
   AutopilotSchema,
   AutopilotSettingsSchema,
   type Autopilot,
@@ -45,7 +46,10 @@ export function AllowAndContinue({
     };
   }, [base, a.version]);
   const allow = a.next?.find((n) => n.kind === 'allow_and_continue');
-  if (!allow?.setting || a.state !== 'finished') return null;
+  // Review 1 of #213, H-1: the offer is read with the autopilot, so it is checked again here in
+  // case the end time passed while the page was open.
+  if (!allow?.setting || a.state !== 'finished' || !autopilotContinuable(a).ok)
+    return null;
 
   async function go() {
     if (!allow?.setting || seen === null) return;
@@ -82,8 +86,9 @@ export function AllowAndContinue({
         </button>
       ) : (
         <p>The workspace owner can allow this kind of stop to continue.</p>
-      )}{' '}
-      {allow.detail}
+      )}
+      {/* Review 1 of #213, N-4: the explanation on its own line under the button. */}
+      <p className="small allow-detail">{allow.detail}</p>
       {error && (
         <p className="error" role="alert">
           {error}
