@@ -1,0 +1,58 @@
+{
+  "recipe": "static-web/1",
+  "startup": "python3 -m http.server 8000 --bind 127.0.0.1 --directory site",
+  "passed": 10,
+  "total": 10,
+  "results": [
+    {
+      "check_key": "A1",
+      "page": "/",
+      "passed": true
+    },
+    {
+      "check_key": "A1",
+      "page": "/",
+      "passed": true
+    },
+    {
+      "check_key": "A2",
+      "page": "/",
+      "passed": true
+    },
+    {
+      "check_key": "A2",
+      "page": "/",
+      "passed": true
+    },
+    {
+      "check_key": "A2",
+      "page": "/",
+      "passed": true
+    },
+    {
+      "check_key": "A3",
+      "page": "/",
+      "passed": true
+    },
+    {
+      "check_key": "A3",
+      "page": "/",
+      "passed": true
+    },
+    {
+      "check_key": "A4",
+      "page": "/",
+      "passed": true
+    },
+    {
+      "check_key": "A4",
+      "page": "/",
+      "passed": true
+    },
+    {
+      "check_key": "A5",
+      "page": "/",
+      "passed": true
+    }
+  ]
+}

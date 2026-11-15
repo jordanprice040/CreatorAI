@@ -402,3 +402,159 @@ for (const [SET, LARGER3] of [
     },
   );
 }
+
+// B3 (build capability plan, 2026-11-14): the repair benchmark p14-repair-v1, frozen as set
+// repair-v1 under its own grader copy. A fair task whose easy-to-miss rules are each caught.
+const REPAIR = 'p14-repair-v1';
+const REPAIR_DIR = join(BENCH, 'repair-v1');
+/** One mutant per listed known failure: edits of the repair reference solution. */
+export const REPAIR_MUTANTS: Record<string, Edit[]> = {
+  'float-average': [
+    [
+      'src/main.py',
+      /    # Tenths, rounded half up[\s\S]*?return '%d\.%d' % \(tenths \/\/ 10, tenths % 10\)/,
+      "    return '%.1f' % (total / count)",
+    ],
+  ],
+  'builtin-round': [
+    [
+      'src/main.py',
+      /    # Tenths, rounded half up[\s\S]*?return '%d\.%d' % \(tenths \/\/ 10, tenths % 10\)/,
+      "    return '%.1f' % round(total / count, 1)",
+    ],
+  ],
+  'records-only-line-numbers': [
+    [
+      'src/main.py',
+      "for number, line in enumerate(sys.stdin.read().split('\\n'), start=1):",
+      "number = 0\n    for line in sys.stdin.read().split('\\n'):",
+    ],
+    [
+      'src/main.py',
+      "        parts = line.split(',')",
+      "        number += 1\n        parts = line.split(',')",
+    ],
+  ],
+  'no-cr-strip': [
+    [
+      'src/main.py',
+      "        if line.endswith('\\r'):\n            line = line[:-1]\n",
+      '',
+    ],
+  ],
+  'lowercase-display': [
+    ['src/main.py', 'people[key] = [name, 0, 0]', 'people[key] = [key, 0, 0]'],
+  ],
+  'last-seen-spelling': [
+    [
+      'src/main.py',
+      '        people[key][1] += score',
+      '        people[key][0] = name\n        people[key][1] += score',
+    ],
+  ],
+  'display-name-sort': [
+    [
+      'src/main.py',
+      'rows.sort(key=lambda p: p[0].lower())',
+      'rows.sort(key=lambda p: p[0])',
+    ],
+  ],
+  'int-accepts-sign': [
+    [
+      'src/main.py',
+      "    if not (1 <= len(text) <= 3 and all('0' <= ch <= '9' for ch in text)):\n        return None\n    value = int(text)",
+      '    try:\n        value = int(text)\n    except ValueError:\n        return None\n    if value < 0:\n        return None',
+    ],
+  ],
+  'last-comma-split': [
+    [
+      'src/main.py',
+      "        parts = line.split(',')",
+      "        parts = line.rsplit(',', 1)",
+    ],
+  ],
+  'min-ignored': [['src/main.py', 'if p[2] >= minimum]', 'if p[2] >= 1]']],
+  'min-zero': [
+    ['src/main.py', '        if minimum < 1:\n            return None\n', ''],
+  ],
+};
+function repairMutant(dir: string, edits: Edit[]) {
+  cpSync(join(REPAIR_DIR, REPAIR, 'reference'), dir, { recursive: true });
+  for (const [file, from, to] of edits) {
+    const p = join(dir, file);
+    const before = readFileSync(p, 'utf8');
+    const after = before.replace(from, to);
+    assert.notEqual(
+      after,
+      before,
+      `mutant edit did not apply: ${String(from)}`,
+    );
+    writeFileSync(p, after);
+  }
+}
+
+test('the repair benchmark is frozen on its own set and passes the studio build rules', async () => {
+  const m = await load();
+  assert.equal(m.setOf(REPAIR), 'repair-v1');
+  assert.equal(m.setOf('p14-larger-ledgercheck-v4'), 'v4');
+  assert.deepEqual(await m.verify('repair-v1'), []);
+  const set = await m.loadSet('repair-v1');
+  assert.deepEqual(set.BENCHMARKS, [REPAIR]);
+  const b = set.loadBenchmark(REPAIR);
+  // At most 10 studio cases, at least one held out, and a visible case for the rounding rule so a
+  // float draft's repair feedback shows expected against actual output.
+  assert.equal(b.cases.length, 10);
+  assert.equal(
+    b.cases.filter((c: { held_out: boolean }) => c.held_out).length,
+    6,
+  );
+  const visible = b.cases.find((c: { id: string }) => c.id === 'A1.2');
+  assert.equal(visible.held_out, false);
+  assert.equal(visible.stdout, 'Cy 82.3 (4)\n');
+  // The v4 freeze does not bind repair files, and editing a repair file breaks only that set.
+  const p = join(REPAIR_DIR, 'grader.mjs');
+  const before = readFileSync(p);
+  try {
+    writeFileSync(p, Buffer.concat([before, Buffer.from('\n')]));
+    assert.deepEqual(await m.verify('v4'), []);
+    assert.notDeepEqual(await m.verify('repair-v1'), []);
+  } finally {
+    writeFileSync(p, before);
+  }
+});
+
+test(
+  'the repair reference passes and every listed easy-to-miss mistake is caught',
+  { skip: !hasPython && 'python3 not on PATH' },
+  async () => {
+    const m = await load();
+    const set = await m.loadSet('repair-v1');
+    const ref = set.score(REPAIR, join(REPAIR_DIR, REPAIR, 'reference'), {
+      kind: 'direct',
+    });
+    assert.equal(ref.pass, true, JSON.stringify(ref.failures));
+    assert.deepEqual(ref.extended, { passed: 22, total: 22 });
+    const listed = set.loadBenchmark(REPAIR).expectations
+      .known_failure_cases as {
+      id: string;
+      caught_by: string[];
+    }[];
+    assert.deepEqual(
+      listed.map((k) => k.id).sort(),
+      Object.keys(REPAIR_MUTANTS).sort(),
+    );
+    const dir = mkdtempSync(join(tmpdir(), 'p14-repair-mutant-'));
+    try {
+      for (const k of listed) {
+        const where = join(dir, k.id);
+        repairMutant(where, REPAIR_MUTANTS[k.id]!);
+        const r = set.score(REPAIR, where, { kind: 'direct' });
+        const failed = new Set(r.failures.map((f: { id: string }) => f.id));
+        for (const c of k.caught_by)
+          assert.ok(failed.has(c), `${k.id}: ${c} did not fail`);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);

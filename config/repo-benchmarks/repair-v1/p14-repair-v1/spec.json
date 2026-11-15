@@ -1,0 +1,231 @@
+{
+  "format": "p14-benchmark-spec/1",
+  "benchmark_id": "p14-repair-v1",
+  "scale": "small",
+  "title": "Score sheet CLI (B3 repair benchmark)",
+  "content": {
+    "audience": "Synthetic benchmark operator measuring whether the studio's repair round works on a fair task with easy-to-miss rules",
+    "problem_statement": "Measure whether the bounded builder, independent reviewer and studio QA find and repair a mistake within the build's repair rounds, on a single-module Python standard-library CLI that averages scores read from stdin. Every rule is stated below; several are easy to miss on a first draft. This is a synthetic benchmark, not a customer product.",
+    "user_flows": [
+      {
+        "key": "F1",
+        "name": "Averages",
+        "steps": [
+          "Pipe name,score lines into the CLI",
+          "Read one line per person with the average and the count, best first"
+        ]
+      },
+      {
+        "key": "F2",
+        "name": "Invalid record",
+        "steps": [
+          "Pipe lines where one record is malformed",
+          "Read which line is invalid and exit status 2"
+        ]
+      },
+      {
+        "key": "F3",
+        "name": "Minimum count",
+        "steps": [
+          "Run with --min N",
+          "Read only people with at least N records, or the no scores message"
+        ]
+      },
+      {
+        "key": "F4",
+        "name": "Invalid arguments",
+        "steps": [
+          "Run with an argument the CLI does not accept",
+          "Read the invalid input message and exit status 2"
+        ]
+      }
+    ],
+    "scope": [
+      "Python 3.8+ standard library only, entry point src/main.py, all code under src. Print to stdout only; nothing may be written to stderr",
+      "Read all of stdin as text and split it into lines on \\n. Remove one trailing \\r from each line. Lines are numbered from 1 and every line counts toward the numbering, including blank lines and comments",
+      "A line that is empty or holds only spaces and tabs is skipped. A line whose first character other than spaces and tabs is # is a comment and is skipped",
+      "Every other line is a record: a name and a score separated by exactly one comma. Spaces and tabs around the name and around the score are ignored. The name must not be empty; it may contain spaces inside it",
+      "The score is 1 to 3 ASCII digits (leading zeros allowed, so 007 is 7) with a value from 0 to 100; anything else, such as +5, -5, 5.0 or 101, makes the record invalid",
+      "Two records belong to the same person when their names are equal after lowercasing. Output uses the spelling of that person's first record",
+      "For each person print one line: the name, one space, the average score, one space, then the record count in parentheses, then a newline, for example: Ann 82.5 (2)",
+      "The average is printed with exactly one digit after the decimal point, rounded half up: a value exactly halfway rounds away from zero, so 82.25 prints 82.3 and 82.75 prints 82.8",
+      "Compute the average exactly from the integer total and count. Binary floating point and Python's round() give the wrong digit for some halfway values",
+      "Order lines by exact average, highest first; equal averages are ordered by the lowercased name in plain string order",
+      "--min N prints only people with at least N records. N is 1 or 2 ASCII digits with a value from 1 to 99 (05 is 5). --min may appear at most once; without it N is 1",
+      "When no person is left to print (no records at all, or none with at least N records) print exactly: no scores, then a newline, and exit 0",
+      "At the first invalid record print exactly: line N: invalid (N is that line's number), then a newline, and exit 2. Nothing else is printed; lines after it do not matter",
+      "Arguments are checked before stdin: any other argument, a missing or invalid N, or a repeated --min prints exactly: invalid input, then a newline, and exits 2. Nothing else is printed",
+      "Exit 0 on success. No files, network, environment variables or third-party packages"
+    ],
+    "non_goals": [
+      "Unicode case rules beyond str.lower",
+      "Reading files",
+      "Persistence",
+      "Web UI",
+      "Public release"
+    ],
+    "data_contracts": [
+      {
+        "name": "scoresheet/1",
+        "description": "Synthetic name,score lines on stdin; plain text lines on stdout",
+        "data_class": "synthetic"
+      }
+    ],
+    "acceptance_checks": [
+      {
+        "key": "A1",
+        "flow": "F1",
+        "statement": "Print each person's average, rounded half up to one decimal, with the record count, best first, ties by lowercased name, in the first record's spelling",
+        "measure": "Exact stdout and exit code 0",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [],
+            "stdin": "Ann,80\nbob,90\nAnn,85\n",
+            "stdout": "bob 90.0 (1)\nAnn 82.5 (2)\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "Cy,80\nCy,82\nCy,83\nCy,84\n",
+            "stdout": "Cy 82.3 (4)\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "dave,70\nALICE,70\nalice,70\nDave,70\nbob,70\nZed,70\n",
+            "stdout": "ALICE 70.0 (2)\nbob 70.0 (1)\ndave 70.0 (2)\nZed 70.0 (1)\n",
+            "exit_code": 0,
+            "held_out": true
+          },
+          {
+            "args": [],
+            "stdin": "Ann , 90\r\nann,\t 81\r\n\r\n",
+            "stdout": "Ann 85.5 (2)\n",
+            "exit_code": 0,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A2",
+        "flow": "F2",
+        "statement": "The first invalid record prints line N: invalid, numbering every line, and exits 2",
+        "measure": "Exact stdout and exit code 2",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [],
+            "stdin": "# scores\n\nAnn,90\n  \nAnn,x\n",
+            "stdout": "line 5: invalid\n",
+            "exit_code": 2,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "  # note\nA,1\nB,2,3\n",
+            "stdout": "line 3: invalid\n",
+            "exit_code": 2,
+            "held_out": true
+          },
+          {
+            "args": [],
+            "stdin": "Ann,007\nBo,+5\n",
+            "stdout": "line 2: invalid\n",
+            "exit_code": 2,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A3",
+        "flow": "F3",
+        "statement": "--min N prints only people with at least N records, or no scores",
+        "measure": "Exact stdout and exit code 0",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [
+              "--min",
+              "2"
+            ],
+            "stdin": "Ann,80\nBo,70\nAnn,90\n",
+            "stdout": "Ann 85.0 (2)\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": [
+              "--min",
+              "3"
+            ],
+            "stdin": "Ann,80\nBo,70\nAnn,90\n",
+            "stdout": "no scores\n",
+            "exit_code": 0,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A4",
+        "flow": "F4",
+        "statement": "Invalid arguments print invalid input and exit 2",
+        "measure": "Exact stdout and exit code 2",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [
+              "--min",
+              "0"
+            ],
+            "stdin": "Ann,80\n",
+            "stdout": "invalid input\n",
+            "exit_code": 2,
+            "held_out": true
+          }
+        ]
+      }
+    ],
+    "risks": [
+      {
+        "risk": "One small benchmark does not establish general repair quality",
+        "mitigation": "Report it only as evidence that a repair round works on this recipe, route, model and role prompts"
+      },
+      {
+        "risk": "No attempt needs a repair, so the repair path stays unobserved live",
+        "mitigation": "Record that as the result (owner decision D, 2026-11-14); the repair path keeps its test-double evidence"
+      },
+      {
+        "risk": "Held-out cases leak to the builder",
+        "mitigation": "The studio hides held-out cases from builder and reviewer; the repository copy is never sent to runtime roles"
+      }
+    ],
+    "maintenance": {
+      "owner": "Jordan (benchmark owner)",
+      "obligations": [
+        "Keep this frozen version unchanged; changes need a new benchmark version"
+      ],
+      "review_interval": "On recipe, role prompt, route or model change"
+    },
+    "tasks": [
+      {
+        "key": "T1",
+        "title": "Implement the score sheet CLI",
+        "role": "builder",
+        "file_scope": [
+          "src"
+        ],
+        "depends_on": [],
+        "acceptance": [
+          "A1",
+          "A2",
+          "A3",
+          "A4"
+        ],
+        "deliverable": "src/main.py that passes every acceptance check"
+      }
+    ]
+  }
+}

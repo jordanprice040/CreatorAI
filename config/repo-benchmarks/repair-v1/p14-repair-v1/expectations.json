@@ -1,0 +1,134 @@
+{
+  "format": "p14-benchmark-expectations/2",
+  "benchmark_id": "p14-repair-v1",
+  "scale": "small",
+  "recipe": "python-build/1",
+  "purpose": "B3 of the build capability plan (2026-11-14): observe a live repair round on a fair task. Every rule is stated in the spec; several (half-up rounding, line numbering that counts blank and comment lines, a trailing \\r, first-record spelling, lowercased tie order, +5 as an invalid score) are easy to miss on a first draft. One visible case (A1.2, an average of 82.25) fails for the usual binary floating point or round() draft, so the repair feedback can show expected against actual output",
+  "declared_scale": "One module (src/main.py), one builder task, 4 automated checks, 10 frozen studio cases of which 6 are held out, plus 22 extended held-out cases scored after the build",
+  "build_plan_caps": {
+    "max_repairs": 2,
+    "max_calls": 6,
+    "max_output_tokens": 6000,
+    "timeout_ms": 120000,
+    "data_class": "synthetic"
+  },
+  "expected_requests": {
+    "typical": 2,
+    "maximum": 6,
+    "note": "Each round is one builder and one reviewer request; each repair round adds two. A repair round is what this benchmark observes, but it is measured, not required (owner decision D)"
+  },
+  "expected_cost_usd": "0.00 on a plan-backed route (plan_roles). Any metered route is out of this packet",
+  "attempts": 3,
+  "one_run_per_attempt": "Each attempt gets its own run, selection, spec and product, so the per-run request cap (30 on the dev studio connection) is never the limit. The spec typed into each run must pass compare-spec",
+  "result_when": "Recorded as k of 3 attempts verified, and r of 3 attempts that used at least one repair round, with each repair's cause (failed visible case, failed held-out case, reviewer finding or refused patch) and whether the next round fixed it. If no attempt needs a repair, that is the result (owner decision D, 2026-11-14); nothing is re-run to get one",
+  "repair_observed_when": "An attempt's build folder has round 1 or later with a candidate that was reviewed and tested, after round 0's candidate failed a case or got a review finding (not only a refused patch). The Build page timeline of that build shows the round and the Why did it fail? panel of the stopped round",
+  "invalid_attempt_when": "An infrastructure fault outside the roles (worker crash, studio restart, plan outage) stops the attempt before a verdict. It is recorded with its cause, and each attempt may be replaced at most once",
+  "refused_patch_rule": "A patch the studio's patch contract or scoped tool refuses changes nothing and counts as one repair round (within max_repairs 2 and max_calls 6). It is recorded as a refusal, not as an observed repair",
+  "scorer_fault_rule": "If the studio verified the build but exporting or scoring fails for an infrastructure reason (Bubblewrap missing, a path problem, a scorer crash), the same exported package (same product_tree_sha256) may be exported or scored again. That does not re-run any role. A grader result on a package is final once it is produced",
+  "ordering_note": "The expected outputs were written by the author from the spec rules and then checked against the reference solution; the spec, cases and reference were written in the same commit (B3 branch), before any studio or model run",
+  "pass_bar_per_attempt": [
+    "Studio build reaches verified_candidate: QA passes 10 of 10 frozen build cases, including 6 of 6 held out, in the WSL2 isolation worker, and the reviewer approves with no findings (the studio's own rule)",
+    "Requests used are at most the plan's max_calls (6)",
+    "compare-spec passes for the stored spec",
+    "The exported package scored by the frozen grader passes 10 of 10 build cases and 22 of 22 extended cases"
+  ],
+  "measure_and_record": [
+    "requests used and repair rounds used, and for each repair round its cause and whether it fixed it",
+    "patches refused at admission, with each refusal's reason (refused-N.json)",
+    "wall time from Start to verified or stopped",
+    "reviewer verdict and findings per round (verbatim summary)",
+    "QA pass counts per round, development and held out",
+    "compare-spec result for the stored spec",
+    "grader JSON (freeze_sha256, grader_sha256, product_tree_sha256, build, extended, resources)",
+    "clean export start: the exported package, extracted outside the studio, runs under the grader with no studio files present",
+    "plan daily request count before and after",
+    "dev studio schema and commit"
+  ],
+  "known_failure_cases": [
+    {
+      "id": "float-average",
+      "description": "Average formatted from binary floating point ('%.1f' % (total / count))",
+      "caught_by": [
+        "A1.2",
+        "E1",
+        "E22"
+      ]
+    },
+    {
+      "id": "builtin-round",
+      "description": "Average rounded with Python's round(), which rounds halfway values to even",
+      "caught_by": [
+        "A1.2",
+        "E1",
+        "E22"
+      ]
+    },
+    {
+      "id": "records-only-line-numbers",
+      "description": "Line numbers count records only, not blank and comment lines",
+      "caught_by": [
+        "A2.1"
+      ]
+    },
+    {
+      "id": "no-cr-strip",
+      "description": "A trailing \\r is kept, so a CRLF score is invalid",
+      "caught_by": [
+        "A1.4"
+      ]
+    },
+    {
+      "id": "lowercase-display",
+      "description": "Names printed lowercased",
+      "caught_by": [
+        "A1.1"
+      ]
+    },
+    {
+      "id": "last-seen-spelling",
+      "description": "Names printed in the last record's spelling",
+      "caught_by": [
+        "A1.3"
+      ]
+    },
+    {
+      "id": "display-name-sort",
+      "description": "Ties ordered by the printed name (uppercase first) instead of the lowercased name",
+      "caught_by": [
+        "A1.3"
+      ]
+    },
+    {
+      "id": "int-accepts-sign",
+      "description": "Scores parsed with int(), so +5 is accepted",
+      "caught_by": [
+        "A2.3"
+      ]
+    },
+    {
+      "id": "last-comma-split",
+      "description": "A record split on its last comma, so a name may hold commas",
+      "caught_by": [
+        "A2.2"
+      ]
+    },
+    {
+      "id": "min-ignored",
+      "description": "--min parsed but not applied",
+      "caught_by": [
+        "A3.1"
+      ]
+    },
+    {
+      "id": "min-zero",
+      "description": "--min 0 accepted",
+      "caught_by": [
+        "A4.1"
+      ]
+    }
+  ],
+  "limits_found_while_freezing": [
+    "A studio build runs at most 10 cases per task (MAX_BUILD_CASES), so the easy-to-miss rules are spread over 6 held-out studio cases and 22 extended cases",
+    "No case can force a repair: a careful first draft passes everything, which is a valid result"
+  ]
+}

@@ -22,6 +22,7 @@ import type { ModelBroker } from '@creator/broker';
 import {
   BUILD_FIXTURE_SPEC,
   fixtureHumilityReview,
+  frozenBrowserCases,
   frozenCases,
 } from '@creator/domain';
 import {
@@ -35,6 +36,7 @@ import {
   type Binding,
   type BuildOutcome,
   type BuildPorts,
+  type BuildProgress,
   type Product,
 } from '@creator/executor';
 
@@ -121,6 +123,8 @@ export class StudioBuilds {
       connectionId: string,
       body: unknown,
     ) => Promise<unknown>,
+    /** Test seam (B3): wraps a build's ports, for scripted fixture role answers. */
+    private readonly wrapPorts: (ports: BuildPorts) => BuildPorts = (p) => p,
   ) {}
   private get supervisor() {
     return new BuildSupervisor(
@@ -348,7 +352,7 @@ export class StudioBuilds {
           }),
         ).blockers;
     }
-    return ports;
+    return this.wrapPorts(ports);
   }
 
   /** What one product's builds show: the outcome on disk, or what this process knows. */
@@ -369,6 +373,7 @@ export class StudioBuilds {
         .then((o) => buildOutcomeSchema.parse(o) as BuildOutcome)
         .catch(() => null);
       const job = this.builds.get(name);
+      const running = !outcome && job?.state === 'running';
       out.push({
         id: name,
         task_id: intent.task_id,
@@ -385,9 +390,22 @@ export class StudioBuilds {
         fixture: outcome?.fixture ?? null,
         finished_at: outcome?.finished_at ?? null,
         package: this.packages.get(name) ?? null,
+        progress: null as BuildProgress | null,
+        running,
       });
     }
-    return out.sort((a, b) => b.started_at.localeCompare(a.started_at));
+    out.sort((a, b) => b.started_at.localeCompare(a.started_at));
+    // B3: the timeline and failure details of each task's newest build. Older builds keep their
+    // one line; an unreadable folder shows no timeline rather than failing the whole list.
+    const seen = new Set<string>();
+    for (const b of out) {
+      if (seen.has(b.task_id)) continue;
+      seen.add(b.task_id);
+      b.progress = await this.supervisor
+        .progress(productId, b.id, b.running)
+        .catch(() => null);
+    }
+    return out.map(({ running: _, ...b }) => b);
   }
 
   async list(ctx: CommandContext, ws: string) {
@@ -566,9 +584,13 @@ export class StudioBuilds {
         );
     }
     const assigned = spec.tasks.find((t) => t.key === task.key);
-    const cases = frozenCases(spec, assigned?.acceptance ?? []).map(
-      ({ held_out: _, ...c }) => c,
-    );
+    // B3: a static web product's cases are its browser cases (ADR-0078). Before this the app
+    // sent none, so every web build started from the Build page was refused.
+    const frozen: { held_out: boolean }[] =
+      p.recipe === 'static-web/1'
+        ? frozenBrowserCases(spec, assigned?.acceptance ?? [])
+        : frozenCases(spec, assigned?.acceptance ?? []);
+    const cases = frozen.map(({ held_out: _, ...c }) => c);
     return new Promise((resolve, reject) => {
       let started: string | null = null;
       this.supervisor
