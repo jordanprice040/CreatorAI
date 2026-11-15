@@ -519,7 +519,7 @@ export const BenchmarkCheckSchema = z.discriminatedUnion('kind', [
      * The frozen behaviour of this program and the grader (review 1 of PR #206, L-2): a hash
      * over the outputs of the reference and every broken version on fixed probe inputs and the
      * grades of fixed probe replies. A change to the programs or the grading changes it, so
-     * the old benchmark stops grading and stops admitting drafts until spec-cases-v2.
+     * the old benchmark stops grading and stops admitting drafts until a new spec-cases version.
      */
     fingerprint: hash,
     /**
@@ -579,6 +579,58 @@ export const BenchmarkCaseSchema = z.strictObject({
   max_output_tokens: counter.min(1).max(200000),
   check: BenchmarkCheckSchema,
 });
+/**
+ * ADR-0110: how a build role's answer may be wrapped. `one_json_fence` accepts exactly one
+ * markdown code fence (opened by ```json or a bare ```, closed by ``` on its own line) around the
+ * whole answer, with nothing but whitespace outside it. Any other surrounding text still fails.
+ * A manifest without the field grades the raw answer strictly, as every earlier version did.
+ */
+export const RoleAnswerWrappingSchema = z.literal('one_json_fence');
+export type RoleAnswerWrapping = z.infer<typeof RoleAnswerWrappingSchema>;
+
+// Outside the fence only JSON's own whitespace (space, tab, CR, LF) is allowed, as JSON.parse
+// allows around a raw answer; a BOM or a no-break space is not (review 1 N-1).
+const ONE_JSON_FENCE =
+  /^[ \t\r\n]*```(?:json)?[ \t]*\r?\n([\s\S]*)\r?\n[ \t]*```[ \t\r\n]*$/;
+
+/**
+ * The text inside the one fence that wraps a whole build-role answer, or null when the answer is
+ * not wrapped that way. Greedy, so a second fence or any text after the first closing fence stays
+ * inside the result and makes it invalid JSON rather than being dropped.
+ */
+export function unwrapOneJsonFence(text: string): string | null {
+  const m = ONE_JSON_FENCE.exec(text);
+  return m ? m[1]! : null;
+}
+
+/**
+ * The text a build-role answer is graded on (ADR-0110): with `one_json_fence`, what is inside
+ * the one fence when the answer is wrapped that way; otherwise the answer as it came. The one
+ * place the rule is applied, for both the JSON parse and the patch scorer.
+ */
+export function roleAnswerText(
+  text: string,
+  wrapping: RoleAnswerWrapping | null,
+): { text: string; fenced: boolean } {
+  const inner = wrapping === 'one_json_fence' ? unwrapOneJsonFence(text) : null;
+  return inner === null
+    ? { text, fenced: false }
+    : { text: inner, fenced: true };
+}
+
+/**
+ * Parses a build role's answer (ADR-0110). A raw answer is strict JSON; with `one_json_fence`,
+ * an answer that is exactly one fence around JSON is parsed from inside the fence. Throws
+ * SyntaxError otherwise. `fenced` says which form was accepted, for the record.
+ */
+export function parseRoleAnswer(
+  text: string,
+  wrapping: RoleAnswerWrapping | null,
+): { json: unknown; fenced: boolean } {
+  const a = roleAnswerText(text, wrapping);
+  return { json: JSON.parse(a.text) as unknown, fenced: a.fenced };
+}
+
 export const BenchmarkManifestSchema = z
   .strictObject({
     format: z.literal('route-benchmark/1'),
@@ -586,10 +638,22 @@ export const BenchmarkManifestSchema = z
     fixture: z.boolean(),
     task_class: TaskClassSchema,
     data_class: DataClassSchema,
+    /** ADR-0110: absent means the raw answer must be strict JSON. Build roles only. */
+    answer_wrapping: RoleAnswerWrappingSchema.optional(),
     cases: z.array(BenchmarkCaseSchema).min(2).max(200),
     provenance: note,
   })
   .superRefine((b, ctx) => {
+    if (
+      b.answer_wrapping !== undefined &&
+      b.task_class !== 'patch_build' &&
+      b.task_class !== 'independent_review'
+    )
+      ctx.addIssue({
+        code: 'custom',
+        message:
+          'Only build-role benchmarks (patch_build, independent_review) may accept a fenced answer.',
+      });
     for (const c of b.cases)
       if (c.check.kind === 'discovery_contract') {
         const required =

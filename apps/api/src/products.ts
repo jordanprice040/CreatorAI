@@ -343,15 +343,30 @@ export class StudioBuilds {
     }
     if (this.planRolesReady) {
       const ready = this.planRolesReady;
-      ports.planRolesReady = async (target) =>
-        via(
-          z.strictObject({ blockers: z.array(z.string()) }),
+      // Review L-5: the same answer carries the connection's input cap, which the build reads
+      // right after its preflight.
+      const caps = new Map<string, number>();
+      ports.planRolesReady = async (target) => {
+        const r = via(
+          z.strictObject({
+            blockers: z.array(z.string()),
+            max_input_chars: z.number().int().positive(),
+          }),
           await ready(ctx, ws, target.connection_id, {
             model_id: target.model_id,
             run_id: target.run_id,
             data_class: target.data_class,
           }),
-        ).blockers;
+        );
+        caps.set(target.connection_id, r.max_input_chars);
+        return r.blockers;
+      };
+      ports.planRoleInputCap = async (target) => {
+        const cap = caps.get(target.connection_id);
+        if (cap === undefined)
+          throw new Error('The plan roles preflight has not run');
+        return cap;
+      };
     }
     return this.wrapPorts(ports);
   }

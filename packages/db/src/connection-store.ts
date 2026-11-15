@@ -175,6 +175,7 @@ import {
   SPEC_DRAFT_TASK_CLASS,
   currentForSpecDraftRole,
   specCasesBar,
+  specCasesManifestHash,
   specDraftRequestGate,
   toSpecDraft,
   type SpecDraftBinding,
@@ -634,6 +635,20 @@ function withoutRoleVersion(check: unknown): unknown {
     kind?: string;
     context?: Record<string, unknown>;
   } | null;
+  // Review 1 of PR #210, L-1, and review 2, L-1: a spec cases check names the instructions
+  // version, the hash of the frozen source (readers, programs and grader, with the version in
+  // its marker comments) and a behavioural fingerprint (spec schema, programs, grades). All
+  // three change with a re-cut of the benchmark, not with the case, so a case is its request,
+  // program, mutants and bar; spec-cases-v1, v2 and any later cut share held-out cases.
+  if (c?.kind === 'spec_cases_contract') {
+    const {
+      role_version: _v,
+      source_sha256: _s,
+      fingerprint: _f,
+      ...rest
+    } = c as Record<string, unknown>;
+    return rest;
+  }
   // PR #173 review 3 L-1: a web check names its role version at the top level; the stage's
   // prompt is its system message, which `heldOutPrompts` covers case by case.
   if (c?.kind === 'web_scout_contract' || c?.kind === 'web_reader_contract') {
@@ -3232,7 +3247,7 @@ export class ConnectionStore extends AutomationStore {
       )
         throw fail(
           'ACCESS_DENIED',
-          `${req.model_id} is not qualified for drafting specs on this connection. Qualify it on the spec-cases-v1 benchmark under Models and connections, or write the spec yourself.`,
+          `${req.model_id} is not qualified for drafting specs on this connection. Qualify it on the spec-cases-v2 benchmark under Models and connections, or write the spec yourself.`,
         );
       const dataClass = dataClassOf(sel.data_class);
       // Review 1 of PR #206, N-2: refused before anything is recorded, in words.
@@ -5273,6 +5288,22 @@ export class ConnectionStore extends AutomationStore {
         'INVALID_CONTRACT',
         `Every ${tc} case must use exactly the T12 ${role} prompt.`,
       );
+    // Review 1 of PR #210, N-1: spec cases qualify only on the bundled file, so a hand-made
+    // start of the frozen spec-cases-v1 (or any other copy) never spends requests.
+    if (
+      req.manifest.cases.some(
+        (k) =>
+          (k.check as { kind?: unknown } | undefined)?.kind ===
+          'spec_cases_contract',
+      ) &&
+      canonicalHash(req.manifest) !== specCasesManifestHash()
+    )
+      throw fail(
+        'INVALID_CONTRACT',
+        req.manifest.name === 'spec-cases-v1'
+          ? 'spec-cases-v1 is kept as it ran; qualify on spec-cases-v2.'
+          : 'Spec cases qualify only on the bundled spec-cases-v2 file.',
+      );
     if (!conn.settings.allowed_data_classes.includes(req.manifest.data_class))
       throw fail(
         'SCOPE_EXCEEDED',
@@ -5343,7 +5374,7 @@ export class ConnectionStore extends AutomationStore {
     >,
     actorId: string,
   ): Promise<PlanQualification> {
-    // Review 2 of PR #206, L-1: the server sets spec-cases-v1's pass bar itself.
+    // Review 2 of PR #206, L-1: the server sets spec-cases-v2's pass bar itself.
     req = specCasesBar(req);
     const tc = req.manifest.task_class;
     const qid = randomUUID();

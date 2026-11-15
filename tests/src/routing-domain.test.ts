@@ -540,7 +540,7 @@ test('build-role checks only appear under their own task class with JSON output'
 
 test('the T12 plan-role benchmarks carry exact T12 packets and never leak held-out outputs', () => {
   for (const [file, role] of [
-    ['t12-builder-v1', 'builder'],
+    ['t12-builder-v2', 'builder'],
     ['t12-reviewer-v2', 'reviewer'],
   ] as const) {
     const m = BenchmarkManifestSchema.parse(
@@ -578,6 +578,33 @@ test('the T12 plan-role benchmarks carry exact T12 packets and never leak held-o
           assert.ok(!c.input[1]!.text.includes(JSON.stringify(h.stdout)));
       }
     }
+  }
+});
+
+test('builder v2 keeps v1 cases and checks for the builder/2 prompt; v1 no longer matches it (ADR-0109)', () => {
+  const [v1, v2] = ['t12-builder-v1', 't12-builder-v2'].map((f) =>
+    BenchmarkManifestSchema.parse(
+      read(`config/connections/benchmarks/${f}.json`),
+    ),
+  );
+  const shape = (m: typeof v1) =>
+    m!.cases.map((c) => [c.case_id, c.split, JSON.stringify(c.check)]);
+  assert.deepEqual(shape(v2), shape(v1));
+  assert.ok(
+    v1!.cases.every((c) => c.input[0]!.text !== BUILD_ROLE_PROMPTS.builder),
+  );
+  // Each v2 packet tells the builder the answer rules and that this answer is its only part.
+  for (const c of v2!.cases) {
+    const p = JSON.parse(c.input[1]!.text) as {
+      answer_rules: string[];
+      round: { part: number; further_parts_allowed: number; staged: unknown[] };
+    };
+    assert.ok(p.answer_rules.length > 0);
+    assert.deepEqual(p.round, {
+      part: 1,
+      further_parts_allowed: 0,
+      staged: [],
+    });
   }
 });
 

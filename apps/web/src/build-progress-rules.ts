@@ -28,6 +28,8 @@ export interface BuildRound {
   builder: 'writing' | 'answered' | 'failed' | null;
   refused: { reason: string; details: string[] } | null;
   candidate: { files: string[]; kept: boolean } | null;
+  /** ADR-0109: builder requests (parts) in this round; absent from a server before B4. */
+  parts?: number | undefined;
   reviewer: 'reading' | 'answered' | 'failed' | null;
   review: { verdict: string; findings: string[] } | null;
   tests: { ran: number; passed: number; failed: number; unfinished: number };
@@ -112,13 +114,15 @@ export function headlineText(h: string): string {
 }
 
 function builderLine(r: BuildRound, p: BuildProgress): TimelineLine | null {
+  const parts = r.parts ?? 1;
   if (r.builder === 'writing')
     return {
       tone: 'now',
-      text:
+      text: `${
         r.round === 0
           ? 'Builder is writing the code'
-          : 'Builder is fixing what failed',
+          : 'Builder is fixing what failed'
+      }${parts > 1 ? ` (part ${parts})` : ''}`,
     };
   if (r.builder === 'failed')
     return { tone: 'failed', text: 'The builder request failed' };
@@ -134,7 +138,9 @@ function builderLine(r: BuildRound, p: BuildProgress): TimelineLine | null {
       tone: 'done',
       text: r.candidate.kept
         ? 'Builder kept the last build’s code, to be reviewed and tested again'
-        : `Builder changed ${plural(r.candidate.files.length, 'file')}: ${r.candidate.files.slice(0, 6).join(', ')}${
+        : `Builder changed ${plural(r.candidate.files.length, 'file')}${
+            parts > 1 ? ` in ${parts} parts, applied together` : ''
+          }: ${r.candidate.files.slice(0, 6).join(', ')}${
             r.candidate.files.length > 6 ? ', …' : ''
           }`,
     };

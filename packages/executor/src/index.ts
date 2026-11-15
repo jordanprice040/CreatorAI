@@ -3,6 +3,7 @@ export * from './products.js';
 export * from './execution.js';
 export * from './build.js';
 export * from './build-progress.js';
+export * from './builder-answer.js';
 export * from './tar.js';
 export * from './artifacts.js';
 export * from './study-build.js';

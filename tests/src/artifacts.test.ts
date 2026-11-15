@@ -21,6 +21,7 @@ import {
   BUILD_ROLE_PROMPTS,
   BUILD_FIXTURE_SPEC,
   buildFixtureAnswer,
+  frozenCases,
   taskHashes,
 } from '@creator/domain';
 import type { BrokerCallResult, SpecBody } from '@creator/contracts';
@@ -73,7 +74,13 @@ test('source archives are deterministic and the reader refuses anything it did n
 /** A verified fixture build using the test double; returns everything a package needs. */
 export async function verifiedBuild(
   t: test.TestContext,
-  opts: { planRoles?: boolean } = {},
+  opts: {
+    planRoles?: boolean;
+    /** ADR-0109: extra automated checks (A4, A5) with 10 cases each, so 22 cases in all. */
+    manyCases?: boolean;
+    /** ADR-0109: the plan builder answers its round in this many parts. */
+    parts?: number;
+  } = {},
 ) {
   const parent = resolve('.verification/artifact-tests');
   await mkdir(parent, { recursive: true });
@@ -88,6 +95,24 @@ export async function verifiedBuild(
     alternative: { id: randomUUID(), version: 1 },
     selection_id: randomUUID(),
   };
+  if (opts.manyCases) {
+    for (const key of ['A4', 'A5'] as const)
+      spec.acceptance_checks.push({
+        key,
+        flow: 'F2',
+        statement: `Reject unexpected arguments (${key})`,
+        measure: 'Exact stdout invalid input and exit code 2',
+        method: 'automated_test',
+        cases: Array.from({ length: 10 }, (_, i) => ({
+          args: [`${key.toLowerCase()}-${i}`],
+          stdin: '',
+          stdout: 'invalid input\n',
+          exit_code: 2,
+          held_out: false,
+        })),
+      });
+    spec.tasks[0]!.acceptance.push('A4', 'A5');
+  }
   const binding: Binding = {
     workspace_id: randomUUID(),
     owner_id: randomUUID(),
@@ -118,7 +143,12 @@ export async function verifiedBuild(
     timeout_ms: 10000,
     max_output_tokens: 3000,
     deadline: new Date(Date.now() + 300000).toISOString(),
-    cases: structuredClone(BUILD_FIXTURE_CASES),
+    cases: opts.manyCases
+      ? frozenCases(spec, spec.tasks[0]!.acceptance).map(
+          ({ held_out: _, ...c }) => c,
+        )
+      : structuredClone(BUILD_FIXTURE_CASES),
+    ...(opts.parts ? { max_calls: opts.parts + 1 } : {}),
     ...(opts.planRoles
       ? {
           plan_roles: { connection_id: randomUUID(), model_id: 'fixture-plan' },
@@ -146,17 +176,43 @@ export async function verifiedBuild(
     ...(opts.planRoles
       ? {
           planRolesReady: async () => [],
-          planRole: async (target, request) => ({
-            request_id: randomUUID(),
-            status: 'succeeded',
-            reason_code: 'ok',
-            // The server adds the fixed role prompt; the fixture needs it to pick an answer.
-            text: buildFixtureAnswer([
-              { role: 'system', text: BUILD_ROLE_PROMPTS[target.role] },
-              { role: 'user', text: request.input },
-            ]),
-            fixture: true,
-          }),
+          planRole: async (target, request) => {
+            const packet = JSON.parse(request.input) as {
+              candidate: string;
+              round?: { part: number };
+            };
+            const part = packet.round?.part ?? 1;
+            // ADR-0109: the earlier parts each add a file; the last is the fixture's answer.
+            const text =
+              target.role === 'builder' && part < (opts.parts ?? 1)
+                ? JSON.stringify({
+                    summary: 'part',
+                    submission: {
+                      expected_commit: packet.candidate,
+                      changes: [
+                        {
+                          path: `src/part${part}.py`,
+                          before_hash: null,
+                          content: `PART = ${part}\n`,
+                        },
+                      ],
+                      complete: false,
+                    },
+                    blocker: null,
+                  })
+                : // The server adds the fixed role prompt; the fixture needs it to pick an answer.
+                  buildFixtureAnswer([
+                    { role: 'system', text: BUILD_ROLE_PROMPTS[target.role] },
+                    { role: 'user', text: request.input },
+                  ]);
+            return {
+              request_id: randomUUID(),
+              status: 'succeeded',
+              reason_code: 'ok',
+              text,
+              fixture: true,
+            };
+          },
         }
       : {}),
   };
@@ -228,6 +284,26 @@ test('a plan-route build packages with its plan requests and no dollar broker ca
   // requests, a broker package its broker calls. Counting broker calls alone would say 0 here.
   assert.equal(manifestCalls(manifest), 2);
   assert.equal(manifestCalls(b.manifest), 2);
+});
+
+test('a build with more than 10 cases and more than 6 plan requests packages (ADR-0109, review H-1)', async (t) => {
+  const s = await verifiedBuild(t, {
+    planRoles: true,
+    manyCases: true,
+    parts: 7,
+  });
+  assert.equal(s.plan.cases.length, 22);
+  assert.equal(s.build.calls, 8, '7 builder parts and the reviewer');
+  const { manifest } = await new ArtifactSupervisor(
+    s.products,
+    s.double,
+  ).package(s.product.id, s.build.id, s.ports);
+  assert.equal(manifest.state, 'verified');
+  assert.equal(manifest.tests.cases.length, 22);
+  assert.equal(manifest.tests.build_qa.length, 22);
+  assert.equal(manifest.tests.package.length, 22);
+  assert.equal(manifest.costs.plan_requests?.request_ids.length, 8);
+  assert.ok(manifest.package.files.some((f) => f.path === 'src/part6.py'));
 });
 
 test('a verified candidate packages to a manifest bound to its commit, spec, task, QA and package checks', async (t) => {

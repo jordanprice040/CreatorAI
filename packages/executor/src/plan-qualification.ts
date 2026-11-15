@@ -9,7 +9,10 @@ import {
 } from './contracts.js';
 import type { ProductSupervisor } from './products.js';
 import type { ExecutionSupervisor } from './execution.js';
-import { builderSchema, qaPassed } from './build.js';
+import { qaPassed } from './build.js';
+import { builderV2Schema, resolveSubmission } from './builder-answer.js';
+import { fileAt } from './files.js';
+import { git } from './git.js';
 
 /** The patch_cases benchmark check (contracts BenchmarkCheckSchema, ADR-0048). */
 export interface PatchCasesCheck {
@@ -25,7 +28,9 @@ export interface PatchCasesCheck {
 }
 
 // Graded with the builder schema a real build uses, so a qualified answer is one T12 accepts.
-const answerSchema = builderSchema;
+// ADR-0109: builder/2's; a qualification answer is one part (complete), and its edits apply to
+// the template's files exactly as a build round's do.
+const answerSchema = builderV2Schema;
 
 /** The qualification root's pending-worker marker, if a crash or failed reap left one. */
 async function pendingMarker(root: string) {
@@ -147,6 +152,13 @@ async function grade(
         answer.blocker ? `"${answer.blocker}"` : 'none given'
       }.`,
     };
+  if (answer.submission.complete === false)
+    return {
+      signal: 'acceptance_check_failed',
+      detail:
+        'The builder set complete false, but a qualification task allows one part only.',
+    };
+  const submission = answer.submission;
   const taskHash = digest(JSON.stringify(check));
   const binding: Binding = {
     workspace_id: randomUUID(),
@@ -185,17 +197,37 @@ async function grade(
     );
     let commit: string;
     try {
+      // The template's files, as a build round's packet gives them, for before hashes and edits.
+      const tree = sup.products.worktree(product.id, task.id);
+      const names = (
+        await git(tree, [
+          'ls-tree',
+          '-r',
+          '--name-only',
+          product.initial_commit,
+        ])
+      )
+        .split('\n')
+        .filter(Boolean);
+      const files = [];
+      for (const name of names) {
+        const content = await readFile(await fileAt(tree, name), 'utf8');
+        files.push({ path: name, hash: digest(content), content });
+      }
       // The benchmark packet cannot know this product's commit; the hashes still bind the files.
       ({ commit } = await sup.products.apply(
         product.id,
         task.id,
-        { ...answer.submission, expected_commit: product.initial_commit },
+        resolveSubmission(
+          { ...submission, expected_commit: product.initial_commit },
+          files,
+        ),
         binding,
       ));
     } catch (e) {
       return {
         signal: 'acceptance_check_failed',
-        detail: `The code change was refused or did not apply (${answer.submission.changes
+        detail: `The code change was refused or did not apply (${submission.changes
           .map((c) => c.path)
           .join(', ')}): ${said(e)}`,
       };

@@ -20,6 +20,8 @@ import {
   type PlanTaskClass,
   type Admission,
   type BenchmarkCheck,
+  parseRoleAnswer,
+  roleAnswerText,
 } from '@creator/contracts';
 import {
   BUILD_ROLE_PROMPTS,
@@ -1482,6 +1484,19 @@ export class PlanConnectionService {
     return out;
   }
 
+  /**
+   * ADR-0109 review L-5: the connection's per-request input cap (instructions plus input), so
+   * a build can refuse a later part that would not fit as round feedback instead of stopping.
+   */
+  async buildRoleInputCap(
+    ctx: CommandContext,
+    ws: string,
+    connectionId: string,
+  ): Promise<number> {
+    const d = await this.deps.store.planConnectionDetail(ctx, ws, connectionId);
+    return d.connection.settings.caps.responses.max_input_chars;
+  }
+
   /** Uses the owner's one-shot approval for one live call that verifies model access. */
   async verifyModel(
     ctx: CommandContext,
@@ -1602,9 +1617,17 @@ export class PlanConnectionService {
             }
           : {}),
         score: (text, outcome) => {
+          // ADR-0110: a build-role benchmark frozen with answer_wrapping accepts exactly one
+          // code fence around the whole answer; the grader sees what is inside it. Without the
+          // field (every earlier version) the raw answer is graded strictly.
+          const wrapping = manifest.answer_wrapping ?? null;
           if (c.check.kind === 'patch_cases')
             return outcome.kind === 'completed'
-              ? scorer!(ctx, c.check, text)
+              ? scorer!(
+                  ctx,
+                  c.check,
+                  text === null ? null : roleAnswerText(text, wrapping).text,
+                )
               : 'provider_error';
           let json: unknown = null;
           // ADR-0107: a spec draft reply is read as the drafting page reads it (a fenced JSON
@@ -1615,7 +1638,7 @@ export class PlanConnectionService {
             c.check.kind !== 'spec_cases_contract'
           )
             try {
-              json = JSON.parse(text);
+              json = parseRoleAnswer(text, wrapping).json;
             } catch {
               return 'schema_invalid';
             }

@@ -5,7 +5,7 @@ import {
   type PlanQualificationResults,
 } from '@creator/contracts';
 import { api, message } from './oversight.js';
-import { roleOf } from './qualification-role.js';
+import { ROLE_NAME, roleOf } from './qualification-role.js';
 
 // F10 (owner pilot): a qualification's answers and why each one passed or failed. Before this,
 // a failed qualification showed only "failed" and the owner could not tell a model that
@@ -19,11 +19,6 @@ const JOB: Record<string, string> = {
   research_synthesis: 'research synthesis',
   candidate_generation: 'candidate generation',
   scoring: 'scoring',
-};
-const ROLE: Record<string, string> = {
-  assessment: ' for assessments',
-  discovery: ' for discovery',
-  web_discovery: ' for Search the web',
 };
 
 const SIGNAL: Record<string, string> = {
@@ -54,7 +49,7 @@ function readable(answer: string) {
 export function QualificationSummary({ q }: { q: PlanQualification }) {
   // PR #175 review M-1: the role, where one task class serves two (scoring, research synthesis).
   const role = roleOf(q);
-  const job = `${JOB[q.task_class] ?? q.task_class.replaceAll('_', ' ')} job${role ? ROLE[role] : ''}`;
+  const job = `${JOB[q.task_class] ?? q.task_class.replaceAll('_', ' ')} job${role ? ` for ${ROLE_NAME[role]}` : ''}`;
   const decided = q.state === 'qualified' || q.state === 'failed';
   return (
     <>

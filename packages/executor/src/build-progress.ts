@@ -18,7 +18,12 @@ const cut = (s: string) =>
     ? `${s.slice(0, TEXT_MAX)}\n… (${s.length - TEXT_MAX} more characters)`
     : s;
 
-const roleCall = z.object({ role: z.enum(['builder', 'reviewer']) });
+const roleCall = z.object({
+  role: z.enum(['builder', 'reviewer']),
+  // ADR-0109: the round (and a builder call's part) it belongs to; absent before B4.
+  round: z.number().int().min(0).optional(),
+  part: z.number().int().min(1).optional(),
+});
 const callOutcome = z.object({
   status: z.string(),
   reason_code: z.string().optional(),
@@ -84,6 +89,8 @@ export type CaseFailure =
 export interface BuildRound {
   round: number;
   builder: 'writing' | 'answered' | 'failed' | null;
+  /** ADR-0109: builder requests (parts) in this round; 0 for a Codex round. */
+  parts: number;
   refused: { reason: string; details: string[] } | null;
   candidate: { files: string[]; kept: boolean } | null;
   reviewer: 'reading' | 'answered' | 'failed' | null;
@@ -158,6 +165,7 @@ export async function readBuildProgress({
   // Role requests in order: call-N for plan roles and the broker, codex-N for the Codex builder.
   type Call = {
     role: 'builder' | 'reviewer';
+    round: number | null;
     done: boolean;
     ok: boolean;
     file: string;
@@ -168,6 +176,7 @@ export async function readBuildProgress({
     const out = await optional(`call-${n}-outcome.json`, callOutcome);
     calls.push({
       role: role?.role ?? 'builder',
+      round: role?.round ?? null,
       done: out !== null,
       ok: out?.status === 'succeeded',
       file: `call-${n}-intent.json`,
@@ -183,8 +192,19 @@ export async function readBuildProgress({
     if (m) last = Math.max(last, Number(m[1]));
   }
   // Builder calls mark rounds too (a round whose builder is still writing has no other file).
+  // ADR-0109: a call names its round; one written before B4 is its round's only builder call.
   const builderCalls = calls.filter((c) => c.role === 'builder');
-  last = Math.max(last, builderCalls.length - 1);
+  const byRound = builderCalls.some((c) => c.round !== null);
+  const builderOf = (r: number) =>
+    byRound
+      ? builderCalls.filter((c) => c.round === r)
+      : builderCalls.slice(r, r + 1);
+  last = Math.max(
+    last,
+    byRound
+      ? Math.max(-1, ...builderCalls.map((c) => c.round ?? -1))
+      : builderCalls.length - 1,
+  );
   const rounds: BuildRound[] = [];
   let reviewerSeen = 0;
   for (let r = 0; r <= last; r++) {
@@ -192,11 +212,12 @@ export async function readBuildProgress({
     const candidate = await optional(`candidate-${r}.json`, candidateFile);
     const review = await optional(`review-${r}.json`, reviewFile);
     let builder: BuildRound['builder'] = null;
+    const parts = route === 'codex_plan' ? [] : builderOf(r);
     if (route === 'codex_plan') {
       if (names.has(`codex-${r}-intent.json`))
         builder = names.has(`codex-${r}-outcome.json`) ? 'answered' : 'writing';
     } else {
-      const call = builderCalls[r];
+      const call = parts.at(-1);
       if (call)
         builder = !call.done ? 'writing' : call.ok ? 'answered' : 'failed';
     }
@@ -226,6 +247,7 @@ export async function readBuildProgress({
     rounds.push({
       round: r,
       builder,
+      parts: parts.length,
       refused,
       candidate: candidate
         ? {
