@@ -48,7 +48,7 @@ import {
   EdgeCaseOffer,
   Explanation,
   SpecDraftOffer,
-  StaleNote,
+  DraftReads,
   useDraftAsk,
   useSpecDrafts,
 } from './spec-drafts.js';
@@ -261,7 +261,7 @@ export function SpecForm({
     run: () => void,
   ) =>
     route ? (
-      <>
+      <div className="sf-helpers">
         <button
           type="button"
           className="text"
@@ -277,7 +277,7 @@ export function SpecForm({
             {helperNote(key)}
           </span>
         )}
-      </>
+      </div>
     ) : null;
   const dismiss = (id: string) => setDismissed((a) => [...a, id]);
   const set = (f: (x: SpecDraft) => void) =>
@@ -622,7 +622,7 @@ export function SpecForm({
               )}
             </>
           )}
-          <StaleNote stale={drafts.stale} />
+          <DraftReads drafts={drafts} ask={ask} />
           {newestSpec && (
             <SpecDraftOffer
               key={newestSpec.id}
@@ -1019,16 +1019,12 @@ export function SpecForm({
             {err(`checks.${i}.covered`)}
             {problemsAt(`checks.${i}`)}
             {canDraft &&
-              (c.method === 'automated_test' ||
-                c.method === 'browser_check') && (
-                <div className="sf-helpers">
-                  {helperButton(
-                    `edge.${c.key}`,
-                    'Add an edge case',
-                    'Asking for an edge case…',
-                    () => void helper(`edge.${c.key}`, i, 'edge_case', null),
-                  )}
-                </div>
+              (c.method === 'automated_test' || c.method === 'browser_check') &&
+              helperButton(
+                `edge.${c.key}`,
+                'Add an edge case',
+                'Asking for an edge case…',
+                () => void helper(`edge.${c.key}`, i, 'edge_case', null),
               )}
             {shown(`edge.${c.key}`).map(({ draft }) => (
               <EdgeCaseOffer

@@ -3969,3 +3969,8 @@ ul.case-problems {
 .spec-form .sf-helpers {
   margin: 0.25rem 0;
 }
+/* On the draft's tinted background the quieter text colour falls below 4.5:1 (axe, B2 walk). */
+.model-draft .small,
+.model-draft small {
+  color: var(--text-2);
+}

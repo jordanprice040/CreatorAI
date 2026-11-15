@@ -1,0 +1,46 @@
+{
+  "when": "2026-11-15T04:22:08.123Z",
+  "mode": "fixture",
+  "stand_ins": [
+    "loopback ChatGPT plan with canned draft replies",
+    "spec-cases-v1 qualification recorded directly (no live qualification)"
+  ],
+  "steps": [
+    {
+      "name": "sign in; before any model is qualified, the panel says how to get one",
+      "ok": true,
+      "detail": "axe: 0 violations"
+    },
+    {
+      "name": "qualified on spec-cases-v1, Draft with m shows the draft beside the form, checked",
+      "ok": true,
+      "detail": "axe: 0 violations"
+    },
+    {
+      "name": "Use this draft fills the form; the held-out pick and case checks show by each case",
+      "ok": true,
+      "detail": "axe: 0 violations"
+    },
+    {
+      "name": "Add an edge case suggests one for A1; Add puts it in the form",
+      "ok": true,
+      "detail": "axe: 0 violations"
+    },
+    {
+      "name": "Explain this case answers beside the case",
+      "ok": true,
+      "detail": "axe: 0 violations"
+    },
+    {
+      "name": "phone width: no horizontal page scroll",
+      "ok": true,
+      "detail": "axe: 0 violations"
+    },
+    {
+      "name": "Save spec records the drafts; the Build row says drafted by the model, checked by you",
+      "ok": true,
+      "detail": null
+    }
+  ],
+  "problems": []
+}

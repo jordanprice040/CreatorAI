@@ -478,4 +478,28 @@ export function Explanation({
   );
 }
 
-export { StaleNote };
+/** A failed read of the drafts or of the models that may draft, said in place. */
+export function DraftReads({
+  drafts,
+  ask,
+}: {
+  drafts: ReturnType<typeof useSpecDrafts>;
+  ask: DraftAsk;
+}) {
+  const routes = ask.routes;
+  return (
+    <>
+      {routes.error && (
+        <p className="error" role="alert">
+          Could not read which models may draft specs: {routes.error}
+        </p>
+      )}
+      {drafts.error && (
+        <p className="error" role="alert">
+          Could not read this option’s drafts: {drafts.error}
+        </p>
+      )}
+      <StaleNote stale={drafts.stale || routes.stale} />
+    </>
+  );
+}
