@@ -3957,8 +3957,8 @@ details > summary {
   z-index: 12;
   display: flex;
   width: max-content;
-  /* Kept in from the right so it sits inside the page panel instead of on its right border. */
-  margin: 16px 16px 0 auto;
+  /* Kept in from the right so it lines up with the page panel's content, not on its border. */
+  margin: 16px 24px 0 auto;
   box-shadow: var(--shadow);
 }
 @media print {

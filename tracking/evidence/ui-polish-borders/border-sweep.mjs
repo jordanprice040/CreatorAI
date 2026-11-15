@@ -61,15 +61,16 @@ for (const p of paths) {
     await page.waitForTimeout(500);
   }
   const hits = await page.evaluate(() => {
-    const vis = (cs) => (w, c) =>
+    const vis = (w, c) =>
       parseFloat(w) > 0 && !/rgba\(0, 0, 0, 0\)|transparent/.test(c);
     const boxes = [];
     for (const el of document.querySelectorAll('main *, .topbar *')) {
+      // The top bar's usage popover is closed but still measured; it is not shown.
+      if (el.closest('.usage-panel')) continue;
       const cs = getComputedStyle(el);
       if (cs.display === 'none' || cs.visibility === 'hidden') continue;
-      const v = vis(cs);
       const full = ['Top', 'Right', 'Bottom', 'Left'].every((sd) =>
-        v(cs[`border${sd}Width`], cs[`border${sd}Color`]),
+        vis(cs[`border${sd}Width`], cs[`border${sd}Color`]),
       );
       const bg =
         !/rgba\(0, 0, 0, 0\)|transparent/.test(cs.backgroundColor) &&
