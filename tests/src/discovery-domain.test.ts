@@ -701,7 +701,7 @@ test('live run 2026-11-14: a large catalog gets only the room the brief and clai
   assert.equal(tight.catalog[0]!.id, fullCatalog[0]!.id);
   assert.match(
     catalogBeyondNote(tight) ?? '',
-    /not shown to the designers for lack of room; app rules still checked every proposal/,
+    /left out of what the designers saw for lack of room; app rules still checked every proposal/,
   );
   // A small catalog fits whole, uncut, and says nothing about leaving entries out.
   const small = buildPacket({

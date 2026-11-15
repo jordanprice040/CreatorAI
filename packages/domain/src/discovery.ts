@@ -192,7 +192,7 @@ export function buildPacket(input: {
 export function catalogBeyondNote(packet: EvidencePacket): string | null {
   const n = packet.catalog_beyond_limit ?? 0;
   if (!n) return null;
-  return `${n} older ${n === 1 ? 'problem, idea or option was' : 'problems, ideas and options were'} not shown to the designers for lack of room; app rules still checked every proposal against ${n === 1 ? 'it' : 'them'} for duplicates.`;
+  return `${n} recorded ${n === 1 ? 'problem, idea or option was' : 'problems, ideas or options were'} left out of what the designers saw for lack of room; app rules still checked every proposal against ${n === 1 ? 'it' : 'them'} for duplicates.`;
 }
 
 // ---- Catalog similarity (duplicates) ---------------------------------------------------

@@ -89,9 +89,9 @@ const TERMINAL = new Set(['succeeded', 'failed', 'cancelled']);
 
 const said = (e: unknown) =>
   e instanceof ContractError
-    ? [e.message, ...e.details].join(' ').slice(0, 1000)
+    ? cutText([e.message, ...e.details].join(' '), 1000)
     : e instanceof Error
-      ? e.message.slice(0, 300)
+      ? cutText(e.message, 300)
       : 'The step failed.';
 const codeOf = (e: unknown): ErrorCode | null =>
   e instanceof ContractError ? e.code : null;
@@ -263,7 +263,10 @@ export class AutopilotRunner {
     try {
       return await start();
     } catch (e) {
-      if (step.key) this.#refused.add(step.key);
+      // Re-review L-2: only a refusal (a ContractError, raised before the store commits the
+      // start) means nothing was sent. Any other error may come after the commit (e.g. the
+      // store's follow-up read failed), so the step may have spent.
+      if (step.key && e instanceof ContractError) this.#refused.add(step.key);
       throw e;
     }
   }
@@ -559,7 +562,7 @@ export class AutopilotRunner {
           ? {
               ...s,
               state: 'done' as const,
-              note: done.note.slice(0, 1200),
+              note: cutText(done.note, 1200),
               child: done.child ?? s.child,
               problem: done.problem ?? s.problem,
               option: done.option ?? s.option,
@@ -660,7 +663,7 @@ export class AutopilotRunner {
           {
             ...base,
             state: 'stopped',
-            note: planned.note.slice(0, 1200),
+            note: cutText(planned.note, 1200),
             no_retry: planned.final ?? null,
             stop_kind: planned.kind ?? null,
             finished_at: now,
@@ -934,11 +937,10 @@ export class AutopilotRunner {
     if (!s || !settingIsOn(s.values, setting)) return stop;
     return {
       ...stop,
-      final:
-        `“${AUTOPILOT_SETTING_TEXT[setting].label}” is already on and it still could not go on. Add evidence or choose under Decide, then start a new autopilot.`.slice(
-          0,
-          300,
-        ),
+      final: cutText(
+        `“${AUTOPILOT_SETTING_TEXT[setting].label}” is already on and it still could not go on. Add evidence or choose under Decide, then start a new autopilot.`,
+        300,
+      ),
     };
   }
 
@@ -953,7 +955,7 @@ export class AutopilotRunner {
       setting,
       settings_version: settings.version,
       instead_of,
-      note: note.slice(0, 600),
+      note: cutText(note, 600),
     };
   }
 
@@ -1165,8 +1167,8 @@ export class AutopilotRunner {
     return {
       done: {
         child: { kind: 'web_discovery', id: d.id },
-        note: `${d.explanation} ${admitted} claim${admitted === 1 ? '' : 's'} added by the run's routine approvals${pending ? `; ${pending} checked claim${pending === 1 ? '' : 's'} wait for you under Discover › Search the web` : ''}.`.slice(
-          0,
+        note: cutText(
+          `${d.explanation} ${admitted} claim${admitted === 1 ? '' : 's'} added by the run's routine approvals${pending ? `; ${pending} checked claim${pending === 1 ? '' : 's'} wait for you under Discover › Search the web` : ''}.`,
           1200,
         ),
       },
@@ -1192,9 +1194,10 @@ export class AutopilotRunner {
         outcome: 'needs_person',
         kind: 'claims_held',
         child: { kind: 'web_discovery', id: d.id },
-        note: `${extra} The web search found ${n} claim${n === 1 ? '' : 's'} whose only check is that the quotes were found word for word; ${n === 1 ? 'it waits' : 'they wait'} for you under Discover › Search the web (search ${d.id}). Add the ones you agree with and continue, or turn on “Accept quote-checked web claims”.`
-          .trim()
-          .slice(0, 1200),
+        note: cutText(
+          `${extra} The web search found ${n} claim${n === 1 ? '' : 's'} whose only check is that the quotes were found word for word; ${n === 1 ? 'it waits' : 'they wait'} for you under Discover › Search the web (search ${d.id}). Add the ones you agree with and continue, or turn on “Accept quote-checked web claims”.`.trim(),
+          1200,
+        ),
       },
     };
   }
@@ -1276,8 +1279,8 @@ export class AutopilotRunner {
       return {
         stop: {
           outcome: d.state === 'cancelled' ? 'cancelled' : 'failed',
-          note: `The web search ended ${d.state}: ${d.explanation}`.slice(
-            0,
+          note: cutText(
+            `The web search ended ${d.state}: ${d.explanation}`,
             1200,
           ),
         },
@@ -1352,7 +1355,7 @@ export class AutopilotRunner {
         else {
           const scope = WebDiscoveryScopeSchema.parse({
             ...(a.config.research?.scope ?? {}),
-            question: req.question.slice(0, 300),
+            question: cutText(req.question, 300),
           });
           const preview = await this.store.previewWebDiscovery(ctx, ws, scope);
           const r = await this.#search(
@@ -1381,7 +1384,7 @@ export class AutopilotRunner {
               (p) => p.check === 'verified' && p.decision === 'pending',
             ).length;
             notes.push(
-              `Searched the web for “${req.question.slice(0, 160)}”: ${searched} claim${searched === 1 ? '' : 's'} added by the run's routine approvals${pending ? `, ${pending} waiting for you under Discover › Search the web` : ''}.`,
+              `Searched the web for “${cutText(req.question, 160)}”: ${searched} claim${searched === 1 ? '' : 's'} added by the run's routine approvals${pending ? `, ${pending} waiting for you under Discover › Search the web` : ''}.`,
             );
             if (searched) await link();
             else if (this.#held(r.d)) held = { d: r.d, n: this.#held(r.d) };
@@ -1397,8 +1400,8 @@ export class AutopilotRunner {
         stop: {
           outcome: 'insufficient_evidence',
           kind: 'thin_evidence',
-          note: `${req.reason} The autopilot gathered evidence but found nothing new. ${notes.join(' ')}`.slice(
-            0,
+          note: cutText(
+            `${req.reason} The autopilot gathered evidence but found nothing new. ${notes.join(' ')}`,
             1200,
           ),
         },
@@ -1407,11 +1410,14 @@ export class AutopilotRunner {
     return {
       done: {
         request: { ...req, then, added },
-        note: `${notes.join(' ') || 'Nothing new was found.'} ${
-          then === 'select' && req.then === 'assess'
-            ? 'Nothing new to assess, so it goes on to choose.'
-            : `Going back to ${AUTOPILOT_STAGE_LABEL[then].toLowerCase()}.`
-        }`.slice(0, 1200),
+        note: cutText(
+          `${notes.join(' ') || 'Nothing new was found.'} ${
+            then === 'select' && req.then === 'assess'
+              ? 'Nothing new to assess, so it goes on to choose.'
+              : `Going back to ${AUTOPILOT_STAGE_LABEL[then].toLowerCase()}.`
+          }`,
+          1200,
+        ),
       },
     };
   }
@@ -1450,8 +1456,8 @@ export class AutopilotRunner {
           stop: {
             outcome: 'needs_authority',
             kind: 'approval',
-            note: `${AUTOPILOT_STAGE_LABEL[step.stage]} is waiting for a decision (Monitor › Approvals): ${wf.reason}. Answer it, then continue the autopilot.`.slice(
-              0,
+            note: cutText(
+              `${AUTOPILOT_STAGE_LABEL[step.stage]} is waiting for a decision (Monitor › Approvals): ${wf.reason}. Answer it, then continue the autopilot.`,
               1200,
             ),
           },
@@ -1479,8 +1485,8 @@ export class AutopilotRunner {
     if (wf.state !== 'succeeded')
       return this.#retryOr(ctx, ws, a, step, {
         outcome: wf.state === 'cancelled' ? 'cancelled' : 'failed',
-        note: `${AUTOPILOT_STAGE_LABEL[step.stage]} ended ${wf.state}: ${wf.reason}`.slice(
-          0,
+        note: cutText(
+          `${AUTOPILOT_STAGE_LABEL[step.stage]} ended ${wf.state}: ${wf.reason}`,
           1200,
         ),
       });
@@ -1495,8 +1501,8 @@ export class AutopilotRunner {
       return {
         done: {
           child,
-          note: `The exploration found ${r.candidates.filter((x) => x.disposition === 'candidate').length} candidate problem(s); the first, ${pick.ref} “${pick.title}”, goes on.`.slice(
-            0,
+          note: cutText(
+            `The exploration found ${r.candidates.filter((x) => x.disposition === 'candidate').length} candidate problem(s); the first, ${pick.ref} “${pick.title}”, goes on.`,
             1200,
           ),
         },
@@ -1568,7 +1574,7 @@ export class AutopilotRunner {
       stop: {
         outcome: opts.outcome ?? 'insufficient_evidence',
         kind: 'thin_evidence',
-        note: reason.slice(0, 1200),
+        note: cutText(reason, 1200),
       },
     };
     const settings = await this.#settings(ctx, ws);
@@ -1601,16 +1607,14 @@ export class AutopilotRunner {
     if (typeof route === 'string') {
       if (settings.values.gather_evidence) {
         // Re-review 2 L-1: with the setting on, Continue would only stop here again.
-        (stop as { stop: Stop }).stop.note =
-          `${reason} It could not gather more evidence: ${route}`.slice(
-            0,
-            1200,
-          );
-        (stop as { stop: Stop }).stop.final =
-          `It could not gather more evidence (${route.replace(/\.$/, '')}). Add claims or search the web yourself, then start a new autopilot.`.slice(
-            0,
-            300,
-          );
+        (stop as { stop: Stop }).stop.note = cutText(
+          `${reason} It could not gather more evidence: ${route}`,
+          1200,
+        );
+        (stop as { stop: Stop }).stop.final = cutText(
+          `It could not gather more evidence (${route.replace(/\.$/, '')}). Add claims or search the web yourself, then start a new autopilot.`,
+          300,
+        );
       }
       return stop;
     }
@@ -1632,11 +1636,10 @@ export class AutopilotRunner {
       .map((q) => q.trim())
       .find((q) => q && !asked.has(q.toLowerCase()));
     if (!question) {
-      (stop as { stop: Stop }).stop.note =
-        `${reason} It has already searched the web for every question it had (${asked.size}); add claims or search the web with another question, then start again.`.slice(
-          0,
-          1200,
-        );
+      (stop as { stop: Stop }).stop.note = cutText(
+        `${reason} It has already searched the web for every question it had (${asked.size}); add claims or search the web with another question, then start again.`,
+        1200,
+      );
       (stop as { stop: Stop }).stop.final =
         'It has already searched the web for every question it had. Add claims or search the web with another question, then start a new autopilot.';
       return stop;
@@ -1654,10 +1657,10 @@ export class AutopilotRunner {
           kind: 'gather',
           request: {
             then: 'explore',
-            reason: reason.slice(0, 600),
+            reason: cutText(reason, 600),
             problem_id: null,
             options: null,
-            question: question.slice(0, 300),
+            question: cutText(question, 300),
           },
         },
       },
@@ -1756,8 +1759,8 @@ export class AutopilotRunner {
     return {
       done: {
         child: { kind: 'search_brief', id: made.brief.id },
-        note: `Brief “${made.brief.title}” written from ${pick.ref}, with ${pick.claims.length} claim${pick.claims.length === 1 ? '' : 's'}.`.slice(
-          0,
+        note: cutText(
+          `Brief “${made.brief.title}” written from ${pick.ref}, with ${pick.claims.length} claim${pick.claims.length === 1 ? '' : 's'}.`,
           1200,
         ),
       },
@@ -1823,11 +1826,14 @@ export class AutopilotRunner {
           child: { kind: 'selection', id: current!.id },
           problem: current!.problem,
           option: mine.option,
-          note: `Going on with your choice under Decide: “${mine.option.title}” (${mine.disposition.replaceAll('_', ' ')}).${
-            a.steps.some((s) => s.stage === 'select' && s.asked)
-              ? ' The question the autopilot left under Monitor › Approvals is answered by this choice; you can leave it to expire.'
-              : ''
-          }`.slice(0, 1200),
+          note: cutText(
+            `Going on with your choice under Decide: “${mine.option.title}” (${mine.disposition.replaceAll('_', ' ')}).${
+              a.steps.some((s) => s.stage === 'select' && s.asked)
+                ? ' The question the autopilot left under Monitor › Approvals is answered by this choice; you can leave it to expire.'
+                : ''
+            }`,
+            1200,
+          ),
         },
       };
     }
@@ -1870,7 +1876,7 @@ export class AutopilotRunner {
               kind: 'gather',
               request: {
                 then: 'assess',
-                reason: strict.reason.slice(0, 600),
+                reason: cutText(strict.reason, 600),
                 problem_id: report.problem.id,
                 options: rows.length ? rows.map((r) => r.alternative.id) : null,
                 question: typeof route === 'string' ? null : question,
@@ -1930,11 +1936,14 @@ export class AutopilotRunner {
                 ),
               }
             : {}),
-        note: `Chose “${choice.option.title}” (${choice.request.dispositions.find((d) => d.alternative.id === choice.option.id)!.disposition.replaceAll('_', ' ')}); the other options are deferred.${
-          choice.fallbacks.length
-            ? ` With the owner's autopilot settings: ${choice.fallbacks.map((f) => f.note).join(' ')}`
-            : ''
-        }${flagged ? ` ${MODEL_ONLY_ETHICS_NOTE}` : ''}`.slice(0, 1200),
+        note: cutText(
+          `Chose “${choice.option.title}” (${choice.request.dispositions.find((d) => d.alternative.id === choice.option.id)!.disposition.replaceAll('_', ' ')}); the other options are deferred.${
+            choice.fallbacks.length
+              ? ` With the owner's autopilot settings: ${choice.fallbacks.map((f) => f.note).join(' ')}`
+              : ''
+          }${flagged ? ` ${MODEL_ONLY_ETHICS_NOTE}` : ''}`,
+          1200,
+        ),
       },
     };
   }
@@ -1960,8 +1969,8 @@ export class AutopilotRunner {
       body: flagged
         ? {
             ...draft.body,
-            summary: `${MODEL_ONLY_ETHICS_NOTE} ${draft.body.summary}`.slice(
-              0,
+            summary: cutText(
+              `${MODEL_ONLY_ETHICS_NOTE} ${draft.body.summary}`,
               1200,
             ),
           }
@@ -1979,8 +1988,8 @@ export class AutopilotRunner {
       done: {
         child: { kind: 'proposal', id: made.proposal.id },
         outcome: 'proposal',
-        note: `Saved the proposal “${draft.title}” for “${sel.option.title}”, drafted from the records; sections the records cannot fill say so.${drafted ? ` ${drafted}` : ''} Review it under Proposals.`.slice(
-          0,
+        note: cutText(
+          `Saved the proposal “${draft.title}” for “${sel.option.title}”, drafted from the records; sections the records cannot fill say so.${drafted ? ` ${drafted}` : ''} Review it under Proposals.`,
           1200,
         ),
       },
@@ -2136,8 +2145,8 @@ export class AutopilotRunner {
         option: null,
         request: r.then.request,
         key: autopilotKey(a.id, 'gather', attempt),
-        note: `${AUTOPILOT_STAGE_LABEL.gather}: ${r.then.request.reason}`.slice(
-          0,
+        note: cutText(
+          `${AUTOPILOT_STAGE_LABEL.gather}: ${r.then.request.reason}`,
           1200,
         ),
         started_at: now,

@@ -159,10 +159,9 @@ export class DiscoveryStore extends ResearchStore {
     const context: DiscoveryWorkflowContext = {
       packet,
       packet_hash: canonicalHash(packet),
-      // L-3: records the packet had no room for are still checked for duplicates.
-      ...(packet.catalog_beyond_limit
-        ? { duplicates_against: catalog.slice(0, 40) }
-        : {}),
+      // L-3, re-review N-3: the duplicate check always reads every fetched record at full
+      // length, also those the packet left out or cut.
+      ...(catalog.length ? { duplicates_against: catalog.slice(0, 40) } : {}),
       perspectives: req.perspectives,
       excluded: req.excluded,
       max_revisions: req.max_revisions,

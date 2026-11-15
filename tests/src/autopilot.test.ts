@@ -3392,3 +3392,49 @@ test('review 1 of #202 L-5: a start that returned keeps its calls set aside even
   assert.equal(b.steps[0]!.calls, 2, 'unknown spend is not zero');
   assert.equal(b.calls_reserved, 2);
 });
+
+test('re-review of #202 L-2: a discovery start that committed and then threw a plain error keeps its calls set aside', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  // The store commits the discovery, then its follow-up read fails (not a refusal).
+  const start = h.store.startDiscovery.bind(h.store);
+  h.store.startDiscovery = async (...args) => {
+    await start(...args);
+    throw new Error('The read after the start failed (test).');
+  };
+  const a = await h.start(await h.run());
+  h.store.startDiscovery = start;
+  assert.equal(a.outcome, 'failed', a.explanation);
+  const discover = a.steps.find((s) => s.stage === 'discover')!;
+  assert.match(discover.note, /The read after the start failed/);
+  assert.equal(discover.child, null);
+  assert.ok(discover.calls > 0, 'the step may have spent');
+  assert.equal(
+    a.calls_reserved,
+    a.steps.reduce((n, s) => n + s.calls, 0),
+  );
+});
+
+test('re-review of #202 L-1: a stop note with an emoji across the cut stores without a lone surrogate', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  // "The web search ended failed: " is 29 characters; the emoji starts at 1199.
+  const explanation = 'a'.repeat(1199 - 29) + '😀 and more after the cut';
+  const b = await researchAutopilot(h, {
+    ...webStub(async () => ({ id: '00000000-0000-4000-8000-0000000000d5' })),
+    read: async () =>
+      ({
+        id: '00000000-0000-4000-8000-0000000000d5',
+        version: 1,
+        state: 'failed',
+        explanation,
+        proposals: [],
+      }) as unknown as WebDiscovery,
+  });
+  assert.equal(b.outcome, 'failed', b.explanation);
+  const note = b.steps[0]!.note;
+  assert.equal(note.length, 1199);
+  assert.doesNotMatch(note, /[\uD800-\uDBFF]$/);
+  assert.equal(b.explanation, note);
+});
