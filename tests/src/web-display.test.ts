@@ -56,6 +56,15 @@ test('a historical qualification keeps its score but cannot appear currently qua
     ),
     /candidate generation job for discovery/,
   );
+  // The live spec-cases-v1 run showed "specification jobundefined": every role is named.
+  assert.match(
+    renderToStaticMarkup(
+      QualificationSummary({
+        q: { ...q, task_class: 'specification', admits_spec_drafts: true },
+      }),
+    ),
+    /specification job for drafting specs/,
+  );
 });
 
 /** The page map module, which has no imports: modules that import it get the real one. */

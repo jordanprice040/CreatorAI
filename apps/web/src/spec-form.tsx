@@ -562,7 +562,7 @@ export function SpecForm({
             <div className="small notice">
               <p>
                 No model may draft specs yet. A model drafts specs once it is
-                qualified on the spec-cases-v1 benchmark under Models and
+                qualified on the spec-cases-v2 benchmark under Models and
                 connections, on a connection that allows specification work and
                 this problem&rsquo;s data. Until then, write the spec yourself
                 below.
@@ -585,7 +585,7 @@ export function SpecForm({
               </p>
               <p className="small">
                 Drafting is for command-line programs only: the drafting
-                qualification (spec-cases-v1) tests command-line cases only. For
+                qualification (spec-cases-v2) tests command-line cases only. For
                 a static web page, write the spec yourself.
               </p>
               <DraftRoutePicker ask={ask} />

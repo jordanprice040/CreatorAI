@@ -595,7 +595,7 @@ export const isDiscoveryQualified = (
  */
 export const forWebDiscovery = (qualifications: readonly PlanQualification[]) =>
   qualifications.filter((q) => q.admits_web_discovery === true);
-/** ADR-0107: the qualifications that admit spec drafts (spec-cases-v1 and later). */
+/** ADR-0107: the qualifications that admit spec drafts (spec-cases-v2 and later). */
 export const forSpecDrafts = (qualifications: readonly PlanQualification[]) =>
   qualifications.filter((q) => q.admits_spec_drafts === true);
 export const isQualified = (

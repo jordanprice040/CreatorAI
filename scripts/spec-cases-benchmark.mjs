@@ -1,15 +1,16 @@
-// Writes config/connections/benchmarks/spec-cases-v1.json (ADR-0107, B2). Run after
+// Writes config/connections/benchmarks/spec-cases-v2.json (ADR-0107, B2). Run after
 // `pnpm build:code`: node scripts/spec-cases-benchmark.mjs, then format the file with Prettier.
+// spec-cases-v1.json (spec-draft-v2) is kept as it ran live on November 15; never rewrite it.
 // Each case asks the model to draft a spec with suggested cases for a small command-line
 // program the studio knows exactly (packages/domain spec-cases.ts). The drafted cases are run
 // against the reference program (every case must pass) and against known-broken versions (at
 // least three of the four must fail a case). Each case's system message is the spec draft
 // instructions and its user message the exact draft input, so a changed prompt stops the old
 // qualification from admitting spec drafts until the model is qualified again.
-// The file is frozen once written: never edit it; write spec-cases-v2 instead. Each case also
+// The file is frozen once written: never edit it; write the next spec-cases version instead. Each case also
 // carries its program's fingerprint (the outputs of the reference and broken versions on probe
 // inputs and the grades of probe replies), so a changed program or grader stops it admitting.
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import {
   BenchmarkManifestSchema,
@@ -29,8 +30,8 @@ const read = (p) =>
     '\n',
   );
 const draftSource = read('packages/contracts/src/spec-draft.ts');
-const begin = draftSource.indexOf('// spec-cases-v1 frozen source: begin.');
-const end = draftSource.indexOf('// spec-cases-v1 frozen source: end.');
+const begin = draftSource.indexOf('// spec-cases-v2 frozen source: begin.');
+const end = draftSource.indexOf('// spec-cases-v2 frozen source: end.');
 if (begin < 0 || end < begin) throw new Error('frozen source markers missing');
 const SOURCE_SHA256 = createHash('sha256')
   .update(read('packages/domain/src/spec-cases.ts'))
@@ -93,19 +94,20 @@ const cases = SPLITS.map(([program, split]) => {
 
 const manifest = BenchmarkManifestSchema.parse({
   format: 'route-benchmark/1',
-  name: 'spec-cases-v1',
+  name: 'spec-cases-v2',
   fixture: false,
   task_class: 'specification',
   data_class: 'synthetic',
   cases,
   provenance:
-    'ADR-0107 (B2), frozen 2026-11-15: eight synthetic command-line programs written for this benchmark (three development, five held out). Each case asks for a drafted spec with suggested cases under the spec draft instructions; the studio grades the cases by running them against its own reference program and four known-broken versions in process (packages/domain spec-cases.ts). Not customer data; never edit, write spec-cases-v2 instead.',
+    "ADR-0107 (B2), frozen 2026-11-15 as v2 under spec-draft-v3 (v1 failed live on every case because spec-draft-v2 never listed an acceptance check's fields; its held-out answers were not viewed, so the same programs are kept): eight synthetic command-line programs written for this benchmark (three development, five held out). Each case asks for a drafted spec with suggested cases under the spec draft instructions; the studio grades the cases by running them against its own reference program and four known-broken versions in process (packages/domain spec-cases.ts). Not customer data; never edit, write the next spec-cases version instead.",
 });
-writeFileSync(
-  new URL(
-    '../config/connections/benchmarks/spec-cases-v1.json',
-    import.meta.url,
-  ),
-  `${JSON.stringify(manifest, null, 2)}\n`,
+const out = new URL(
+  '../config/connections/benchmarks/spec-cases-v2.json',
+  import.meta.url,
 );
-console.log(`spec-cases-v1: ${cases.length} cases`);
+// Frozen once a qualification has run on it: refuse to overwrite unless asked.
+if (existsSync(out) && !process.argv.includes('--overwrite-before-live'))
+  throw new Error('spec-cases-v2.json exists; it is frozen once used.');
+writeFileSync(out, `${JSON.stringify(manifest, null, 2)}\n`);
+console.log(`spec-cases-v2: ${cases.length} cases`);
