@@ -1,5 +1,6 @@
 # Decision log
 
+<<<<<<< HEAD
 ## ADR-0112 — Larger Python builds are unqualified trials until their roles pass the larger Python benchmark (November 15, 2026; no migration)
 
 **Owner decision (Jordan, November 15, 11:33 UTC): "Label larger Claude builds".** ADR-0105's "Claude route qualified for small builds only" was a written rule the app did not enforce (PR #212 re-check 3): Python builds never carried the unqualified-trial label and `p14-larger-ledgercheck-v5` gated nothing. Jordan wants larger Claude builds to stay possible, so they are labelled, not blocked. **Amends ADR-0078 (review M-2) and ADR-0105.** (ADR-0111 is PR #213's. S0 takes the next free ADR, 0113 once #213 and this PR merge, and migration 69.)
@@ -14,6 +15,26 @@
 Not covered: no live run. The file count is only known from the package, so before a build the form can only say "may".
 
 Rejected: blocking larger Python builds without a pass (Jordan wants them possible); judging size from line count (the benchmark rejects it, and a single long file can be simple) or from the spec's flows or checks (the builder decides how many modules to write); counting only files outside the template (the template's one `src/main.py` is what a small build edits anyway).
+=======
+## ADR-0111 — Autopilot gets its own page in the left nav (November 15, 2026; no migration)
+
+Jordan's request (November 15): using the autopilot meant going all over the studio, and a stopped run's Continue was hard to find. Web only; amends ADR-0103 (Discover's panels) and the step 9 page map.
+
+- **Page.** A seventh page, **Autopilot** (`#/autopilot/run`, view `autopilot`), sits just below Projects, since it takes the Projects path for you. It is listed in Standard and Advanced. `#/autopilot/run?ws=…&id=<autopilot id>` opens one autopilot's card, unfolding Earlier autopilots if it is there; later notifications link to it.
+- **What is on it, in order** (`apps/web/src/autopilot-page.tsx`): *Working or waiting for you* (each running autopilot with its steps as they happen and Stop; each stopped one that can still continue, marked by its border, with its steps, what to do next, **Continue the autopilot from …** and any Allow and continue); *Start an autopilot* (the Run it for me form, unchanged); *How much is automated* (the levels, unchanged); *Autopilot settings* (moved out of How much is automated into its own section); *Earlier autopilots* (up to 10, folded, steps folded too). Jump links at the top go to each part.
+- **Nav count.** The Autopilot nav entry shows the owner how many autopilots wait to be continued (the same rule as the Continue button, `autopilotContinuable`), and an activity dot while one works and none waits. The page's what's-next line says the same. Read with the studio facts (`GET autopilots`, every 15 s and after any action); an unread list shows nothing rather than a guess.
+- **What stays elsewhere.** A person's own step still happens where that work is: a choice under Projects › Decide, an approval under Monitor › Approvals, quote-checked claims under Discover › Search the web, the exploration under Discover › Explore for me. Each stopped card links there (Search the web and Open the exploration now navigate to Discover and open that panel), and Continue is always on this page.
+- **Discover.** The Run it for me and How much is automated panels leave Discover. Its Run it for me start choice stays and opens the Autopilot page (`PanelChoice.page`); a remembered panel of either kind falls back to Explore for me.
+- **Wording.** Texts that pointed to "Run it for me" or "How much is automated" for an autopilot's stops now point to *Working or waiting for you* and *Autopilot settings*; Monitor › Approvals says to press Continue on the Autopilot page.
+
+**Amendment (November 15, review 1 of PR #213: one High, six Lows, seven nits, all fixed).**
+
+- **H-1. The end time.** `autopilotContinuable(a, now = Date.now())` refuses once `config.limits.ends_at` has passed ("Its end time has passed; start a new autopilot."), the rule the server's Continue already enforced as `EXPIRED`. The page, the nav count, the next-step line, Continue and Allow and continue all follow it, so an expired autopilot moves to Earlier autopilots with that reason. The page draws again every 30 seconds, so this happens while it is open. `autopilotEndsApprovals` leaves the end time out (approvals end with the autopilot's own stop), and `#retryIn` checks `EXPIRED` first, so that error code is unchanged. The same change is on PR #211, word for word.
+- **Lows.** Tracking no longer credits #211 with this page's work (L-1), and the build status lists the checks that ran (L-2). A Stop or Continue error shows on the card that was pressed (L-3). Each card names its problem and run, and when it can continue until or must stop by (L-4). A current card shows the next step and its buttons above the steps, with only the last three steps open (L-5). The Manual audit reason says the Autopilot page (L-6).
+- **Nits.** The next-step line reads "do what each card says, then press Continue on that card" (N-1). "Whole process" links to "Start an autopilot" (N-2). The card's top padding is 12 px (N-3). Allow and continue's explanation sits on its own line (N-4). The explanation is left out when the last step's note says the same (N-5). `whenShown` (`discovery-progress.tsx`) is shared by Search the web and Open the exploration (N-6). Non-owners read "The workspace owner can continue it", and only the owner sees the nav count (N-7).
+
+**Amendment (November 15, review 2 of PR #213: three Lows, three nits, all fixed).** L-1: a card under Earlier autopilots whose stop could otherwise be continued is headed "Ended: its end time passed" or "Ended: it cannot continue" instead of "Waiting for you". L-2: How much is automated reads the current level with `autopilotContinuable` only, so an expired autopilot no longer counts. L-3: the run and problem names load once per missing id, not with every 3-second refresh. N-1: the stop's explanation is always shown, and a last step that repeats it says "see above.". N-2: the server's Allow and continue refuses an autopilot past its end time with `EXPIRED`, as Continue does, before the continuable check. N-3: the shared end-time code and comments match #211's, so the merge keeps one copy.
+>>>>>>> origin/main
 
 ## ADR-0110 — Build roles may wrap their whole answer in one code fence, in new frozen benchmark versions (November 15, 2026; no migration)
 

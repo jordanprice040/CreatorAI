@@ -1,10 +1,22 @@
 # Build status — November 10, 2026
 
+<<<<<<< HEAD
 ## November 15 update — larger Python builds labelled as unqualified trials (ADR-0112, no migration)
 
 What now works: a Python build whose exported package has more than one `.py` file, or whose task froze more than 10 cases, is packaged as an unqualified trial (manifest `toolchain.role_qualification`, a limitation note, the gallery label) unless its own connection, model and role prompts passed `p14-larger-ledgercheck-v5`. Small Python builds are unchanged. This makes ADR-0105's "Claude route qualified for small builds only" true in the app without blocking larger Claude builds. Today it also labels GPT-6 Astra's larger Python builds until it passes the larger benchmark under builder/2, and every larger build on the two routes without plan roles (the dollar broker and the ChatGPT-plan Codex builder), which no qualification can lift. The Build page says before a Python build whether its package will (more than 10 frozen cases) or may (more than one Python file) be a trial, and a Python product shows when its newest package is one.
 
 Checked in the cloud container on a throwaway PostgreSQL 16 database: see the PR for typecheck, format and `pnpm test:db` counts. New tests: `pythonBuildScale` and `unqualifiedTrial` at both scales (`web-recipe.test.ts`), the small limits read from the frozen benchmarks (`recipe-qualification.test.ts`), and packaged builds with and without a matching larger pass (`artifacts.test.ts`). No live run.
+=======
+## November 15 update — the Autopilot page (ADR-0111, no migration)
+
+What now works: **Autopilot** is its own page in the left nav, just below Projects (`#/autopilot/run`). It holds the whole autopilot flow: autopilots working or waiting for you first (steps as they happen, Stop, what to do next, **Continue the autopilot from …**, Allow and continue), then the start form, How much is automated, Autopilot settings (now its own section) and earlier autopilots, folded. The nav entry counts autopilots waiting to be continued and shows a dot while one works. Discover no longer holds the autopilot panels; its Run it for me choice opens the page. A stopped card's Search the web and Open the exploration go to Discover and open that panel.
+
+Review 1 (1 High, 6 Lows, 7 nits) fixed: an autopilot past its end time no longer shows Continue or counts as waiting. It moves to Earlier autopilots, even while the page is open.
+
+Review 2 (3 Lows, 3 nits) fixed: an ended card under Earlier autopilots says why it ended instead of "Waiting for you"; How much is automated no longer counts an expired autopilot; names load once instead of every refresh; the server's Allow and continue refuses an expired autopilot as `EXPIRED`, like Continue.
+
+Checks (cloud container, throwaway PostgreSQL 16): `pnpm typecheck` and `pnpm format:check` pass, and so do the targeted web and autopilot suites. Full `pnpm test:db` at 3ed9c34 (after review 2): 1351 tests, 1317 pass, 29 skipped, and only the 5 known PowerShell-wrapper failures. Re-review 3 found nothing left. The browser walk (`tracking/evidence/autopilot-page/`, fixture provider, $0) passes 22 of 22 checks, including an autopilot whose end time passes while the page is open and a link to one autopilot (`#/autopilot/run?ws=…&id=<autopilot id>`) that opens its card.
+>>>>>>> origin/main
 
 ## November 15 update — Windows web build fixed; packet A and H records (PR #212, no migration or ADR)
 

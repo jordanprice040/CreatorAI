@@ -172,6 +172,44 @@ test('waiting decisions come first on the monitor and show as a note elsewhere',
   assert.equal(nextStep('decisions', done).tone, 'clear');
 });
 
+test('the Autopilot page leads with autopilots waiting to be continued', async () => {
+  const { nextStep } = await load<Rules>('next-rules.ts');
+  const one = nextStep('autopilot', {
+    ...done,
+    autopilots: { running: 0, waiting: 1 },
+  });
+  assert.equal(one.tone, 'next');
+  assert.match(
+    one.text,
+    /^1 autopilot waits for you below: do what its card says, then press Continue on that card\./,
+  );
+  assert.match(
+    nextStep('autopilot', { ...done, autopilots: { running: 0, waiting: 2 } })
+      .text,
+    /^2 autopilots wait for you below: do what each card says/,
+  );
+  // Only the owner can continue one (review 1 of #213, N-7).
+  assert.equal(
+    nextStep('autopilot', {
+      ...done,
+      owner: false,
+      autopilots: { running: 0, waiting: 2 },
+    }).text,
+    '2 autopilots wait for the workspace owner to continue them.',
+  );
+  assert.match(
+    nextStep('autopilot', { ...done, autopilots: { running: 1, waiting: 0 } })
+      .text,
+    /1 autopilot is working/,
+  );
+  // Nothing working or waiting (or the list unread): the main path's own step.
+  assert.deepEqual(
+    nextStep('autopilot', { ...done, autopilots: { running: 0, waiting: 0 } }),
+    nextStep('settings', done),
+  );
+  assert.deepEqual(nextStep('autopilot', done), nextStep('settings', done));
+});
+
 test('every view has a step', async () => {
   const { nextStep } = await load<Rules>('next-rules.ts');
   const { PAGES } = await load<{

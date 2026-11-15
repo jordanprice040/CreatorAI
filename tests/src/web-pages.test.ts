@@ -56,8 +56,21 @@ const OLD_VIEWS = [
 
 test('every earlier screen is a tab of exactly one page, with a unique address', async () => {
   const { PAGES, routeHash, parseRoute } = await load<Pages>('pages.ts');
-  assert.equal(PAGES.length, 6);
+  assert.equal(PAGES.length, 7);
   assert.equal(PAGES[0]!.key, 'chat');
+  // Jordan's request (November 15): Autopilot is its own page, just below Projects.
+  assert.deepEqual(
+    PAGES.map((p) => p.key),
+    [
+      'chat',
+      'projects',
+      'autopilot',
+      'sources',
+      'monitor',
+      'connections',
+      'settings',
+    ],
+  );
   const views = PAGES.flatMap((p) => p.sections.map((s) => s.view));
   for (const v of OLD_VIEWS)
     assert.equal(views.filter((x) => x === v).length, 1, v);
@@ -96,6 +109,8 @@ test('a page without a known tab opens its first tab; anything else opens Chat',
   assert.equal(parseRoute('#/projects/nope?ws=w1').view, 'path');
   assert.equal(parseRoute('#/sources?ws=w1').view, 'evidence');
   assert.equal(parseRoute('#/connections').view, 'models');
+  assert.equal(parseRoute('#/autopilot').view, 'autopilot');
+  assert.equal(parseRoute('#/autopilot/run?ws=w1').view, 'autopilot');
   assert.equal(parseRoute('#/settings/study').view, 'studies');
   assert.equal(parseRoute('#/chat?ws=w1&id=c1').view, 'chat');
   assert.equal(parseRoute('#/chat?ws=w1&id=c1').id, 'c1');

@@ -3,7 +3,6 @@ import { useViewMode } from './view-mode.js';
 import {
   AUTOMATION_LEVEL_TEXT,
   AUTOMATION_SELECTION_ACTIONS,
-  AUTOPILOT_RETRYABLE,
   autopilotContinuable,
   AUTOPILOT_MIN_CALLS,
   AutopilotConfigSchema,
@@ -46,10 +45,7 @@ import {
 import { Empty, Status, reveal, useLoad } from './ui.js';
 import { usePoll } from './page-active.js';
 import { endTimeClose, useEndTime } from './end-time.js';
-import {
-  AutopilotSettingsPanel,
-  useAutopilotSettings,
-} from './autopilot-settings.js';
+import { useAutopilotSettings } from './autopilot-settings.js';
 
 /** The run selector's value for "Automate the rest" on a new run (live-run finding). */
 const NEW_RUN = 'new';
@@ -87,9 +83,10 @@ export function currentLevel(
   if (
     latest &&
     (latest.state === 'running' ||
+      // Review 2 of #213, L-2: only one that can still continue waits (not one past its end
+      // time, or whose approvals ended); the Autopilot page uses the same rule.
       (latest.outcome !== null &&
-        (AUTOPILOT_RETRYABLE.includes(latest.outcome) ||
-          autopilotContinuable({ ...latest, steps: latest.steps ?? [] }).ok)))
+        autopilotContinuable({ ...latest, steps: latest.steps ?? [] }).ok))
   ) {
     // An autopilot a selection level started that is still working or waiting after the level
     // ended: the run is Manual now (review L-3, review 2 N-1).
@@ -98,13 +95,13 @@ export function currentLevel(
         level: 'manual',
         note:
           latest.state === 'running'
-            ? 'a choice Automate selection started is still working; stop it under Run it for me'
-            : 'a choice Automate selection started is waiting for you; see Run it for me',
+            ? 'a choice Automate selection started is still working; stop it above, under Working or waiting for you'
+            : 'a choice Automate selection started is waiting for you; see Working or waiting for you',
       };
     const note =
       latest.state === 'running'
-        ? 'its autopilot is working now; stop it under Run it for me'
-        : 'its autopilot stopped and waits for you; see Run it for me';
+        ? 'its autopilot is working now; stop it above, under Working or waiting for you'
+        : 'its autopilot stopped and waits for you; see Working or waiting for you';
     return { level: latest.config.start ? 'rest' : 'whole', note };
   }
   return { level: 'manual', note: 'you take every step' };
@@ -298,7 +295,7 @@ export function Automation({
   const blockers = [
     ...(!run && !isNew
       ? [
-          'There is no active supervised or human-in-the-loop run. Start one from Discover, or use Run it for me for the whole process.',
+          'There is no active supervised or human-in-the-loop run. Start one from Discover, or start an autopilot above for the whole process.',
         ]
       : []),
     ...(level !== 'whole' && !route
@@ -472,7 +469,7 @@ export function Automation({
         csrf: session.csrf_token,
         body: {
           expected_version: a.version,
-          reason: 'Set to Manual from the Discover page.',
+          reason: 'Set to Manual from the Autopilot page.',
         },
       });
     } catch (e) {
@@ -517,9 +514,6 @@ export function Automation({
       >
         {c && (
           <>
-            {owner && (
-              <AutopilotSettingsPanel session={session} workspace={workspace} />
-            )}
             {(c.runs.length > 0 || level === 'rest') && (
               <>
                 <label htmlFor="am-run">Project (run)</label>
@@ -595,9 +589,9 @@ export function Automation({
                         reveal(e.currentTarget, 'autopilot-title')
                       }
                     >
-                      Run it for me
-                    </button>
-                    .
+                      Start an autopilot
+                    </button>{' '}
+                    above.
                   </p>
                 ) : (
                   <>
@@ -814,7 +808,7 @@ export function Automation({
                           {p.state === 'running'
                             ? 'choosing now'
                             : (p.outcome ?? '').replaceAll('_', ' ')}{' '}
-                          (see Run it for me for its steps)
+                          (see Working or waiting for you for its steps)
                         </li>
                       ))}
                     </ul>

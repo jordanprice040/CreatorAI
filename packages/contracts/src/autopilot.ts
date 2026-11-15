@@ -94,7 +94,13 @@ export function autopilotEndsApprovals(
 ): boolean {
   return (
     a.state === 'finished' &&
-    (a.outcome === 'failed' || !autopilotContinuable(a).ok)
+    (a.outcome === 'failed' ||
+      // The end time is left out: an autopilot past it keeps its approvals until it ends.
+      !autopilotContinuable({
+        state: a.state,
+        outcome: a.outcome,
+        steps: a.steps,
+      }).ok)
   );
 }
 
@@ -361,9 +367,17 @@ export type Autopilot = z.infer<typeof AutopilotSchema>;
  */
 export function autopilotContinuable(
   a: Pick<Autopilot, 'state' | 'outcome' | 'steps'> &
-    Partial<Pick<Autopilot, 'approvals_ended_at'>>,
+    Partial<Pick<Autopilot, 'approvals_ended_at' | 'config'>>,
+  now = Date.now(),
 ): { ok: true } | { ok: false; reason: string } {
   if (a.state !== 'finished') return { ok: false, reason: 'It is running.' };
+  // Live rerun 3 (November 15): an old autopilot whose end time passed still showed Continue
+  // (the store refuses it); it says so instead, so only a live one offers Continue.
+  if (a.config && Date.parse(a.config.limits.ends_at) <= now)
+    return {
+      ok: false,
+      reason: 'Its end time has passed; start a new autopilot.',
+    };
   if (a.approvals_ended_at)
     return {
       ok: false,
@@ -422,7 +436,7 @@ export function autopilotSummary(c: AutopilotConfig): string[] {
     'If an option’s ethics gate was cleared only on the model’s word, it stops and asks you before choosing it. If you choose under Decide while it waits, Continue goes on with your choice.',
     'For a non-code option it saves a proposal drafted from the records. A software option first needs your humility review to be chosen, and writing and freezing its spec stays with you, so it stops there.',
     `Limits: at most ${c.limits.max_calls} model calls in all, each step setting aside its maximum first; it stops at ${until.slice(0, 10)} ${until.slice(11, 16)} UTC. The run's routine approvals, budgets, spending limits and connection caps still apply.`,
-    'Where your autopilot settings (How much is automated) allow it, it takes a planned fallback instead of stopping (gathering evidence, choosing by the worst case, breaking a tie, the next candidate, a retry); each is recorded with the setting that allowed it.',
+    'Where your autopilot settings (Autopilot page) allow it, it takes a planned fallback instead of stopping (gathering evidence, choosing by the worst case, breaking a tie, the next candidate, a retry); each is recorded with the setting that allowed it.',
     'It never publishes, sends messages, spends outside the run, changes permissions or answers a question for you. Stop it at any time; what it made so far is kept.',
   ];
 }
@@ -681,7 +695,7 @@ const NEXT: Record<AutopilotStopKind, Omit<AutopilotNext, 'setting'>[]> = {
  */
 export function autopilotNextSteps(
   a: Pick<Autopilot, 'state' | 'outcome' | 'steps'> &
-    Partial<Pick<Autopilot, 'approvals_ended_at'>>,
+    Partial<Pick<Autopilot, 'approvals_ended_at' | 'config'>>,
   /** Re-review 2 L-1: the owner's settings now; a setting already on is not offered again. */
   settings?: AutopilotSettingsValues,
 ): AutopilotNext[] {
@@ -705,7 +719,7 @@ export function autopilotNextSteps(
       kind: 'allow_and_continue',
       label: `Allow “${AUTOPILOT_SETTING_TEXT[setting].label}” and continue`,
       detail:
-        `${AUTOPILOT_SETTING_TEXT[setting].text} It stays on for later autopilots; change it under How much is automated.`.slice(
+        `${AUTOPILOT_SETTING_TEXT[setting].text} It stays on for later autopilots; change it under Autopilot settings.`.slice(
           0,
           300,
         ),

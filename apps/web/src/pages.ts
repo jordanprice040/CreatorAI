@@ -1,5 +1,5 @@
-// The studio's page map (step 9, "fewer, task-shaped pages"): six pages, each holding the
-// earlier one-task screens as tabs. Pure data and functions with no imports, so the route
+// The studio's page map (step 9, "fewer, task-shaped pages"): seven pages since the Autopilot
+// page (November 15), each holding the earlier one-task screens as tabs. Pure data and functions with no imports, so the route
 // rules load in tests without a browser. Views keep their old keys, so records, links and
 // per-tab form drafts are unchanged; only where they sit and how the address reads changed.
 
@@ -30,10 +30,17 @@ export type View =
   | 'models'
   | 'settings'
   | 'github'
-  | 'payments';
+  | 'payments'
+  | 'autopilot';
 
 export type PageKey =
-  'chat' | 'projects' | 'sources' | 'monitor' | 'connections' | 'settings';
+  | 'chat'
+  | 'projects'
+  | 'autopilot'
+  | 'sources'
+  | 'monitor'
+  | 'connections'
+  | 'settings';
 
 export type Section = {
   view: View;
@@ -82,6 +89,14 @@ export const PAGES: readonly Page[] = [
         group: 'Launch',
       },
     ],
+  },
+  // ADR-0111 (Jordan's request, November 15): the whole autopilot flow on one page, under
+  // Projects since it takes the same path for you: its settings, start, Stop and Continue,
+  // progress, and what to do when it stops.
+  {
+    key: 'autopilot',
+    label: 'Autopilot',
+    sections: [{ view: 'autopilot', slug: 'run', label: 'Autopilot' }],
   },
   {
     key: 'sources',

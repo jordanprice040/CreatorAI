@@ -30,7 +30,8 @@ export type StepView =
   | 'models'
   | 'settings'
   | 'github'
-  | 'payments';
+  | 'payments'
+  | 'autopilot';
 
 export type BuildState =
   'none' | 'running' | 'verified' | 'checkpoint' | 'failed' | 'interrupted';
@@ -93,6 +94,11 @@ export type StudioFacts = {
   selection?: SelectionFacts;
   /** Model plan connections; null when not checked (fixture workspaces). */
   planConnections: number | null;
+  /**
+   * Autopilots working now, and stopped ones waiting for the person to continue them; left
+   * out when the list could not be read (the Autopilot nav count then shows nothing).
+   */
+  autopilots?: { running: number; waiting: number };
 };
 
 /** Where the newest selection sends the main path (UX pass P-2). */
@@ -573,6 +579,22 @@ export function nextStep(view: StepView, f: StudioFacts): Step {
         tone: 'next',
         text: 'Write up a recommended non-code option as a proposal below. Software options go to a spec under Build instead.',
       };
+    case 'autopilot':
+      if (f.autopilots && f.autopilots.waiting > 0) {
+        const one = f.autopilots.waiting === 1;
+        return {
+          tone: 'next',
+          text: f.owner
+            ? `${plural(f.autopilots.waiting, 'autopilot')} ${one ? 'waits' : 'wait'} for you below: do what ${one ? 'its' : 'each'} card says, then press Continue on that card.`
+            : `${plural(f.autopilots.waiting, 'autopilot')} ${one ? 'waits' : 'wait'} for the workspace owner to continue ${one ? 'it' : 'them'}.`,
+        };
+      }
+      if (f.autopilots && f.autopilots.running > 0)
+        return {
+          tone: 'clear',
+          text: `${plural(f.autopilots.running, 'autopilot')} ${f.autopilots.running === 1 ? 'is' : 'are'} working; its steps show below as they happen.`,
+        };
+      return pipelineStep(f);
     case 'catalog':
     case 'files':
     case 'search':

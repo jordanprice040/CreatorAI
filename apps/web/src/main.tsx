@@ -20,6 +20,7 @@ import { Evidence } from './evidence.js';
 import { Scoring } from './selection.js';
 import { Overview } from './overview.js';
 import { Submit } from './submit.js';
+import { AutopilotPage } from './autopilot-page.js';
 import { Compare } from './compare.js';
 import { Proposals } from './proposals.js';
 import { Search } from './search.js';
@@ -776,6 +777,16 @@ function App() {
             prefill={prefillFor('submit', workspace.id)}
           />
         );
+      case 'autopilot':
+        return (
+          <AutopilotPage
+            key={workspace.id}
+            session={s}
+            workspace={workspace}
+            open={open}
+            focus={pageRoute.id}
+          />
+        );
       case 'files':
         return (
           <Files
@@ -997,8 +1008,19 @@ function App() {
                       ? last
                       : (listed[0] ?? page.sections[0]!).view;
                   const here = pageOf(route.view).key === page.key;
-                  const waiting =
-                    page.key === 'monitor' && facts ? facts.pending : 0;
+                  // Approvals wait on Monitor; stopped autopilots wait on Autopilot.
+                  const waiting = !facts
+                    ? 0
+                    : page.key === 'monitor'
+                      ? facts.pending
+                      : // Only the owner can continue one (review 1 of #213, N-7).
+                        page.key === 'autopilot' && facts.owner
+                        ? (facts.autopilots?.waiting ?? 0)
+                        : 0;
+                  const working =
+                    page.key === 'autopilot' &&
+                    !waiting &&
+                    (facts?.autopilots?.running ?? 0) > 0;
                   const ready = page.key === 'projects' && newStep;
                   // On the page itself its tab row carries the dots instead. Only listed tabs
                   // count: a dot for a tab Standard hides (Runs) could never be cleared.
@@ -1028,16 +1050,21 @@ function App() {
                         {waiting > 0 && (
                           <span
                             className="nav-count"
-                            title={`${waiting} waiting for you`}
+                            title={
+                              page.key === 'autopilot'
+                                ? `${waiting} autopilot${waiting === 1 ? '' : 's'} waiting for you to continue`
+                                : `${waiting} waiting for you`
+                            }
                           >
                             {waiting}
                             <span className="sr-only"> waiting for you</span>
                           </span>
                         )}
-                        {(ready || news) && (
+                        {(ready || news || working) && (
                           <ActivityDot
                             text={[
                               ready ? 'The path has a new step for you' : '',
+                              working ? 'An autopilot is working' : '',
                               news,
                             ]
                               .filter(Boolean)
