@@ -11,6 +11,7 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { ApiError, api, message } from './oversight.js';
+import { QualifyBuilding } from './qualify-building.js';
 import { STALE_NOTE } from './owner-actions.js';
 import { usePageActive } from './page-drafts.js';
 import { QualificationResults } from './qualification-results.js';
@@ -1086,6 +1087,25 @@ export function Models({
                 detail.usage.extra_requests -
                 detail.usage.last_24h_requests
               }
+              busy={busy || !session}
+              preferred={
+                choice?.connection_id === c.id ? choice.model_id : null
+              }
+              act={act}
+            />
+          )}
+          {/* ADR-0105 (B1): building is qualified apart from the two role tasks above. */}
+          {owner && (
+            <QualifyBuilding
+              key={`build:${workspace.id}:${c.id}`}
+              base={base}
+              connection={c}
+              models={detail.model_access
+                .filter(
+                  (a) => a.path === 'responses' && a.access === 'verified',
+                )
+                .map((a) => a.model_id)}
+              qualifications={detail.qualifications}
               busy={busy || !session}
               preferred={
                 choice?.connection_id === c.id ? choice.model_id : null

@@ -35,24 +35,14 @@ import { canonical, jsonWrite, readJson, event } from './files.js';
 import { readTar, writeTar, type PackageFile } from './tar.js';
 
 /**
- * ADR-0078 review L-9: recorded live passes of a recipe's frozen web benchmark, each for one
- * connection, model and pair of role prompts. A pass is added as its own record with its evidence;
- * it never qualifies other connections, models, prompts or benchmark versions.
+ * ADR-0078 review L-9, ADR-0105: the recorded passes of a recipe's frozen benchmark that may lift
+ * a build's "unqualified trial" label, for the roles that built it. The studio reads them from its
+ * build qualification records (one connection, model and pair of role prompts each); a caller
+ * with none passes nothing, and a web build is then a trial.
  */
-export const RECIPE_QUALIFICATIONS: readonly RecipeQualification[] = [
-  // 3 of 3 live on the dev studio, 2026-11-06, $0 plan route:
-  // tracking/evidence/p15-benchmarks/RESULTS_P15_V4_2026-11-06.json
-  {
-    recipe: 'static-web/1',
-    benchmark_id: 'p15-small-signup-v4',
-    connection_id: '4e4a7bec-c1ca-4f31-8f87-b11ed5fc81d4',
-    model_id: 'gpt-6-astra',
-    builder_prompt_sha256:
-      '73cb799e9212ecdd2cd37fd5d642a292681b0169a4ddd12b831e6d1915da22ad',
-    reviewer_prompt_sha256:
-      '9e1cc6b4184526512d4cafa6f0f7f450579935c0bacaa3f17c558b1d2908f99c',
-  },
-];
+export type RecipePassesFor = (
+  roles: BuildRoles,
+) => Promise<readonly RecipeQualification[]>;
 
 /**
  * Review L-10: the roles a build actually ran with, hashed from the prompts its intent.json
@@ -125,6 +115,7 @@ export class ArtifactSupervisor {
     ports: BuildPorts,
     lineage: BuildManifest['lineage'] = { previous: null, feedback_ids: [] },
     onStarted: (artifactId: string) => void = () => {},
+    passesFor: RecipePassesFor = async () => [],
   ): Promise<{ manifest: BuildManifest; manifest_sha256: string }> {
     const builds = new BuildSupervisor(this.products, this.executor);
     // Re-checks the current frozen spec, active run, exact commit and clean worktree.
@@ -250,10 +241,11 @@ export class ArtifactSupervisor {
     const backend = String(env.backend ?? 'unknown');
     const recipe = p.recipe ?? 'python-build/1';
     const web = recipe === 'static-web/1';
+    const roles = buildRoles(intent);
     const trial = unqualifiedTrial(
       recipe,
-      buildRoles(intent),
-      RECIPE_QUALIFICATIONS,
+      roles,
+      recipe === 'python-build/1' || !roles ? [] : await passesFor(roles),
     );
     const template = templateOf(p.recipe);
     const browser =

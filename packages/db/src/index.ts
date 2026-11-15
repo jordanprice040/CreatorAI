@@ -40,3 +40,7 @@ export { fillInput } from './chat-action-store.js';
 export * from './file-store.js';
 export * from './tester-store.js';
 export { buildApprovalBlockers } from './build-approvals.js';
+export type {
+  NextRecipeAttempt,
+  RecipeRoom,
+} from './recipe-qualification-store.js';

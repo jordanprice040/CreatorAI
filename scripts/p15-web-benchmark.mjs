@@ -94,11 +94,14 @@ export async function verify() {
     pathToFileURL(join(ROOT, 'packages/contracts/dist/index.js')).href
   );
   const problems = [];
-  // Review L-10: the version the studio qualifies against must be one published here.
-  if (!BENCHMARKS.includes(RECIPE_BENCHMARKS['static-web/1']))
-    problems.push(
-      `RECIPE_BENCHMARKS names ${RECIPE_BENCHMARKS['static-web/1']}, which is not published`,
-    );
+  // Review L-10: each version the studio qualifies against is published here, or is an in-app
+  // copy under config/recipe-benchmarks (ADR-0105).
+  for (const v of RECIPE_BENCHMARKS['static-web/1'])
+    if (
+      !BENCHMARKS.includes(v) &&
+      !existsSync(join(ROOT, 'config/recipe-benchmarks', v, 'FREEZE.json'))
+    )
+      problems.push(`RECIPE_BENCHMARKS names ${v}, which is not published`);
   for (const id of BENCHMARKS) {
     problems.push(...freezeProblems(id));
     const b = load(id);
