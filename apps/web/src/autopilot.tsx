@@ -794,9 +794,14 @@ function NextAfterStop({
       );
       break;
     case 'needs_person':
-      // P-12: quote-checked web claims wait under Search the web, not Decide.
+      // P-12: quote-checked web claims wait under Search the web, not Decide. While the setting
+      // is off and claims still wait, Continue with none added stops here again (#202, L-2).
       if (last?.stop_kind === 'claims_held') {
-        text = `Next: read the claims its web search found and add the ones you agree with under Discover › Search the web${then} ${heldClaimsSetting(a, canContinue, acceptsHeld)}`;
+        const again =
+          canContinue && a.next?.some((n) => n.kind === 'allow_and_continue')
+            ? ' While claims still wait and none were added, it stops here again.'
+            : '';
+        text = `Next: read the claims its web search found and add the ones you agree with under Discover › Search the web${then}${again} ${heldClaimsSetting(a, canContinue, acceptsHeld)}`;
         actions = (
           <>
             <button
