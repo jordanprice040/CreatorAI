@@ -25,6 +25,7 @@ export type StepView =
   | 'gallery'
   | 'desktop'
   | 'operations'
+  | 'storage'
   | 'marketing'
   | 'portfolio'
   | 'models'
@@ -601,6 +602,7 @@ export function nextStep(view: StepView, f: StudioFacts): Step {
     case 'activity':
     case 'desktop':
     case 'operations':
+    case 'storage':
     case 'settings':
       return pipelineStep(f);
   }

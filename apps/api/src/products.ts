@@ -33,6 +33,8 @@ import {
   buildOutcomeSchema,
   buildPlanSchema,
   planRoleResultSchema,
+  restoreBuildWorkspace,
+  restoreTaskWorkspace,
   type ArtifactSupervisor,
   type Binding,
   type BuildOutcome,
@@ -572,6 +574,8 @@ export class StudioBuilds {
     const ports = this.ports(ctx, ws, p);
     const { spec } = await ports.current();
     const task = await this.artifacts.products.task(p.id, req.task_id);
+    // ADR-0121: a checkout removed by storage cleanup comes back from its branch first.
+    await restoreTaskWorkspace(this.artifacts.products, p.id, task.id);
     // Said in words before the build starts; the build supervisor enforces the same rules.
     const blockers = buildBlockers(spec, task.key, req.plan.data_class);
     if (blockers.length)
@@ -775,6 +779,8 @@ export class StudioBuilds {
     build_id: string,
   ): Promise<{ build_id: string; state: 'running' }> {
     const ports = this.ports(ctx, ws, p);
+    // ADR-0121: packaging re-reads the task's checkout; storage cleanup may have removed it.
+    await restoreBuildWorkspace(this.artifacts.products, p.id, build_id);
     // The same re-checks packaging starts with, so a stale build is refused now, not later.
     const outcome = await this.supervisor
       .status(p.id, build_id, ports)

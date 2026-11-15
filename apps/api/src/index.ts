@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { createMaintenance } from './maintenance.js';
 export { createMaintenance } from './maintenance.js';
+export { createStorage } from './storage.js';
 import {
   createServer,
   type IncomingMessage,
@@ -45,6 +46,7 @@ import { readFileSync } from 'node:fs';
 import {
   OPERATIONS_ACTOR_ID,
   OpsStore,
+  StorageStore,
   ConnectionStore,
   DEFAULT_FILE_LIMITS,
   FileStore,
@@ -146,6 +148,7 @@ import {
   disposition,
 } from './files.js';
 import { createOps } from './ops.js';
+import { createStorage } from './storage.js';
 import {
   runCapabilityCheck,
   studioMachine,
@@ -2671,6 +2674,18 @@ export function createApi(
     // ADR-0075: operations status and verification are the owner's, never a tester's.
     requireSession: (req, mutating) => authn.requireOwner(req, mutating),
   });
+  // ADR-0121 (F10): Monitor > Storage and the confirmed build-workspace cleanup.
+  const storageRoutes = createStorage({
+    store: pool ? new StorageStore(pool) : null,
+    products: artifacts.products,
+    studioRoots: {
+      plan: qualificationProducts.root,
+      recipe: recipeProducts.root,
+    },
+    ownerId,
+    ensureReady,
+    requireSession: (req, mutating) => authn.requireOwner(req, mutating),
+  });
   const server = createServer((req, res) => {
     bodyDeadline(req, res);
     void (async () => {
@@ -2812,6 +2827,10 @@ export function createApi(
         }
         return respond(res, opsOut.status, opsOut.value);
       }
+      const storageOut = await storageRoutes.route(req, url, () =>
+        readJson(req),
+      );
+      if (storageOut) return respond(res, storageOut.status, storageOut.value);
       if (url.pathname.startsWith('/api/desktop/')) {
         if (!store)
           throw new ContractError(

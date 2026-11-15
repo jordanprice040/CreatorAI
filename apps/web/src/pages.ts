@@ -25,6 +25,7 @@ export type View =
   | 'gallery'
   | 'desktop'
   | 'operations'
+  | 'storage'
   | 'marketing'
   | 'portfolio'
   | 'models'
@@ -118,6 +119,8 @@ export const PAGES: readonly Page[] = [
       { view: 'activity', slug: 'activity', label: 'Activity' },
       { view: 'budgets', slug: 'budgets', label: 'Budgets' },
       { view: 'operations', slug: 'workers', label: 'Workers' },
+      // ADR-0121 (F10): disk per project and the confirmed build-workspace cleanup.
+      { view: 'storage', slug: 'storage', label: 'Storage' },
     ],
   },
   {
