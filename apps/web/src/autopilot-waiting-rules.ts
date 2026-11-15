@@ -10,20 +10,21 @@ import {
 
 /**
  * The newest autopilot that worked on this problem and can be continued now (finished, waiting,
- * before its end time), or null.
+ * before its end time), or null; null too while any autopilot is running on it.
  */
 export function waitingAutopilot(
   autopilots: readonly Autopilot[],
   problemId: string,
   now = Date.now(),
 ): Autopilot | null {
+  const on = autopilots.filter((a) =>
+    a.steps.some((s) => s.problem?.id === problemId),
+  );
+  // PR #211 review 2 N-1: while one is working on this problem, no older one offers Continue.
+  if (on.some((a) => a.state === 'running')) return null;
   return (
-    [...autopilots]
-      .filter(
-        (a) =>
-          a.steps.some((s) => s.problem?.id === problemId) &&
-          autopilotContinuable(a, now).ok,
-      )
+    on
+      .filter((a) => autopilotContinuable(a, now).ok)
       .sort((x, y) => Date.parse(y.created_at) - Date.parse(x.created_at))[0] ??
     null
   );

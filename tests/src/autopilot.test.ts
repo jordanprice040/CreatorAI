@@ -57,6 +57,7 @@ import {
   AutopilotRunner,
   DEFAULT_OWNER_ACTOR_ID,
   autopilotKey,
+  capAlso,
   createApi,
   failedNote,
   fitNote,
@@ -3778,6 +3779,13 @@ test('live rerun 3 (November 15): a usage-limit refusal is a limit to wait out, 
     ],
   );
   assert.equal(refusalStop(capped).kind, 'usage_limit');
+  // Review 2 N-4: the cap that was also reached is named with its own step.
+  assert.match(
+    capAlso(capped),
+    /daily request cap was reached too; add requests/,
+  );
+  assert.equal(capAlso(quota), '');
+  assert.equal(capAlso(both), '');
 });
 
 test('PR #211 review 1 N-3/N-4/N-5: a short reason stays, the stall note names both counts, reason codes read as words', () => {

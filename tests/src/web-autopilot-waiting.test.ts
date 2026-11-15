@@ -54,8 +54,18 @@ test('Decide offers Continue only for the newest live autopilot on that problem'
     state: 'running',
   });
   assert.equal(
-    r.waitingAutopilot([old, expired, newest, other, running], 'p1', NOW)?.id,
+    r.waitingAutopilot([old, expired, newest, other], 'p1', NOW)?.id,
     'new',
+  );
+  // Review 2 N-1: while one is running on this problem, none offers Continue; one running on
+  // another problem does not matter.
+  assert.equal(r.waitingAutopilot([old, newest, running], 'p1', NOW), null);
+  const elsewhere = autopilot('elsewhere', { state: 'running', problem: 'p2' });
+  assert.equal(r.waitingAutopilot([newest, elsewhere], 'p1', NOW)?.id, 'new');
+  // The end time is read at the time given, so a later check hides it.
+  assert.equal(
+    r.waitingAutopilot([newest], 'p1', Date.parse('2026-11-15T12:00:00.000Z')),
+    null,
   );
   assert.equal(r.waitingAutopilot([expired, other], 'p1', NOW), null);
   assert.equal(r.waitingAutopilot([], 'p1', NOW), null);

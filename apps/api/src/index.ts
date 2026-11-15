@@ -2961,6 +2961,7 @@ export { WebDiscoveryRunner, stepId, answerJson } from './web-discovery.js';
 export {
   AutopilotRunner,
   autopilotKey,
+  capAlso,
   failedNote,
   fitNote,
   gatherQuestion,

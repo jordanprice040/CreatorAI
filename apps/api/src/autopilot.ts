@@ -316,6 +316,26 @@ export function failedNote(
     : `${label} ${verb}.`;
 }
 
+/**
+ * PR #211 review 2 N-4: a usage-limit stop whose refusal also hit a request cap names that cap's
+ * own step too, so the recheck is not followed by a second refusal; empty otherwise.
+ */
+export function capAlso(e: unknown): string {
+  if (refusalKind(e) !== 'usage_limit' || !(e instanceof ContractError))
+    return '';
+  const codes = e.reasons.map((r) => r.code);
+  const out: string[] = [];
+  if (codes.includes('cap_reached'))
+    out.push(
+      "The connection's per-run request cap was reached too; raise it under Models and connections › Change caps.",
+    );
+  if (codes.includes('daily_cap_reached'))
+    out.push(
+      "The connection's daily request cap was reached too; add requests under Models and connections.",
+    );
+  return out.length ? ` ${out.join(' ')}` : '';
+}
+
 /** A refused call's stop: its kind, and the outcome that kind implies. */
 export function refusalStop(e: unknown): {
   outcome: AutopilotOutcome;
@@ -869,7 +889,7 @@ export class AutopilotRunner {
     try {
       planned = await this.#plan(ctx, ws, a, stage);
     } catch (e) {
-      planned = { ...refusalStop(e), note: said(e) };
+      planned = { ...refusalStop(e), note: `${said(e)}${capAlso(e)}` };
     }
     if ('outcome' in planned) {
       planned = await this.#settle(ctx, ws, planned);
@@ -1329,7 +1349,7 @@ export class AutopilotRunner {
       const unsent = !!step.key && this.#refused.delete(step.key);
       const stop: Stop = {
         ...refusalStop(e),
-        note: `${AUTOPILOT_STAGE_LABEL[step.stage]} was refused: ${said(e)}`,
+        note: `${AUTOPILOT_STAGE_LABEL[step.stage]} was refused: ${said(e)}${capAlso(e)}`,
         ...(unsent ? { unsent: true } : {}),
       };
       return this.#retryOr(ctx, ws, a, step, stop).catch(() => ({ stop }));

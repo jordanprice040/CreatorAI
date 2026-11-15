@@ -38,7 +38,19 @@ export function WaitingAutopilot({
       window.removeEventListener(AUTOPILOTS_CHANGED, read);
     };
   }, [base]);
-  const a = waitingAutopilot(list, problemId);
+  // PR #211 review 2 N-3: the card goes away at the autopilot's end time, also while Decide
+  // stays open.
+  const [now, setNow] = useState(() => Date.now());
+  const a = waitingAutopilot(list, problemId, now);
+  const ends = a ? Date.parse(a.config.limits.ends_at) : null;
+  useEffect(() => {
+    if (ends === null) return;
+    const t = window.setTimeout(
+      () => setNow(Date.now()),
+      Math.min(Math.max(0, ends - Date.now()) + 1000, 2 ** 31 - 1),
+    );
+    return () => window.clearTimeout(t);
+  }, [ends, now]);
   if (!a && !done) return null;
   async function go(x: Autopilot) {
     setBusy(true);
@@ -59,7 +71,7 @@ export function WaitingAutopilot({
     }
   }
   return (
-    <div className="notice" role="status" aria-live="polite">
+    <div className="notice">
       {a ? (
         <>
           <p>
@@ -79,7 +91,10 @@ export function WaitingAutopilot({
           )}
         </>
       ) : null}
-      {done && <p>{done}</p>}
+      {/* PR #211 review 2 N-2: only the result is announced, not every refresh. */}
+      <p role="status" aria-live="polite">
+        {done}
+      </p>
       {error && (
         <p className="error" role="alert">
           {error}
