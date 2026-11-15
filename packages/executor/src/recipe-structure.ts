@@ -99,9 +99,14 @@ export function packageStructureBar(
       !hasTopLevelFunction(readable.get(modulePath(m))!)
     )
       missing.push(`${modulePath(m)} has no top-level function`);
-  // Every Python file of the package may import a named module, besides the entry point.
+  // Every top-level Python file of the package may import a named module, besides the entry
+  // point. Review N-3: a file in a subfolder is left out, since its relative imports resolve
+  // against the subpackage, not against the package.
   const inPackage = files.filter(
-    (f) => f.path.startsWith(`${rule.package_dir}/`) && f.path.endsWith('.py'),
+    (f) =>
+      f.path.startsWith(`${rule.package_dir}/`) &&
+      !f.path.slice(rule.package_dir.length + 1).includes('/') &&
+      f.path.endsWith('.py'),
   );
   const reached = new Map<string, string[]>();
   if (entryOk)

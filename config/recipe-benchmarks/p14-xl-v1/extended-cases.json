@@ -215,6 +215,71 @@
       "stdin": "",
       "stdout": "invalid input\n",
       "exit_code": 2
+    },
+    {
+      "id": "E29",
+      "args": [],
+      "stdin": "ITEM A 1\n\n# note\nFOO\n   \r\nITEM A 0\n",
+      "stdout": "item A added\nline 4: unknown command\nline 6: bad price\n== report ==\nitem A price 1.00 on_hand 0 reserved 0 value 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E30",
+      "args": [],
+      "stdin": "CUSTOMER ana 1\nCUSTOMER ana 05\nCUSTOMER Ana 05\n",
+      "stdout": "customer ana added\nline 2: bad percent\nline 3: bad customer\n== report ==\ncustomer ana orders 0 shipped 0 spent 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E31",
+      "args": [],
+      "stdin": "PRICE NUT x\nPRICE nut x\nPRICE NUT 0\n",
+      "stdout": "line 1: bad price\nline 2: bad sku\nline 3: bad price\n== report ==\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E32",
+      "args": [],
+      "stdin": "RECEIVE NUT 0 1\nRECEIVE NUT 1 x\nRECEIVE nut 0 x\n",
+      "stdout": "line 1: bad quantity\nline 2: bad cost\nline 3: bad sku\n== report ==\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E33",
+      "args": [],
+      "stdin": "WRITEOFF NUT 0\nWRITEOFF nut 0\n",
+      "stdout": "line 1: bad quantity\nline 2: bad sku\n== report ==\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E34",
+      "args": [],
+      "stdin": "CANCEL O1\nCANCEL o1\n",
+      "stdout": "line 1: bad order id\nline 2: unknown order\n== report ==\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E35",
+      "args": [],
+      "stdin": "CUSTOMER h 0\nITEM A 1\nORDER p h ZZZ 1 A 0\nORDER p h A 1 ZZZ x\nORDER p X1 A 0\nORDER q h A 1\nORDER q zz A 1\nORDER r zz A 0\n",
+      "stdout": "customer h added\nitem A added\nline 3: unknown item\nline 4: bad quantity\nline 5: bad customer\norder q waiting\nline 7: duplicate order\nline 8: unknown customer\n== report ==\nitem A price 1.00 on_hand 0 reserved 0 value 0.00\norder q h waiting\ncustomer h orders 1 shipped 0 spent 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E36",
+      "args": [],
+      "stdin": "CUSTOMER h 50\nITEM A 0.01\nITEM B 0.01\nRECEIVE A 1 0\nRECEIVE B 1 0\nORDER o h A 1 B 1\nSHIP o\n",
+      "stdout": "customer h added\nitem A added\nitem B added\nreceived A 1\nreceived B 1\norder o reserved\norder o shipped revenue 0.01 cost 0.00\n== report ==\nitem A price 0.01 on_hand 0 reserved 0 value 0.00\nitem B price 0.01 on_hand 0 reserved 0 value 0.00\norder o h shipped\ncustomer h orders 1 shipped 1 spent 0.01\ntotals revenue 0.01 cost 0.00 profit 0.01\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E37",
+      "args": [
+        "--format=json"
+      ],
+      "stdin": "ITEM A 1\n",
+      "stdout": "invalid input\n",
+      "exit_code": 2
     }
   ]
 }

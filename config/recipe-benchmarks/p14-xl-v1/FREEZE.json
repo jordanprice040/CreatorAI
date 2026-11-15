@@ -2,8 +2,8 @@
   "format": "recipe-benchmark-freeze/1",
   "benchmark_id": "p14-xl-v1",
   "files": {
-    "expectations.json": "9b8a30ddcdae04632ae872fd800e9fa203e65a48d3debdf330e76afcb701f099",
-    "extended-cases.json": "549a05ae2062b5882dfc378c16ada3e14c4aca0ed219fa7d2b5624ee7f04e626",
+    "expectations.json": "2d226fda385fd3ff75f696d172b8a6c48f29650551151a720ab5e9e286701cb6",
+    "extended-cases.json": "2639559658f51a7677de494dd23335739c3f6bf3086101c3fbad9f9b4f637676",
     "reference/src/main.py": "1928c2189348cde0d9f4325a9872c79a1cd618b7ff02e4927df04092e80094f3",
     "reference/src/stockroom/__init__.py": "1721464210afd5193cd83eb453115271f1ef3f565febe811cf230932db8bddae",
     "reference/src/stockroom/catalog.py": "0ab002460751580d29d50446350ed6e1613774b90984278f97b8ca8862fc2e42",
@@ -19,6 +19,6 @@
     "reference/src/stockroom/script.py": "ab97fe3d9be37ed178250ec5aeb6d63f46de11aea0ff4a318fcfa690a87bd6b0",
     "spec.json": "254e7bc62d06b82068c39d686b273af638ff2b8ee3771f018f6ac8554e08136f",
     "scorer:recipe-scoring.ts": "2ea55f832b7b8ae7422f87191a48568393572fba51548d08b5ff00bbbc2fbd28",
-    "scorer:recipe-structure.ts": "2275cf9fe6cad57d2b543c6b0e49fa9327ffe51dc9ae097278bb6af3213f3dd1"
+    "scorer:recipe-structure.ts": "ce27c67a46ebdc9234295dd1e80303b4ac0ea20b8dde5b320d24777113899d31"
   }
 }

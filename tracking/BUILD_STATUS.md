@@ -2,11 +2,11 @@
 
 ## November 15 update — the frozen extra-large build benchmark p14-xl-v1 (ADR-0114, no migration)
 
-What now works: `config/recipe-benchmarks/p14-xl-v1` is written and frozen. It is a stock and order simulator CLI, a package of 11 named modules (the reference is 13 Python files, about 600 lines). It has 25 studio cases (11 held out), 28 extended held-out cases and a package structure rule. The studio loads it with its own limits: 20 requests, 3 repair rounds, a 2-hour attempt and an input floor of 120,000 characters. Qualify building offers it beside the v5 benchmarks. A pass lifts no label (ADR-0112 is unchanged).
+What now works: `config/recipe-benchmarks/p14-xl-v1` is written and frozen. It is a stock and order simulator CLI, a package of 11 named modules (the reference is 13 Python files, about 600 lines). It has 25 studio cases (11 held out), 37 extended held-out cases (E29 to E37 added after review 1) and a package structure rule. The studio loads it with its own limits: 20 requests, 3 repair rounds, a 2-hour attempt and an input floor of 120,000 characters. Qualify building offers it beside the v5 benchmarks. A pass lifts no label (ADR-0112 is unchanged).
 
-Checked in the cloud container on a throwaway PostgreSQL 16 database: `pnpm typecheck` and `pnpm format:check` pass. Full `pnpm test:db` at 172e2a9: 1369 tests, 1335 pass, 29 skipped, and only the 5 known PowerShell-wrapper failures. New `tests/src/p14-xl.test.ts` checks the freeze and limits, runs the reference against all 53 cases, checks that each of the 22 known-failure edits is caught by the cases listed for it, and covers the structure bar and that no label is lifted. GitHub Actions jobs were refused for billing.
+Checked in the cloud container on a throwaway PostgreSQL 16 database: `pnpm typecheck` and `pnpm format:check` pass. Full `pnpm test:db` at 172e2a9: 1369 tests, 1335 pass, 29 skipped, and only the 5 known PowerShell-wrapper failures. New `tests/src/p14-xl.test.ts` checks the freeze and limits, runs the reference against all 62 cases, checks that each of the 31 known-failure edits is caught by the cases listed for it, and covers the structure bar and that no label is lifted. After review 1, a runner test runs `p14-xl-v1` end to end on the fixture connection: the 120,000 floor, three-part rounds, the 2-hour deadline and the package structure rule. GitHub Actions jobs were refused for billing.
 
-Not done: no live run (3 attempts, up to 120 plan requests, needs Jordan's typed OK, an input cap of at least 120,000, and room under the daily and per-run caps), and no review yet.
+Not done: no live run (3 attempts, up to 120 plan requests, needs Jordan's typed OK, an input cap of at least 120,000, and room under the daily and per-run caps). Waiting on #216 (ADR-0115) to merge first, so `p14-xl-v1` can be frozen with its answer form.
 
 ## November 15 update — autopilot fixes from the third live rerun (no migration or ADR)
 

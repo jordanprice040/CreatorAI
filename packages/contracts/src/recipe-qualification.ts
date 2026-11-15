@@ -119,7 +119,7 @@ export const RECIPE_BENCHMARK_INFO: Readonly<
     recipe: 'python-build/1',
     scale: 'larger',
     label:
-      'Python program, extra large: a stock and order simulator (13 files, 53 checks and a structure check)',
+      'Python program, extra large: a stock and order simulator (13 files, 62 checks and a structure check)',
     copied_from: null,
     attempts: 3,
     caps: {
@@ -129,7 +129,7 @@ export const RECIPE_BENCHMARK_INFO: Readonly<
       timeout_ms: 120000,
     },
     typical_requests: 4,
-    extended_cases: 28,
+    extended_cases: 37,
     attempt_deadline_ms: 2 * 60 * 60_000,
     min_input_chars: 120_000,
   },

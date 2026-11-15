@@ -3,8 +3,8 @@
   "benchmark_id": "p14-xl-v1",
   "scale": "larger",
   "recipe": "python-build/1",
-  "declared_scale": "Entry point plus a package of 11 named modules with an internal API (13 Python files in the reference, about 600 lines and 18,000 characters, more than one builder answer holds at the plan route's default answer cap), one builder task, 10 automated checks with 25 studio cases (11 held out), plus 28 extended held-out cases and a structure check run after the build",
-  "authored": "Written new on 2026-11-15 for ADR-0114 (B4 of the build capability plan, ADR-0109), before any run. Not a copy of an earlier version. The expected outputs were produced by the reference solution and checked by hand against the spec; a test runs the reference against every case and each known failure against the cases that catch it",
+  "declared_scale": "Entry point plus a package of 11 named modules with an internal API (13 Python files in the reference, about 600 lines and 18,000 characters; a build of that size will likely, but need not, answer in more than one part at the plan route's default answer cap of 16,000 characters), one builder task, 10 automated checks with 25 studio cases (11 held out), plus 37 extended held-out cases and a structure check run after the build",
+  "authored": "Written new on 2026-11-15 for ADR-0114 (B4 of the build capability plan, ADR-0109), before any run. Not a copy of an earlier version. The expected outputs were produced by the reference solution and checked by hand against the spec. Cases E29 to E37 were added before any run, after review 1 of PR #217 found spec rules no case checked; a test runs the reference against every case and each known failure against the cases that catch it",
   "build_plan_caps": {
     "max_repairs": 3,
     "max_calls": 20,
@@ -26,7 +26,7 @@
     "Studio build reaches verified_candidate: QA passes every frozen studio case, held-out ones included, in the isolation worker, and the reviewer approves with no findings (the studio's own rule)",
     "Requests used are at most the plan's max_calls (20)",
     "The exported package is verified by the studio: every frozen case re-run on the extracted archive in the isolation worker",
-    "All 28 extended cases pass on the exported package, run by the studio in the isolation worker with the studio case rule (exact output and exit status)",
+    "All 37 extended cases pass on the exported package, run by the studio in the isolation worker with the studio case rule (exact output and exit status)",
     "Structure check passes (studio check, packages/executor/src/recipe-structure.ts, the rule under structure below)"
   ],
   "structure": {
@@ -212,6 +212,69 @@
       "description": "A zero price accepted",
       "caught_by": [
         "A8.2"
+      ]
+    },
+    {
+      "id": "count-nonblank",
+      "description": "Line numbers count only lines that hold a command",
+      "caught_by": [
+        "E29"
+      ]
+    },
+    {
+      "id": "customer-duplicate-first",
+      "description": "CUSTOMER checks duplicate customer before bad percent",
+      "caught_by": [
+        "E30"
+      ]
+    },
+    {
+      "id": "price-unknown-first",
+      "description": "PRICE checks unknown item before bad price",
+      "caught_by": [
+        "E31"
+      ]
+    },
+    {
+      "id": "receive-unknown-first",
+      "description": "RECEIVE checks unknown item before bad quantity or bad cost",
+      "caught_by": [
+        "E32"
+      ]
+    },
+    {
+      "id": "writeoff-unknown-first",
+      "description": "WRITEOFF checks unknown item before bad quantity",
+      "caught_by": [
+        "E33"
+      ]
+    },
+    {
+      "id": "cancel-id-unchecked",
+      "description": "CANCEL looks up an order without checking the order id rule",
+      "caught_by": [
+        "E34"
+      ]
+    },
+    {
+      "id": "pairs-format-first",
+      "description": "ORDER checks every pair's format before any item, or the pairs before the customer",
+      "caught_by": [
+        "E35"
+      ]
+    },
+    {
+      "id": "discount-per-line",
+      "description": "Discount rounded down on each line instead of once on the order",
+      "caught_by": [
+        "E36"
+      ]
+    },
+    {
+      "id": "format-equals",
+      "description": "--format=json accepted",
+      "caught_by": [
+        "E37"
       ]
     }
   ],

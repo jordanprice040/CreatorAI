@@ -259,6 +259,69 @@ const MUTANTS: Record<string, [file: string, from: string, to: string][]> = {
       "if price is None:\n        raise Refused('bad price')\n    if state.catalog.has(sku):",
     ],
   ],
+  'count-nonblank': [
+    [
+      'stockroom/script.py',
+      "for number, line in enumerate(text.split('\\n'), start=1):",
+      "for number, line in enumerate([l for l in text.split('\\n') if l.strip() and not l.strip().startswith('#')], start=1):",
+    ],
+  ],
+  'customer-duplicate-first': [
+    [
+      'stockroom/commands.py',
+      "    percent = parse_percent(args[1])\n    if percent is None:\n        raise Refused('bad percent')\n    if state.customers.has(args[0]):\n        raise Refused('duplicate customer')",
+      "    if state.customers.has(args[0]):\n        raise Refused('duplicate customer')\n    percent = parse_percent(args[1])\n    if percent is None:\n        raise Refused('bad percent')",
+    ],
+  ],
+  'price-unknown-first': [
+    [
+      'stockroom/commands.py',
+      "    if price is None or price == 0:\n        raise Refused('bad price')\n    _known_item(state, sku)\n    state.catalog.set_price",
+      "    _known_item(state, sku)\n    if price is None or price == 0:\n        raise Refused('bad price')\n    state.catalog.set_price",
+    ],
+  ],
+  'receive-unknown-first': [
+    [
+      'stockroom/commands.py',
+      '    sku = _sku(args[0])\n    quantity = _quantity(args[1])\n    cost = parse_money(args[2])',
+      '    sku = _sku(args[0])\n    _known_item(state, sku)\n    quantity = _quantity(args[1])\n    cost = parse_money(args[2])',
+    ],
+  ],
+  'writeoff-unknown-first': [
+    [
+      'stockroom/commands.py',
+      '    quantity = _quantity(args[1])\n    _known_item(state, sku)\n    if quantity >',
+      '    _known_item(state, sku)\n    quantity = _quantity(args[1])\n    if quantity >',
+    ],
+  ],
+  'cancel-id-unchecked': [
+    [
+      'stockroom/commands.py',
+      'order = _known_order(state, _order_id(args[0]))\n    if order.state in (SHIPPED, CANCELLED)',
+      'order = _known_order(state, args[0])\n    if order.state in (SHIPPED, CANCELLED)',
+    ],
+  ],
+  'pairs-format-first': [
+    [
+      'stockroom/commands.py',
+      '    customer = args[1]\n    if not valid_customer(customer):',
+      '    for st, qt in pairs(args[2:]):\n        _sku(st)\n        _quantity(qt)\n    customer = args[1]\n    if not valid_customer(customer):',
+    ],
+  ],
+  'discount-per-line': [
+    [
+      'stockroom/commands.py',
+      'order.revenue = discounted(order.total(), order.percent)',
+      'order.revenue = sum(discounted(q * p, order.percent) for _, q, p in order.lines)',
+    ],
+  ],
+  'format-equals': [
+    [
+      'stockroom/cli.py',
+      '        else:\n            return None\n    return fmt',
+      "        elif flag == '--format=json' and fmt is None:\n            fmt = 'json'\n            i += 1\n        else:\n            return None\n    return fmt",
+    ],
+  ],
 };
 
 test('ADR-0114: p14-xl-v1 is frozen, intact and loads with the studio limits it was frozen with', async () => {
@@ -279,7 +342,7 @@ test('ADR-0114: p14-xl-v1 is frozen, intact and loads with the studio limits it 
   assert.equal(studio.length, 25);
   assert.ok(studio.length <= MAX_BUILD_CASES);
   assert.equal(studio.filter((c) => c.held_out).length, 11);
-  assert.equal(b.extended.length, 28);
+  assert.equal(b.extended.length, 37);
   assert.equal(recipeQualificationMaxRequests(info), 120);
   // The floor Start applies is the larger of the first builder request and the frozen one.
   assert.equal(info.min_input_chars, expectations.min_input_chars);
@@ -385,6 +448,20 @@ test('ADR-0114: the structure rule passes the reference and fails what it should
       cli.replace('from .report_json import render_json\n', ''),
     ),
     /report_json\.py is not imported by src\/main\.py or another module of stockroom/,
+  );
+  // Review N-3: a file in a subfolder does not count as importing a named module.
+  const noLots = cli.replace('from .lots import new_stock\n', '');
+  assert.match(
+    packageStructureBar(
+      [
+        ...ok.map((f) =>
+          f.path === 'src/stockroom/cli.py' ? { ...f, content: noLots } : f,
+        ),
+        { path: 'src/stockroom/sub/x.py', content: 'from . import lots\n' },
+      ],
+      rule,
+    ).detail,
+    /lots\.py is not imported/,
   );
   // Every import form the rule names reaches the module; strings and comments do not.
   for (const [src, pkg] of [
