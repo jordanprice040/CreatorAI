@@ -101,7 +101,10 @@ const page = await browser.newPage({
   deviceScaleFactor: 2,
 });
 await page.goto(WEB);
-await page.getByLabel(/login code|code/i).first().fill(CODE);
+await page
+  .getByLabel(/login code|code/i)
+  .first()
+  .fill(CODE);
 await page.keyboard.press('Enter');
 await page.waitForTimeout(1500);
 await page.goto(`${WEB}/#/monitor/storage?ws=${ws}`);
@@ -111,8 +114,12 @@ check(
   await page.getByRole('link', { name: 'Storage' }).first().isVisible(),
   'Monitor lists the Storage tab',
 );
-const row = page.locator('.storage-table tbody tr').first();
-check((await row.textContent()).includes('1 product'), 'the project row counts its product');
+// Projects list oldest first; this run's project is the newest.
+const row = page.locator('.storage-table tbody tr').last();
+check(
+  (await row.textContent()).includes('1 product'),
+  'the project row counts its product',
+);
 check(
   (await row.textContent()).includes('2 workspaces'),
   'the project row counts both build workspaces',
@@ -128,20 +135,36 @@ check(
   ),
   'the task workspace is kept: it has no verified package',
 );
-await page.screenshot({ path: join(out, 'storage-before.png'), fullPage: true });
-await page.getByRole('button', { name: 'Remove old build workspaces…' }).click();
+await page.screenshot({
+  path: join(out, 'storage-before.png'),
+  fullPage: true,
+});
+await page
+  .getByRole('button', { name: 'Remove old build workspaces…' })
+  .click();
 check(
-  await page.getByRole('button', { name: /^Remove 1 build workspace \(/ }).isVisible(),
+  await page
+    .getByRole('button', { name: /^Remove 1 build workspace \(/ })
+    .isVisible(),
   'the confirming button names the count and size',
 );
 await page.getByRole('button', { name: 'Cancel' }).click();
 check(
-  await page.getByRole('button', { name: 'Remove old build workspaces…' }).isVisible(),
+  await page
+    .getByRole('button', { name: 'Remove old build workspaces…' })
+    .isVisible(),
   'Cancel removes nothing and goes back',
 );
-await page.getByRole('button', { name: 'Remove old build workspaces…' }).click();
-await page.screenshot({ path: join(out, 'storage-confirm.png'), fullPage: true });
-await page.getByRole('button', { name: /^Remove 1 build workspace \(/ }).click();
+await page
+  .getByRole('button', { name: 'Remove old build workspaces…' })
+  .click();
+await page.screenshot({
+  path: join(out, 'storage-confirm.png'),
+  fullPage: true,
+});
+await page
+  .getByRole('button', { name: /^Remove 1 build workspace \(/ })
+  .click();
 await page.getByText('Every verified package still matches').waitFor();
 check(
   !(await lstat(merged.merge_workspace).then(
@@ -158,6 +181,11 @@ check(
   'the task workspace is still there',
 );
 await page.getByText('Recent cleanups').waitFor();
+await page.getByText('Nothing to remove right now.').waitFor();
+check(
+  (await page.locator('.storage-list').count()) === 0,
+  'the page reads again after the cleanup: nothing left to remove',
+);
 check(
   (await page.locator('.storage').textContent()).includes('asked to remove 1'),
   'the audit history lists the intent and outcome',
