@@ -3743,6 +3743,101 @@ join lateral (select actor_id from workspace_members where workspace_id = pc.wor
 where pc.id = '4e4a7bec-c1ca-4f31-8f87-b11ed5fc81d4';
 `,
   },
+  {
+    // ADR-0106: Word, Excel and PowerPoint files and ZIP archives get kinds of their own, so the
+    // studio can open them in its inert viewers. Only the allowed values change; stored versions
+    // stay exactly as they were (they never change), and older uploads keep the kind they had.
+    version: 66,
+    name: 'file_kinds_office',
+    sql: `
+alter table workspace_file_versions drop constraint workspace_file_versions_kind_check;
+alter table workspace_file_versions add constraint workspace_file_versions_kind_check
+ check (kind in ('text','markdown','json','csv','code','image','pdf','document','spreadsheet',
+   'presentation','archive','other'));
+`,
+  },
+  {
+    // ADR-0107 (B2): model-drafted build specs. Each press of Draft the spec, Add an edge case or
+    // Explain this case is one row: the option drafted for, exactly what was sent under which
+    // fixed instructions, the plan request, the reply and what the studio could use from it
+    // (with its held-out pick and case problems). It changes once, from pending to its outcome,
+    // except that redacting the option or its problem clears its words. Version 67: #200 holds
+    // 65 and #201 holds 66.
+    version: 67,
+    name: 'spec_drafts',
+    sql: `
+create table spec_drafts (
+ id uuid primary key,
+ workspace_id uuid not null,
+ client_id uuid not null,
+ kind text not null check (kind in ('spec','edge_case','explain_case')),
+ selection_id uuid not null references selections(id),
+ problem_id uuid not null,
+ alternative_id uuid not null,
+ alternative_version integer not null check (alternative_version > 0),
+ product text not null check (product in ('cli','web')),
+ state text not null check (state in ('pending','completed','failed','refused')),
+ connection_id uuid not null references plan_connections(id),
+ connection_kind text not null check (connection_kind in ('chatgpt_plan','claude_code')),
+ fixture boolean not null,
+ model_id text not null,
+ data_class text not null check (data_class in ('synthetic','public','private_approved')),
+ logical_operation_id uuid not null unique,
+ plan_request_id uuid references plan_requests(id),
+ instructions_version text not null,
+ instructions_hash char(64) not null,
+ request jsonb not null check (jsonb_typeof(request) = 'object'),
+ input text not null,
+ input_hash char(64) not null,
+ text text,
+ output_hash char(64),
+ result jsonb check (result is null or jsonb_typeof(result) = 'object'),
+ problems jsonb not null default '[]' check (jsonb_typeof(problems) = 'array'),
+ reason text check (reason is null or length(reason) <= 2000),
+ requested_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ finished_at timestamptz,
+ redacted_at timestamptz,
+ foreign key (workspace_id, alternative_id) references entities (workspace_id, id),
+ foreign key (alternative_id, alternative_version) references entity_versions (entity_id, version),
+ foreign key (workspace_id, problem_id) references entities (workspace_id, id),
+ unique (workspace_id, client_id),
+ unique (workspace_id, id),
+ check ((state = 'completed') = (output_hash is not null)),
+ check (state <> 'completed' or text is not null),
+ check (result is null or state = 'completed'),
+ check ((state = 'pending') = (finished_at is null))
+);
+create unique index spec_drafts_one_pending on spec_drafts (workspace_id, alternative_id)
+ where state = 'pending';
+create index spec_drafts_by_alternative
+ on spec_drafts (workspace_id, alternative_id, created_at desc);
+create function spec_drafts_settle_once() returns trigger language plpgsql as $$
+begin
+ -- Redacting the option or its problem clears the words once; hashes, ids and the outcome stay.
+ if tg_op = 'UPDATE' and old.redacted_at is null and new.redacted_at is not null
+   and old.state <> 'pending' and new.state = old.state
+   and (to_jsonb(new) - array['request','input','text','result','problems','redacted_at'])
+     is not distinct from (to_jsonb(old) - array['request','input','text','result','problems','redacted_at'])
+ then
+   return new;
+ end if;
+ -- A draft finishing after its option was redacted is recorded without its words.
+ if tg_op = 'DELETE' or old.state <> 'pending' or new.state = 'pending'
+   or (to_jsonb(new) - array['state','plan_request_id','text','output_hash','result','problems',
+         'reason','finished_at','request','input','redacted_at'])
+      is distinct from (to_jsonb(old) - array['state','plan_request_id','text','output_hash',
+         'result','problems','reason','finished_at','request','input','redacted_at'])
+ then
+   raise exception 'spec drafts change only once, from pending to their outcome'
+     using errcode = 'P0001';
+ end if;
+ return new;
+end $$;
+create trigger spec_drafts_settle_once before update or delete
+ on spec_drafts for each row execute function spec_drafts_settle_once();
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

@@ -39,6 +39,8 @@ import {
   RecipeBenchmarkOffersSchema,
   RecipeQualificationListSchema,
   browserRecheckDue,
+  SpecDraftedMarkSchema,
+  draftedMarkText,
   specRecipe,
 } from '@creator/contracts';
 import { webBuildNote } from './build-qualification.js';
@@ -479,6 +481,9 @@ export function BuildView({
                 base={base}
                 session={session}
                 mode={specForm}
+                owner={owner}
+                choice={choice}
+                openModels={() => open('models')}
                 cancel={() => setSpecForm(null)}
                 saved={(s) => {
                   setSpecForm(null);
@@ -506,6 +511,10 @@ export function BuildView({
                     s.spec.status === 'active' &&
                     !stale(s) &&
                     !!entityOf(s);
+                  // ADR-0107: a spec saved from a model's draft says so on its row.
+                  const drafted = SpecDraftedMarkSchema.safeParse(
+                    entityOf(s)?.body?.drafted,
+                  ).data;
                   const made = d.products.filter(
                     (p) =>
                       p.product.binding.spec_id === s.spec.id &&
@@ -522,6 +531,7 @@ export function BuildView({
                         : s.latest_freeze
                           ? 'changed since its last freeze'
                           : 'not frozen'}
+                      {drafted && <small> · {draftedMarkText(drafted)}</small>}
                       {s.blockers.length > 0 && (
                         <small> · {s.blockers.join('; ')}</small>
                       )}

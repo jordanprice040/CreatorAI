@@ -200,14 +200,14 @@ export function routeFixes(input: {
 
 /**
  * Which route a bundled benchmark qualifies for, from every case's check kind (P34's
- * `manifestRole`): the assessment and discovery routes as tagged, Search the web `null` (no fix
- * starts it), and a manifest with no role tag a plan role.
+ * `manifestRole`): the assessment and discovery routes as tagged, Search the web and drafting
+ * specs (ADR-0107) `null` (no fix starts them), and a manifest with no role tag a plan role.
  */
 export function roleOf(manifest: {
   cases: readonly { check?: unknown }[];
 }): QualifyRole | null {
   const r = manifestRole(manifest);
-  return r === 'web_discovery' ? null : (r ?? 'plan');
+  return r === 'web_discovery' || r === 'spec_drafts' ? null : (r ?? 'plan');
 }
 
 /**
@@ -235,7 +235,8 @@ const memo = <T,>(f: () => Promise<T>) => {
 };
 
 // The web-discovery benchmark (ADR-0086) qualifies only Search the web, which no fix here
-// starts, so it is never offered: its research synthesis counts for no route a fix serves.
+// starts, so it is never offered: its research synthesis counts for no route a fix serves. The
+// spec cases benchmark (ADR-0107) is started from Qualify a model, not from a fix, likewise.
 const BUNDLED: readonly QualifyOffer[] = BENCHMARKS.filter(
   (b) => roleOf(b.manifest) !== null,
 ).map((b) => ({
