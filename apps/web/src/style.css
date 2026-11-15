@@ -324,18 +324,31 @@ a:hover {
   margin-left: 6px;
   vertical-align: middle;
 }
-.sidebar-foot {
+.sidebar-controls {
   margin-top: auto;
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding: 0 4px;
+}
+.sidebar-controls .theme-button {
+  gap: 8px;
+  min-height: 30px;
+  padding: 5px 10px 5px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+.sidebar-controls .theme-button:hover:not(:disabled) {
+  color: var(--text);
+}
+.sidebar-foot {
   display: grid;
   gap: 4px;
   padding: 12px 6px 0;
   border-top: 1px solid var(--border);
   font-size: 11px;
   color: var(--text-3);
-}
-.sidebar-foot .theme-button {
-  justify-self: start;
-  margin: -4px 0 4px -6px;
 }
 .column {
   display: flex;
@@ -3640,11 +3653,11 @@ details.routine > summary {
   margin-top: 0.5rem;
 }
 /* ADR-0082 (P19): the Standard/Advanced switch, the hidden-tabs link and Getting started. */
-.sidebar-foot .view-mode .presentation {
-  margin: 0 0 6px;
+.sidebar-controls .view-mode .presentation {
+  margin: 0;
   gap: 4px;
 }
-.sidebar-foot .view-mode .chip {
+.sidebar-controls .view-mode .chip {
   font-size: 12px;
 }
 .tabs .tabs-more {
@@ -3982,13 +3995,27 @@ details > summary {
   z-index: 12;
   display: flex;
   width: max-content;
-  margin: 16px 0 0 auto;
+  /* Kept in from the right so it lines up with the page panel's content, not on its border. */
+  margin: 16px 24px 0 auto;
   box-shadow: var(--shadow);
 }
 @media print {
   .back-to-top {
     display: none;
   }
+}
+/* A button on its own line keeps clear of the box or line under it, and a nested panel of the
+   box it follows (Jordan's 2026-11-15 notes: "Record this selection" sat on the "Why this
+   response" box, "Assess again" on its run's state badge, "Refresh devices" on its list).
+   Element-only specificity, so a box with its own larger top margin keeps it. */
+:where(.panel, section, article, form)
+  > :where(.primary, .secondary, .ghost, a.button, button:not([class]))
+  + :is(p, div, section, details, form, ul, ol, table, fieldset) {
+  margin-top: 12px;
+}
+.panel .panel.explain:not(:first-child),
+.assess-run {
+  margin-top: 16px;
 }
 /* Final UX pass: the gate's confirm button kept clear of the next gate's heading. */
 .gate-confirm {
