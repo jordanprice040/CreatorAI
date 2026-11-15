@@ -105,3 +105,17 @@ export async function supportConnections(
     problems_24h: Number(r.problems),
   }));
 }
+
+/**
+ * GitHub owner logins named by the studio's own connections and repositories, so the
+ * report can hide them wherever they appear (ADR-0118 review 1 M-1).
+ */
+export async function supportAccountNames(pool: Pool): Promise<string[]> {
+  const { rows } = await pool.query(
+    `select body->'owner'->>'login' as name from github_connections
+     union select split_part(full_name, '/', 1) from github_repositories`,
+  );
+  return (rows as Row[])
+    .map((r) => (typeof r.name === 'string' ? r.name.trim() : ''))
+    .filter((n) => n.length > 0);
+}

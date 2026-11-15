@@ -16,6 +16,7 @@ import {
   type SupportIdentity,
 } from '@creator/domain';
 import {
+  supportAccountNames,
   supportConnections,
   supportFailures,
   type OpsStore,
@@ -77,7 +78,10 @@ export function supportReportRoutes(o: {
   now?: () => Date;
 }) {
   const version = appVersion();
-  async function facts(): Promise<SupportFacts> {
+  async function facts(): Promise<{
+    facts: SupportFacts;
+    accounts: string[];
+  }> {
     const unavailable: string[] = [];
     const attempt = async <T>(what: string, f: () => Promise<T>) => {
       try {
@@ -108,7 +112,13 @@ export function supportReportRoutes(o: {
           supportFailures(pool, SUPPORT_FAILURE_LIMIT),
         )
       : null;
-    return {
+    const accounts = pool
+      ? await attempt('account names', () => supportAccountNames(pool))
+      : [];
+    // Without the account names the report cannot promise to hide them: leave out the
+    // sections that may carry them rather than show them.
+    const safe = accounts !== null;
+    const facts: SupportFacts = {
       generated_at: (o.now?.() ?? new Date()).toISOString(),
       app: {
         version,
@@ -136,10 +146,11 @@ export function supportReportRoutes(o: {
             local: metrics.workers.local_last_seen,
           }
         : null,
-      connections,
-      failures,
+      connections: safe ? connections : null,
+      failures: safe ? failures : null,
       unavailable,
     };
+    return { facts, accounts: accounts ?? [] };
   }
 
   async function route(
@@ -150,8 +161,11 @@ export function supportReportRoutes(o: {
     if (req.method !== 'GET')
       throw new ContractError('NOT_FOUND', 'Route not found.');
     await o.requireOwner(req, false);
-    const f = await facts();
-    const { text, hidden } = renderSupportReport(f, o.identity);
+    const { facts: f, accounts } = await facts();
+    const { text, hidden } = renderSupportReport(f, {
+      ...o.identity,
+      accountNames: [...(o.identity.accountNames ?? []), ...accounts],
+    });
     return {
       status: 200,
       value: parse(SupportReportSchema, {

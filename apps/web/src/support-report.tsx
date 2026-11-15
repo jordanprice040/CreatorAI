@@ -17,10 +17,17 @@ export function SupportReportPanel() {
   async function prepare() {
     setBusy(true);
     setError('');
-    setNote('');
+    setNote('Preparing the support report…');
     try {
-      setReport(await api(SupportReportSchema, 'support/report'));
+      const next = await api(SupportReportSchema, 'support/report');
+      setReport(next);
+      setNote(
+        `Report ready, ${next.hidden} ${next.hidden === 1 ? 'item' : 'items'} hidden.`,
+      );
     } catch (e) {
+      // Review 1 N-1: never leave an earlier report to be copied beside the error.
+      setReport(null);
+      setNote('');
       setError(message(e));
     } finally {
       setBusy(false);
@@ -35,7 +42,10 @@ export function SupportReportPanel() {
     } catch {
       box.current?.focus();
       box.current?.select();
-      setNote('Copying is blocked here. The text is selected: press Ctrl+C.');
+      const mac = /Mac|iPhone|iPad/.test(navigator.platform);
+      setNote(
+        `Copying is blocked here. The text is selected: press ${mac ? 'Cmd+C' : 'Ctrl+C'}.`,
+      );
     }
   }
 
@@ -86,12 +96,13 @@ export function SupportReportPanel() {
             <button type="button" onClick={() => void copy()}>
               Copy report
             </button>
-            <span className="small" role="status" aria-live="polite">
-              {note}
-            </span>
           </div>
         </>
       )}
+      {/* Review 1 N-2: one status region, always mounted, so every step is announced. */}
+      <p className="small" role="status" aria-live="polite">
+        {note}
+      </p>
     </div>
   );
 }

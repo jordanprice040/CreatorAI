@@ -2,7 +2,8 @@
 // planted secret and path, copy it, and screenshot both themes. Fixture data, no live calls.
 // Usage: node walk.mjs <web origin> <out dir>   (studio started with CREATOR_DEV_LOGIN_CODE)
 import { createRequire } from 'node:module';
-const { chromium } = createRequire(import.meta.url)('playwright');
+const require = createRequire(import.meta.url);
+const { chromium } = require('playwright');
 const [origin = 'http://127.0.0.1:5183', out = '.'] = process.argv.slice(2);
 const code = process.env.CREATOR_DEV_LOGIN_CODE;
 const browser = await chromium.launch();
@@ -36,6 +37,8 @@ for (const theme of ['dark', 'light']) {
       });
   }, code);
   await page.goto(`${origin}/#/monitor/workers`);
+  // A hash change alone keeps the app's first load; reload so a new workspace shows.
+  await page.reload();
   // The studio's own theme button (dark is the default theme).
   const toggle = page.getByRole('button', { name: `Use ${theme} theme` });
   if (await toggle.count()) await toggle.click();
@@ -43,6 +46,13 @@ for (const theme of ['dark', 'light']) {
   const box = page.locator('#support-report-text');
   await box.waitFor();
   const text = await box.inputValue();
+  const status = page.locator('.support-report [role="status"]');
+  check(
+    `${theme}: status announces the ready report`,
+    /^Report ready, \d+ items? hidden\.$/.test(
+      (await status.innerText()).trim(),
+    ),
+  );
   check(
     `${theme}: preview shows the report`,
     text.startsWith('Creator Agent support report'),
@@ -54,8 +64,22 @@ for (const theme of ['dark', 'light']) {
   );
   await page.getByRole('button', { name: 'Copy report' }).click();
   await page.getByText('Copied.').waitFor();
+
   const copied = await page.evaluate(() => navigator.clipboard.readText());
   check(`${theme}: clipboard equals preview`, copied === text);
+  // Review 1 N-5: axe on the section, with the preview and status shown.
+  await page.addScriptTag({ path: require.resolve('axe-core') });
+  const violations = await page.evaluate(async () =>
+    (
+      await window.axe.run(document.querySelector('.support-report'), {
+        runOnly: ['wcag2a', 'wcag2aa', 'wcag22aa'],
+      })
+    ).violations.map((v) => `${v.id} ${v.nodes.length}`),
+  );
+  check(
+    `${theme}: axe finds no violations${violations.length ? ` (${violations.join(', ')})` : ''}`,
+    violations.length === 0,
+  );
   await page
     .locator('.support-report')
     .screenshot({ path: `${out}/support-report-${theme}.png` });
