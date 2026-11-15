@@ -69,10 +69,10 @@ establish database or real-isolation acceptance. In the cloud container five Pow
 tests fail because PowerShell is not installed there. Frozen helper replay is a separate
 `pnpm test:historical-upgrade` gate requiring its original candidate/package.
 
-Next (November 15): the whole-app UX pass, then the studio spending manager (S0) and the
-notifications inbox, toasts and Windows notifications (N1–N3), then the GitHub App (P32). See
-[build status](../tracking/BUILD_STATUS.md). Do not automatically begin additions, a pilot,
-installation or release.
+Next (November 15): after this UX pass, the open PRs for the studio spending manager (S0), the
+larger benchmark freeze and the Claude groundwork, then the notifications inbox, toasts and Windows
+notifications (N1–N3), then the GitHub App (P32). See [build status](../tracking/BUILD_STATUS.md).
+Do not automatically begin additions, a pilot, installation or release.
 
 ## Historical status
 

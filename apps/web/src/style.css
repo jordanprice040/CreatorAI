@@ -643,7 +643,8 @@ mark {
   min-height: 34px;
 }
 /* A tab without fields (Path) has no Reset button, so it keeps no room for one. */
-.no-reset .draft-content > .panel:first-child > h2:first-child {
+.no-reset .draft-content > .panel:first-child > h2:first-child,
+.no-reset .draft-content > .panel:first-child > .decision-head:first-child {
   padding-right: 0;
   min-height: 0;
 }
@@ -662,7 +663,8 @@ mark {
     padding-right: 96px;
     min-height: 0;
   }
-  .no-reset .draft-content > .panel:first-child > h2:first-child {
+  .no-reset .draft-content > .panel:first-child > h2:first-child,
+  .no-reset .draft-content > .panel:first-child > .decision-head:first-child {
     padding-right: 0;
   }
 }
@@ -677,7 +679,7 @@ mark {
 /* Whole-app UX pass: a boxed sub-section's heading starts at the box's own padding, not 24 px
    below it (Working or waiting, Start an autopilot, Discoveries, Explore for me, Why this
    response). */
-:is(.panel, .explore, .discovery-progress) > h3:first-child {
+:is(.explore, .discovery-progress) > h3:first-child {
   margin-top: 12px;
 }
 .panel > h3:first-child {
@@ -4325,7 +4327,6 @@ button.money:hover {
   font-size: 12px;
   color: var(--text-3);
 }
-.output pre,
 /* Devices: the pairing commands as their own copyable lines. */
 .panel > pre.commands {
   margin: 0 0 12px;
@@ -4336,6 +4337,11 @@ pre.commands code {
   border: 0;
   padding: 0;
 }
+pre.commands var {
+  font-style: italic;
+  color: var(--accent);
+}
+.output pre,
 pre.commands {
   margin: 0;
   max-height: 200px;

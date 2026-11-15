@@ -4,6 +4,8 @@
 
 Branch `claude/project-thread-qdyhuq` from main f5728aa, no migration or ADR. Web: `style.css` (rules marked "Whole-app UX pass"), `overview.tsx` (`RunOf`, `runNames` in its load), `payments.tsx` (heading Sell), `desktop.tsx` (plain intro, `pre.commands`). Docs: `docs/CURRENT_STATUS.md`, `docs/CODE_AUDIT_AND_PRODUCT_GUIDE.md`, `README.md`. Evidence and the "left alone" list: `tracking/evidence/whole-app-ux-pass/` (with `row-align.mjs`). Next: independent review in a separate thread; then S0, N1–N3, P32 per the notifications plan.
 
+Review 1 (1 M, 2 L, 4 nits; `/mnt/project-files/reviews/PR219_UX_PASS_REVIEW_2026-11-15.md`) fixed: `.output pre, pre.commands` restored as one rule; `NO_RESET` gains `overview`, `operations`, `desktop`; CURRENT_STATUS Next; Devices wording, "Shut down worker", `<var>PRODUCTS_ROOT</var>`. Next: re-review.
+
 ## November 15 handoff — autopilot fixes from the third live rerun
 
 Branch `claude/project-thread-77qqks`, restarted from main 42dce84 after #205 merged. No migration or ADR.

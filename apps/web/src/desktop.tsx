@@ -72,10 +72,11 @@ export function DesktopDevices({
         checks the owner submits, inside the reviewed offline WSL sandbox.
       </p>
       <p>
-        Closing a desktop window leaves a worker you started separately running.
-        Shutdown worker asks it to stop the next time it checks in; Revoke
-        refuses its next check-in at once. An old last-seen time means the
-        studio doesn&apos;t know whether the device is still there.
+        Closing a desktop window leaves a worker you started separately running.{' '}
+        <strong>Shut down worker</strong> asks it to stop the next time it
+        checks in; <strong>Revoke</strong> refuses its next check-in at once. An
+        old last-seen time means the studio doesn&apos;t know whether the device
+        is still there.
       </p>
       <p>
         To pair a local worker, run this, then open the approval link in your
@@ -85,14 +86,15 @@ export function DesktopDevices({
         <code>node apps/desktop/worker.mjs pair {workspace.id}</code>
       </pre>
       <p>
-        To let it run checks, pair it with this instead. PRODUCTS_ROOT must be
-        the same local product store this studio uses. Checks run in the fixed
-        20-second, 256 MiB sandbox; local compute is not metered, which
-        doesn&apos;t make it free.
+        To let it run checks, pair it with this instead, with{' '}
+        <var>PRODUCTS_ROOT</var> replaced by the folder of the local product
+        store this studio uses. Checks run in the fixed 20-second, 256 MiB
+        sandbox; local compute is not metered, which doesn&apos;t make it free.
       </p>
       <pre className="commands">
         <code>
-          node apps/desktop/worker.mjs run {workspace.id} PRODUCTS_ROOT
+          node apps/desktop/worker.mjs run {workspace.id}{' '}
+          <var>PRODUCTS_ROOT</var>
         </code>
       </pre>
       <button className="secondary" onClick={() => data.reload()}>
@@ -156,7 +158,7 @@ export function DesktopDevices({
                       disabled={busy === d.id || d.state === 'shutdown'}
                       onClick={() => void control(d, 'shutdown')}
                     >
-                      Shutdown worker
+                      Shut down worker
                     </button>
                   </>
                 )}
