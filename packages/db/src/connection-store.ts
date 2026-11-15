@@ -635,19 +635,22 @@ function withoutRoleVersion(check: unknown): unknown {
     kind?: string;
     context?: Record<string, unknown>;
   } | null;
-  // PR #173 review 3 L-1: a web check names its role version at the top level; the stage's
-  // prompt is its system message, which `heldOutPrompts` covers case by case.
-  // Review 1 of PR #210, L-1: a spec cases check names the instructions version and the hash
-  // of the frozen source (which carries the version in its marker comments). Both follow the
-  // prompt, so spec-cases-v1 and spec-cases-v2 share held-out cases.
+  // Review 1 of PR #210, L-1, and review 2, L-1: a spec cases check names the instructions
+  // version, the hash of the frozen source (readers, programs and grader, with the version in
+  // its marker comments) and a behavioural fingerprint (spec schema, programs, grades). All
+  // three change with a re-cut of the benchmark, not with the case, so a case is its request,
+  // program, mutants and bar; spec-cases-v1, v2 and any later cut share held-out cases.
   if (c?.kind === 'spec_cases_contract') {
     const {
       role_version: _v,
       source_sha256: _s,
+      fingerprint: _f,
       ...rest
     } = c as Record<string, unknown>;
     return rest;
   }
+  // PR #173 review 3 L-1: a web check names its role version at the top level; the stage's
+  // prompt is its system message, which `heldOutPrompts` covers case by case.
   if (c?.kind === 'web_scout_contract' || c?.kind === 'web_reader_contract') {
     const { role_version: _v, ...rest } = c as Record<string, unknown>;
     return rest;

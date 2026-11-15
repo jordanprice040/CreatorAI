@@ -19,7 +19,14 @@ import {
   fixtureHumilityReview,
   fixtureScorecards,
 } from '@creator/domain';
-import { ConnectionStore, type CommandContext } from '@creator/db';
+import {
+  ConnectionStore,
+  heldOutKeys,
+  heldOutPrompts,
+  heldOutSeen,
+  promptHash,
+  type CommandContext,
+} from '@creator/db';
 import { freshDatabase } from './pg-harness.js';
 import { FixtureAdapter, PlanConnectionService } from '@creator/broker';
 import { discoverySetup, owner } from './discovery-harness.js';
@@ -637,5 +644,20 @@ test('review 2 of PR #206, L-1: a start of spec-cases-v2 runs under the serverâ€
   await assert.rejects(
     start(bench('spec-cases-v2')),
     /5 held-out cases were viewed .* \(ADR-0052\)/,
+  );
+  // Review 2 of PR #210, L-1: a later cut whose fingerprints changed (say, for a spec schema
+  // change) still shares those held-out cases.
+  const recut = bench('spec-cases-v2') as { cases: Record<string, any>[] };
+  for (const k of recut.cases) k.check.fingerprint = 'f'.repeat(64);
+  assert.equal(
+    heldOutSeen(
+      {
+        prompt_hash: promptHash(v1.cases as never),
+        held_out: heldOutKeys(v1.cases as never),
+        held_out_prompts: heldOutPrompts(v1.cases as never),
+      },
+      recut.cases as never,
+    ),
+    5,
   );
 });
