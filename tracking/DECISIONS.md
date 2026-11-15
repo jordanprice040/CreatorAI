@@ -1,5 +1,16 @@
 # Decision log
 
+## ADR-0111 — Autopilot gets its own page in the left nav (November 15, 2026; no migration)
+
+Jordan's request (November 15): using the autopilot meant going all over the studio, and a stopped run's Continue was hard to find. Web only; amends ADR-0103 (Discover's panels) and the step 9 page map.
+
+- **Page.** A seventh page, **Autopilot** (`#/autopilot/run`, view `autopilot`), sits just below Projects, since it takes the Projects path for you. It is listed in Standard and Advanced.
+- **What is on it, in order** (`apps/web/src/autopilot-page.tsx`): *Working or waiting for you* (each running autopilot with its steps as they happen and Stop; each stopped one that can still continue, marked by its border, with its steps, what to do next, **Continue the autopilot from …** and any Allow and continue); *Start an autopilot* (the Run it for me form, unchanged); *How much is automated* (the levels, unchanged); *Autopilot settings* (moved out of How much is automated into its own section); *Earlier autopilots* (up to 10, folded, steps folded too). Jump links at the top go to each part.
+- **Nav count.** The Autopilot nav entry shows how many autopilots wait to be continued (the same rule as the Continue button, `autopilotContinuable`), and an activity dot while one works and none waits. The page's what's-next line says the same. Read with the studio facts (`GET autopilots`, every 15 s and after any action); an unread list shows nothing rather than a guess.
+- **What stays elsewhere.** A person's own step still happens where that work is: a choice under Projects › Decide, an approval under Monitor › Approvals, quote-checked claims under Discover › Search the web, the exploration under Discover › Explore for me. Each stopped card links there (Search the web and Open the exploration now navigate to Discover and open that panel), and Continue is always on this page. PR #211 adds a Continue notice on Decide as well.
+- **Discover.** The Run it for me and How much is automated panels leave Discover. Its Run it for me start choice stays and opens the Autopilot page (`PanelChoice.page`); a remembered panel of either kind falls back to Explore for me.
+- **Wording.** Texts that pointed to "Run it for me" or "How much is automated" for an autopilot's stops now point to *Working or waiting for you* and *Autopilot settings*; Monitor › Approvals says to press Continue on the Autopilot page.
+
 ## ADR-0110 — Build roles may wrap their whole answer in one code fence, in new frozen benchmark versions (November 15, 2026; no migration)
 
 **Owner decision (Jordan, November 15, 06:45 UTC): "Accept one fence, new version".** Packet H stopped at H1: `claude-sonnet-5-5` on the local Claude Code connection failed `t12-builder-v1` with 1 of 3 held out (qualification record `7c054251`), because bd-03 and bd-04 wrapped otherwise complete JSON in a markdown code fence and the grader needs raw strict JSON. GPT-6 Astra is unaffected (packet A passed). That failed record stays on record as it is; nothing is re-graded.

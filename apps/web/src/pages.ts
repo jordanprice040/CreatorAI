@@ -90,9 +90,9 @@ export const PAGES: readonly Page[] = [
       },
     ],
   },
-  // Jordan's request (November 15): the whole autopilot flow on one page, under Projects since
-  // it takes the same path for you: its settings, start, Stop and Continue, progress, and what
-  // to do when it stops for you.
+  // ADR-0111 (Jordan's request, November 15): the whole autopilot flow on one page, under
+  // Projects since it takes the same path for you: its settings, start, Stop and Continue,
+  // progress, and what to do when it stops.
   {
     key: 'autopilot',
     label: 'Autopilot',

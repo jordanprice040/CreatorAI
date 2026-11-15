@@ -5,11 +5,11 @@ import { AutopilotSettingsPanel } from './autopilot-settings.js';
 import { reveal } from './ui.js';
 import type { View } from './pages.js';
 
-// Jordan's request (November 15): the whole autopilot flow on one page instead of spread over
-// Discover, Decide and Monitor. In order: the autopilots working or waiting for you (progress,
-// Stop, Continue and what to do about a stop), starting a new one, how much is automated with
-// the autopilot settings, and earlier autopilots. Steps that are a person's own work (a choice
-// under Decide, an approval, claims to read) still happen where that work is, and each card
+// ADR-0111 (Jordan's request, November 15): the whole autopilot flow on one page instead of
+// spread over Discover, Decide and Monitor. In order: the autopilots working or waiting for
+// you (progress, Stop, Continue and what to do about a stop), starting a new one, how much is
+// automated, the autopilot settings, and earlier autopilots. A person's own step (a choice
+// under Decide, an approval, claims to read) still happens where that work is, and each card
 // links there; Continue is always here.
 
 const JUMPS = [
