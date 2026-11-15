@@ -35,7 +35,7 @@ export type RecipeRoom =
   | { kind: 'stop'; reason: string };
 
 /** How long a waiting qualification waits before the runner looks again. */
-export const RECIPE_WAIT_MS = 15_000;
+const RECIPE_WAIT_MS = 15_000;
 
 const nullableIso = (v: unknown) => (v == null ? null : iso(v));
 
@@ -217,19 +217,14 @@ export async function nextRecipeAttempt(
       return { kind: 'end' };
     }
     if (free.kind === 'wait') {
-      // Looked at again after a short wait; the lease stays with this holder until then.
+      // Looked at again after a short wait; the lease stays with this holder until then. The
+      // version moves only when the reason shown changes.
       await c.query(
         `update recipe_qualifications set reason = $2,
            lease_until = clock_timestamp() + make_interval(secs => $3::double precision / 1000),
-           version = version + 1
-         where id = $1 and reason is distinct from $2`,
-        [q.id, free.reason.slice(0, 4000), RECIPE_WAIT_MS],
-      );
-      await c.query(
-        `update recipe_qualifications set
-           lease_until = clock_timestamp() + make_interval(secs => $2::double precision / 1000)
+           version = version + case when reason is distinct from $2 then 1 else 0 end
          where id = $1`,
-        [q.id, RECIPE_WAIT_MS],
+        [q.id, free.reason.slice(0, 4000), RECIPE_WAIT_MS],
       );
       return { kind: 'wait', reason: free.reason };
     }

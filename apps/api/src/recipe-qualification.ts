@@ -36,6 +36,8 @@ import {
   digest,
   infrastructureStop,
   loadRecipeBenchmark,
+  onlyBusyRefusal,
+  refusalError,
   readTar,
   recipeFreezeProblems,
   structureBar,
@@ -55,6 +57,48 @@ const RENEW_MS = 30_000;
 const POLL_MS = 15_000;
 /** One attempt's build deadline: a passing attempt takes minutes, so an hour means it is stuck. */
 export const RECIPE_ATTEMPT_DEADLINE_MS = 60 * 60_000;
+/**
+ * Re-review L-3: how long a role request waits, at most, for another request on its connection
+ * (a chat answer, an autopilot step, a model check) to finish. Longer than any one request may
+ * run (the Claude Code connection allows 180 s), so a request that was sent always finishes or
+ * is cut off inside it.
+ */
+export const RECIPE_ROLE_BUSY_WAIT_MS = 4 * 60_000;
+const ROLE_BUSY_POLL_MS = 5_000;
+
+/**
+ * Sends one role request, waiting (bounded) while the only refusal is another request running
+ * on the connection. Any other refusal comes back as a build reason that keeps its refusal
+ * codes, which the scorer reads (`infrastructureStop`).
+ */
+export async function sendWhenFree<T>(
+  send: () => Promise<T>,
+  opts: {
+    boundMs?: number;
+    pollMs?: number;
+    stopped?: () => boolean;
+  } = {},
+): Promise<T> {
+  const until = Date.now() + (opts.boundMs ?? RECIPE_ROLE_BUSY_WAIT_MS);
+  for (;;) {
+    try {
+      return await send();
+    } catch (e) {
+      if (
+        onlyBusyRefusal(e) &&
+        Date.now() < until &&
+        !(opts.stopped?.() ?? false)
+      ) {
+        await new Promise((r) =>
+          setTimeout(r, opts.pollMs ?? ROLE_BUSY_POLL_MS),
+        );
+        continue;
+      }
+      throw refusalError(e) ?? e;
+    }
+  }
+}
+
 /** Unexpected errors in a row after which a qualification is stopped instead of retried. */
 export const RECIPE_MAX_FAILURES = 3;
 
@@ -395,17 +439,21 @@ export class RecipeQualificationRunner {
         throw new Error('Build qualifications use the plan roles only.');
       },
       planRole: async (t, request) =>
-        service.buildRole(ctx, ws, t.connection_id, {
-          role: t.role,
-          model_id: t.model_id,
-          run_id: null,
-          build_id: t.build_id,
-          data_class: t.data_class,
-          input: request.input,
-          timeout_ms: request.timeout_ms,
-          logical_operation_id: request.logical_operation_id,
-          recipe_attempt_id: attemptId,
-        }),
+        sendWhenFree(
+          () =>
+            service.buildRole(ctx, ws, t.connection_id, {
+              role: t.role,
+              model_id: t.model_id,
+              run_id: null,
+              build_id: t.build_id,
+              data_class: t.data_class,
+              input: request.input,
+              timeout_ms: request.timeout_ms,
+              logical_operation_id: request.logical_operation_id,
+              recipe_attempt_id: attemptId,
+            }),
+          { stopped: () => this.#stopped },
+        ),
       planRolesReady: async (t) =>
         service.buildRolesReady(ctx, ws, t.connection_id, {
           model_id: t.model_id,

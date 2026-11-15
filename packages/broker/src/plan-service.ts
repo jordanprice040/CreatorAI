@@ -1364,8 +1364,15 @@ export class PlanConnectionService {
         r.outcome.kind === 'completed'
           ? ('succeeded' as const)
           : ('failed' as const),
+      // Re-review L-2: a refusal to serve the model asked for reads the same on every route
+      // (Claude Code's own code stays as it is).
       reason_code:
-        r.outcome.kind === 'completed' ? 'ok' : r.outcome.reason_code,
+        r.outcome.kind === 'completed'
+          ? 'ok'
+          : r.outcome.model_refused &&
+              r.outcome.reason_code !== 'claude_model_refused'
+            ? 'model_refused'
+            : r.outcome.reason_code,
       text: r.outcome.kind === 'completed' ? r.outcome.text : null,
       fixture: connection.fixture,
     };

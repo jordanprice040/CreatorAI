@@ -1,4 +1,4 @@
-import type { RecipePassBar } from '@creator/contracts';
+import { ContractError, type RecipePassBar } from '@creator/contracts';
 
 /**
  * ADR-0105: how the studio checks the pass bars of its in-app recipe benchmarks (the v5 copies
@@ -6,12 +6,15 @@ import type { RecipePassBar } from '@creator/contracts';
  * (`scorer:recipe-scoring.ts`), and a test holds them equal: changing a rule here needs new
  * benchmark versions, never an edited freeze.
  */
-export const RECIPE_SCORER_VERSION = 'recipe-scorer/2';
+export const RECIPE_SCORER_VERSION = 'recipe-scorer/3';
 
 /**
- * Review 1 L-2: role answers that end a request without the contract, caused by the role itself
- * (too long, out of turns, a model other than the one asked for, a refusal to use it). They are
- * the model's work, so they fail the attempt instead of earning a free replacement.
+ * Review 1 L-2 and re-review L-2: role answers that end a request without the contract, caused
+ * by the role itself (too long, out of turns, a model other than the one asked for, a refusal to
+ * serve the model asked for). They are the model's work, so they fail the attempt instead of
+ * earning a free replacement. One rule on every route: the ChatGPT plan's refusal of the model
+ * (`subscription_sharing_unsupported_capability` on the `model` parameter) reaches here as
+ * `model_refused`, the same as Claude Code's `claude_model_refused`.
  */
 export const ROLE_CAUSED_STOPS: readonly string[] = [
   'incomplete',
@@ -19,28 +22,85 @@ export const ROLE_CAUSED_STOPS: readonly string[] = [
   'studio_output_cap',
   'claude_max_turns',
   'model_substituted',
+  'model_refused',
   'claude_model_refused',
 ];
+
+/**
+ * Re-review L-1: admission refusal codes the roles' own work causes. `cap_reached` is the
+ * per-request input cap (a builder that wrote too much makes the reviewer's or the repair's
+ * input too big); `attempt_request_limit` is the attempt's own request limit (the call cap).
+ * Every other refusal (an earlier request with an unknown outcome or one still running, the
+ * daily cap, a lost sign-in, a connection setting changed during the run) judges nothing about
+ * the roles' work.
+ */
+export const ROLE_CAUSED_REFUSALS: readonly string[] = [
+  'cap_reached',
+  'attempt_request_limit',
+];
+
+const REFUSED = /^Error: Plan request refused \(([^)]*)\)/;
+
+/**
+ * A role request the studio refused, as one build reason that keeps its refusal codes:
+ * `Plan request refused (<code>, …): <the refusal texts>`. Null when `e` is not a refusal.
+ * Plan admission carries its codes (ADR-0087); a build qualification's own check names the
+ * attempt's request limit as `attempt_request_limit` and any other mismatch as `not_covered`.
+ */
+export function refusalError(e: unknown): Error | null {
+  if (!(e instanceof ContractError) || e.code !== 'ACCESS_DENIED') return null;
+  const coded = e.reasons;
+  const codes = coded.length
+    ? coded.map((r) => r.code)
+    : e.details.map((d) =>
+        /has used its \d+ requests/.test(d)
+          ? 'attempt_request_limit'
+          : 'not_covered',
+      );
+  if (!codes.length) codes.push('other');
+  const texts = coded.length ? coded.map((r) => r.text ?? '') : [...e.details];
+  return new Error(
+    `Plan request refused (${[...new Set(codes)].join(', ')}): ${e.message} ${texts.join(' ')}`.trim(),
+  );
+}
+
+/**
+ * Re-review L-3: whether the only reason for a refusal is another plan request still running
+ * on the connection (one at a time). A qualification's role request waits for it, within a
+ * bound, instead of losing its attempt to a chat answer or an autopilot step.
+ */
+export function onlyBusyRefusal(e: unknown): boolean {
+  if (!(e instanceof ContractError) || e.code !== 'ACCESS_DENIED') return false;
+  return (
+    e.reasons.length > 0 &&
+    e.reasons.every(
+      (r) =>
+        r.code === 'request_open' &&
+        (r.text ?? '').startsWith('Another plan request is already running'),
+    )
+  );
+}
 
 /**
  * A build stop that judged nothing about the roles' work, which the frozen rules call an
  * infrastructure fault: the attempt is invalid and may be replaced once.
  * - A role request that got no answer (`Role stopped: <status> <code>`) for any reason not in
  *   `ROLE_CAUSED_STOPS`: network, provider, stream, rate or usage limit, sign-in, token, timeout.
- * - A request the studio refused at admission (review 1 M-1): an earlier request with an
- *   unknown outcome, one still running, the daily cap, a lost sign-in.
+ * - A request the studio refused (`Plan request refused (<codes>)`) when none of its codes is in
+ *   `ROLE_CAUSED_REFUSALS`.
  * - A worker that did not finish a case, or roles not ready before anything was sent.
  * Every other stop (repair limit, reviewer blocked, an answer that is not the contract, the call
- * cap, the deadline, or a `ROLE_CAUSED_STOPS` code) is a failed attempt.
+ * cap, the input cap, the deadline, or a `ROLE_CAUSED_STOPS` code) is a failed attempt.
  */
 export function infrastructureStop(reason: string): boolean {
   const role = /^Error: Role stopped: \S+ (\S+)/.exec(reason);
   if (role) return !ROLE_CAUSED_STOPS.includes(role[1]!);
+  const refused = REFUSED.exec(reason);
+  if (refused)
+    return !refused[1]!
+      .split(', ')
+      .some((code) => ROLE_CAUSED_REFUSALS.includes(code));
   return (
-    /^ContractError: This plan request is not admitted\./.test(reason) ||
-    /^ContractError: This build qualification request is not covered by its start\./.test(
-      reason,
-    ) ||
     /^Error: The worker did not finish check /.test(reason) ||
     /^Error: Plan roles are not ready: /.test(reason)
   );
@@ -53,6 +113,24 @@ export function infrastructureStop(reason: string): boolean {
  * first line's indentation. A tokenizer, not a parser: it runs nothing.
  */
 export function pythonLogicalLines(source: string): string[] {
+  return pythonRead(source).lines;
+}
+
+/**
+ * Re-review N-1: why a module can't be read as Python, as v4's grader (which parsed it) would
+ * have refused it: a string left open, a bracket closed that was never opened or left open, or
+ * a backslash continuing past the end. Null when none of these is found. Not a full parser:
+ * other syntax errors are left to the frozen cases, which run the package.
+ */
+export function pythonReadProblem(source: string): string | null {
+  return pythonRead(source).problem;
+}
+
+function pythonRead(source: string): {
+  lines: string[];
+  problem: string | null;
+} {
+  let problem: string | null = null;
   let out = '';
   let i = 0;
   const n = source.length;
@@ -81,7 +159,7 @@ export function pythonLogicalLines(source: string): string[] {
       if (source.startsWith(close, i)) {
         out += close;
         i += close.length;
-      }
+      } else problem ??= 'a string is never closed';
       continue;
     }
     out += ch;
@@ -96,15 +174,22 @@ export function pythonLogicalLines(source: string): string[] {
     current = current ? `${current} ${line.trim()}` : line;
     for (const c of line) {
       if ('([{'.includes(c)) depth++;
-      else if (')]}'.includes(c)) depth = Math.max(0, depth - 1);
+      else if (')]}'.includes(c)) {
+        if (depth === 0)
+          problem ??= 'a bracket is closed that was never opened';
+        depth = Math.max(0, depth - 1);
+      }
     }
     if (depth === 0 && !continued) {
       if (current.trim()) lines.push(current);
       current = '';
     }
   }
+  if (depth > 0) problem ??= 'a bracket is never closed';
+  else if (current.trim())
+    problem ??= 'a line continues past the end of the file';
   if (current.trim()) lines.push(current);
-  return lines;
+  return { lines, problem };
 }
 
 /** Whether a module defines a top-level function (a `def` statement in the module body). */
@@ -150,8 +235,9 @@ export function importsLedger(source: string): boolean {
  * grader.mjs STRUCTURE_CHECK): src/ledger has parse.py, rules.py and report.py, each with a
  * top-level function definition, and src/main.py imports from ledger anywhere. It reads the
  * packaged files with a Python-aware tokenizer (strings and comments are not code) and runs
- * nothing. Unlike the v4 grader it does not reject a file Python could not parse; the frozen
- * cases, which run the package, catch that.
+ * nothing. Like the v4 grader, a checked file that can't be read as Python fails the bar
+ * (`pythonReadProblem`: an open string, an unbalanced bracket, a dangling continuation); other
+ * syntax errors are left to the frozen cases, which run the package.
  */
 export function structureBar(
   files: readonly { path: string; content: string }[],
@@ -161,11 +247,19 @@ export function structureBar(
   for (const name of ['parse', 'rules', 'report']) {
     const t = text(`src/ledger/${name}.py`);
     if (t === null) missing.push(`src/ledger/${name}.py is missing`);
+    else if (pythonReadProblem(t))
+      missing.push(
+        `src/ledger/${name}.py can't be read as Python (${pythonReadProblem(t)})`,
+      );
     else if (!hasTopLevelFunction(t))
       missing.push(`src/ledger/${name}.py has no top-level function`);
   }
   const main = text('src/main.py');
   if (main === null) missing.push('src/main.py is missing');
+  else if (pythonReadProblem(main))
+    missing.push(
+      `src/main.py can't be read as Python (${pythonReadProblem(main)})`,
+    );
   else if (!importsLedger(main))
     missing.push('src/main.py does not import from ledger');
   return {

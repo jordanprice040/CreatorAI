@@ -35,7 +35,7 @@ no trial label today.
 
 Each "most" assumes every attempt uses its full request cap and each is replaced once after an
 infrastructure stop (a request that got no answer: network, provider, rate or usage limit, sign-in,
-timeout). An answer the role itself caused to fail (too long, out of turns, a different model) fails
+timeout). An answer the role itself caused to fail (too long, out of turns, a different model, the model refused) fails
 the attempt and is not replaced. A failed attempt ends the qualification at once, so
 a model that fails spends less.
 
@@ -63,10 +63,18 @@ because no further request is admitted on the connection until the unknown one i
 If that happens, the fix is a new benchmark version with a longer limit, decided before any further
 run. (Review 1 M-1: before this fix, the refused replacement was recorded as a failed attempt.)
 
-Before every attempt and replacement the studio checks the connection first: an earlier request
-with an unknown outcome, or a daily cap without room for a build (2 requests), stops the
-qualification as stopped with the reason; another request still running makes it wait and look
-again 15 seconds later. Start is refused while a request with an unknown outcome is open.
+Before every attempt and replacement the studio checks the connection first: a lost sign-in or
+another connection refusal, a connection that no longer allows both build roles or synthetic data,
+an earlier request with an unknown outcome, a request running past its time limit, or a daily cap
+without room for a build (2 requests) stops the qualification as stopped with the reason; another
+request still running makes it wait and look again 15 seconds later. Start is refused while a
+request with an unknown outcome is open or the sign-in is lost.
+
+**Keep the connection free while a packet runs:** no chat, autopilot or model check on it. The
+connection takes one request at a time. During an attempt, a role request waits up to 4 minutes
+for another request to finish; a longer wait ends the attempt without a verdict (it is replaced
+once). A request refused because the roles' own output made its input larger than the per-request
+input cap fails the attempt, and so does a refusal to serve the model asked for, on either route.
 
 ## What to record
 

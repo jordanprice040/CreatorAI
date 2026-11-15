@@ -44,4 +44,3 @@ export type {
   NextRecipeAttempt,
   RecipeRoom,
 } from './recipe-qualification-store.js';
-export { RECIPE_WAIT_MS } from './recipe-qualification-store.js';

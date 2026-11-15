@@ -6276,7 +6276,7 @@ export class ConnectionStore extends AutomationStore {
           problems.push(
             `${req.model_id} isn't qualified as the ${tc === 'patch_build' ? 'builder (t12-builder benchmark)' : 'reviewer (t12-reviewer benchmark)'} on this connection yet. Run that qualification first, above.`,
           );
-      const room = await this.#recipeRoom(c, conn);
+      const room = await this.#recipeRoom(c, conn, false);
       if (room.kind === 'stop')
         problems.push(
           room.reason.charAt(0).toUpperCase() + room.reason.slice(1),
@@ -6449,7 +6449,29 @@ export class ConnectionStore extends AutomationStore {
    * running. A request left running past its timeout (the studio stopped during it) needs the
    * owner, like an unknown one.
    */
-  async #recipeRoom(c: PoolClient, conn: PlanConnection): Promise<RecipeRoom> {
+  async #recipeRoom(
+    c: PoolClient,
+    conn: PlanConnection,
+    /** Start words the class checks its own way, so it leaves them out here. */
+    classes = true,
+  ): Promise<RecipeRoom> {
+    // Re-review N-4: the connection's own refusals (sign-in, credits, caps, eligibility, quota)
+    // and the build roles' classes stop it at once, before a replacement is spent on them.
+    const own = connectionRefusals(conn).map((r) => r.text);
+    const allowed = conn.settings;
+    if (classes && !allowed.allowed_task_classes.includes('patch_build'))
+      own.push('the connection no longer allows the builder (patch_build).');
+    if (classes && !allowed.allowed_task_classes.includes('independent_review'))
+      own.push(
+        'the connection no longer allows the reviewer (independent_review).',
+      );
+    if (classes && !allowed.allowed_data_classes.includes('synthetic'))
+      own.push('the connection no longer allows synthetic data.');
+    if (own.length)
+      return {
+        kind: 'stop',
+        reason: `the connection can't take requests now: ${own.join(' ')} Fix it under Models, then start the qualification again.`,
+      };
     const usage = await this.#usage(c, conn.id, null, null);
     const caps = conn.settings.caps;
     if (usage.unresolved > 0)

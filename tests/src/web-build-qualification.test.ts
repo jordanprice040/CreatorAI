@@ -158,6 +158,8 @@ test('the start packet states the attempts, the request bound and the cost befor
   assert.match(real, /most it can use is 24 requests/);
   assert.match(real, /\$0 on the plan/);
   assert.match(m.startPacket(offer, 'm', true).join(' '), /fixture/);
+  // Re-review L-3: the packet says to keep the connection free while it runs.
+  assert.match(real, /Keep other work off this connection/);
 });
 
 test("the Build note says qualified only for a non-fixture pass on these roles and today's prompts", () => {

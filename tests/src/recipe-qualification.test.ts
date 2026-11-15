@@ -30,6 +30,8 @@ import {
   ProductSupervisor,
   digest,
   ROLE_CAUSED_STOPS,
+  onlyBusyRefusal,
+  refusalError,
   importsLedger,
   hasTopLevelFunction,
   infrastructureStop,
@@ -39,6 +41,7 @@ import {
 } from '@creator/executor';
 import {
   RecipeQualificationRunner,
+  sendWhenFree,
   recipeBenchmarkOffers,
   startRecipeQualification,
 } from '../../apps/api/dist/recipe-qualification.js';
@@ -208,6 +211,22 @@ test('ADR-0105: the structure bar reads the package, and infrastructure stops ar
     structureBar(ok.filter((f) => f.path !== 'src/ledger/parse.py')).detail,
     /parse\.py is missing/,
   );
+  // Re-review N-1: a module that can't be read as Python fails, as v4's parse did.
+  for (const [content, why] of [
+    ['def f(): pass\ndef g(\n', /a bracket is never closed/],
+    ["def f(): pass\nx = 'open\n", /a string is never closed/],
+    ['def f(): pass\nx = 1)\n', /closed that was never opened/],
+    ['def f(): pass\nx = 1 \\', /continues past the end/],
+  ] as const) {
+    const bad = ok.map((f) =>
+      f.path === 'src/ledger/report.py' ? { ...f, content } : f,
+    );
+    assert.match(
+      structureBar(bad).detail,
+      /report\.py can't be read as Python/,
+    );
+    assert.match(structureBar(bad).detail, why);
+  }
   assert.equal(
     infrastructureStop('Error: Role stopped: failed plan_limit'),
     true,
@@ -271,9 +290,86 @@ test('ADR-0105: the structure bar reads the package, and infrastructure stops ar
       false,
       code,
     );
+  // Re-review L-1: a refusal keeps its codes; the input cap and the attempt's own limit are
+  // the roles' work, every other refusal is not.
+  const refused = (reasons: { code: string; text: string }[]) =>
+    String(
+      refusalError(
+        new ContractError(
+          'ACCESS_DENIED',
+          'This plan request is not admitted.',
+          reasons.map((r) => r.text),
+          reasons,
+        ),
+      ),
+    );
+  for (const [code, text, infra] of [
+    ['request_open', 'An earlier plan request has an unknown outcome.', true],
+    ['daily_cap_reached', 'The studio daily request cap is reached.', true],
+    ['sign_in', 'Not signed in with ChatGPT.', true],
+    [
+      'cap_reached',
+      'The request input is larger than the per-request input cap.',
+      false,
+    ],
+  ] as const)
+    assert.equal(infrastructureStop(refused([{ code, text }])), infra, code);
   assert.equal(
-    infrastructureStop('ContractError: This plan request is not admitted.'),
+    infrastructureStop(
+      refused([
+        { code: 'request_open', text: 'Another plan request is running.' },
+        { code: 'cap_reached', text: 'The request input is too large.' },
+      ]),
+    ),
+    false,
+  );
+  const notCovered = (detail: string) =>
+    String(
+      refusalError(
+        new ContractError(
+          'ACCESS_DENIED',
+          'This build qualification request is not covered by its start.',
+          [detail],
+        ),
+      ),
+    );
+  assert.equal(
+    infrastructureStop(notCovered('This attempt has used its 8 requests.')),
+    false,
+  );
+  assert.match(
+    notCovered('This attempt has used its 8 requests.'),
+    /^Error: Plan request refused \(attempt_request_limit\)/,
+  );
+  assert.equal(
+    infrastructureStop(
+      notCovered('The request names another build than the attempt recorded.'),
+    ),
     true,
+  );
+  assert.equal(refusalError(new Error('x')), null);
+  // Re-review L-3: only "another request is running" makes a role request wait.
+  const busy = (code: string, text: string) =>
+    new ContractError('ACCESS_DENIED', 'x', [text], [{ code, text }]);
+  assert.equal(
+    onlyBusyRefusal(
+      busy(
+        'request_open',
+        'Another plan request is already running (one at a time).',
+      ),
+    ),
+    true,
+  );
+  assert.equal(
+    onlyBusyRefusal(
+      busy('request_open', 'An earlier plan request has an unknown outcome.'),
+    ),
+    false,
+  );
+  // Re-review L-2: one rule for a refused model on every route.
+  assert.equal(
+    infrastructureStop('Error: Role stopped: failed model_refused'),
+    false,
   );
 });
 
@@ -914,4 +1010,109 @@ test('review 1 N-2: Stop during a running attempt voids it; the build it cut sho
     1,
     'nothing more was sent after Stop',
   );
+});
+
+test('re-review N-5: the runner waits for another request, then runs the qualification to its verdict', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  await s.qualifyRoles();
+  const q = await s.start('p15-small-signup-v5');
+  const id = (
+    await s.db.pool.query(
+      'select id from plan_requests where connection_id = $1',
+      [s.conn.id],
+    )
+  ).rows[0].id as string;
+  const before = (
+    await s.db.pool.query(
+      'select state, started_at from plan_requests where id = $1',
+      [id],
+    )
+  ).rows[0] as { state: string; started_at: Date };
+  await s.db.pool.query(
+    "update plan_requests set state = 'in_flight', started_at = clock_timestamp() where id = $1",
+    [id],
+  );
+  let r = await s.run(q.id);
+  assert.equal(r.state, 'running');
+  assert.equal(r.attempts.length, 0);
+  assert.match(r.reason!, /Waiting for another plan request/);
+  // The other request settles; the short lease lapses and the runner takes it again.
+  await s.db.pool.query(
+    'update plan_requests set state = $2, started_at = $3 where id = $1',
+    [id, before.state, before.started_at],
+  );
+  await s.db.pool.query(
+    'update recipe_qualifications set lease_until = clock_timestamp() where id = $1',
+    [q.id],
+  );
+  r = await s.run(q.id);
+  assert.deepEqual(s.errors, []);
+  assert.equal(r.state, 'qualified', r.reason ?? '');
+  assert.deepEqual(
+    r.attempts.map((a) => a.state),
+    ['passed', 'passed', 'passed'],
+  );
+});
+
+test('re-review N-4: a lost sign-in stops the qualification before an attempt is started', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  await s.qualifyRoles();
+  const q = await s.start('p15-small-signup-v5');
+  await s.db.pool.query(
+    `update plan_connections set sign_in = jsonb_set(sign_in, '{state}', '"reauthorization_required"')
+      where id = $1`,
+    [s.conn.id],
+  );
+  const r = await s.run(q.id);
+  assert.equal(r.state, 'stopped');
+  assert.equal(r.attempts.length, 0, 'no attempt or replacement was spent');
+  assert.match(r.reason!, /Stopped before attempt 1.*can't take requests now/);
+});
+
+test('re-review L-3: a role request waits while another request runs, within its bound', async () => {
+  const busy = () =>
+    new ContractError(
+      'ACCESS_DENIED',
+      'This plan request is not admitted.',
+      ['Another plan request is already running (one at a time).'],
+      [
+        {
+          code: 'request_open',
+          text: 'Another plan request is already running (one at a time).',
+        },
+      ],
+    );
+  let n = 0;
+  assert.equal(
+    await sendWhenFree(
+      async () => {
+        if (++n < 3) throw busy();
+        return 'sent';
+      },
+      { pollMs: 1 },
+    ),
+    'sent',
+  );
+  assert.equal(n, 3);
+  // Past the bound, the refusal becomes a coded build reason (infrastructure).
+  const late = await sendWhenFree(
+    async () => {
+      throw busy();
+    },
+    { pollMs: 1, boundMs: 5 },
+  ).catch((e: unknown) => String(e));
+  assert.match(late, /^Error: Plan request refused \(request_open\)/);
+  assert.equal(infrastructureStop(late), true);
+  // Stop ends the wait at once.
+  let tries = 0;
+  await sendWhenFree(
+    async () => {
+      tries++;
+      throw busy();
+    },
+    { pollMs: 1, stopped: () => true },
+  ).catch(() => {});
+  assert.equal(tries, 1);
 });
