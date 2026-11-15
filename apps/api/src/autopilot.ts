@@ -4,6 +4,7 @@ import {
   AUTOPILOT_STAGE_LABEL,
   ContractError,
   cutText,
+  cutWords,
   ExplorationResultSchema,
   WebDiscoveryScopeSchema,
   MODEL_ONLY_ETHICS_NOTE,
@@ -166,14 +167,6 @@ export function trimSpent(
     : { ...a, steps, calls_reserved: reserved };
 }
 
-/** Cuts text at a word boundary with an ellipsis, never splitting a surrogate pair. */
-export function cutWords(text: string, max: number): string {
-  if (text.length <= max) return text;
-  const cut = cutText(text, Math.max(0, max - 1));
-  const space = cut.lastIndexOf(' ');
-  return `${(space > max * 0.6 ? cut.slice(0, space) : cut).trimEnd()}…`;
-}
-
 /**
  * Live rerun (November 15): a note made of a long reason and what happens next keeps the
  * second part whole; the reason is shortened at a word instead.
@@ -186,7 +179,8 @@ export function fitNote(head: string, tail: string, max: number): string {
   const end = cutWords(tail.trim(), keep ? max - keep - 1 : max);
   if (!end) return cutWords(lead, max);
   const room = max - end.length - 1;
-  const start = room >= 20 ? cutWords(lead, room) : '';
+  // PR #211 review 1 N-3: a short reason that was given room is kept whole.
+  const start = room >= Math.min(20, lead.length) ? cutWords(lead, room) : '';
   return start ? `${start} ${end}` : end;
 }
 
@@ -243,6 +237,15 @@ export function unknownCount(
     : null;
 }
 
+/**
+ * Live rerun 3 (November 15) and PR #211 review 1 N-4: why gathering stopped, with both counts
+ * (the last round can leave more unknowns than before, not only as many).
+ */
+export function stalledNote(before: number, now: number): string {
+  const n = (k: number) => `${k} unknown rating${k === 1 ? '' : 's'}`;
+  return `The last round of evidence left ${n(now)}, ${now === before ? 'the same as' : 'more than'} the ${before} before it, so it stops gathering and the choice is yours.`;
+}
+
 /** “A”, “B”, “C” and 2 more. */
 export function namesOf(titles: string[], shown = 3): string {
   const named = titles.slice(0, shown).map((t) => `“${cutWords(t, 60)}”`);
@@ -272,7 +275,14 @@ export function refusalKind(e: unknown): AutopilotStopKind {
   // first; more requests cannot help until it is.
   // Live rerun 3 (November 15): the plan account's own usage limit resets by itself; it is a
   // limit to wait out, not a connection to fix or an approval to give.
-  if (reasons.includes('quota_exhausted')) return 'usage_limit';
+  // PR #211 review 1 N-1: only when nothing else about the connection needs fixing.
+  if (
+    reasons.includes('quota_exhausted') &&
+    reasons.every((c) =>
+      ['quota_exhausted', 'cap_reached', 'daily_cap_reached'].includes(c),
+    )
+  )
+    return 'usage_limit';
   if (reasons.some((c) => c !== 'cap_reached' && c !== 'daily_cap_reached'))
     return 'connection';
   if (reasons.includes('daily_cap_reached')) return 'daily_cap';
@@ -292,7 +302,7 @@ export function refusalKind(e: unknown): AutopilotStopKind {
 }
 
 const USAGE_LIMIT_NOTE =
-  "The plan account's usage limit was reached, so the step is not tried again now. Continue once it resets (ChatGPT Settings › Usage).";
+  "The plan account's usage limit was reached, so the step is not tried again now. Once it resets (see your plan's usage settings), recheck usage under Models and connections, then continue.";
 
 /** Live rerun 3 (November 15): "Assess the options failed: <reason>", never "ended failed: failed". */
 export function failedNote(
@@ -302,7 +312,7 @@ export function failedNote(
   const verb = wf.state === 'cancelled' ? 'was cancelled' : 'failed';
   const reason = (wf.reason ?? '').trim();
   return reason && reason.toLowerCase() !== wf.state
-    ? `${label} ${verb}: ${reason.replace(/[.\s]*$/, '')}.`
+    ? `${label} ${verb}: ${reason.replace(/[.\s]*$/, '').replaceAll('_', ' ')}.`
     : `${label} ${verb}.`;
 }
 
@@ -1368,7 +1378,13 @@ export class AutopilotRunner {
       // next candidate"): the autopilot explores the claims already recorded instead.
       if (r.stop.outcome === 'failed') {
         const retried = await this.#retryOr(ctx, ws, a, step, r.stop);
-        if ('redo' in retried) return retried;
+        // PR #211 review 1 L-2: a search that failed under the plan's usage limit stops on that
+        // limit; skipping it would only be refused again at the next step.
+        if (
+          'redo' in retried ||
+          ('stop' in retried && retried.stop.kind === 'usage_limit')
+        )
+          return retried;
       }
       const settings = await this.#settings(ctx, ws);
       if (
@@ -2087,7 +2103,8 @@ export class AutopilotRunner {
     const report = await this.store.selectionReport(ctx, ws, problem.id);
     const settings = await this.#settings(ctx, ws);
     const S = settings.values;
-    let stalled = false;
+    // PR #211 review 1 N-4: the two counts, named in the stop note.
+    let stalled: { before: number; now: number } | null = null;
     // ADR-0100: when more evidence could settle the stop (unknown ratings, an open gate), gather
     // it and assess again before any setting chooses past it.
     const strict = autopilotChoice(report, {
@@ -2113,7 +2130,9 @@ export class AutopilotRunner {
       stalled =
         unknowns !== null &&
         g.lastUnknowns !== null &&
-        unknowns >= g.lastUnknowns;
+        unknowns >= g.lastUnknowns
+          ? { before: g.lastUnknowns, now: unknowns }
+          : null;
       if (
         g.rounds < 1 + S.max_extra_searches &&
         g.lastAdded !== 0 &&
@@ -2177,7 +2196,7 @@ export class AutopilotRunner {
           note: stalled
             ? fitNote(
                 choice.reason,
-                'The last round of evidence left as many unknown ratings as before, so it stops gathering and the choice is yours.',
+                stalledNote(stalled.before, stalled.now),
                 1200,
               )
             : choice.reason,

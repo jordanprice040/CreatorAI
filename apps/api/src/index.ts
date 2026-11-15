@@ -2961,7 +2961,6 @@ export { WebDiscoveryRunner, stepId, answerJson } from './web-discovery.js';
 export {
   AutopilotRunner,
   autopilotKey,
-  cutWords,
   failedNote,
   fitNote,
   gatherQuestion,
@@ -2969,6 +2968,7 @@ export {
   nextGatherQuestion,
   refusalKind,
   refusalStop,
+  stalledNote,
   spentCandidates,
   spentSettled,
   trimSpent,

@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import {
   AUTOPILOT_SETTINGS_DEFAULT,
+  cutWords,
   PROPOSAL_DRAFTABLE_SECTIONS,
   type ProposalSectionDraft,
   MODEL_ONLY_ETHICS_NOTE,
@@ -57,7 +58,6 @@ import {
   DEFAULT_OWNER_ACTOR_ID,
   autopilotKey,
   createApi,
-  cutWords,
   failedNote,
   fitNote,
   gatherQuestion,
@@ -65,6 +65,7 @@ import {
   nextGatherQuestion,
   refusalKind,
   refusalStop,
+  stalledNote,
   spentCandidates,
   spentSettled,
   trimSpent,
@@ -3751,8 +3752,50 @@ test('live rerun 3 (November 15): a usage-limit refusal is a limit to wait out, 
       } as unknown as AutopilotStep,
     ],
   });
-  assert.equal(next[0]?.kind, 'continue');
-  assert.match(next[0]!.label, /usage limit resets/);
+  // PR #211 review 1 L-1/N-2: recheck usage first (the connection stays marked used up until
+  // then), in words that fit any plan.
+  assert.equal(next[0]?.kind, 'models');
+  assert.match(next[0]!.label, /Recheck usage once the limit resets/);
+  assert.doesNotMatch(next[0]!.detail, /ChatGPT/);
+  // N-1: a refusal that also needs the connection fixed says so first.
+  const both = new ContractError(
+    'ACCESS_DENIED',
+    'Not admitted.',
+    ['x'],
+    [
+      { code: 'quota_exhausted', text: 'x' },
+      { code: 'sign_in', text: 'x' },
+    ],
+  );
+  assert.equal(refusalStop(both).kind, 'connection');
+  const capped = new ContractError(
+    'ACCESS_DENIED',
+    'Not admitted.',
+    ['x'],
+    [
+      { code: 'quota_exhausted', text: 'x' },
+      { code: 'daily_cap_reached', text: 'x' },
+    ],
+  );
+  assert.equal(refusalStop(capped).kind, 'usage_limit');
+});
+
+test('PR #211 review 1 N-3/N-4/N-5: a short reason stays, the stall note names both counts, reason codes read as words', () => {
+  const note = fitNote('Stopped.', 'x '.repeat(750), 1200);
+  assert.ok(note.startsWith('Stopped. '), note.slice(0, 40));
+  assert.ok(note.length <= 1200);
+  assert.equal(
+    stalledNote(1, 2),
+    'The last round of evidence left 2 unknown ratings, more than the 1 before it, so it stops gathering and the choice is yours.',
+  );
+  assert.match(stalledNote(2, 2), /left 2 unknown ratings, the same as the 2/);
+  assert.equal(
+    failedNote('Assess the options', {
+      state: 'failed',
+      reason: 'invalid_output',
+    }),
+    'Assess the options failed: invalid output.',
+  );
 });
 
 test('live rerun 3: notes and questions stay whole, and a failed step says why once', () => {
@@ -3816,5 +3859,165 @@ test('live rerun 3: weight scenarios read in words, not criterion keys', () => {
       { name: 'double maintenance_burden' },
     ]),
     'evidence support is left out or maintenance burden counts double',
+  );
+});
+
+test('PR #211 review 1 L-2a: a failed step while the plan usage limit holds stops on the limit and is not retried', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  const conn = '00000000-0000-4000-8000-0000000000c1';
+  class Exhausted extends ConnectionStore {
+    override async planRunRoomIn() {
+      return { per_run: 40, used: 0, daily_left: 50 };
+    }
+    override async planConnectionDetail(
+      ...args: Parameters<ConnectionStore['planConnectionDetail']>
+    ) {
+      if (args[2] !== conn) return super.planConnectionDetail(...args);
+      return {
+        connection: { quota: { state: 'exhausted' } },
+      } as unknown as Awaited<
+        ReturnType<ConnectionStore['planConnectionDetail']>
+      >;
+    }
+  }
+  let starts = 0;
+  const web: AutopilotWeb = {
+    ...webStub(async () => {
+      starts += 1;
+      return { id: '00000000-0000-4000-8000-0000000000d4' };
+    }),
+    read: async () =>
+      ({
+        id: '00000000-0000-4000-8000-0000000000d4',
+        version: 1,
+        state: 'failed',
+        explanation: 'The search failed (test).',
+        proposals: [],
+      }) as unknown as WebDiscovery,
+  };
+  await h.store.saveAutopilotSettings(owner, h.ws.id, {
+    expected_version: 0,
+    values: { ...OFF, retry_failed: 2 },
+  });
+  const runner = new AutopilotRunner(new Exhausted(h.db.pool), web, {
+    pollMs: 5,
+    onWait: () => h.worker.settle(),
+  });
+  const research = {
+    connection_id: conn,
+    model_id: 'gpt-test',
+    scope: WebDiscoveryScopeSchema.parse({ interests: ['volunteers'] }),
+    input_hash: 'c'.repeat(64),
+  };
+  const plan = {
+    kind: 'subscription' as const,
+    connection_id: conn,
+    model_id: 'gpt-test',
+    settings_hash: 'a'.repeat(64),
+    max_output_chars: 16000,
+  };
+  const runId = await h.run(
+    h.policy(['research', 'evidence', 'model_work', 'selection'], {
+      data_classes: ['public', 'synthetic'],
+    }),
+  );
+  const a = await runner.start(
+    owner,
+    h.ws.id,
+    runId,
+    h.body(h.config({ resource_setup: plan, research })),
+  );
+  await runner.settled(a.id);
+  const done = runner.with(await h.store.getAutopilot(owner, h.ws.id, a.id));
+  assert.equal(starts, 1, 'not retried');
+  assert.equal(done.steps.length, 1, JSON.stringify(done.steps));
+  assert.equal(done.outcome, 'limit_reached', done.explanation);
+  assert.equal(done.steps[0]!.stop_kind, 'usage_limit');
+  assert.match(done.explanation, /recheck usage under Models and connections/);
+  assert.ok(autopilotContinuable(done).ok);
+  assert.equal(done.next?.[0]?.kind, 'models');
+  assert.match(done.next![0]!.label, /Recheck usage/);
+});
+
+test('PR #211 review 1 L-2b: a gather round that leaves as many unknown ratings stops gathering and says so', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  // The assessment rates every option; this stand-in leaves the first choosable one with an
+  // unknown rating on every read, so evidence never shrinks the unknowns.
+  class Unknown extends ConnectionStore {
+    override async selectionReport(
+      ...args: Parameters<ConnectionStore['selectionReport']>
+    ) {
+      const r = await super.selectionReport(...args);
+      const c = r.suitability.candidates.find(
+        (x) => x.gates.discovery === 'candidate',
+      );
+      if (c)
+        Object.assign(c, {
+          rank: null,
+          score: null,
+          unknown_criteria: ['adoption_cost'],
+        });
+      return r;
+    }
+  }
+  let n = 0;
+  const web: AutopilotWeb = {
+    accept: async () => null,
+    start: async () => ({
+      id: `00000000-0000-4000-8000-0000000000e${++n}`,
+    }),
+    read: async (_c, _w, id) =>
+      ({
+        id,
+        version: 1,
+        state: 'done',
+        explanation: 'Read 1 page.',
+        proposals: [{ decision: 'admitted', check: 'verified' }],
+      }) as unknown as WebDiscovery,
+    isActive: () => true,
+    resume: async () => null,
+    cancel: async () => null,
+  };
+  await h.store.saveAutopilotSettings(owner, h.ws.id, {
+    expected_version: 0,
+    values: { ...OFF, gather_evidence: true, max_extra_searches: 3 },
+  });
+  const runner = new AutopilotRunner(new Unknown(h.db.pool), web, {
+    pollMs: 5,
+    onWait: () => h.worker.settle(),
+  });
+  const research = {
+    connection_id: '00000000-0000-4000-8000-0000000000c1',
+    model_id: 'gpt-test',
+    scope: WebDiscoveryScopeSchema.parse({ interests: ['volunteers'] }),
+    input_hash: 'c'.repeat(64),
+  };
+  const runId = await h.run(
+    h.policy(['research', 'evidence', 'model_work', 'selection'], {
+      data_classes: ['public', 'synthetic'],
+    }),
+  );
+  const a = await runner.start(
+    owner,
+    h.ws.id,
+    runId,
+    h.body(h.config({ research })),
+  );
+  await runner.settled(a.id);
+  const done = await h.store.getAutopilot(owner, h.ws.id, a.id);
+  const trail = JSON.stringify(
+    done.steps.map((s) => [s.stage, s.state, s.stop_kind, s.note]),
+  );
+  const gathers = done.steps.filter((s) => s.stage === 'gather');
+  assert.equal(gathers.length, 1, trail);
+  assert.equal(gathers[0]!.request?.unknowns, 1, trail);
+  assert.equal(done.outcome, 'needs_person', trail);
+  assert.equal(done.steps.at(-1)!.stop_kind, 'unknown_ratings', trail);
+  assert.match(
+    done.explanation,
+    /left 1 unknown rating, the same as the 1 before it, so it stops gathering/,
   );
 });

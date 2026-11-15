@@ -1,4 +1,5 @@
 import {
+  cutWords,
   AUTOPILOT_STAGE_LABEL,
   METERED_WALL_MAX_SECONDS,
   WORKFLOW_WALL_MAX_SECONDS,
@@ -268,15 +269,6 @@ export type AutopilotChoice =
 const clip = (s: string, n = 1100) =>
   s.length > n ? `${s.slice(0, n - 1)}…` : s;
 
-/** Cuts at a word with an ellipsis, never splitting a surrogate pair. */
-const clipWords = (s: string, n: number) => {
-  if (s.length <= n) return s;
-  let cut = s.slice(0, n - 1);
-  if (/[\uD800-\uDBFF]$/.test(cut)) cut = cut.slice(0, -1);
-  const space = cut.lastIndexOf(' ');
-  return `${(space > n * 0.6 ? cut.slice(0, space) : cut).trimEnd()}…`;
-};
-
 /**
  * Live rerun 3 (November 15): sensitivity scenarios are named by criterion key ("without
  * evidence_support"); a note says them in words ("evidence support is left out").
@@ -498,7 +490,7 @@ export function autopilotChoice(
         // Live rerun 3 (November 15): "cannot be recommend alternative yet" read garbled, and
         // a long gate reason cut off what to do next. The disposition reads as a verb, and the
         // gate text is shortened (at a word) so the last sentence stays whole.
-        reason: `“${c.alternative.title}” ranks first but cannot be ${DISPOSITION_PASSIVE[disposition] ?? disposition.replaceAll('_', ' ')} yet: ${clipWords(blocked.join(' '), 700)} Resolve it, or choose under Decide yourself, then continue.`,
+        reason: `“${c.alternative.title}” ranks first but cannot be ${DISPOSITION_PASSIVE[disposition] ?? disposition.replaceAll('_', ' ')} yet: ${cutWords(blocked.join(' '), 700)} Resolve it, or choose under Decide yourself, then continue.`,
       };
     if (disposition === 'select_for_build') {
       const opp = report.opportunity.candidates.filter(
