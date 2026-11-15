@@ -1,5 +1,6 @@
 import { z, id, hash, version } from './primitives.js';
-import { SpecContentSchema } from './selection.js';
+import { MAX_BUILD_CASES, SpecContentSchema } from './selection.js';
+import { BUILD_APPROVAL_MAX_REQUESTS } from './oversight.js';
 import {
   BrowserPageSchema,
   BrowserStepSchema,
@@ -126,9 +127,10 @@ export const BuildManifestSchema = z.strictObject({
         ]),
       )
       .min(1)
-      .max(10),
-    build_qa: z.array(PackageCheckSchema).max(10),
-    package: z.array(PackageCheckSchema).max(10),
+      // ADR-0109 (B4): one per frozen case, up to the per-build case cap.
+      .max(MAX_BUILD_CASES),
+    build_qa: z.array(PackageCheckSchema).max(MAX_BUILD_CASES),
+    package: z.array(PackageCheckSchema).max(MAX_BUILD_CASES),
   }),
   costs: z.strictObject({
     broker_calls: z.number().int().min(0),
@@ -141,7 +143,11 @@ export const BuildManifestSchema = z.strictObject({
       .strictObject({
         connection_id: id,
         model_id: z.string().min(1).max(120),
-        request_ids: z.array(z.string().min(1).max(80)).min(1).max(6),
+        // ADR-0109: one per role request, up to the per-build request cap.
+        request_ids: z
+          .array(z.string().min(1).max(80))
+          .min(1)
+          .max(BUILD_APPROVAL_MAX_REQUESTS),
       })
       .optional(),
   }),

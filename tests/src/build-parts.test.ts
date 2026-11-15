@@ -243,6 +243,7 @@ test('a round in parts is applied as one commit after its last part, then review
   assert.deepEqual(builders[1]!.packet.round.staged, [
     {
       path: 'src/util.py',
+      before_hash: null,
       hash: digest('STEPS = 1\n'),
       content: 'STEPS = 1\n',
     },
@@ -567,4 +568,268 @@ test('the builder qualification grader takes a one-part builder/2 answer and ref
     ]),
   );
   assert.doesNotMatch(edited.detail ?? '', /did not apply/);
+});
+
+test('review M-1 and L-1: an oversized file, too many paths or an overlapping find refuse the round', () => {
+  const big = 'x'.repeat(100 * 1024) + 'END';
+  const draft = new RoundDraft([
+    { path: 'src/big.py', hash: digest(big), content: big },
+    { path: 'src/a.py', hash: digest('aaa'), content: 'aaa' },
+  ]);
+  // Edits that grow a file past 128 KiB.
+  assert.throws(
+    () =>
+      draft.add([
+        {
+          path: 'src/big.py',
+          before_hash: digest(big),
+          edits: [{ find: 'END', replace: 'y'.repeat(60 * 1024) }],
+        },
+      ]),
+    (e: unknown) =>
+      e instanceof PatchRefusedError &&
+      /at most 131072/.test((e as Error).message),
+  );
+  // "aa" occurs at two positions in "aaa", overlapping: not exactly once.
+  assert.throws(
+    () =>
+      draft.add([
+        {
+          path: 'src/a.py',
+          before_hash: digest('aaa'),
+          edits: [{ find: 'aa', replace: 'Z' }],
+        },
+      ]),
+    /occurs 2 times/,
+  );
+  // 100 paths in one part, then one more in the next: over the round's 100.
+  draft.add(
+    Array.from({ length: 100 }, (_, i) => ({
+      path: `src/f${i}.py`,
+      before_hash: null,
+      content: 'x',
+    })),
+  );
+  assert.throws(
+    () =>
+      draft.add([{ path: 'src/one-more.py', before_hash: null, content: 'x' }]),
+    (e: unknown) =>
+      e instanceof PatchRefusedError &&
+      /at most 100/.test((e as Error).message),
+  );
+  assert.equal(draft.parts, 1, 'the refused parts changed nothing');
+});
+
+test('review M-1: a round that edits a file past the limit comes back as feedback, not a stop', async (t) => {
+  const s = await setup(t);
+  s.script((p, n) =>
+    n === 1
+      ? answer(p, [
+          {
+            path: 'src/main.py',
+            before_hash: hashOf(p, 'src/main.py'),
+            // Each replace is within the contract; together they pass 128 KiB.
+            edits: [
+              {
+                find: 'import json',
+                replace: `import json\n# ${'y'.repeat(70 * 1024)}`,
+              },
+              {
+                find: 'import json',
+                replace: `import json\n# ${'w'.repeat(70 * 1024)}`,
+              },
+            ],
+          },
+        ])
+      : answer(p, [
+          {
+            path: 'src/main.py',
+            before_hash: hashOf(p, 'src/main.py'),
+            content: BUILD_FIXTURE_SOURCE,
+          },
+        ]),
+  );
+  const result = await s.run({ max_repairs: 1, max_calls: 4 });
+  assert.equal(result.state, 'verified_candidate', result.reason);
+  const builders = s.packets.filter((p) => p.role === 'builder');
+  assert.match(
+    builders[1]!.packet.feedback.refused_patch.reason,
+    /src\/main\.py would be \d+ characters after this part; a file may have at most 131072/,
+  );
+});
+
+test('review L-2: later parts send a changed file once, and a part too large to send refuses the round', async (t) => {
+  const s = await setup(t);
+  const filler = 'z'.repeat(40 * 1024);
+  s.script((p, n) => {
+    if (n <= 2)
+      return answer(
+        p,
+        [
+          n === 1
+            ? {
+                path: 'src/main.py',
+                before_hash: hashOf(p, 'src/main.py'),
+                content: BUILD_FIXTURE_SOURCE,
+              }
+            : { path: 'src/fill.py', before_hash: null, content: filler },
+        ],
+        false,
+      );
+    return answer(p, [
+      { path: 'src/fill2.py', before_hash: null, content: filler },
+    ]);
+  });
+  const result = await s.run({ max_calls: 5 });
+  const builders = s.packets.filter((p) => p.role === 'builder');
+  // Part 2 sees main.py only in round.staged, with the before_hash to send.
+  const second = builders[1]!.packet;
+  assert.ok(
+    !second.files.some((f: { path: string }) => f.path === 'src/main.py'),
+  );
+  assert.equal(second.round.staged[0].path, 'src/main.py');
+  assert.equal(second.round.staged[0].before_hash, digest(s.main));
+  // Part 3 carries 40 KiB staged plus files: under 200,000, so it is sent; a fourth
+  // part never happens. Make the bound bite with a broker-sized build instead.
+  assert.equal(builders.length, 3);
+  assert.equal(result.state, 'verified_candidate', result.reason);
+
+  const b = await setup(t);
+  b.script((p) =>
+    answer(
+      p,
+      [{ path: 'src/fill.py', before_hash: null, content: 'q'.repeat(30000) }],
+      false,
+    ),
+  );
+  // On the broker route the role packet bound is 20,000 characters.
+  const brokerCalls: string[] = [];
+  const stopped = await b.run(
+    { plan_roles: undefined, max_calls: 4, timeout_ms: 30000 },
+    {
+      call: async (_run, r) => {
+        brokerCalls.push(r.input[1]!.text);
+        const json = {
+          summary: 'part',
+          submission: {
+            expected_commit: JSON.parse(r.input[1]!.text).candidate,
+            changes: [
+              {
+                path: 'src/fill.py',
+                before_hash: null,
+                content: 'q'.repeat(15000),
+              },
+            ],
+            complete: false,
+          },
+          blocker: null,
+        };
+        return {
+          status: 'succeeded',
+          reason_code: 'fixture',
+          explanation: 'test',
+          logical_operation_id: r.logical_operation_id,
+          attempts: [],
+          output: { text: JSON.stringify(json), json, vector: null },
+          decision_id: null,
+          fixture: true,
+          replayed: false,
+        };
+      },
+    },
+  );
+  assert.equal(brokerCalls.length, 1, 'part 2 was never sent');
+  assert.equal(stopped.state, 'checkpoint');
+  assert.match(
+    stopped.reason,
+    /the last patch was refused: Part 2 of this round would send \d+ characters, more than a request may carry \(20000\)/,
+  );
+  assert.equal(await head(b.tree), b.product.initial_commit);
+});
+
+test('the Codex builder gets no further parts, and complete false refuses its round', async (t) => {
+  const s = await setup(t);
+  const packets: Record<string, any>[] = [];
+  const result = await s.run(
+    {
+      plan_roles: undefined,
+      codex_plan_builder: { connection_id: randomUUID(), model_id: 'codex' },
+      timeout_ms: 30000,
+    },
+    {
+      codexBuilder: async (_target, packet) => {
+        packets.push(packet);
+        return answer(
+          packet,
+          [{ path: 'src/util.py', before_hash: null, content: 'x\n' }],
+          false,
+        );
+      },
+    },
+  );
+  assert.equal(packets.length, 1);
+  assert.equal(packets[0]!.round.further_parts_allowed, 0);
+  assert.equal(result.state, 'checkpoint');
+  assert.match(
+    result.reason,
+    /the last patch was refused: The Codex builder answers a round in one part/,
+  );
+  assert.equal(await head(s.tree), s.product.initial_commit);
+});
+
+test('the Build page groups parts by round, with a refused round between', async (t) => {
+  const s = await setup(t);
+  s.script((p, n) => {
+    // Round 0: two parts, the second refused (an edit that does not apply).
+    if (n === 1)
+      return answer(
+        p,
+        [{ path: 'src/util.py', before_hash: null, content: 'x\n' }],
+        false,
+      );
+    if (n === 2)
+      return answer(p, [
+        {
+          path: 'src/main.py',
+          before_hash: hashOf(p, 'src/main.py'),
+          edits: [{ find: 'absent', replace: 'x' }],
+        },
+      ]);
+    // Round 1: two parts, then the reviewer.
+    if (n === 3)
+      return answer(
+        p,
+        [{ path: 'src/util.py', before_hash: null, content: 'y\n' }],
+        false,
+      );
+    return answer(p, [
+      {
+        path: 'src/main.py',
+        before_hash: hashOf(p, 'src/main.py'),
+        content: BUILD_FIXTURE_SOURCE,
+      },
+    ]);
+  });
+  const result = await s.run({ max_repairs: 1, max_calls: 6 });
+  assert.equal(result.state, 'verified_candidate', result.reason);
+  const progress = await readBuildProgress({
+    dir: s.dir(result.id),
+    heldOut: [false, true],
+    running: false,
+  });
+  assert.deepEqual(
+    progress.rounds.map((r) => [
+      r.round,
+      r.parts,
+      r.builder,
+      r.refused !== null,
+      r.candidate?.files.slice().sort() ?? null,
+      r.reviewer,
+    ]),
+    [
+      [0, 2, 'answered', true, null, null],
+      [1, 2, 'answered', false, ['src/main.py', 'src/util.py'], 'answered'],
+    ],
+  );
+  assert.equal(progress.requests, 5);
 });

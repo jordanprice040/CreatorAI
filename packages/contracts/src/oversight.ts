@@ -465,8 +465,8 @@ export const BUILD_APPROVAL_MAX_MS = 24 * 3_600_000;
  * How long a build may run from the Build form (PR #123 third review L-1). A Codex build runs
  * one turn per round (first try plus each repair), each up to the connection's build timeout,
  * which has no maximum (ADR-0062). ADR-0109: every round also runs all of its cases one after
- * another, each up to its recipe's case limit, and every role request may wait the plan
- * route's request timeout. Plus 10 minutes for packaging the evidence, and never less than
+ * another, each up to its recipe's case limit, and every role request may wait the build's
+ * own call timeout (`requestMs`; the plan route's 120 s when not given, an upper bound). Plus 10 minutes for packaging the evidence, and never less than
  * the 30 minutes builds had before; never past the build approval's 24 hours (less 5 minutes
  * so the approval's own check, made a moment later, still passes). The Build form shows this
  * time limit before anything is approved, and the build stops at it.
@@ -474,7 +474,13 @@ export const BUILD_APPROVAL_MAX_MS = 24 * 3_600_000;
 export function buildDeadlineMs(
   codexBuildTimeoutMs: number,
   repairs: number,
-  work: { requests?: number; cases?: number; recipe?: BuildRecipe } = {},
+  work: {
+    requests?: number;
+    cases?: number;
+    recipe?: BuildRecipe;
+    /** The build plan's timeout_ms (review N-2: broker builds wait 30 s, not 120 s). */
+    requestMs?: number;
+  } = {},
 ) {
   const rounds = Math.max(0, repairs) + 1;
   const base = 30 * 60_000;
@@ -482,7 +488,9 @@ export function buildDeadlineMs(
     rounds *
     Math.max(0, work.cases ?? 0) *
     BUILD_CASE_MAX_MS[work.recipe ?? 'python-build/1'];
-  const requests = Math.max(0, work.requests ?? 0) * BUILD_REQUEST_MAX_MS;
+  const requests =
+    Math.max(0, work.requests ?? 0) *
+    Math.min(BUILD_REQUEST_MAX_MS, work.requestMs ?? BUILD_REQUEST_MAX_MS);
   const codex = rounds * Math.max(0, codexBuildTimeoutMs);
   return Math.min(
     BUILD_APPROVAL_MAX_MS - 5 * 60_000,

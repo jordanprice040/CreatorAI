@@ -29,6 +29,8 @@ export interface BuildLimits {
   repairs: number;
   requests: number;
   cases: number;
+  /** The build's call timeout, sent as the plan's timeout_ms. */
+  requestMs: number;
   deadlineMs: number;
   /** Whole minutes, rounded up, for the person. */
   minutes: number;
@@ -41,6 +43,8 @@ export function buildLimits(o: {
   cases: number;
   recipe: BuildRecipe;
   codexBuildTimeoutMs: number;
+  /** The build's call timeout (the plan's timeout_ms). */
+  requestMs: number;
 }): BuildLimits {
   const requests = Math.min(
     BUILD_APPROVAL_MAX_REQUESTS,
@@ -50,11 +54,13 @@ export function buildLimits(o: {
     requests,
     cases: o.cases,
     recipe: o.recipe,
+    requestMs: o.requestMs,
   });
   return {
     repairs: o.repairs,
     requests,
     cases: o.cases,
+    requestMs: o.requestMs,
     deadlineMs,
     minutes: Math.ceil(deadlineMs / 60_000),
   };

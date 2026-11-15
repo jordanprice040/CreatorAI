@@ -681,7 +681,8 @@ export class BuildSupervisor {
             const builderPacket = {
               ...packet,
               candidate: commit,
-              files: current,
+              // Review L-2: a path an earlier part changed travels once, in round.staged.
+              files: current.filter((f) => !draft.has(f.path)),
               patch_rules: PATCH_RULES,
               qa_runtime: qaRuntimeOf(recipe),
               ...(legacy
@@ -728,11 +729,29 @@ export class BuildSupervisor {
               );
               await jsonWrite(join(dir, `codex-${cycle}-outcome.json`), answer);
               await active();
-            } else
+            } else {
+              // Review L-2: a later part whose packet no longer fits the role-packet bound is
+              // the round's size, not a fault: the round is refused with advice and nothing
+              // from it is applied. (A first part that does not fit stops the build as before:
+              // the task's own files are too large.)
+              const bound = plan.plan_roles
+                ? PLAN_ROLE_CONTEXT_MAX
+                : BROKER_ROLE_CONTEXT_MAX;
+              const size = JSON.stringify(builderPacket).length;
+              if (part > 1 && size > bound) {
+                await refuse(
+                  `Part ${part} of this round would send ${size} characters, more than a request may carry (${bound}), so none of the round was applied`,
+                  [
+                    'Change fewer or smaller files per round, use edits instead of whole files, or finish in fewer parts.',
+                  ],
+                );
+                continue rounds;
+              }
               answer = await invoke('builder', builderPacket, {
                 round: cycle,
                 part,
               });
+            }
             const admitted = (
               legacy ? builderSchema : builderV2Schema
             ).safeParse(answer);

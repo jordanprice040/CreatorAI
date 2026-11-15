@@ -19,6 +19,7 @@ test('the Build form offers 0 to 5 repair rounds and up to 20 requests, defaults
       cases,
       recipe: 'python-build/1',
       codexBuildTimeoutMs: 0,
+      requestMs: 120000,
     });
   // The default: 1 repair round, 4 requests.
   assert.equal(limits(1, null).requests, 4);
@@ -36,6 +37,17 @@ test('the Build form offers 0 to 5 repair rounds and up to 20 requests, defaults
     r.limitsText(limits(0, null, 1)),
     'At most 2 model requests, 0 repair rounds after a failed check; 1 test case run one after another each round; the build stops after 30 minutes',
   );
+  // Review N-2: a broker build's requests wait its own 30 s call timeout, not the plan's 120 s.
+  const broker = r.buildLimits({
+    repairs: 5,
+    requests: 20,
+    cases: 30,
+    recipe: 'python-build/1',
+    codexBuildTimeoutMs: 0,
+    requestMs: 30000,
+  });
+  assert.equal(broker.minutes, 140);
+  assert.equal(broker.requestMs, 30000);
 });
 
 test('the timeline says when a round came in parts', async () => {

@@ -1471,6 +1471,7 @@ function StartBuild({
     recipe: webSpec ? 'static-web/1' : 'python-build/1',
     codexBuildTimeoutMs:
       connection?.kind === 'codex' ? connection.build_timeout_ms : 0,
+    requestMs: connection?.kind === 'roles' ? 120000 : 30000,
   });
   const refusedClass = connection
     ? connectionDataBlocker(
@@ -1572,7 +1573,7 @@ function StartBuild({
       max_repairs: repairs,
       max_calls: limits.requests,
       // A streamed plan answer can take up to the plan's 120 s request timeout.
-      timeout_ms: connection?.kind === 'roles' ? 120000 : 30000,
+      timeout_ms: limits.requestMs,
       max_output_tokens: 3000,
       deadline: new Date(Date.now() + limits.deadlineMs).toISOString(),
       ...(connection
@@ -1742,7 +1743,11 @@ function StartBuild({
       <select
         id="bp-repairs"
         value={repairs}
-        onChange={(e) => setRepairs(Number(e.target.value))}
+        onChange={(e) => {
+          setRepairs(Number(e.target.value));
+          // Review N-1: a request limit chosen for other repair rounds is not kept.
+          setRequests(null);
+        }}
       >
         {REPAIR_OPTIONS.map((n) => (
           <option key={n} value={n}>
