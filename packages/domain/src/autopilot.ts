@@ -268,6 +268,23 @@ export type AutopilotChoice =
 const clip = (s: string, n = 1100) =>
   s.length > n ? `${s.slice(0, n - 1)}…` : s;
 
+/** Cuts at a word with an ellipsis, never splitting a surrogate pair. */
+const clipWords = (s: string, n: number) => {
+  if (s.length <= n) return s;
+  let cut = s.slice(0, n - 1);
+  if (/[\uD800-\uDBFF]$/.test(cut)) cut = cut.slice(0, -1);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > n * 0.6 ? cut.slice(0, space) : cut).trimEnd()}…`;
+};
+
+/** How a choice reads after "cannot be …". */
+const DISPOSITION_PASSIVE: Partial<Record<string, string>> = {
+  select_for_build: 'selected for build',
+  proceed_to_validation: 'taken to validation',
+  recommend_alternative: 'recommended',
+  research_further: 'sent for more research',
+};
+
 type Row = SelectionReport['suitability']['candidates'][number];
 /** a − b for exact scores (sign only). */
 const cmpScore = (a: ExactScore, b: ExactScore) => {
@@ -470,9 +487,10 @@ export function autopilotChoice(
       return {
         kind: 'gate_blocked',
         outcome: 'needs_person',
-        reason: clip(
-          `“${c.alternative.title}” ranks first but cannot be ${disposition.replaceAll('_', ' ')} yet: ${blocked.join(' ')} Resolve it, or choose under Decide yourself, then continue.`,
-        ),
+        // Live rerun 3 (November 15): "cannot be recommend alternative yet" read garbled, and
+        // a long gate reason cut off what to do next. The disposition reads as a verb, and the
+        // gate text is shortened (at a word) so the last sentence stays whole.
+        reason: `“${c.alternative.title}” ranks first but cannot be ${DISPOSITION_PASSIVE[disposition] ?? disposition.replaceAll('_', ' ')} yet: ${clipWords(blocked.join(' '), 700)} Resolve it, or choose under Decide yourself, then continue.`,
       };
     if (disposition === 'select_for_build') {
       const opp = report.opportunity.candidates.filter(

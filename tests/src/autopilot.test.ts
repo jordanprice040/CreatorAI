@@ -2197,6 +2197,29 @@ test('ADR-0100: settings let the choice rule go past a stop, and the request it 
   const b1 = autopilotChoice(blocked, OFF);
   assert.ok(!b1.ok);
   assert.equal(b1.kind, 'gate_blocked');
+  // Live rerun 3: the choice reads as a verb, and a long gate reason keeps the last sentence.
+  assert.match(b1.reason, /ranks first but cannot be recommended yet/);
+  const longGate = report([
+    cand('a', 'use_existing', 1, {
+      gates: {
+        ethics_access: 'unresolved',
+        discovery: 'candidate',
+        humility: 'not_applicable',
+        blocked: {
+          recommend_alternative: [
+            'Access: ' + 'staff time is missing '.repeat(60),
+          ],
+        },
+      },
+    }),
+  ]);
+  const g1 = autopilotChoice(longGate, OFF);
+  assert.ok(!g1.ok);
+  assert.match(g1.reason, /\w… Resolve it/);
+  assert.match(
+    g1.reason,
+    /Resolve it, or choose under Decide yourself, then continue\.$/,
+  );
   const b2 = autopilotChoice(blocked, { ...OFF, next_candidate: true });
   assert.ok(b2.ok);
   assert.equal(b2.option.id, 'b');
