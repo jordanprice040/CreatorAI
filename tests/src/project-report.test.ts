@@ -36,6 +36,8 @@ function emptyInput(): ProjectReportInput {
     problems_omitted: 0,
     claims_not_listed: 0,
     humility: [],
+    humility_omitted: 0,
+    unpackaged: { products: 0, artifacts: 0 },
     interventions: [],
     interventions_omitted: 0,
     specs: [],
@@ -44,13 +46,14 @@ function emptyInput(): ProjectReportInput {
     autopilots: [],
     money: {
       attempts: {},
+      denied: 0,
       settled_nano: '0',
       unknown_exposure_nano: '0',
       unknown_attempts: 0,
       in_flight_attempts: 0,
       providers: {},
       envelopes: [],
-      plan_requests: {},
+      plan_requests: { total: 0, open: 0, by_purpose: {}, by_state: {} },
     },
   };
 }
@@ -92,9 +95,52 @@ test('report text: secrets and personal paths removed, record text cannot forge 
       },
     ],
     claims_omitted: 3,
-    options: [],
+    // Stored words outside the known tables are record text: escaped like the rest (L-2).
+    options: [
+      {
+        id: randomUUID(),
+        version: 1,
+        title: 'Odd option',
+        kind: 'odd\n# Kind heading <script>x</script>',
+        status: 'active',
+        rationale: 'r',
+        tradeoffs: [],
+        uncertainty: '',
+        rank: null,
+        score: null,
+        score_status: null,
+        disagreements: [],
+        gates: [],
+      },
+    ],
+    options_omitted: 2,
     comparison_note: null,
-    selections: [],
+    selections: [
+      {
+        id: randomUUID(),
+        created_at: '2026-11-15T11:00:00.000Z',
+        current: true,
+        by: 'Jordan (person)',
+        rationale: 'Because.',
+        override_reason: null,
+        dispositions: [
+          {
+            option_id: randomUUID(),
+            option_title: 'Odd option',
+            disposition: 'odd\n## Disposition heading',
+            reasons: ['x'],
+            reverse_if: 'y',
+          },
+        ],
+      },
+    ],
+    selections_omitted: 0,
+  });
+  input.interventions.push({
+    at: '2026-11-15T11:00:00.000Z',
+    who: 'Jordan (person)',
+    what: 'Answered a request (authorization): Allow this?',
+    detail: 'approve once: Fine for now.',
   });
   input.specs.push({
     id: randomUUID(),
@@ -102,6 +148,7 @@ test('report text: secrets and personal paths removed, record text cannot forge 
     status: 'active',
     title: 'Spec',
     freeze: null,
+    checks_unreadable: false,
     checks: [
       {
         key: 'A1',
@@ -112,6 +159,32 @@ test('report text: secrets and personal paths removed, record text cannot forge 
       },
     ],
   });
+  input.specs.push({
+    id: randomUUID(),
+    version: 3,
+    status: 'active',
+    title: 'Broken spec',
+    freeze: null,
+    checks_unreadable: true,
+    checks: [],
+  });
+  input.money.denied = 2;
+  input.money.plan_requests = {
+    total: 3,
+    open: 1,
+    by_purpose: { chat: 2, task: 1 },
+    by_state: { completed: 2, in_flight: 1 },
+  };
+  input.money.envelopes = [
+    {
+      name: 'Owner budget',
+      kind: 'global',
+      status: 'active',
+      cap_nano: '20000000000',
+      incurred_nano: '696650000',
+    },
+  ];
+  input.unpackaged = { products: 2, artifacts: 1 };
   input.money.unknown_attempts = 1;
   input.money.unknown_exposure_nano = '1500000000';
   input.money.attempts = { unknown: 1 };
@@ -132,12 +205,51 @@ test('report text: secrets and personal paths removed, record text cannot forge 
   assert.match(markdown, /and 3 more claims, not listed here/);
   assert.match(markdown, /2 shown, 1 held out \(not shown\)/);
   assert.match(markdown, /\*\*Not frozen\.\*\*/);
+  assert.match(markdown, /holding up to \$1\.50\. Unknown is not zero\./);
   assert.match(
     markdown,
-    /holding up to \$1\.500000000\. Unknown is not zero\./,
+    /\| Owner budget \| global \| active \| \$20\.00 \| \$0\.69665 \|/,
+  );
+  assert.match(markdown, /Amounts are exact US dollars\./);
+  // Denied evaluations are not attempts; every plan request is counted, open ones flagged.
+  assert.match(markdown, /- Paid-request attempts sent: 1 \(1 unknown\)/);
+  assert.match(
+    markdown,
+    /- Refused before sending: 2 \(not counted as attempts/,
+  );
+  assert.match(
+    markdown,
+    /Plan-connection requests through this workspace’s connections: 3 \(by purpose: 2 chat, 1 task; by state: 2 completed, 1 in flight\)/,
+  );
+  assert.match(
+    markdown,
+    /\*\*1 plan request in flight or with an unknown outcome\.\*\*/,
+  );
+  // Stored words cannot start a heading or raw HTML.
+  assert.doesNotMatch(markdown, /^#+ (Kind|Disposition) heading/m);
+  assert.doesNotMatch(markdown, /<script>/);
+  assert.match(markdown, /odd \\# Kind heading \\<script\\>/);
+  assert.match(markdown, /and 2 more options, not listed here/);
+  // A question is not followed by a stray full stop, and the answer starts a sentence.
+  assert.match(markdown, /Allow this\? Approve once: Fine for now\./);
+  // Unreadable checks say so; build work without a manifest is counted.
+  assert.match(markdown, /The checks of this version could not be read/);
+  assert.match(
+    markdown,
+    /2 products and 1 artifact are recorded without a package manifest/,
+  );
+  assert.match(
+    markdown,
+    /No packaged build \(package manifest\) is recorded\./,
   );
   // A real workspace is not labelled as fixture.
   assert.doesNotMatch(markdown, /Fixture workspace/);
+  // In a fixture workspace amounts are simulated units, never dollars (L-1).
+  input.workspace.record_mode = 'fixture';
+  const fixtureMd = projectReportMarkdown(input).markdown;
+  assert.match(fixtureMd, /amounts are simulated units, not money/);
+  assert.match(fixtureMd, /holding up to 1\.50 simulated units/);
+  assert.doesNotMatch(fixtureMd, /\$|US dollars/);
   assert.equal(
     projectReportFileName('Clinic # Fake heading', input.generated_at),
     'clinic-fake-heading-report-2026-11-15.md',
@@ -235,7 +347,7 @@ test('a project report is built from the records, with access, fixture labels an
   const s = await discoverySetup(t, new FixtureAdapter());
   if (!s) return;
   const store = new ProjectReportStore(s.db.pool);
-  const { problem, evidence, alts, build, selection, spec, freeze } =
+  const { runId, problem, evidence, alts, build, selection, spec, freeze } =
     await project(s);
   // A claim that backs one option (not the problem) is listed with that option named.
   const problemNow = await s.store.getEntity(owner, s.ws.id, problem.id);
@@ -297,6 +409,64 @@ test('a project report is built from the records, with access, fixture labels an
     ],
   );
 
+  // Outcomes still open and a refused evaluation, as the broker leaves them (L-5, L-8).
+  const envelopeId = (await s.store.listEnvelopes(owner, s.ws.id))[0]!.id;
+  const reservation = (status: string, reserved: number, finished: boolean) =>
+    s.db.pool.query(
+      `insert into budget_reservations (id, workspace_id, fixture, envelope_id, run_id,
+         logical_operation_id, attempt, request_hash, action_type, provider, model_id, status,
+         reason_code, explanation, reserved_nano, created_by, finished_at)
+       values ($1, $2, true, $3, $4, $5, 1, $6, 'model.generate', 'fixture', 'fixture-model-v1',
+         $7, 'test', 'Planted by the report test.', $8, $9, $10)`,
+      [
+        randomUUID(),
+        s.ws.id,
+        envelopeId,
+        runId,
+        randomUUID(),
+        'b'.repeat(64),
+        status,
+        reserved,
+        owner.actorId,
+        finished ? new Date() : null,
+      ],
+    );
+  await reservation('unknown', 10, true);
+  await reservation('in_flight', 25, false);
+  await reservation('denied', 0, true);
+  // Plan requests through the workspace's connection: a chat answer has no run (M-1).
+  const connection = randomUUID();
+  await s.db.pool.query(
+    `insert into plan_connections (id, workspace_id, fixture, version, label, settings,
+       settings_hash, ext_agent_host_id, sign_in, credits, eligibility, quota, created_by)
+     values ($1, $2, true, 1, 'Plan (test)', '{}', $3, $4, '{}', '{}', '{}', '{}', $5)`,
+    [
+      connection,
+      s.ws.id,
+      'c'.repeat(64),
+      `urn:uuid:${randomUUID()}`,
+      owner.actorId,
+    ],
+  );
+  const planRequest = (purpose: string, state: string, run: string | null) =>
+    s.db.pool.query(
+      `insert into plan_requests (id, connection_id, logical_operation_id, path, purpose,
+         model_id, data_class, run_id, state, created_by)
+       values ($1, $2, $3, 'responses', $4, 'model-test', 'synthetic', $5, $6, $7)`,
+      [
+        randomUUID(),
+        connection,
+        randomUUID(),
+        purpose,
+        run,
+        state,
+        owner.actorId,
+      ],
+    );
+  await planRequest('chat', 'completed', null);
+  await planRequest('chat', 'completed', null);
+  await planRequest('task', 'unknown', runId);
+
   const before = (
     await s.db.pool.query('select count(*)::int as n from audit_events')
   ).rows[0].n;
@@ -337,7 +507,11 @@ test('a project report is built from the records, with access, fixture labels an
   assert.match(md, /selected for a build\. Reasons: /);
   assert.match(md, /Would change if: /);
   assert.match(md, /Override of the ranking: Reminders are recommended too/);
-  // Dissent from the humility review.
+  // The humility review names the option it judged, and its dissent.
+  assert.ok(
+    md.includes(`v1 of “${build.title.slice(0, 20)}`),
+    'review subject',
+  );
   assert.match(
     md,
     /Dissent: A front-desk lead thinks reminders alone would do/,
@@ -372,20 +546,40 @@ test('a project report is built from the records, with access, fixture labels an
   // Money matches the budget records exactly.
   const money = (
     await s.db.pool.query(
-      `select count(*)::int as n,
+      `select count(*) filter (where status <> 'denied')::int as n,
           coalesce(sum(incurred_nano) filter (where status = 'settled'), 0)::text as settled
          from budget_reservations where workspace_id = $1`,
       [s.ws.id],
     )
   ).rows[0];
-  assert.ok(money.n > 0, 'the fixture discovery made paid-request attempts');
-  assert.match(md, new RegExp(`- Paid-request attempts: ${money.n} \\(`));
+  assert.ok(money.n > 2, 'the fixture discovery made paid-request attempts');
+  assert.match(md, new RegExp(`- Paid-request attempts sent: ${money.n} \\(`));
+  assert.match(md, /- Refused before sending: 1 /);
   const settled = BigInt(money.settled);
-  const dollars = `${settled / 1_000_000_000n}.${(settled % 1_000_000_000n).toString().padStart(9, '0')}`;
-  assert.ok(md.includes(`- Settled spend: $${dollars}`), dollars);
+  const frac = (settled % 1_000_000_000n)
+    .toString()
+    .padStart(9, '0')
+    .replace(/0+$/, '')
+    .padEnd(2, '0');
+  const units = `${settled / 1_000_000_000n}.${frac} simulated units`;
+  assert.ok(md.includes(`- Settled spend: ${units}`), units);
   assert.match(
     md,
-    /\| Owner budget \| global \| active \| \$100\.000000000 \|/,
+    /- \*\*Not settled:\*\* 1 attempt with an unknown outcome and 1 in flight, holding up to 0\.000000035 simulated units\. Unknown is not zero\./,
+  );
+  assert.match(
+    md,
+    /\| Owner budget \| global \| active \| 100\.00 simulated units \|/,
+  );
+  assert.doesNotMatch(md, /US dollars|\$[0-9]/);
+  // Every plan request through the workspace's connection, chat ones included.
+  assert.match(
+    md,
+    /Plan-connection requests through this workspace’s connections: 3 \(by purpose: 2 chat, 1 task; by state: 2 completed, 1 unknown\)/,
+  );
+  assert.match(
+    md,
+    /\*\*1 plan request in flight or with an unknown outcome\.\*\*/,
   );
 
   // Reading changed nothing.

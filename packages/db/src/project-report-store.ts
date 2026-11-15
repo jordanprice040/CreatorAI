@@ -32,6 +32,10 @@ export const REPORT_LIMITS = {
   proposals: 30,
   autopilots: 20,
   envelopes: 30,
+  humility: 50,
+  options: 40,
+  selections: 20,
+  feedback: 20,
 } as const;
 
 const str = (v: unknown) => (typeof v === 'string' ? v : '');
@@ -147,7 +151,9 @@ export class ProjectReportStore extends RunbookStore {
       problems: [],
       problems_omitted: Math.max(0, problems.length - REPORT_LIMITS.problems),
       claims_not_listed: 0,
-      humility: await this.reportHumility(c, ws),
+      humility: [],
+      humility_omitted: 0,
+      unpackaged: await this.reportUnpackaged(c, ws),
       interventions: [],
       interventions_omitted: 0,
       specs: await this.reportSpecs(c, ws),
@@ -184,6 +190,9 @@ export class ProjectReportStore extends RunbookStore {
     out.claims_not_listed = active.filter(
       (x) => !listed.has(x.id.toLowerCase()),
     ).length;
+    const humility = await this.reportHumility(c, ws);
+    out.humility = humility.list;
+    out.humility_omitted = humility.omitted;
     const { list, omitted } = await this.reportInterventions(c, ws);
     out.interventions = list;
     out.interventions_omitted = omitted;
@@ -322,12 +331,13 @@ export class ProjectReportStore extends RunbookStore {
           gates: [],
         };
       });
+    // Titles of every option (also those cut from the list) for selections and claims.
     const titles = new Map(options.map((o) => [o.id.toLowerCase(), o.title]));
     for (const cl of claims)
       if (cl.for_option)
         cl.for_option =
           titles.get(cl.for_option) ?? `option ${cl.for_option.slice(0, 8)}`;
-    const selections: ReportSelection[] = (
+    const selectionRows = (
       await c.query(
         `select s.*, a.display_name, a.kind as actor_kind from selections s
            join actors a on a.id = s.actor_id
@@ -335,28 +345,33 @@ export class ProjectReportStore extends RunbookStore {
           order by s.created_at desc, s.id desc`,
         [ws, id],
       )
-    ).rows.map((s: Row, i: number) => ({
-      id: String(s.id),
-      created_at: iso(s.created_at),
-      current: i === 0,
-      by: s.autopilot_id ? 'the autopilot' : who(s.display_name, s.actor_kind),
-      rationale: String(s.rationale),
-      override_reason:
-        s.override_reason === null ? null : String(s.override_reason),
-      dispositions: arr(s.dispositions).map((d) => {
-        const x = obj(d);
-        const alt = obj(x.alternative);
-        return {
-          option_id: str(alt.id),
-          option_title:
-            titles.get(str(alt.id).toLowerCase()) ??
-            `option ${str(alt.id).slice(0, 8)}`,
-          disposition: str(x.disposition),
-          reasons: arr(x.reasons).map(str),
-          reverse_if: str(x.reverse_if),
-        };
-      }),
-    }));
+    ).rows as Row[];
+    const selections: ReportSelection[] = selectionRows
+      .slice(0, REPORT_LIMITS.selections)
+      .map((s: Row, i: number) => ({
+        id: String(s.id),
+        created_at: iso(s.created_at),
+        current: i === 0,
+        by: s.autopilot_id
+          ? 'the autopilot'
+          : who(s.display_name, s.actor_kind),
+        rationale: String(s.rationale),
+        override_reason:
+          s.override_reason === null ? null : String(s.override_reason),
+        dispositions: arr(s.dispositions).map((d) => {
+          const x = obj(d);
+          const alt = obj(x.alternative);
+          return {
+            option_id: str(alt.id),
+            option_title:
+              titles.get(str(alt.id).toLowerCase()) ??
+              `option ${str(alt.id).slice(0, 8)}`,
+            disposition: str(x.disposition),
+            reasons: arr(x.reasons).map(str),
+            reverse_if: str(x.reverse_if),
+          };
+        }),
+      }));
     return {
       id,
       version: Number(r.version),
@@ -367,41 +382,58 @@ export class ProjectReportStore extends RunbookStore {
       uncertainty: str(body.uncertainty),
       claims,
       claims_omitted: Math.max(0, ordered.length - claims.length),
-      options,
+      options: options.slice(0, REPORT_LIMITS.options),
+      options_omitted: Math.max(0, options.length - REPORT_LIMITS.options),
       comparison_note: null,
       selections,
+      selections_omitted: Math.max(
+        0,
+        selectionRows.length - REPORT_LIMITS.selections,
+      ),
     };
   }
 
   private async reportHumility(c: PoolClient, ws: string) {
-    return (
+    const rows = (
       await c.query(
-        `select * from entities where workspace_id = $1 and kind = 'humility_review'
-            and status = 'active' order by created_at, id`,
+        `select h.*, s.title as subject_title from entities h
+           left join entities s on s.workspace_id = h.workspace_id
+             and s.id::text = lower(h.body->'subject'->>'id') and s.status <> 'redacted'
+          where h.workspace_id = $1 and h.kind = 'humility_review' and h.status = 'active'
+          order by h.created_at desc, h.id desc`,
         [ws],
       )
-    ).rows.map((r: Row) => {
-      const b = obj(r.body);
-      const subject = obj(b.subject);
-      return {
-        id: String(r.id),
-        version: Number(r.version),
-        subject_id: str(subject.id),
-        subject_version: Number(subject.version ?? 0),
-        disposition: str(b.disposition),
-        rationale: str(b.rationale),
-        ethical_status: str(obj(b.ethical).status),
-        dissent: arr(b.dissent).map(str).filter(Boolean),
-      };
-    });
+    ).rows as Row[];
+    const list = rows
+      .slice(0, REPORT_LIMITS.humility)
+      .reverse()
+      .map((r: Row) => {
+        const b = obj(r.body);
+        const subject = obj(b.subject);
+        return {
+          id: String(r.id),
+          version: Number(r.version),
+          subject_id: str(subject.id),
+          subject_version: Number(subject.version ?? 0),
+          subject_title:
+            typeof r.subject_title === 'string' ? r.subject_title : null,
+          disposition: str(b.disposition),
+          rationale: str(b.rationale),
+          ethical_status: str(obj(b.ethical).status),
+          dissent: arr(b.dissent).map(str).filter(Boolean),
+        };
+      });
+    return {
+      list,
+      omitted: Math.max(0, rows.length - REPORT_LIMITS.humility),
+    };
   }
 
   /** Where the work stopped for a person, and what people decided, oldest first. */
   private async reportInterventions(c: PoolClient, ws: string) {
     const human = `a.kind = 'human'`;
-    const rows = (
-      await c.query(
-        `select * from (
+    // Every human decision and every request that waited for a person, as one union.
+    const union = `
            select d.answered_at as at, a.display_name, a.kind,
              'Answered a request (' || d.kind || '): ' || coalesce(d.request->>'question', d.reason) as what,
              replace(coalesce(d.response->>'choice', ''), '_', ' ') || coalesce(' (' || (d.response->>'option_id') || ')', '')
@@ -449,43 +481,47 @@ export class ProjectReportStore extends RunbookStore {
            select r.cancelled_at, a.display_name, a.kind, 'Cancelled run ' || left(r.run_id::text, 8),
              coalesce(r.cancel_reason, '')
              from run_controls r join actors a on a.id = r.cancelled_by
-            where r.workspace_id = $1 and r.state = 'cancelled' and ${human}
-         ) x order by at desc limit ${REPORT_LIMITS.interventions + 1}`,
+            where r.workspace_id = $1 and r.state = 'cancelled' and ${human}`;
+    const rows = (
+      await c.query(
+        `select * from (${union}) x order by at desc limit ${REPORT_LIMITS.interventions}`,
         [ws],
       )
     ).rows as Row[];
-    const list: ReportIntervention[] = rows
-      .slice(0, REPORT_LIMITS.interventions)
-      .reverse()
-      .map((r) => ({
-        at: iso(r.at),
-        who:
-          r.kind === 'waiting'
-            ? 'waiting for a person'
-            : who(r.display_name, r.kind),
-        what: String(r.what ?? ''),
-        detail: String(r.detail ?? ''),
-      }));
+    const list: ReportIntervention[] = rows.reverse().map((r) => ({
+      at: iso(r.at),
+      who:
+        r.kind === 'waiting'
+          ? 'waiting for a person'
+          : who(r.display_name, r.kind),
+      what: String(r.what ?? ''),
+      detail: String(r.detail ?? ''),
+    }));
+    // Counted with the same filters as the list, so the number left out is exact.
     const total =
-      rows.length > REPORT_LIMITS.interventions
-        ? Number(
-            (
-              await c.query(
-                `select (select count(*) from decision_requests where workspace_id = $1)
-                   + (select count(*) from gate_confirmations where workspace_id = $1)
-                   + (select count(*) from selections where workspace_id = $1 and autopilot_id is null)
-                   + (select count(*) from spec_freezes where workspace_id = $1)
-                   + (select count(*) from proposal_reviews where workspace_id = $1)
-                   + (select count(*) from artifact_feedback where workspace_id = $1)
-                   + (select count(*) from run_controls where workspace_id = $1 and state = 'cancelled')
-                   as n`,
-                [ws],
-              )
-            ).rows[0]?.n ?? 0,
-          )
-        : list.length;
-    // The count above includes agent rows, so it is an upper bound on what was left out.
+      rows.length < REPORT_LIMITS.interventions
+        ? rows.length
+        : Number(
+            (await c.query(`select count(*)::int as n from (${union}) x`, [ws]))
+              .rows[0]?.n ?? 0,
+          );
     return { list, omitted: Math.max(0, total - list.length) };
+  }
+
+  /** Products, and artifacts with no package manifest: build work the Builds list cannot show. */
+  private async reportUnpackaged(c: PoolClient, ws: string) {
+    const r = (
+      await c.query(
+        `select
+            (select count(*)::int from entities where workspace_id = $1 and kind = 'product'
+               and status = 'active') as products,
+            (select count(*)::int from entities e where e.workspace_id = $1 and e.kind = 'artifact'
+               and e.status = 'active' and not exists (select 1 from artifact_manifests m
+                 where m.workspace_id = e.workspace_id and m.entity_id = e.id)) as artifacts`,
+        [ws],
+      )
+    ).rows[0] as Row;
+    return { products: Number(r.products), artifacts: Number(r.artifacts) };
   }
 
   private async reportSpecs(c: PoolClient, ws: string) {
@@ -532,6 +568,7 @@ export class ProjectReportStore extends RunbookStore {
               by: who(f.display_name, f.actor_kind),
             }
           : null,
+        checks_unreadable: !parsed.success,
         checks: parsed.success
           ? parsed.data.acceptance_checks.map((k) => {
               const all = [...(k.cases ?? []), ...(k.browser_cases ?? [])];
@@ -596,10 +633,19 @@ export class ProjectReportStore extends RunbookStore {
         unsettled_attempts: Number(costs.unsettled_attempts ?? 0),
         plan_requests: arr(obj(costs.plan_requests).request_ids).length,
         limitations: arr(m.limitations).map(str).filter(Boolean),
+        feedback_omitted: Number(
+          (
+            await c.query(
+              `select greatest(count(*) - ${REPORT_LIMITS.feedback}, 0)::int as n
+                 from artifact_feedback where artifact_id = $1`,
+              [r.id],
+            )
+          ).rows[0]?.n ?? 0,
+        ),
         feedback: (
           await c.query(
             `select category, status, body from artifact_feedback where artifact_id = $1
-              order by created_at, id`,
+              order by created_at, id limit ${REPORT_LIMITS.feedback}`,
             [r.id],
           )
         ).rows.map((f: Row) => ({
@@ -648,12 +694,29 @@ export class ProjectReportStore extends RunbookStore {
            from budget_reservations where workspace_id = $1`,
       )
     )[0]!;
+    const plan = (
+      await q(
+        `select count(*)::int as total,
+            count(*) filter (where p.state in ('in_flight', 'unknown'))::int as open
+           from plan_requests p join plan_connections pc on pc.id = p.connection_id
+          where pc.workspace_id = $1`,
+      )
+    )[0]!;
     return {
+      // A denied row is an evaluation that was refused before anything was sent.
       attempts: counts(
         await q(
-          `select status as k, count(*) as n from budget_reservations where workspace_id = $1
-            group by status order by status`,
+          `select status as k, count(*) as n from budget_reservations
+            where workspace_id = $1 and status <> 'denied' group by status order by status`,
         ),
+      ),
+      denied: Number(
+        (
+          await q(
+            `select count(*)::int as n from budget_reservations
+              where workspace_id = $1 and status = 'denied'`,
+          )
+        )[0]!.n,
       ),
       settled_nano: String(totals.settled),
       unknown_exposure_nano: String(totals.exposure),
@@ -661,8 +724,8 @@ export class ProjectReportStore extends RunbookStore {
       in_flight_attempts: Number(totals.in_flight),
       providers: counts(
         await q(
-          `select provider as k, count(*) as n from budget_reservations where workspace_id = $1
-            group by provider order by provider`,
+          `select provider as k, count(*) as n from budget_reservations
+            where workspace_id = $1 and status <> 'denied' group by provider order by provider`,
         ),
       ),
       envelopes: (
@@ -679,13 +742,26 @@ export class ProjectReportStore extends RunbookStore {
         cap_nano: String(e.cap),
         incurred_nano: String(e.incurred),
       })),
-      plan_requests: counts(
-        await q(
-          `select p.state as k, count(*) as n from plan_requests p
-             join run_controls r on r.run_id = p.run_id
-            where r.workspace_id = $1 group by p.state order by p.state`,
+      // Every request through this workspace's plan connections, as the usage panel counts
+      // them: runs, builds, chat answers, verification and qualification alike.
+      plan_requests: {
+        total: Number(plan.total),
+        open: Number(plan.open),
+        by_purpose: counts(
+          await q(
+            `select p.purpose as k, count(*) as n from plan_requests p
+               join plan_connections pc on pc.id = p.connection_id
+              where pc.workspace_id = $1 group by p.purpose order by p.purpose`,
+          ),
         ),
-      ),
+        by_state: counts(
+          await q(
+            `select p.state as k, count(*) as n from plan_requests p
+               join plan_connections pc on pc.id = p.connection_id
+              where pc.workspace_id = $1 group by p.state order by p.state`,
+          ),
+        ),
+      },
     };
   }
 }

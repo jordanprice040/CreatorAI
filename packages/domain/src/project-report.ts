@@ -78,15 +78,19 @@ export interface ReportProblem {
   claims: ReportClaim[];
   claims_omitted: number;
   options: ReportOption[];
+  options_omitted: number;
   /** Why the live comparison could not be read, when it could not. */
   comparison_note: string | null;
   selections: ReportSelection[];
+  selections_omitted: number;
 }
 export interface ReportHumility {
   id: string;
   version: number;
   subject_id: string;
   subject_version: number;
+  /** The reviewed option's or spec's title, when it can still be read. */
+  subject_title: string | null;
   disposition: string;
   rationale: string;
   ethical_status: string;
@@ -119,6 +123,8 @@ export interface ReportSpec {
     content_hash: string;
     by: string;
   } | null;
+  /** The version's body did not parse, so its checks could not be listed. */
+  checks_unreadable: boolean;
   checks: ReportCheck[];
 }
 export interface ReportBuild {
@@ -140,6 +146,7 @@ export interface ReportBuild {
   plan_requests: number;
   limitations: string[];
   feedback: { category: string; status: string; text: string }[];
+  feedback_omitted: number;
 }
 export interface ReportProposal {
   id: string;
@@ -150,15 +157,17 @@ export interface ReportProposal {
   review: { version: number; verdict: string } | null;
 }
 export interface ReportMoney {
-  /** Paid-request attempts by state, from the budget reservations. */
+  /** Paid-request attempts by state, from the budget reservations; denied ones are not here. */
   attempts: Record<string, number>;
-  /** Exact nano-USD, as decimal strings. */
+  /** Evaluations refused before anything was sent (denied reservations). */
+  denied: number;
+  /** Exact nano-units (US dollars, or simulated units in a fixture workspace). */
   settled_nano: string;
   /** Upper bound still held by attempts whose outcome is unknown or in flight. */
   unknown_exposure_nano: string;
   unknown_attempts: number;
   in_flight_attempts: number;
-  /** Attempts by provider (fixture, openai, brave …). */
+  /** Sent attempts by provider (fixture, openai, brave …). */
   providers: Record<string, number>;
   envelopes: {
     name: string;
@@ -167,8 +176,17 @@ export interface ReportMoney {
     cap_nano: string;
     incurred_nano: string;
   }[];
-  /** Plan-connection requests (no dollar cost; they use the plan's quota), by state. */
-  plan_requests: Record<string, number>;
+  /**
+   * Every request through the workspace's plan connections (runs, builds, chat, verification,
+   * qualification). No dollar cost; they use the plan's own quota.
+   */
+  plan_requests: {
+    total: number;
+    /** In flight or with an unknown outcome. */
+    open: number;
+    by_purpose: Record<string, number>;
+    by_state: Record<string, number>;
+  };
 }
 export interface ReportAutopilot {
   id: string;
@@ -188,6 +206,9 @@ export interface ProjectReportInput {
   /** Active claims in the workspace that no listed problem or option section shows. */
   claims_not_listed: number;
   humility: ReportHumility[];
+  humility_omitted: number;
+  /** Build work with no package manifest, which the Builds list cannot show. */
+  unpackaged: { products: number; artifacts: number };
   interventions: ReportIntervention[];
   interventions_omitted: number;
   specs: ReportSpec[];
@@ -200,15 +221,22 @@ export interface ProjectReportInput {
 const plural = (n: number, one: string, many = `${one}s`) =>
   `${n} ${n === 1 ? one : many}`;
 const short = (id: string) => id.slice(0, 8);
-const kindWords = (k: string) => RESPONSE_WORDS[k] ?? k.replaceAll('_', ' ');
-const dispositionWords = (d: string) =>
-  DISPOSITION_WORDS[d] ?? d.replaceAll('_', ' ');
 const t = (s: string) => inlineText(s);
-/** A recorded code word ("in_flight") as plain words. */
+/** A recorded code word ("in_flight") as plain words, escaped like any record text. */
 const w = (s: string) => inlineText(s.replaceAll('_', ' '));
+// Known words come from fixed tables; anything else is record text and is escaped.
+const kindWords = (k: string) => RESPONSE_WORDS[k] ?? w(k);
+const dispositionWords = (d: string) => DISPOSITION_WORDS[d] ?? w(d);
 /** Text without its closing full stop, so a sentence can follow it. */
 const stop = (s: string) => s.replace(/[.\s]+$/u, '');
-const dollars = (nano: string) => `$${usd(BigInt(nano))}`;
+/** Two sentences joined; no full stop is added after a question or an exclamation. */
+const sentences = (a: string, b: string) =>
+  `${/[.?!]\s*$/u.test(a) ? a.trimEnd() : `${a}.`} ${b.charAt(0).toUpperCase()}${b.slice(1)}`;
+/** Exact decimal with trailing zeros trimmed, keeping at least two places: 100.00, 0.69665. */
+function exact(nano: string): string {
+  const [whole, frac = ''] = usd(BigInt(nano)).split('.');
+  return `${whole}.${frac.replace(/0+$/, '').padEnd(2, '0')}`;
+}
 
 /** Every string in a JSON-like value with credentials and personal paths removed. */
 function redactAll<T>(value: T, count: Redactions): T {
@@ -291,6 +319,10 @@ function problemSection(p: ReportProblem, fixture: string): string[] {
         `  - ${t(g.gate)} gate ${w(g.state)}: ${g.concerns.map(t).join('; ')}`,
       );
   }
+  if (p.options_omitted)
+    out.push(
+      `- …and ${plural(p.options_omitted, 'more option')}, not listed here.`,
+    );
   out.push('', '### Selections', '');
   if (!p.selections.length) out.push('No selection is recorded.');
   for (const s of p.selections) {
@@ -304,6 +336,10 @@ function problemSection(p: ReportProblem, fixture: string): string[] {
         `  - ${t(stop(d.option_title))}: ${dispositionWords(d.disposition)}. Reasons: ${d.reasons.map((r) => t(stop(r))).join('; ')}. Would change if: ${t(d.reverse_if)}`,
       );
   }
+  if (p.selections_omitted)
+    out.push(
+      `- …and ${plural(p.selections_omitted, 'older selection')}, not listed here.`,
+    );
   out.push('');
   return out;
 }
@@ -320,6 +356,9 @@ export function projectReportMarkdown(raw: ProjectReportInput): {
   const r = redactAll(raw, redactions);
   const isFixture = r.workspace.record_mode === 'fixture';
   const fixture = isFixture ? ' — **fixture (synthetic) record**' : '';
+  // Fixture pricing is simulated: the app calls those amounts simulated units, not money.
+  const money = (nano: string) =>
+    isFixture ? `${exact(nano)} simulated units` : `$${exact(nano)}`;
   const out: string[] = [`# Project report: ${t(r.workspace.name)}`, ''];
   if (isFixture)
     out.push(
@@ -359,10 +398,14 @@ export function projectReportMarkdown(raw: ProjectReportInput): {
   if (!r.humility.length) out.push('No humility review is recorded.');
   for (const h of r.humility) {
     out.push(
-      `- **Review ${short(h.id)}** v${h.version} of ${short(h.subject_id)} v${h.subject_version}: ${kindWords(h.disposition)}; ethics ${w(h.ethical_status)}. ${t(h.rationale)}`,
+      `- **Review ${short(h.id)}** v${h.version} of ${h.subject_title ? `“${t(h.subject_title)}” (${short(h.subject_id)} v${h.subject_version})` : `${short(h.subject_id)} v${h.subject_version}`}: ${kindWords(h.disposition)}; ethics ${w(h.ethical_status)}. ${t(h.rationale)}`,
     );
     for (const d of h.dissent) out.push(`  - Dissent: ${t(d)}`);
   }
+  if (r.humility_omitted)
+    out.push(
+      `- …and ${plural(r.humility_omitted, 'older review')}, not listed here.`,
+    );
   out.push('', '## Human decisions and interventions', '');
   out.push(
     'Where the work stopped for a person, and what people decided. Agent and system actions are not listed here.',
@@ -371,7 +414,7 @@ export function projectReportMarkdown(raw: ProjectReportInput): {
   if (!r.interventions.length) out.push('No human decision is recorded.');
   for (const i of r.interventions)
     out.push(
-      `- ${i.at} — ${t(i.who)}: ${t(i.detail ? stop(i.what) : i.what)}${i.detail ? `. ${t(i.detail)}` : ''}`,
+      `- ${i.at} — ${t(i.who)}: ${i.detail ? sentences(t(i.what), t(i.detail)) : t(i.what)}`,
     );
   if (r.interventions_omitted)
     out.push(
@@ -386,7 +429,7 @@ export function projectReportMarkdown(raw: ProjectReportInput): {
   }
 
   out.push('', '## Frozen specs and their cases', '');
-  if (!r.specs.length) out.push('No specification is recorded.');
+  if (!r.specs.length) out.push('No specification is recorded.', '');
   for (const s of r.specs) {
     const f = s.freeze;
     out.push(
@@ -398,6 +441,11 @@ export function projectReportMarkdown(raw: ProjectReportInput): {
         : '- **Not frozen.** These requirements are a draft.',
       '',
     );
+    if (s.checks_unreadable)
+      out.push(
+        '_The checks of this version could not be read, so they are not listed. That does not mean it has none._',
+        '',
+      );
     if (s.checks.length) {
       out.push(
         '| Check | Method | Statement | Cases |',
@@ -412,7 +460,14 @@ export function projectReportMarkdown(raw: ProjectReportInput): {
   }
 
   out.push('## Builds, reviews and QA', '');
-  if (!r.builds.length) out.push('No build is recorded.', '');
+  if (!r.builds.length)
+    out.push('No packaged build (package manifest) is recorded.', '');
+  const { products, artifacts } = r.unpackaged;
+  if (products || artifacts)
+    out.push(
+      `${products ? plural(products, 'product') : ''}${products && artifacts ? ' and ' : ''}${artifacts ? plural(artifacts, 'artifact') : ''} ${products + artifacts === 1 ? 'is' : 'are'} recorded without a package manifest (for example a build that stopped before packaging), so ${products + artifacts === 1 ? 'it is' : 'they are'} not listed here. See Projects › Build.`,
+      '',
+    );
   for (const b of r.builds) {
     const qaPassed = b.qa.filter((q) => q.passed).length;
     const pkgPassed = b.package.filter((q) => q.passed).length;
@@ -424,7 +479,7 @@ export function projectReportMarkdown(raw: ProjectReportInput): {
       `- ${plural(b.calls, 'role request')}, ${plural(b.repairs, 'repair')} after review`,
       `- QA (frozen cases, including held-out ones): ${qaPassed} of ${b.qa.length} passed`,
       `- Package check (re-extracted package): ${pkgPassed} of ${b.package.length} passed`,
-      `- Cost recorded in the manifest: ${dollars(b.settled_nano)} settled${b.unsettled_attempts ? `, ${plural(b.unsettled_attempts, 'attempt')} unsettled` : ''}${b.plan_requests ? `; ${plural(b.plan_requests, 'plan request')}` : ''}; local compute is not metered`,
+      `- Cost recorded in the manifest: ${money(b.settled_nano)} settled${b.unsettled_attempts ? `, ${plural(b.unsettled_attempts, 'attempt')} unsettled` : ''}${b.plan_requests ? `; ${plural(b.plan_requests, 'plan request')}` : ''}; local compute is not metered`,
     );
     for (const q of [...b.qa, ...b.package].filter((x) => !x.passed))
       out.push(`- Failed ${t(q.key)}: ${t(q.reason ?? 'no reason recorded')}`);
@@ -432,6 +487,10 @@ export function projectReportMarkdown(raw: ProjectReportInput): {
     for (const fb of b.feedback)
       out.push(
         `- Feedback (${w(fb.category)}, ${t(fb.status)}): ${t(fb.text)}`,
+      );
+    if (b.feedback_omitted)
+      out.push(
+        `- …and ${plural(b.feedback_omitted, 'more feedback item')}, not listed here.`,
       );
     out.push('');
   }
@@ -445,16 +504,16 @@ export function projectReportMarkdown(raw: ProjectReportInput): {
   out.push('', '## Requests and money', '');
   const m = r.money;
   const attempts = Object.values(m.attempts).reduce((a, b) => a + b, 0);
+  const listed = (x: Record<string, number>) =>
+    Object.entries(x)
+      .map(([k, v]) => `${v} ${w(k)}`)
+      .join(', ');
   out.push(
-    `From the workspace’s budget records${isFixture ? ' (fixture: no real money)' : ''}. Amounts are exact US dollars.`,
+    isFixture
+      ? 'From the workspace’s budget records. This is a fixture workspace: amounts are simulated units, not money.'
+      : 'From the workspace’s budget records. Amounts are exact US dollars.',
     '',
-    `- Paid-request attempts: ${attempts}${
-      attempts
-        ? ` (${Object.entries(m.attempts)
-            .map(([k, v]) => `${v} ${w(k)}`)
-            .join(', ')})`
-        : ''
-    }`,
+    `- Paid-request attempts sent: ${attempts}${attempts ? ` (${listed(m.attempts)})` : ''}`,
   );
   if (attempts)
     out.push(
@@ -462,21 +521,23 @@ export function projectReportMarkdown(raw: ProjectReportInput): {
         .map(([k, v]) => `${t(k)} ${v}`)
         .join(', ')}`,
     );
-  out.push(`- Settled spend: ${dollars(m.settled_nano)}`);
+  if (m.denied)
+    out.push(
+      `- Refused before sending: ${m.denied} (not counted as attempts; nothing was spent)`,
+    );
+  out.push(`- Settled spend: ${money(m.settled_nano)}`);
   if (m.unknown_attempts || m.in_flight_attempts)
     out.push(
-      `- **Not settled:** ${plural(m.unknown_attempts, 'attempt')} with an unknown outcome and ${m.in_flight_attempts} in flight, holding up to ${dollars(m.unknown_exposure_nano)}. Unknown is not zero.`,
+      `- **Not settled:** ${plural(m.unknown_attempts, 'attempt')} with an unknown outcome and ${m.in_flight_attempts} in flight, holding up to ${money(m.unknown_exposure_nano)}. Unknown is not zero.`,
     );
-  const plan = Object.values(m.plan_requests).reduce((a, b) => a + b, 0);
+  const pr = m.plan_requests;
   out.push(
-    `- Plan-connection requests: ${plan}${
-      plan
-        ? ` (${Object.entries(m.plan_requests)
-            .map(([k, v]) => `${v} ${w(k)}`)
-            .join(', ')})`
-        : ''
-    }. These have no dollar cost; they use the plan’s own quota.`,
+    `- Plan-connection requests through this workspace’s connections: ${pr.total}${pr.total ? ` (by purpose: ${listed(pr.by_purpose)}; by state: ${listed(pr.by_state)})` : ''}. These have no dollar cost; they use the plan’s own quota.`,
   );
+  if (pr.open)
+    out.push(
+      `- **${plural(pr.open, 'plan request')} in flight or with an unknown outcome.** ${pr.open === 1 ? 'It' : 'They'} may still use quota.`,
+    );
   if (m.envelopes.length) {
     out.push(
       '',
@@ -485,7 +546,7 @@ export function projectReportMarkdown(raw: ProjectReportInput): {
     );
     for (const e of m.envelopes)
       out.push(
-        `| ${t(e.name)} | ${t(e.kind)} | ${t(e.status)} | ${dollars(e.cap_nano)} | ${dollars(e.incurred_nano)} |`,
+        `| ${t(e.name)} | ${t(e.kind)} | ${t(e.status)} | ${money(e.cap_nano)} | ${money(e.incurred_nano)} |`,
       );
   }
 
@@ -498,13 +559,19 @@ export function projectReportMarkdown(raw: ProjectReportInput): {
   limits.push(
     'The report shows records, not outcomes: no claim, plan or build here has been validated with real users by this report.',
     'Held-out test cases are counted but never shown.',
-    'Local compute is not metered, so the money section covers only paid requests.',
+    'Local compute is not metered, so the money section covers only paid requests and plan-request counts.',
     'Evidence freshness is computed when the report is made and can change later.',
+    'Option ranks and scores are read just after the rest of the records, so a change made in that moment can show in one and not the other.',
   );
   const capped =
     r.problems_omitted +
     r.interventions_omitted +
-    r.problems.reduce((n, p) => n + p.claims_omitted, 0);
+    r.humility_omitted +
+    r.problems.reduce(
+      (n, p) => n + p.claims_omitted + p.options_omitted + p.selections_omitted,
+      0,
+    ) +
+    r.builds.reduce((n, b) => n + b.feedback_omitted, 0);
   if (capped)
     limits.push(
       `Long lists are cut: ${plural(capped, 'record')} not listed (see the notes above).`,
@@ -512,6 +579,10 @@ export function projectReportMarkdown(raw: ProjectReportInput): {
   if (r.claims_not_listed)
     limits.push(
       `${plural(r.claims_not_listed, 'claim is', 'claims are')} recorded but not listed, because ${r.claims_not_listed === 1 ? 'it is' : 'they are'} not linked to a listed problem or its options (or the list was cut). See Sources › Sources and claims.`,
+    );
+  if (r.specs.some((x) => x.checks_unreadable))
+    limits.push(
+      'The checks of at least one spec could not be read and are not listed.',
     );
   if (m.unknown_attempts)
     limits.push(

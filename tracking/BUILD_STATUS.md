@@ -6,7 +6,11 @@ What now works: **Projects › Path** has **Download project report**, a Markdow
 
 Checked in the cloud container on a throwaway PostgreSQL 16 database: `pnpm typecheck` and `pnpm format:check` pass; `tests/src/project-report.test.ts` 3/3; full `pnpm test:db` 1367 tests: 1333 pass, 29 skipped, and only the 5 known PowerShell-wrapper failures; `pnpm test:dev-safety` 19 pass, 3 skipped.
 
-Not covered: builds that failed before a manifest was written, reviewer comments (manifests record only repairs), and claims not linked to a listed problem or option (counted only). No browser walk; the button is a plain download link checked by typecheck, and the route by the API test.
+Review 1 (1 Medium, 8 Lows, 6 nits; `/mnt/project-files/reviews/PR224_PROJECT_REPORT_REVIEW_2026-11-15.md`) fixed. Plan requests are counted through the workspace's plan connections (chat, verification and qualification too) by purpose and state, with open ones flagged (M-1). Fixture amounts read as simulated units (L-1). Stored words outside the known tables are escaped (L-2). Products and artifacts without a manifest are counted (L-3). The intervention cut count is exact (L-4). Denied evaluations are listed apart from attempts (L-5). Unreadable spec checks say so (L-6). Humility reviews, options, selections and feedback are capped (L-7). New store tests cover unknown, in-flight and denied reservations and run-less plan requests (L-8). The nits are also fixed: no stray full stop after a question, blank lines, trimmed amounts, review subjects named, a ranking-snapshot note and these docs. The reviewer walked the button in a browser in three seeded fixture workspaces.
+
+Checks after the review-1 fixes (cloud, throwaway PostgreSQL 16): `pnpm typecheck` and `pnpm format:check` pass; `project-report.test.ts` 3/3; full `pnpm test:db` 1367 tests: 1333 pass, 29 skipped, only the 5 known PowerShell-wrapper failures; `pnpm test:dev-safety` 19 pass, 3 skipped.
+
+Not covered: details of builds that failed before a manifest was written (counted only), reviewer comments (manifests record only repairs), and claims not linked to a listed problem or option (counted only).
 
 ## November 15 update — autopilot fixes from the third live rerun (no migration or ADR)
 
