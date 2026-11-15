@@ -11,13 +11,30 @@ function failure(text: string): string {
     : 'The studio could not read this spreadsheet. It may be damaged; download the original to open it.';
 }
 
-export function SheetView({ bytes }: { bytes: ArrayBuffer }) {
+export function SheetView({
+  bytes,
+  transfer = false,
+  onSpent,
+}: {
+  bytes: ArrayBuffer;
+  /**
+   * Review 7 N-1: hand `bytes` itself to the worker (the page then no longer holds them), for a
+   * re-packed copy made only for this view. `onSpent` asks for a fresh copy if the view is
+   * shown again after its bytes were handed over.
+   */
+  transfer?: boolean;
+  onSpent?: () => void;
+}) {
   const [result, setResult] = useState<{
     sheets: Sheet[];
     error: string;
   } | null>(null);
   useEffect(() => {
     setResult(null);
+    if (transfer && bytes.byteLength === 0) {
+      onSpent?.();
+      return;
+    }
     const worker = new Worker(new URL('./sheet-worker.ts', import.meta.url), {
       type: 'module',
     });
@@ -35,11 +52,12 @@ export function SheetView({ bytes }: { bytes: ArrayBuffer }) {
       setResult({ sheets: [], error: failure('') });
       worker.terminate();
     };
-    // A copy handed over (transferred, not cloned again), so the page keeps its own bytes.
-    const copy = bytes.slice(0);
-    worker.postMessage(copy, [copy]);
+    // Transferred, not cloned; a copy unless these bytes were made for this view alone.
+    const sent = transfer ? bytes : bytes.slice(0);
+    worker.postMessage(sent, [sent]);
     return () => worker.terminate();
-  }, [bytes]);
+    // onSpent is a request back to the parent, not an input to reading the bytes.
+  }, [bytes, transfer]);
   const [tab, setTab] = useState(0);
   if (!result) return <p className="small">Reading the spreadsheet…</p>;
   if (result.error) return <p className="notice">{result.error}</p>;

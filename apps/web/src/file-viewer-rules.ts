@@ -93,8 +93,8 @@ const INFLATE_SLICE = 4096;
 async function inflated(
   data: Uint8Array,
   limit: number,
-  keep: boolean,
-): Promise<{ size: number; bytes: Uint8Array | null } | null> {
+  into: Uint8Array | null,
+): Promise<number | null> {
   let at = 0;
   const input = new ReadableStream<BufferSource>(
     {
@@ -112,82 +112,87 @@ async function inflated(
     .pipeThrough(new DecompressionStream('deflate-raw'))
     .getReader();
   let n = 0;
-  const chunks: Uint8Array[] = [];
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
-    n += value.byteLength;
-    if (n > limit) {
+    if (n + value.byteLength > limit) {
       await reader.cancel().catch(() => {});
       return null;
     }
-    if (keep) chunks.push(value);
+    // Review 7 N-1: written straight into its place in the re-packed ZIP, not kept apart.
+    into?.set(value, n);
+    n += value.byteLength;
   }
-  if (!keep) return { size: n, bytes: null };
-  const out = new Uint8Array(n);
-  let o = 0;
-  for (const c of chunks) {
-    out.set(c, o);
-    o += c.byteLength;
-  }
-  return { size: n, bytes: out };
+  return n;
 }
 
 /**
  * Review 6: a fresh ZIP of stored parts, written by the studio, for SheetJS to read instead of
  * the original file. SheetJS then never parses a header the file's author wrote: every part
- * is one the check above inflated and counted, at the size it counted. Names keep their bytes
- * (UTF-8 when flagged, else Latin-1, as read). CRCs are left 0: SheetJS does not check them,
- * and these bytes go nowhere else.
+ * is one the check inflated and counted, at the size it counted. Review 7 N-2: each name is
+ * copied byte for byte from the part's local header (which the check found to name the same
+ * part as its central entry), with its UTF-8 flag. CRCs are left 0: SheetJS does not check
+ * them, and these bytes go nowhere else. Review 7 N-1: the buffer is allocated once, from the
+ * declared sizes (each already checked to be at least the real one), and each part is inflated
+ * straight into its place.
  */
-export function storedZip(
-  parts: { name: string; utf8: boolean; data: Uint8Array }[],
-): ArrayBuffer {
-  const enc = new TextEncoder();
-  const names = parts.map((p) =>
-    p.utf8
-      ? enc.encode(p.name)
-      : Uint8Array.from(p.name, (ch) => ch.charCodeAt(0) & 0xff),
-  );
-  let localSize = 0;
-  let centralSize = 0;
-  parts.forEach((p, i) => {
-    localSize += 30 + names[i]!.length + p.data.length;
-    centralSize += 46 + names[i]!.length;
-  });
-  const out = new Uint8Array(localSize + centralSize + 22);
-  const v = new DataView(out.buffer);
-  let at = 0;
-  let c = localSize;
-  parts.forEach((p, i) => {
-    const name = names[i]!;
-    const flags = p.utf8 ? 0x800 : 0;
-    v.setUint32(at, 0x04034b50, true);
-    v.setUint16(at + 4, 20, true);
-    v.setUint16(at + 6, flags, true);
-    v.setUint32(at + 18, p.data.length, true);
-    v.setUint32(at + 22, p.data.length, true);
-    v.setUint16(at + 26, name.length, true);
-    out.set(name, at + 30);
-    out.set(p.data, at + 30 + name.length);
-    v.setUint32(c, 0x02014b50, true);
-    v.setUint16(c + 4, 20, true);
-    v.setUint16(c + 6, 20, true);
-    v.setUint16(c + 8, flags, true);
-    v.setUint32(c + 20, p.data.length, true);
-    v.setUint32(c + 24, p.data.length, true);
-    v.setUint16(c + 28, name.length, true);
-    v.setUint32(c + 42, at, true);
-    out.set(name, c + 46);
-    at += 30 + name.length + p.data.length;
-    c += 46 + name.length;
-  });
-  v.setUint32(c, 0x06054b50, true);
-  v.setUint16(c + 8, parts.length, true);
-  v.setUint16(c + 10, parts.length, true);
-  v.setUint32(c + 12, centralSize, true);
-  v.setUint32(c + 16, localSize, true);
-  return out.buffer;
+class StoredZip {
+  readonly out: Uint8Array<ArrayBuffer>;
+  private at = 0;
+  private readonly central: {
+    name: Uint8Array;
+    flags: number;
+    size: number;
+    offset: number;
+  }[] = [];
+  constructor(capacity: number) {
+    this.out = new Uint8Array(capacity);
+  }
+  /** Writes a local header; the caller then writes the part's bytes at `data`, up to `room`. */
+  begin(name: Uint8Array, flags: number): number {
+    this.out.set(name, this.at + 30);
+    this.central.push({ name, flags, size: 0, offset: this.at });
+    return this.at + 30 + name.length;
+  }
+  end(size: number): void {
+    const e = this.central[this.central.length - 1]!;
+    const v = new DataView(this.out.buffer);
+    v.setUint32(this.at, 0x04034b50, true);
+    v.setUint16(this.at + 4, 20, true);
+    v.setUint16(this.at + 6, e.flags, true);
+    v.setUint32(this.at + 18, size, true);
+    v.setUint32(this.at + 22, size, true);
+    v.setUint16(this.at + 26, e.name.length, true);
+    e.size = size;
+    this.at += 30 + e.name.length + size;
+  }
+  finish(): ArrayBuffer {
+    const v = new DataView(this.out.buffer);
+    const start = this.at;
+    for (const e of this.central) {
+      const c = this.at;
+      v.setUint32(c, 0x02014b50, true);
+      v.setUint16(c + 4, 20, true);
+      v.setUint16(c + 6, 20, true);
+      v.setUint16(c + 8, e.flags, true);
+      v.setUint32(c + 20, e.size, true);
+      v.setUint32(c + 24, e.size, true);
+      v.setUint16(c + 28, e.name.length, true);
+      v.setUint32(c + 42, e.offset, true);
+      this.out.set(e.name, c + 46);
+      this.at += 46 + e.name.length;
+    }
+    v.setUint32(this.at, 0x06054b50, true);
+    v.setUint16(this.at + 8, this.central.length, true);
+    v.setUint16(this.at + 10, this.central.length, true);
+    v.setUint32(this.at + 12, this.at - start, true);
+    v.setUint32(this.at + 16, start, true);
+    this.at += 22;
+    // Only when a part inflated to less than it declared is there room left over to cut.
+    return this.at === this.out.length
+      ? this.out.buffer
+      : this.out.buffer.slice(0, this.at);
+  }
 }
 
 /**
@@ -270,7 +275,7 @@ export async function officeCheck(bytes: Uint8Array): Promise<string | null> {
 
 /**
  * officeCheck, and for spreadsheets (`repack`) also a fresh stored ZIP of the parts it checked
- * (storedZip), which is what SheetJS is given. `repacked` is absent when the bytes are not a
+ * (StoredZip), which is what SheetJS is given. `repacked` is absent when the bytes are not a
  * ZIP (an old .xls, which SheetJS reads as a compound file).
  */
 export async function officeOpen(
@@ -282,43 +287,55 @@ export async function officeOpen(
     return { refusal: declared };
   const refuse = (refusal: string) => ({ refusal });
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  let total = 0;
-  const parts: { name: string; utf8: boolean; data: Uint8Array }[] = [];
-  for (const e of zipEntries(bytes)!.entries) {
+  const entries = zipEntries(bytes)!.entries;
+  let capacity = 22;
+  for (const e of entries) {
     if (e.offset === null || e.compressed === null || e.size === null)
       return refuse(OFFICE_TOO_LARGE);
-    const at = e.offset;
+    if (e.offset + 30 > bytes.length) return refuse(OFFICE_DAMAGED);
+    // The re-packed part: local and central headers with the local name, and its data.
+    if (!e.dir)
+      capacity += 76 + 2 * view.getUint16(e.offset + 26, true) + e.size;
+  }
+  let zip: StoredZip | null = null;
+  let total = 0;
+  for (const e of entries) {
+    const at = e.offset!;
     if (at + 30 > bytes.length || view.getUint32(at, true) !== 0x04034b50)
       return refuse(OFFICE_DAMAGED);
     if (localDisagrees(bytes, view, e)) return refuse(OFFICE_DAMAGED);
-    const start =
-      at + 30 + view.getUint16(at + 26, true) + view.getUint16(at + 28, true);
-    if (start + e.compressed > bytes.length) return refuse(OFFICE_DAMAGED);
-    const limit = Math.min(e.size, OFFICE_TOTAL_MAX_BYTES - total);
-    const raw = bytes.subarray(start, start + e.compressed);
-    let out: { size: number; bytes: Uint8Array | null } | null;
-    if (e.method === 0)
-      out = { size: raw.length, bytes: repack ? raw.slice() : null };
-    else if (e.method === 8)
+    const nameLen = view.getUint16(at + 26, true);
+    const start = at + 30 + nameLen + view.getUint16(at + 28, true);
+    if (start + e.compressed! > bytes.length) return refuse(OFFICE_DAMAGED);
+    const limit = Math.min(e.size!, OFFICE_TOTAL_MAX_BYTES - total);
+    const raw = bytes.subarray(start, start + e.compressed!);
+    let into: Uint8Array | null = null;
+    if (repack && !e.dir) {
+      zip ??= new StoredZip(capacity);
+      const data = zip.begin(
+        bytes.slice(at + 30, at + 30 + nameLen),
+        view.getUint16(at + 6, true) & 0x800,
+      );
+      into = zip.out.subarray(data, data + limit);
+    }
+    let size: number | null;
+    if (e.method === 0) {
+      size = raw.length > limit ? null : raw.length;
+      if (size !== null) into?.set(raw);
+    } else if (e.method === 8)
       try {
-        out = await inflated(raw, limit, repack);
+        size = await inflated(raw, limit, into);
       } catch {
         return refuse(OFFICE_DAMAGED);
       }
     // Office files use only stored and deflated parts; the viewers read nothing else.
     else return refuse(OFFICE_DAMAGED);
-    if (!out || out.size > limit) return refuse(OFFICE_TOO_LARGE);
-    total += out.size;
-    if (repack && !e.dir)
-      parts.push({
-        name: e.name,
-        utf8: Boolean(e.flags & 0x800),
-        data: out.bytes!,
-      });
+    if (size === null) return refuse(OFFICE_TOO_LARGE);
+    total += size;
+    if (into) zip!.end(size);
   }
-  return repack
-    ? { refusal: null, repacked: storedZip(parts) }
-    : { refusal: null };
+  if (!repack) return { refusal: null };
+  return { refusal: null, repacked: (zip ?? new StoredZip(22)).finish() };
 }
 
 export function extensionOf(name: string): string {

@@ -512,14 +512,10 @@ test('ZIP64 extra fields that could be read two ways are refused', async () => {
   assert.equal(await r.officeCheck(part({ localExtra: honest })), null);
 });
 
-test('a spreadsheet is re-packed from its checked parts before SheetJS reads it', async () => {
-  const r = await rules();
-  const sheets = (await loadWeb('sheet-read.ts')) as {
-    readSheets(bytes: ArrayBuffer): { name: string; rows: string[][] }[];
-  };
-  const XLSX = createRequire(
-    new URL('../../apps/web/src/index.ts', import.meta.url),
-  )('xlsx') as {
+const xlsxLib = () =>
+  createRequire(new URL('../../apps/web/src/index.ts', import.meta.url))(
+    'xlsx',
+  ) as {
     utils: {
       book_new(): unknown;
       book_append_sheet(wb: unknown, ws: unknown, name: string): void;
@@ -527,6 +523,13 @@ test('a spreadsheet is re-packed from its checked parts before SheetJS reads it'
     };
     write(wb: unknown, o: Record<string, unknown>): ArrayBuffer;
   };
+
+test('a spreadsheet is re-packed from its checked parts before SheetJS reads it', async () => {
+  const r = await rules();
+  const sheets = (await loadWeb('sheet-read.ts')) as {
+    readSheets(bytes: ArrayBuffer): { name: string; rows: string[][] }[];
+  };
+  const XLSX = xlsxLib();
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(
     wb,
@@ -564,4 +567,81 @@ test('a spreadsheet is re-packed from its checked parts before SheetJS reads it'
   const refused = await r.officeOpen(bomb, true);
   assert.ok(refused.refusal);
   assert.equal(refused.repacked, undefined);
+});
+
+type ReadSheets = {
+  readSheets(bytes: ArrayBuffer): {
+    name: string;
+    rows: string[][];
+    totalRows: number;
+    totalCols: number;
+  }[];
+};
+
+// Review 7 L-1: the reviewer's wide.xlsx, five sheets each holding only A1 and XFD1000. Only the
+// shown 1,000 rows by 100 columns are built (it took 44 s and 1.2 GB when every sheet was
+// filled out to 16,384 columns first).
+test('a sheet with one far cell is read only as far as it is shown', async () => {
+  const sheets = (await loadWeb('sheet-read.ts')) as ReadSheets;
+  const XLSX = xlsxLib();
+  const wb = XLSX.utils.book_new();
+  for (let i = 1; i <= 5; i++)
+    XLSX.utils.book_append_sheet(
+      wb,
+      {
+        A1: { t: 's', v: 'first' },
+        XFD1000: { t: 's', v: 'far' },
+        '!ref': 'A1:XFD1000',
+      },
+      `S${i}`,
+    );
+  const bytes = XLSX.write(wb, {
+    type: 'array',
+    bookType: 'xlsx',
+    compression: true,
+  });
+  const started = Date.now();
+  const read = sheets.readSheets(bytes);
+  assert.ok(Date.now() - started < 5000, 'read the wide sheets quickly');
+  assert.equal(read.length, 5);
+  for (const sheet of read) {
+    assert.equal(sheet.rows.length, 1000);
+    assert.ok(sheet.rows.every((r) => r.length === 100));
+    assert.equal(sheet.rows[0]![0], 'first');
+    assert.equal(sheet.totalRows, 1000);
+    assert.equal(sheet.totalCols, 16384);
+  }
+});
+
+// Review 7 N-1 and N-2: the re-packed ZIP is written once at its exact size, names keep their
+// bytes (here 0x80, which a Latin-1 decode turns into "€"), and a part that inflates to less
+// than it declared leaves no gap.
+test('the re-packed ZIP keeps name bytes and has no room left over', async () => {
+  const r = await rules();
+  const data = new TextEncoder().encode('<sst/>'.repeat(50));
+  // A part named "xl/\x80orkbook.xml" (not flagged UTF-8) in both headers.
+  const b = deflated([{ name: 'xl/workbook.xml', data }]);
+  const word = new TextEncoder().encode('workbook');
+  for (let i = 0; i + word.length <= b.length; i++)
+    if (word.every((c, j) => b[i + j] === c)) b[i] = 0x80;
+  const opened = await r.officeOpen(b, true);
+  assert.equal(opened.refusal, null);
+  const z = new Uint8Array(opened.repacked!);
+  const nameLen = z[26]! | (z[27]! << 8);
+  assert.deepEqual(
+    [...z.subarray(30, 30 + nameLen)],
+    [...b.subarray(30, 30 + nameLen)],
+  );
+  assert.equal(z[30 + 3], 0x80);
+  // 30 + name + data, 46 + name, 22: nothing more.
+  assert.equal(z.length, 30 + nameLen + data.length + 46 + nameLen + 22);
+  // Declared larger than it inflates to: the re-packed copy is cut to what was written.
+  const roomy = deflated([
+    { name: 'xl/workbook.xml', data, declare: data.length + 100 },
+  ]);
+  const cut = await r.officeOpen(roomy, true);
+  assert.equal(cut.refusal, null);
+  const y = new DataView(cut.repacked!);
+  assert.equal(y.getUint32(22, true), data.length);
+  assert.equal(y.getUint32(cut.repacked!.byteLength - 22, true), 0x06054b50);
 });

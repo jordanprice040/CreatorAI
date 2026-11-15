@@ -20,6 +20,8 @@ Review 5 fix (November 15): a part whose local header claims an uncompressed siz
 
 Review 6 fix (November 15): SheetJS is given only a fresh stored ZIP rebuilt from the parts the check inflated, so it never reads the original file's ZIP headers (closing the run of parser differentials), and ZIP64 extra fields that are short, repeated or leave a partial field are refused. Checked: typecheck, format, build, `pnpm test:db` (1286 tests: 1252 pass, 29 skipped, the 5 known PowerShell-wrapper failures), the walk (16 samples; Word, Excel (through the re-pack) and PowerPoint open, both bombs and the reviewer-shaped `shortzip64s.xlsx` refused, 0 outside requests, 0 dialogs, 0 console errors).
 
+Review 7 fix (November 15): each sheet is read only as far as it is shown (1,000 rows by 100 columns), so a workbook with one far cell per sheet no longer takes tens of seconds; the re-pack is written into one buffer and handed to the sheet worker without a copy (273 MiB peak for 240 MiB of parts, was about 547 MiB); part names keep their exact bytes. Checked: typecheck, format, build, `pnpm test:db` (1288 tests: 1254 pass, 29 skipped, the 5 known PowerShell-wrapper failures), the walk (16 samples; Word, Excel and PowerPoint open, bombs and `shortzip64s.xlsx` refused, 0 outside requests, 0 dialogs, 0 console errors).
+
 Open: a walk in the installed app after merge.
 
 ## November 14 update — building qualified in the app, per connection (B1; ADR-0105, migration 65)

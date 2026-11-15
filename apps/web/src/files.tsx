@@ -645,6 +645,7 @@ function BinaryView({
     refusal: string | null;
     repacked?: ArrayBuffer;
   } | null>(null);
+  const [round, setRound] = useState(0);
   useEffect(() => {
     const data = bytes.data;
     if (
@@ -663,7 +664,7 @@ function BinaryView({
     return () => {
       stop = true;
     };
-  }, [bytes.data, viewer]);
+  }, [bytes.data, viewer, round]);
   if (bytes.error) return <p className="error">{bytes.error}</p>;
   if (!bytes.data) return <p className="small">Reading the file…</p>;
   const data = bytes.data;
@@ -683,7 +684,15 @@ function BinaryView({
         ) : viewer === 'document' ? (
           <DocxView bytes={data} name={name} />
         ) : viewer === 'spreadsheet' ? (
-          <SheetView bytes={check?.repacked ?? data} />
+          check?.repacked ? (
+            <SheetView
+              bytes={check.repacked}
+              transfer
+              onSpent={() => setRound((r) => r + 1)}
+            />
+          ) : (
+            <SheetView bytes={data} />
+          )
         ) : viewer === 'presentation' ? (
           <SlidesView bytes={data} />
         ) : (

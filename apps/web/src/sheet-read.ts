@@ -52,11 +52,17 @@ export function readSheets(bytes: ArrayBuffer): Sheet[] {
       }
     const ref = utils.decode_range(ws['!ref']);
     const full = utils.decode_range(ws['!fullref'] ?? ws['!ref']);
+    // Review 7 L-1: only the rows and columns shown are built. A sheet with one far cell
+    // (XFD1000) is otherwise filled out to its full width before being cut.
+    const shown = utils.decode_range(ws['!ref']);
+    shown.e.r = Math.min(shown.e.r, shown.s.r + SHEET_MAX_ROWS - 1);
+    shown.e.c = Math.min(shown.e.c, shown.s.c + SHEET_MAX_COLS - 1);
     const rows = utils.sheet_to_json<unknown[]>(ws, {
       header: 1,
       raw: false,
       defval: '',
       blankrows: true,
+      range: shown,
     });
     const cols = Math.min(
       SHEET_MAX_COLS,
