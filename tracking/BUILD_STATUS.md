@@ -1,5 +1,9 @@
 # Build status — November 10, 2026
 
+## November 15 update — compare two runs side by side (F7; ADR-0120, no migration)
+
+What now works: Autopilot › Compare runs puts two autopilots of a workspace in columns: result, route and models, problem, evidence, options and scores, every stop for a person, the choice and who made it, proposal, builds, requests, money and time, with rows that differ marked. It is labelled "A comparison of two runs, not a study result." and lists cautions when the two are not like for like. Read only, from the records, with the caller's own workspace access (`GET /api/workspaces/:ws/run-comparison?a=&b=`). New files: `packages/contracts/src/run-compare.ts`, `apps/api/src/run-compare.ts`, `apps/web/src/run-compare.tsx`, `run-compare-rules.ts`, `run-compare.css`; a section in `pages.ts`, a view case in `main.tsx` and `next-rules.ts`. Tests: `tests/src/run-compare.test.ts` (cautions, table rows and pair rules, two fixture autopilots compared before and after a Continue that chooses and saves a proposal, refusals for the same id, a bad id, another workspace and a stranger, a viewer's read, and the HTTP route). Not covered: two decisions no autopilot made; no live run.
+
 ## November 15 update — autopilot fixes from the third live rerun (no migration or ADR)
 
 These fix the findings in `/mnt/project-files/reviews/LIVE_AUTOPILOT_RERUN_205_2026-11-15.md` (autopilot e8b36bd9 on main 42dce84).

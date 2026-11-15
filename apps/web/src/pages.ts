@@ -31,7 +31,8 @@ export type View =
   | 'settings'
   | 'github'
   | 'payments'
-  | 'autopilot';
+  | 'autopilot'
+  | 'runcompare';
 
 export type PageKey =
   | 'chat'
@@ -96,7 +97,11 @@ export const PAGES: readonly Page[] = [
   {
     key: 'autopilot',
     label: 'Autopilot',
-    sections: [{ view: 'autopilot', slug: 'run', label: 'Autopilot' }],
+    sections: [
+      { view: 'autopilot', slug: 'run', label: 'Autopilot' },
+      // ADR-0120 (F7): two autopilots side by side, read only.
+      { view: 'runcompare', slug: 'compare', label: 'Compare runs' },
+    ],
   },
   {
     key: 'sources',

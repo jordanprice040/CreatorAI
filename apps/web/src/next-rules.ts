@@ -31,7 +31,8 @@ export type StepView =
   | 'settings'
   | 'github'
   | 'payments'
-  | 'autopilot';
+  | 'autopilot'
+  | 'runcompare';
 
 export type BuildState =
   'none' | 'running' | 'verified' | 'checkpoint' | 'failed' | 'interrupted';
@@ -602,6 +603,7 @@ export function nextStep(view: StepView, f: StudioFacts): Step {
     case 'desktop':
     case 'operations':
     case 'settings':
+    case 'runcompare':
       return pipelineStep(f);
   }
 }

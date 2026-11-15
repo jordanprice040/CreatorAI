@@ -1,0 +1,13 @@
+workspace e744bc11-3167-4a1b-92fd-d6a2739a4dd1
+PASS the answer carries its label
+PASS both worked on the same problem
+PASS the Autopilot page has a Compare runs tab
+PASS the page shows the label
+PASS the two latest finished autopilots open, older on the left
+PASS the cautions name the different request limits
+PASS the Requests row shows each limit in its column
+PASS both columns show the stop at the choice
+PASS Swap puts the right one on the left
+PASS the address keeps the pair
+PASS no sideways page scroll at phone width
+PASS no page errors ()

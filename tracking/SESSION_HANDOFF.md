@@ -1,5 +1,9 @@
 # Session handoff — November 10, 2026
 
+## November 15 handoff — compare two runs (F7, ADR-0120)
+
+Branch `claude/project-thread-xvr9sj` from main f5728aa, no migration (F7 had none reserved). Contracts `run-compare.ts`: `RUN_COMPARISON_LABEL`, `RunComparisonRequestSchema`, `RunComparisonSideSchema`, `RunComparisonSchema`, `comparisonCautions`. API `run-compare.ts`: `RUN_COMPARE_ROUTE`, `comparisonSide`, `compareRuns(store, ctx, ws, {a, b})` over a `RunCompareStore` pick of `ConnectionStore` reads, `runCompareRoutes`; wired into `records()` in `index.ts` beside the other module routes, and exported. Web: `pages.ts` adds view `runcompare` (slug `compare`) to the Autopilot page; `main.tsx` renders `RunCompare`; `next-rules.ts` `StepView` gets `runcompare` (pipeline line). `run-compare-rules.ts`: `compareRows`, `duration`, `outcomeText`, `pairFrom`, `defaultPair`. Address `#/autopilot/compare?ws=…&id=<a>,<b>`. Next: independent review in a separate thread.
+
 ## November 15 handoff — autopilot fixes from the third live rerun
 
 Branch `claude/project-thread-77qqks`, restarted from main 42dce84 after #205 merged. No migration or ADR.
