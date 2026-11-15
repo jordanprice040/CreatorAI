@@ -1,5 +1,19 @@
 # Decision log
 
+## ADR-0119 — Command palette (Ctrl+K) and a keyboard shortcuts sheet (November 15, 2026; no migration)
+
+Feature idea 6 (Jordan, November 15: build all 13 ideas; plan `/mnt/project-files/plans/FEATURE_IDEAS_PLAN_2026-11-15.md`). The studio has about 30 tabs across 7 pages and its only shortcut was Ctrl+. for the side panel. Web only.
+
+- **What it is.** Ctrl+K (Cmd+K on a Mac) opens a palette from anywhere, including a text field; Ctrl+K again or Esc closes it and focus returns where it was. It searches forms (Actions), every tab (Pages), problems (Projects), recent records, matching records and the person's other workspaces. "?" opens a shortcuts sheet, except while typing in a field. Ctrl+. stays with the side panel.
+- **It only moves the person.** Every item opens a page, a form, a record, the notes panel or the shortcuts sheet. Nothing is filled in or submitted; starting work still needs the page's own form and approvals. The component reads with GET only (a test checks it sends no CSRF token, body or method).
+- **Access.** Records come from the workspace's existing search route, which checks membership before it builds any hit, and open through the same destination check as Search. Forms are listed by role: "Start an autopilot" for owners only (ADR-0111), "Start a discovery" and "Fetch a source" for owners and editors, reading items for everyone. Pages are listed whatever the view mode, since Standard's hidden tabs still open by address (ADR-0082). Fixture records are labelled.
+- **Accessibility.** Native modal `<dialog>` (focus stays inside, the page behind is inert), a combobox input with `aria-activedescendant` over a grouped listbox, arrows, Home, End and Enter, a polite result count, and Esc stopped at the dialog so it does not also close the side panel. axe-core found no violations with the palette or sheet open, in both themes and at phone width.
+- **Code.** `apps/web/src/palette-rules.ts` (items, ranking, keys, the shortcut list), `command-palette.tsx`, `palette.css`, and one mount in `main.tsx`. `style.css` is untouched.
+
+Not covered: no shortcuts beyond these (no "g then x" sequences); no user-defined keys; the palette does not search source passages (Search does, through "Search all records for …").
+
+Rejected: running actions from the palette (it would bypass the forms that show what will happen and ask for approval); a new server search route (the existing one already checks access and labels fixture records).
+
 ## ADR-0112 — Larger Python builds are unqualified trials until their roles pass the larger Python benchmark (November 15, 2026; no migration)
 
 **Owner decision (Jordan, November 15, 11:33 UTC): "Label larger Claude builds".** ADR-0105's "Claude route qualified for small builds only" was a written rule the app did not enforce (PR #212 re-check 3): Python builds never carried the unqualified-trial label and `p14-larger-ledgercheck-v5` gated nothing. Jordan wants larger Claude builds to stay possible, so they are labelled, not blocked. **Amends ADR-0078 (review M-2) and ADR-0105.** (ADR-0111 is #213's, merged. S0 takes the next free numbers: ADR-0113 and migration 69.)

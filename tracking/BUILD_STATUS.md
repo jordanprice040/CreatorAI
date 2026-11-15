@@ -1,5 +1,11 @@
 # Build status — November 10, 2026
 
+## November 15 update — command palette and shortcuts (F6, ADR-0119, no migration)
+
+What now works: Ctrl+K (Cmd+K) opens a command palette that searches forms, every tab, problems, recent and matching records and other workspaces, and opens what is chosen; nothing runs from it. "?" opens a keyboard shortcuts sheet (not while typing); Ctrl+. still opens or folds the side panel. Forms are listed by workspace role; records come from the access-checked search route and open through the destination check. Web only: `palette-rules.ts`, `command-palette.tsx`, `palette.css`, one mount in `main.tsx`.
+
+Checked in the cloud container on a throwaway PostgreSQL 16 database: `pnpm typecheck` and `pnpm format:check` pass; new `web-palette.test.ts` (9 tests: every tab listed, forms by role, items only navigate and the component never writes, ranking, groups, arrow keys, Ctrl+K/Cmd+K and "?" kept out of text fields, shortcut list and Ctrl+. kept); full `pnpm test:db` 1373 tests: 1339 pass, 29 skipped, and only the 5 known PowerShell-wrapper failures. A Playwright walk of a fixture studio (ports 5183/4330/4340, throwaway database): Ctrl+K focuses the search field, "decide" then Enter opens Projects › Decide, Esc closes and focus returns to the workspace picker, a problem opens Decide on it, "?" opens the sheet with focus on Close, "?" typed in Search's field stays a character; axe-core (WCAG 2.2 AA and best practice) found no violations with the palette open in dark and light and at 390 px, or with the sheet open. No live run.
+
 ## November 15 update — autopilot fixes from the third live rerun (no migration or ADR)
 
 These fix the findings in `/mnt/project-files/reviews/LIVE_AUTOPILOT_RERUN_205_2026-11-15.md` (autopilot e8b36bd9 on main 42dce84).
