@@ -1,6 +1,8 @@
 /* Usage indicator (runbook step 9): a top-bar button that opens a small panel. */
 .usage {
   position: relative;
+  /* Not the 14 px every details gets, which pushed both top-bar pills below the other items. */
+  margin-top: 0;
 }
 .usage-summary {
   display: inline-flex;
