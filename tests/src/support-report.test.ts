@@ -302,6 +302,75 @@ test('review 4: hex digests and acronym CamelCase names stay readable', () => {
   );
 });
 
+test('review 5: random lower-case runs and CamelCase-shaped tokens are hidden at a pinned rate', () => {
+  const next = seeded(20261115 + 5);
+  const L = 'abcdefghijklmnopqrstuvwxyz';
+  const U = L.toUpperCase();
+  const pick = (alphabet: string, n: number) =>
+    Array.from(
+      { length: n },
+      () => alphabet[Math.floor(next() * alphabet.length)],
+    ).join('');
+  const leaks = (gen: () => string) => {
+    let leaked = 0;
+    for (let i = 0; i < 500; i++)
+      if (!redactSupportText(`key ${gen()} end`).text.includes('[hidden]'))
+        leaked++;
+    return leaked;
+  };
+  // R5-L1: lower case with one digit inside (2895 of 3000 leaked in round 4's build).
+  const oneDigit = () => {
+    const a = pick(L, 31);
+    const i = 1 + Math.floor(next() * 29);
+    return a.slice(0, i) + pick('0123456789', 1) + a.slice(i);
+  };
+  assert.ok(leaks(oneDigit) <= 40, 'one digit inside');
+  // R5-L1: five random Capitalized pieces of 4 to 7 letters (787 of 3000 leaked).
+  const camel = () =>
+    Array.from(
+      { length: 5 },
+      () => pick(U, 1) + pick(L, 3 + Math.floor(next() * 4)),
+    ).join('');
+  assert.ok(leaks(camel) <= 40, 'CamelCase-shaped');
+  // R5-L2: letters of one case only (every one leaked before).
+  assert.ok(leaks(() => pick(L, 32)) <= 25, 'lower case 32');
+  assert.ok(leaks(() => pick(U, 32)) <= 25, 'upper case 32');
+  assert.ok(leaks(() => pick(L, 20)) <= 80, 'lower case 20');
+
+  for (const key of [
+    'wchhrihxnkgkjrwn0hxtnxzjmmxszasx',
+    'mfvwmqlbixrzclbpfkphndwqqoizojkf',
+    'QkzrbVwtnXpdlmHrcfJgbtwZsdkq',
+  ]) {
+    assert.equal(
+      redactSupportText(`failed with ${key} today`).text,
+      'failed with [hidden] today',
+      key,
+    );
+  }
+  // Real names and long joined words stay readable.
+  for (const keep of [
+    'portfolioschedulerfailures',
+    'internationalization',
+    'creatorstudiodatabase',
+    'supportreportgenerator',
+    'ChatGPTPlanConnection',
+    'DefaultEndpointsProtocol',
+    'WorkflowTaskNeedsHuman',
+    'PlanConnectionSignInState',
+    'ReadableStreamDefaultReader',
+    'TransactionRollbackError',
+    'UnhandledPromiseRejection',
+    'AbortControllerTimeout',
+    'ECONNREFUSEDBYREMOTEHOST',
+    'DESKTOPAPPLICATIONSERVER',
+  ]) {
+    const { text, hidden } = redactSupportText(`x ${keep} y`);
+    assert.equal(text, `x ${keep} y`);
+    assert.equal(hidden, 0, keep);
+  }
+});
+
 test('fields are hidden before they are cut short and cannot forge report lines', () => {
   const key = 'sk-proj-Zx81kQ2mN4pL7vR9tY3wB6cDeF0gH1jK';
   const facts: SupportFacts = {

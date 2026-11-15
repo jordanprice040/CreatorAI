@@ -303,26 +303,29 @@ function readsAsName(alnum: string): boolean {
       if (++numbers > 2 || p.length > 3) return false;
     } else if (/^[A-Z]+$/.test(p)) {
       if (p.length < 2 || p.length > 6) return false;
-    } else if (
-      p.length < 3 ||
-      (!/[aeiouy]/i.test(p) && !VOWELLESS.has(p.toLowerCase()))
-    )
-      return false;
+    } else if (!readsAsWord(p)) return false;
   }
   return true;
+}
+// A piece reads as a word when it is a known vowelless word, a short word of 3 or 4 letters
+// with a vowel (Plan, Task), or 5 to 14 letters with at least 30% vowels (y included) and no
+// run of four consonants. Random lower case has about
+// 23% vowels and long consonant runs (review 5 R5-L1).
+function readsAsWord(p: string): boolean {
+  const w = p.toLowerCase();
+  if (VOWELLESS.has(w)) return true;
+  if (w.length < 3 || w.length > 14) return false;
+  if (w.length <= 4) return /[aeiouy]/.test(w) && !/[^aeiouy]{3}/.test(w);
+  return (
+    w.replace(/[^aeiouy]/g, '').length / w.length >= 0.3 &&
+    !/[^aeiouy]{4}/.test(w)
+  );
 }
 function looksRandom(run: string, min: number): boolean {
   const alnum = run.replace(/[^A-Za-z0-9]/g, '');
   if (alnum.length < min || /^[0-9a-f]+$/i.test(alnum)) return false;
   if (readsAsName(alnum)) return false;
   const digits = /[0-9]/.test(alnum);
-  if (!digits && !(/[A-Z]/.test(alnum) && /[a-z]/.test(alnum))) return false;
-  let changes = 0;
-  for (let i = 1; i < alnum.length; i++)
-    if (classOf(alnum[i]!) !== classOf(alnum[i - 1]!)) changes++;
-  const letters = alnum.replace(/[0-9]/g, '');
-  const vowels =
-    letters.replace(/[^aeiou]/gi, '').length / (letters.length || 1);
   const consonants = Math.max(
     0,
     ...alnum
@@ -330,6 +333,19 @@ function looksRandom(run: string, min: number): boolean {
       .split(/[aeiouy0-9]+/)
       .map((r) => r.length),
   );
+  if (!digits && !(/[A-Z]/.test(alnum) && /[a-z]/.test(alnum))) {
+    // Letters of one case only: random when 20 or more letters have under 25% vowels or
+    // five consonants in a row. Long joined words (portfolioschedulerfailures, about 38%
+    // vowels) stay readable (review 5 R5-L2).
+    const share = alnum.replace(/[^aeiouy]/gi, '').length / alnum.length;
+    return alnum.length >= 20 && (share < 0.25 || consonants >= 5);
+  }
+  let changes = 0;
+  for (let i = 1; i < alnum.length; i++)
+    if (classOf(alnum[i]!) !== classOf(alnum[i - 1]!)) changes++;
+  const letters = alnum.replace(/[0-9]/g, '');
+  const vowels =
+    letters.replace(/[^aeiou]/gi, '').length / (letters.length || 1);
   const digitGroups = alnum.match(/[0-9]+/g)?.length ?? 0;
   return (
     changes / (alnum.length - 1) >= 0.4 ||
