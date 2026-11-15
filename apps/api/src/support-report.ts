@@ -118,6 +118,10 @@ export function supportReportRoutes(o: {
     // Without the account names the report cannot promise to hide them: leave out the
     // sections that may carry them rather than show them.
     const safe = accounts !== null;
+    if (!safe)
+      unavailable.push(
+        'connections and failures: left out because the GitHub account names to hide could not be read',
+      );
     const facts: SupportFacts = {
       generated_at: (o.now?.() ?? new Date()).toISOString(),
       app: {

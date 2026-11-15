@@ -2999,3 +2999,4 @@ export {
   runCapabilityCheck,
   type CapabilityRunner,
 } from './team-checks.js';
+export { supportReportRoutes } from './support-report.js';

@@ -10,7 +10,11 @@ import {
   SUPPORT_FAILURE_LIMIT,
   type SupportFacts,
 } from '@creator/domain';
-import { createApi, DEFAULT_OWNER_ACTOR_ID } from '@creator/api';
+import {
+  createApi,
+  DEFAULT_OWNER_ACTOR_ID,
+  supportReportRoutes,
+} from '@creator/api';
 import { OPERATIONS_ACTOR_ID, OpsStore, TesterStore } from '@creator/db';
 import { freshDatabase, LOGIN_CODE, login } from './pg-harness.js';
 
@@ -114,6 +118,21 @@ const REVIEW_LEAKS: [string, string[]][] = [
   ['path C%3A%5CUsers%5Cdana%5Cx', ['dana']],
   ['refresh failed: refresh_token=refresh-tok-77aa', ['refresh-tok-77aa']],
   ['accessToken=xyzxyz9 apiKey: q1w2e3r4', ['xyzxyz9', 'q1w2e3r4']],
+  // Review 2.
+  [
+    'body: {\\"password\\": \\"hunter2 two words\\", \\"api_key\\": \\"abcdef\\"}',
+    ['hunter2', 'two words', 'abcdef'],
+  ],
+  ['"{\\"refresh_token\\":\\"rt-abc-123\\"}"', ['rt-abc-123']],
+  ['password=482913', ['482913']],
+  ['pwd: 0000', ['0000']],
+  ['"pin": 4321', ['4321']],
+  ['otp=123456', ['123456']],
+  ['password is correcthorsebattery', ['correcthorsebattery']],
+  ['glpat-abcdefghij1234567890', ['glpat', 'abcdefghij']],
+  ['redis://:onlypass123@host:6379', ['onlypass123']],
+  ['/var/home/erin/x', ['erin']],
+  ['jordan.price\uFF20gmail.com', ['jordan', 'price', 'gmail']],
 ];
 const REVIEW_READABLE = [
   `task-${ID}`,
@@ -126,9 +145,22 @@ const REVIEW_READABLE = [
   'token limit reached',
   'error_code: PLAN_REFUSED',
   'session: expired',
+  // Review 2: counts after non-password names, failure words, and ordinary sentences.
+  'tokens: 3',
+  'key_count: 5',
+  'password is incorrect',
+  'password is required',
+  'User rejected the request; User cancelled',
+  'PostgreSQL16TestDatabaseServer',
+  'Node22Postgres18WindowsRunner',
+  'webDiscoveryRunnerInterrupted42',
+  'pnpm-test-db-throwaway-postgres16',
+  'CREATOR_TEST_DATABASE_URL_FILE',
+  'x86_64-pc-linux-gnu-ubuntu2404',
+  'chatgpt-plan/6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b',
 ];
 
-test('review 1 probes: multi-word secrets, accounts, folders, short names and encodings are hidden', () => {
+test('review 1 and 2 probes: escaped JSON, multi-word and numeric secrets, accounts, folders, short names and encodings are hidden', () => {
   for (const [input, gone] of REVIEW_LEAKS) {
     const { text, hidden } = redactSupportText(input, {
       userNames: [],
@@ -150,6 +182,55 @@ test('review 1 probes: multi-word secrets, accounts, folders, short names and en
     accountNames: ['gh-owner-x'],
   });
   assert.equal(owned.text, 'push to [account]/CreatorAI failed');
+
+  // Review 2 R2-L3: names match whole words only; an OS user name hides the word it starts.
+  const words = redactSupportText(
+    'Apple app update by app; my-app ok. Jordan Price on jorda-laptop at DESKTOP-J1',
+    { userNames: ['jorda'], hostNames: ['DESKTOP-J1'], accountNames: ['app'] },
+  );
+  assert.equal(
+    words.text,
+    'Apple [account] update by [account]; my-app ok. [user] Price on [user]-laptop at [host]',
+  );
+  // R2-L6: a path that ends at the profile folder keeps the rest of the error.
+  assert.equal(
+    redactSupportText(
+      'ENOENT C:\\Users\\jorda: access denied while reading config',
+    ).text,
+    'ENOENT C:\\Users\\[user]: access denied while reading config',
+  );
+});
+
+// R2-L4: random keys of 24 and 32 characters and standard base64 keys are hidden. A fixed
+// seed keeps the counts stable.
+function seeded(seed: number) {
+  let x = seed >>> 0;
+  return () => {
+    x = (Math.imul(x, 1664525) + 1013904223) >>> 0;
+    return x / 2 ** 32;
+  };
+}
+test('random keys are hidden at a pinned rate', () => {
+  const next = seeded(20261115);
+  const URL64 =
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  const B64 =
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  const make = (alphabet: string, n: number) =>
+    Array.from({ length: n }, () => alphabet[Math.floor(next() * 64)]).join('');
+  const rate = (gen: () => string) => {
+    let hidden = 0;
+    for (let i = 0; i < 500; i++)
+      if (redactSupportText(`key ${gen()} end`).text.includes('[hidden]'))
+        hidden++;
+    return hidden;
+  };
+  assert.ok(rate(() => make(URL64, 24)) >= 490);
+  assert.ok(rate(() => make(URL64, 32)) >= 495);
+  assert.equal(
+    rate(() => `${make(B64, 43)}=`),
+    500,
+  );
 });
 
 test('fields are hidden before they are cut short and cannot forge report lines', () => {
@@ -452,4 +533,78 @@ test('GET /api/support/report is owner-only, read from the database, and redacte
     body: '{}',
   });
   assert.equal(post.status, 404);
+});
+
+test('when the GitHub account names cannot be read, connections and failures are left out', async () => {
+  // A stand-in pool: connections and failures would name an account, but the account
+  // query fails, so the report must not show them (review 2 R2-N3).
+  const pool = {
+    query: async (sql: string) => {
+      if (sql.includes('github_repositories')) throw new Error('boom');
+      if (sql.includes('from plan_connections c'))
+        return {
+          rows: [
+            {
+              kind: 'github connection',
+              id: ID,
+              workspace_id: ID,
+              fixture: false,
+              label: 'GitHub',
+              state: 'active',
+              reason: 'owned by gh-secret-owner',
+              problems: 0,
+            },
+          ],
+        };
+      return {
+        rows: [
+          {
+            at: new Date(),
+            source: 'github push',
+            id: ID,
+            workspace_id: ID,
+            fixture: false,
+            state: 'failed',
+            detail: 'push to gh-secret-owner/CreatorAI failed',
+          },
+        ],
+      };
+    },
+  };
+  const routes = supportReportRoutes({
+    deployment: {
+      mode: 'local',
+      environment: 'local',
+      listen_host: '127.0.0.1',
+      build_commit: null,
+      web_origin: null,
+      api_origin: null,
+      preview_origin: null,
+      products_root: '.creator/products',
+      metrics_token: null,
+    },
+    pool: pool as never,
+    ops: null,
+    ensureReady: async () => undefined,
+    schemaVersion: () => 68,
+    readiness: async () => ({ readiness: { ready: true }, checks: [] }),
+    maintenance: () => ({ jobs: {} }),
+    identity: { userNames: [], hostNames: [] },
+    requireOwner: async () => ({}) as never,
+  });
+  const out = await routes.route(
+    { method: 'GET' } as never,
+    new URL('http://local/api/support/report'),
+  );
+  const report = SupportReportSchema.parse(out!.value);
+  assert.ok(!report.text.includes('gh-secret-owner'), report.text);
+  assert.match(report.text, /## Connections\nNot available\./);
+  assert.match(
+    report.text,
+    /## Last 20 errors and failed steps\nNot available\./,
+  );
+  assert.match(
+    report.text,
+    /- connections and failures: left out because the GitHub account names to hide could not be read/,
+  );
 });

@@ -14,7 +14,9 @@ Each recorded field (labels, reasons, explanations, check details) is redacted w
 - GitHub accounts: "User/Organization <login> (<id>)" in identity refusals, and the owner logins the studio's own GitHub connections and repositories name, wherever they appear;
 - emails (also `%40`-encoded), personal folders (`C:\Users\<name>` including names with spaces, `/home/<name>`, `/Users/<name>`, also percent-encoded) and the machine's account and host names.
 
-Readable on purpose: commits, hashes, UUIDs and ids with a prefix (`task-<uuid>`), model ids, branch names and paths whose parts are words, numbers or hex, numbers after a secret-looking name, and words like "tokens", "Design" or "assignment". The database read selects no credential references, account labels, key digits, request bodies or outputs in the first place. If the GitHub account names cannot be read, the connections and failures sections are left out rather than shown unredacted.
+Escaped JSON (`\"`) is unescaped first, and a number alone after a password, pin, one-time code or secret name is hidden too. Account, user and host names are replaced as whole words; an OS user name also hides the word it starts. Long runs that mix upper and lower case are hidden when they change character class often or have few vowels, as random keys do.
+
+Readable on purpose: commits, hashes, UUIDs and ids with a prefix (`task-<uuid>`), model ids, branch names, kebab-case and SCREAMING_CASE names, CamelCase names with version numbers, paths whose parts are words, numbers or hex, counts after other secret-looking names (`tokens: 3`), failure words after "password is", and words like "Design" or "assignment". The database read selects no credential references, account labels, key digits, request bodies or outputs in the first place. If the GitHub account names cannot be read, the connections and failures sections are left out rather than shown unredacted.
 
 Copying is the person's own action: "Copy report" writes the shown text to the clipboard, or selects it for Ctrl+C where the clipboard is blocked. The studio sends nothing anywhere.
 

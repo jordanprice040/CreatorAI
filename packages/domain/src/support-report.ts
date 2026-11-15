@@ -97,23 +97,69 @@ const SECRET_PARTS = new Set([
   'sig',
   'sid',
   'sessionid',
+  'pin',
+  'otp',
 ]);
 const SECRET_COMPOUNDS =
-  /(sessionid|sessiontoken|apikey|accesskey|privatekey|clientsecret|refreshtoken|accesstoken|idtoken)/;
-export function isSecretName(name: string): boolean {
-  const parts = name
+  /(sessionid|sessiontoken|apikey|accesskey|privatekey|clientsecret|refreshtoken|accesstoken|idtoken|otpcode|authcode|mfacode|verificationcode|securitycode)/;
+// Names whose value is hidden even when it is only a number: passwords, PINs and one-time
+// codes are often numeric (review 2 R2-L1). Other secret names keep counts readable.
+const NUMERIC_SECRET_PARTS = new Set([
+  'password',
+  'passwd',
+  'passphrase',
+  'pgpassword',
+  'pwd',
+  'pw',
+  'pass',
+  'secret',
+  'pin',
+  'otp',
+  'code',
+]);
+const nameParts = (name: string) =>
+  name
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .toLowerCase()
     .split(/[\s_.-]+/)
     .filter(Boolean);
+export function isSecretName(name: string): boolean {
+  const parts = nameParts(name);
   return (
     parts.some((p) => SECRET_PARTS.has(p)) ||
     SECRET_COMPOUNDS.test(parts.join(''))
   );
 }
+/** Whether a lone number after this (secret) name is still hidden. */
+export function hidesNumbers(name: string): boolean {
+  const parts = nameParts(name);
+  return (
+    parts.some((p) => NUMERIC_SECRET_PARTS.has(p)) ||
+    SECRET_COMPOUNDS.test(parts.join(''))
+  );
+}
+const hideValue = (name: string, value: string) =>
+  isSecretName(name) && (!/^\d+$/.test(value) || hidesNumbers(name));
 
 // Strong words that may be followed by a value with only a space or "is" in between.
 const STRONG = 'password|passwd|passphrase|pgpassword|secret|token|pwd';
+// After a password word, any single word of 6 or more characters is taken as the password
+// unless it is one of these (review 2 R2-L2).
+const PASSWORD_WORD = /^(password|passwd|passphrase|pgpassword)$/i;
+const NOT_A_PASSWORD = new Set([
+  'incorrect',
+  'invalid',
+  'required',
+  'expired',
+  'missing',
+  'wrong',
+  'empty',
+  'changed',
+  'reset',
+  'rejected',
+  'mismatch',
+  'policy',
+]);
 // A value after a strong word counts only when it looks like a secret, so "token limit
 // reached" stays readable while "password is hunter2" does not.
 const SECRETISH = /[0-9_!@#$%^&*+/=~-]/;
@@ -139,7 +185,7 @@ const RULES: Rule[] = [
   },
   // Credentials inside a URL: scheme://user:password@host, the password may hold "/" (L-3).
   {
-    re: /\b([a-z][a-z0-9+.-]*:\/\/)[^\s@/?#:]+:[^\s@]+@/gi,
+    re: /\b([a-z][a-z0-9+.-]*:\/\/)[^\s@/?#:]*:[^\s@]+@/gi,
     to: (_m, scheme) => `${scheme}${HIDDEN}@`,
   },
   // Query parameters with short secret names (L-2).
@@ -151,7 +197,7 @@ const RULES: Rule[] = [
   {
     re: /(["']?)([A-Za-z][A-Za-z0-9_.-]*)\1(\s*[:=]\s*)(["'])((?:\\.|(?!\4)[^\\\r\n])*)\4/g,
     to: (m, q, name, sep, quote, value) =>
-      isSecretName(name) && value !== ''
+      value !== '' && hideValue(name, value)
         ? `${q}${name}${q}${sep}${quote}${HIDDEN}${quote}`
         : m,
   },
@@ -162,8 +208,14 @@ const RULES: Rule[] = [
       'gi',
     ),
     to: (m, word, sp, value) =>
-      SECRETISH.test(value) ? `${word}${sp}${HIDDEN}` : m,
+      SECRETISH.test(value) ||
+      (PASSWORD_WORD.test(word) &&
+        value.length >= 6 &&
+        !NOT_A_PASSWORD.has(value.toLowerCase()))
+        ? `${word}${sp}${HIDDEN}`
+        : m,
   },
+  { re: /\bglpat-[A-Za-z0-9_-]{20,}/g, to: fixed(HIDDEN) },
   {
     re: /\b(?:sk|rk|pk)[-_](?:live|test|proj|ant|svcacct)?[-_]?[A-Za-z0-9_-]{16,}/g,
     to: fixed(HIDDEN),
@@ -180,9 +232,10 @@ const RULES: Rule[] = [
     re: /\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*/g,
     to: fixed(HIDDEN),
   },
-  // GitHub identity refusals name both accounts: "User octo-work (5531)" (M-1).
+  // GitHub identity refusals name both accounts: "User octo-work (5531)" (M-1). Only with
+  // the numeric id, so "User rejected the request" stays readable (review 2 R2-L3).
   {
-    re: /\b(?:User|Organization|Bot)\s+[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})(?:\s*\(\d+\))?/g,
+    re: /\b(?:User|Organization|Bot)\s+[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\s*\(\d+\)/g,
     to: fixed('[account]'),
   },
   // Emails, also percent-encoded (L-4).
@@ -190,13 +243,14 @@ const RULES: Rule[] = [
     re: /[A-Za-z0-9._+-]+(?:%[0-9A-Fa-f]{2}[A-Za-z0-9._+-]*)*(?:@|%40)[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g,
     to: fixed('[email]'),
   },
-  // Personal folders. Windows profile names may hold spaces (M-3).
+  // Personal folders. Windows profile names may hold spaces (M-3) but none of
+  // " / \ [ ] : ; | = , + * ? < >, so the name stops there (review 2 R2-L6).
   {
-    re: /\b([A-Za-z]:[\\/]+(?:Users|Documents and Settings)[\\/]+)[^\\/"'<>|\r\n]+/gi,
+    re: /\b([A-Za-z]:[\\/]+(?:Users|Documents and Settings)[\\/]+)[^\\/"'<>|:;=,+*?[\]\r\n]+/gi,
     to: (_m, root) => `${root}[user]`,
   },
   {
-    re: /(?<![\w.-])(\/(?:home|Users)\/)[^/\s"'<>()[\],;]+/g,
+    re: /(?<![\w.-])(\/(?:var\/home|home|Users)\/)[^/\s"'<>()[\],;]+/g,
     to: (_m, root) => `${root}[user]`,
   },
   {
@@ -207,23 +261,41 @@ const RULES: Rule[] = [
 
 // Long opaque strings. Readable when every part between - / _ . is a word, a number, hex
 // (commits, hashes, uuids) or short: ids like task-<uuid>, model ids and branch names stay.
-const OPAQUE = /[A-Za-z0-9+/_.=-]{32,}/g;
+// Shorter random runs are judged whole by how often the character class changes, which is
+// high for random keys and low for names like Migration2Store (review 2 R2-L4).
+const OPAQUE = /[A-Za-z0-9+/_.=-]{20,}/g;
+const classOf = (c: string) =>
+  /[0-9]/.test(c) ? 'd' : /[A-Z]/.test(c) ? 'u' : /[a-z]/.test(c) ? 'l' : 's';
+function looksRandom(run: string, min: number): boolean {
+  const alnum = run.replace(/[^A-Za-z0-9]/g, '');
+  if (alnum.length < min) return false;
+  // Keys mix upper and lower case. Hex (commits, hashes, uuids), kebab-case and
+  // SCREAMING_CASE names do not, so they stay readable.
+  if (!/[A-Z]/.test(alnum) || !/[a-z]/.test(alnum)) return false;
+  let changes = 0;
+  for (let i = 1; i < alnum.length; i++)
+    if (classOf(alnum[i]!) !== classOf(alnum[i - 1]!)) changes++;
+  // Random keys change class about every other character and have few vowels; CamelCase
+  // names and words with a version number (PostgreSQL16TestServer) change far less often
+  // and read like words.
+  const ratio = changes / (alnum.length - 1);
+  const letters = alnum.replace(/[0-9]/g, '');
+  const vowels =
+    letters.replace(/[^aeiou]/gi, '').length / (letters.length || 1);
+  return ratio >= 0.4 || vowels < 0.25 || (ratio >= 0.3 && vowels < 0.3);
+}
 export function isOpaqueSecret(s: string): boolean {
   const parts = s.split(/[-/_.=+]+/).filter(Boolean);
-  return parts.some(
-    (p) =>
-      p.length >= 16 &&
-      /[0-9]/.test(p) &&
-      /[A-Za-z]/.test(p) &&
-      !/^[0-9a-f]+$/i.test(p) &&
-      !/^[0-9A-F]+$/.test(p),
-  );
+  if (parts.some((p) => looksRandom(p, 16))) return true;
+  // Dotted names (files, hosts, versions) are judged by their parts only.
+  if (s.includes('.')) return false;
+  return looksRandom(s, 20);
 }
 
 // name=value and name: value, unquoted. Only the name and separator are matched, so a value
 // that is itself "refresh_token=…" is still examined; numbers alone stay readable (L-7).
 const NAMED = /(["']?)([A-Za-z][A-Za-z0-9_.-]*)\1(\s*[:=]\s*)/g;
-const VALUE = /^(?!\[hidden\])[^\s"'&,;(){}[\]<>]+/;
+const VALUE = /^(?!\[hidden\])[^\s"'&,;(){}[\]<>\\]+/;
 function hideNamedValues(text: string): { text: string; hidden: number } {
   let out = '';
   let at = 0;
@@ -233,7 +305,7 @@ function hideNamedValues(text: string): { text: string; hidden: number } {
     if (m.index < at) continue;
     const end = m.index + m[0].length;
     const value = VALUE.exec(text.slice(end))?.[0];
-    if (!value || !isSecretName(m[2]!) || /^\d+$/.test(value)) continue;
+    if (!value || !hideValue(m[2]!, value)) continue;
     out += text.slice(at, end) + HIDDEN;
     at = end + value.length;
     NAMED.lastIndex = at;
@@ -253,11 +325,14 @@ export function redactSupportText(
   identity: SupportIdentity = { userNames: [], hostNames: [] },
 ): { text: string; hidden: number } {
   let hidden = 0;
-  // Encoded separators would hide a path from the folder rules (L-4).
+  // Encoded separators would hide a path or an email from the rules (L-4, R2-N2), and
+  // escaped quotes would hide a JSON body embedded in an error message (R2-M1).
   let out = text
+    .replace(/\\(["\\])/g, '$1')
     .replace(/%5C/gi, '\\')
     .replace(/%2F/gi, '/')
-    .replace(/%3A/gi, ':');
+    .replace(/%3A/gi, ':')
+    .replace(/\uFF20/g, '@');
   for (const r of RULES)
     out = out.replace(r.re, (...m: unknown[]) => {
       const args = m
@@ -275,14 +350,22 @@ export function redactSupportText(
     hidden++;
     return HIDDEN;
   });
-  for (const [names, to] of [
-    [identity.accountNames ?? [], '[account]'],
-    [identity.userNames, '[user]'],
-    [identity.hostNames, '[host]'],
+  // Whole words only (review 2 R2-L3). Accounts and hosts match as whole tokens; an OS
+  // user name also hides the rest of a word it starts, since a Windows profile name is
+  // often a cut-down real name ("jorda" in "Jordan").
+  // GitHub logins may hold "-", so a login only matches when no "-" joins it to more.
+  for (const [names, to, rest, edge] of [
+    [identity.accountNames ?? [], '[account]', '', 'A-Za-z0-9-'],
+    [identity.userNames, '[user]', '[A-Za-z0-9]*', 'A-Za-z0-9'],
+    [identity.hostNames, '[host]', '', 'A-Za-z0-9'],
   ] as const)
     for (const n of [...names].sort((a, b) => b.length - a.length)) {
       if (n.trim().length < 3) continue;
-      out = out.replace(new RegExp(escape(n.trim()), 'gi'), () => {
+      const word = new RegExp(
+        `(?<![${edge}])${escape(n.trim())}${rest}(?![${edge}])`,
+        'gi',
+      );
+      out = out.replace(word, () => {
         hidden++;
         return to;
       });
@@ -383,7 +466,7 @@ export function renderSupportReport(
   if (f.unavailable.length) {
     L.push('');
     L.push('## Not included');
-    for (const u of f.unavailable) L.push(`- ${label(u)}`);
+    for (const u of f.unavailable) L.push(`- ${field(u) ?? ''}`);
   }
   // A last pass over the whole text, in case a fixed part ever carries something.
   const last = redactSupportText(L.join('\n') + '\n', identity);
