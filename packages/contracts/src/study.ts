@@ -172,9 +172,9 @@ export const StudyEffortSchema = z.strictObject({
   away_ms: effortMs,
 });
 export type StudyEffort = z.infer<typeof StudyEffortSchema>;
-/** The intervention body the API accepts: the frozen intervention fields plus optional timing. */
 /** Starting a step takes no input. */
 export const StartStudyEffortStepSchema = z.strictObject({});
+/** The intervention body the API accepts: the frozen intervention fields plus optional timing. */
 export const StudyInterventionRequestSchema = StudyInterventionSchema.extend({
   effort: StudyEffortSchema.optional(),
 });

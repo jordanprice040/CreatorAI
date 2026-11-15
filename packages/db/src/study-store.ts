@@ -840,7 +840,7 @@ export class StudyStore extends RunbookStore {
     // Return denials after commit so the denial event is durable.
     return this.tx(async (c) => {
       const a = await this.lockAttemptForWrite(c, ctx, ws, attemptId);
-      // Review M-1 (#221): only the assigned person's own time is measured, never the owner's.
+      // Review M-2 (#221): only the assigned person's own time is measured, never the owner's.
       if (effort) notParticipant(a, ctx);
       if (action === 'helpers')
         return {
