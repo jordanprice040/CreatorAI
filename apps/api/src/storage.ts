@@ -73,6 +73,7 @@ export function createStorage(o: {
       workspaces: owned,
       olderThanDays: days,
       now: new Date(),
+      includeUnreadable: session.actor_id === o.ownerId,
     };
     return { store, ctx, workspaces, packages, cleanup };
   }
@@ -95,7 +96,7 @@ export function createStorage(o: {
       session,
       days,
     );
-    const usage = await productDiskUsage(o.products);
+    const usage = await productDiskUsage(o.products, cleanup.workspaces);
     const projects: StorageProject[] = workspaces.map((w) => {
       const mine = usage.filter((u) => u.workspace_id === w.workspace_id);
       const sum = (k: keyof (typeof mine)[number]) =>
@@ -142,9 +143,17 @@ export function createStorage(o: {
             },
           ]
         : [];
-    const history: StorageCleanupRecord[] = (
-      await store.cleanupHistory(ctx)
-    ).map((e) => {
+    const events = await store.cleanupHistory(ctx);
+    // Review L-4: an intent whose outcome never came (the process stopped mid-way). Newest
+    // first, so an intent's own outcome is the first later event with its plan hash.
+    const interrupted = (i: number) => {
+      const hash = events[i]!.payload.plan_hash;
+      for (let j = i - 1; j >= 0; j--)
+        if (events[j]!.payload.plan_hash === hash)
+          return events[j]!.action !== 'storage.cleanup.outcome';
+      return !(i === 0 && cleaning);
+    };
+    const history: StorageCleanupRecord[] = events.map((e, i) => {
       const p = e.payload;
       const count = (v: unknown) => (Array.isArray(v) ? v.length : 0);
       return {
@@ -160,6 +169,7 @@ export function createStorage(o: {
           e.action === 'storage.cleanup.outcome'
             ? count(p.packages_changed) === 0
             : null,
+        interrupted: e.action === 'storage.cleanup.intent' && interrupted(i),
       };
     });
     return parse(StorageReportSchema, {

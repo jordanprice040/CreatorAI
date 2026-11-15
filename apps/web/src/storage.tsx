@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   STORAGE_CLEANUP_CONFIRMATION,
   StorageCleanupResultSchema,
@@ -29,6 +29,11 @@ export function Storage({ session }: { session: SessionInfo }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<StorageCleanupResult | null>(null);
+  // Review N-4: focus moves to the confirming button when the confirmation appears.
+  const confirmButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (confirming) confirmButton.current?.focus();
+  }, [confirming]);
   const s = data.data;
   const projectName = (ws: string | null) =>
     s?.projects.find((p) => p.workspace_id === ws)?.name ?? 'Unknown project';
@@ -149,9 +154,11 @@ export function Storage({ session }: { session: SessionInfo }) {
           <p className="small">
             A task's workspace is offered only when its latest commit is in a
             verified package whose files still match their recorded hashes,
-            nothing in it is uncommitted, and it hasn't changed for the days you
-            pick. Its commits stay in the product's repository, and the
-            workspace comes back by itself if you build that task again.
+            nothing in it is uncommitted or ignored, and it hasn't changed for
+            the days you pick. Its commits stay in the product's repository, and
+            the workspace comes back by itself if you build that task again. A
+            merge workspace is offered when its merge is already in the
+            product's repository.
           </p>
           <label className="storage-days">
             Not changed for{' '}
@@ -213,7 +220,11 @@ export function Storage({ session }: { session: SessionInfo }) {
                   Remove old build workspaces…
                 </button>
               ) : (
-                <div className="storage-confirm" role="group">
+                <div
+                  className="storage-confirm"
+                  role="group"
+                  aria-label="Confirm removal"
+                >
                   <p>
                     Remove the {s.cleanup.remove.length} workspace
                     {s.cleanup.remove.length === 1 ? '' : 's'} listed above?
@@ -222,6 +233,7 @@ export function Storage({ session }: { session: SessionInfo }) {
                     recorded in the audit.
                   </p>
                   <button
+                    ref={confirmButton}
                     type="button"
                     className="secondary danger"
                     disabled={busy}
@@ -298,7 +310,9 @@ export function Storage({ session }: { session: SessionInfo }) {
                   <li key={h.id}>
                     {when(h.occurred_at)}:{' '}
                     {h.action === 'storage.cleanup.intent'
-                      ? `asked to remove ${h.removed}`
+                      ? h.interrupted
+                        ? `asked to remove ${h.removed}; no outcome was recorded, so it stopped part-way. If the Build page says the product is locked, use its Recover`
+                        : `asked to remove ${h.removed}`
                       : `removed ${h.removed}, ${h.failed} left alone, freed ${sizeText(h.bytes_freed)}; packages ${h.packages_ok ? 'all still match' : 'changed, look at them'}`}
                     .
                   </li>

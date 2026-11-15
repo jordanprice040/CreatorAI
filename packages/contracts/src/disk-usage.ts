@@ -92,6 +92,8 @@ export const StorageCleanupRecordSchema = z.strictObject({
   failed: z.number().int().min(0),
   bytes_freed: bytes,
   packages_ok: z.boolean().nullable(),
+  /** An intent with no outcome: the cleanup stopped part-way (review L-4). */
+  interrupted: z.boolean(),
 });
 export type StorageCleanupRecord = z.infer<typeof StorageCleanupRecordSchema>;
 

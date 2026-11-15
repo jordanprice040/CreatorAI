@@ -7,6 +7,7 @@ import {
   mkdtemp,
   readdir,
   rm,
+  symlink,
   utimes,
   writeFile,
 } from 'node:fs/promises';
@@ -31,10 +32,11 @@ import {
   type SessionInfo,
 } from '@creator/contracts';
 import { StorageStore, STORAGE_SUBJECT_ID } from '@creator/db';
-import { createStorage } from '@creator/api';
+import { createApi, createStorage } from '@creator/api';
+import { once } from 'node:events';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { freshDatabase } from './pg-harness.js';
+import { freshDatabase, login, LOGIN_CODE } from './pg-harness.js';
 
 const DAY = 86_400_000;
 const git = async (cwd: string, args: string[]) =>
@@ -494,5 +496,183 @@ test('a finished merge workspace whose merge is in the repository can go; its br
       `integration-review/${merge.name}`,
     ]),
     merged.commit,
+  );
+});
+
+test('review M-1 and L-5: ignored files, links, unregistered folders and a left Git lock keep a workspace', async (t) => {
+  const { products, p, task, tree, inputs } = await setup(t);
+  const repo = products.repo(p.id);
+  const reasonOf = async (name: string) =>
+    (await planWorkspaceCleanup(products, await inputs())).keep.find(
+      (k) => k.name === name,
+    )?.reason ?? '';
+  // An ignored file (a person's exclude rule) would be deleted by `git worktree remove`.
+  await mkdir(join(repo, '.git', 'info'), { recursive: true });
+  await writeFile(join(repo, '.git', 'info', 'exclude'), '*.local\n');
+  await writeFile(join(tree, 'src', 'my-notes.local'), 'mine');
+  await age(tree, 30 * DAY);
+  assert.match(await reasonOf(task.id), /ignored files/);
+  await rm(join(tree, 'src', 'my-notes.local'));
+  await age(tree, 30 * DAY);
+  // A Git step left its lock in the workspace's admin folder.
+  const lock = join(repo, '.git', 'worktrees', task.id, 'index.lock');
+  await writeFile(lock, '');
+  assert.match(await reasonOf(task.id), /interrupted/);
+  await rm(lock);
+  // A link named like a workspace, and a folder Git doesn't know.
+  const linked = randomUUID();
+  await symlink(tree, join(products.dir(p.id), 'worktrees', linked));
+  assert.match(await reasonOf(linked), /Not a plain folder/);
+  const loose = randomUUID();
+  await mkdir(join(products.dir(p.id), 'worktrees', loose));
+  assert.match(await reasonOf(loose), /Not a registered Git workspace/);
+  const plan = await planWorkspaceCleanup(products, await inputs());
+  assert.deepEqual(
+    plan.remove.map((r) => r.name),
+    [task.id],
+  );
+  // Projects whose product record can't be read are listed only for the studio owner (N-3).
+  const broken = randomUUID();
+  await mkdir(join(products.root, broken, 'worktrees', randomUUID()), {
+    recursive: true,
+  });
+  const keepFor = async (includeUnreadable: boolean) =>
+    (
+      await planWorkspaceCleanup(products, await inputs({ includeUnreadable }))
+    ).keep.filter((k) => k.product_id === broken).length;
+  assert.equal(await keepFor(false), 0);
+  assert.equal(await keepFor(true), 1);
+});
+
+test('review M-2: a removal Git could not finish is moved aside, and the task checkout comes back', async (t) => {
+  const { products, p, task, built, tree, inputs } = await setup(t);
+  const o = await inputs();
+  const plan = await planWorkspaceCleanup(products, o);
+  assert.equal(plan.remove.length, 1);
+  // A file nothing may delete (like one held open on Windows) makes Git's delete fail part-way.
+  const stuck = join(tree, 'src', 'main.py');
+  const chattr = async (flag: string, path: string) =>
+    promisify(execFile)('chattr', [flag, path]).then(
+      () => true,
+      () => false,
+    );
+  const asideDir = join(products.dir(p.id), 'worktrees-removed');
+  // Clears the flag wherever the file ended up, so the test folder can be deleted.
+  const unstick = async () => {
+    await chattr('-i', stuck);
+    for (const n of await readdir(asideDir).catch(() => [] as string[]))
+      await chattr('-i', join(asideDir, n, 'src', 'main.py'));
+  };
+  if (!(await chattr('+i', stuck))) {
+    t.diagnostic(
+      'chattr is not available here; the failed-removal path was not exercised',
+    );
+  } else {
+    let out;
+    try {
+      out = await removeWorkspaces(products, plan.remove, o);
+    } finally {
+      await unstick();
+    }
+    assert.equal(out.removed.length, 0);
+    assert.equal(out.failed.length, 1);
+    assert.match(out.failed[0]!.reason, /moved to worktrees-removed\//);
+    assert.equal(await exists(tree), false);
+    assert.equal((await readdir(asideDir)).length, 1);
+    assert.equal(await products.taskHead(p.id, task.id), built.commit);
+    assert.equal(await restoreTaskWorkspace(products, p.id, task.id), true);
+    assert.equal(await git(tree, ['rev-parse', 'HEAD']), built.commit);
+  }
+  // A half-removed folder whose registration Git already dropped is moved aside on restore.
+  await git(products.repo(p.id), ['worktree', 'remove', tree]).catch(
+    () => undefined,
+  );
+  await mkdir(join(tree, 'src'), { recursive: true });
+  await writeFile(join(tree, 'src', 'left.txt'), 'leftover');
+  assert.equal(await restoreTaskWorkspace(products, p.id, task.id), true);
+  assert.equal(await git(tree, ['rev-parse', 'HEAD']), built.commit);
+  assert.equal(await git(tree, ['status', '--porcelain']), '');
+  assert.ok(
+    (await readdir(join(products.dir(p.id), 'worktrees-removed'))).length >= 1,
+  );
+});
+
+test('the storage routes need a signed-in session, and cleanup needs the CSRF token', async (t) => {
+  const db = await freshDatabase(t);
+  if (!db) return;
+  const parent = resolve('.verification/storage-tests');
+  await mkdir(parent, { recursive: true });
+  const root = await mkdtemp(join(parent, 'api-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const api = createApi({
+    CREATOR_DATABASE_URL: db.url,
+    CREATOR_DEV_LOGIN_CODE: LOGIN_CODE,
+    CREATOR_WORKER: 'off',
+    CREATOR_PRODUCTS_ROOT: join(root, 'products'),
+  });
+  api.server.listen(0, '127.0.0.1');
+  await once(api.server, 'listening');
+  t.after(() => api.close());
+  await api.ready();
+  const base = `http://127.0.0.1:${(api.server.address() as { port: number }).port}/api`;
+  assert.equal((await fetch(`${base}/storage`)).status, 401);
+  const auth = await login(base);
+  const report = await fetch(`${base}/storage`, { headers: auth.read });
+  assert.equal(report.status, 200);
+  const body = (await report.json()) as { cleanup: { plan_hash: string } };
+  const post = (headers: Record<string, string>) =>
+    fetch(`${base}/storage/cleanup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify({
+        older_than_days: 14,
+        plan_hash: body.cleanup.plan_hash,
+        confirmation: STORAGE_CLEANUP_CONFIRMATION,
+      }),
+    });
+  assert.equal((await post(auth.read)).status, 403);
+  // Signed in with the token: refused only because there is nothing to remove.
+  const done = await post(auth.write);
+  assert.equal(done.status, 409);
+  assert.match(JSON.stringify(await done.json()), /no old build workspaces/);
+});
+
+test('review L-4: an intent with no outcome shows as interrupted in history', async (t) => {
+  const { products } = await setup(t);
+  const at = new Date().toISOString();
+  const ev = (action: string, plan_hash: string) => ({
+    id: randomUUID(),
+    occurred_at: at,
+    action,
+    payload: { plan_hash, remove: [{}], removed: [{}], failed: [] },
+  });
+  // Newest first, as the store returns them.
+  const events = [
+    ev('storage.cleanup.outcome', 'b'),
+    ev('storage.cleanup.intent', 'b'),
+    ev('storage.cleanup.intent', 'a'),
+  ];
+  const store = {
+    ownedWorkspaces: async () => [],
+    studyWorkspaces: async () => new Set<string>(),
+    verifiedPackages: async () => [],
+    cleanupHistory: async () => events,
+  } as unknown as StorageStore;
+  const routes = createStorage({
+    store,
+    products,
+    studioRoots: { plan: products.root, recipe: products.root },
+    ownerId: randomUUID(),
+    ensureReady: async () => {},
+    requireSession: async () => ({ actor_id: randomUUID() }) as SessionInfo,
+  });
+  const r = (await routes.route(
+    { method: 'GET' } as IncomingMessage,
+    new URL('http://x/api/storage'),
+    async () => undefined,
+  ))!.value as { history: { action: string; interrupted: boolean }[] };
+  assert.deepEqual(
+    r.history.map((h) => h.interrupted),
+    [false, false, true],
   );
 });

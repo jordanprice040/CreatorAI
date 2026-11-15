@@ -46,7 +46,8 @@ export class StorageStore extends Store {
          (select count(*) from artifact_previews p
            where p.workspace_id = w.id and ${LIVE_PREVIEW_SQL})::int as previews_live,
          (select count(*) from artifact_previews p where p.workspace_id = w.id)::int as previews_all,
-         exists (select 1 from study_attempts s where s.workspace_id = w.id) as study
+         (exists (select 1 from study_attempts s where s.workspace_id = w.id)
+          or exists (select 1 from studies s where s.workspace_id = w.id)) as study
        from workspaces w
        join workspace_members m on m.workspace_id = w.id
        where m.actor_id = $1 and m.role = 'owner'
@@ -64,10 +65,12 @@ export class StorageStore extends Store {
     }));
   }
 
-  /** Workspaces with any thesis study attempt, whoever owns them: never cleaned. */
+  /** Workspaces with a thesis study or a study attempt, whoever owns them: never cleaned. */
   async studyWorkspaces(): Promise<Set<string>> {
     const { rows } = await this.pool.query(
-      'select distinct workspace_id::text as id from study_attempts',
+      // Review L-1: a study's own project as well as each attempt's.
+      `select workspace_id::text as id from study_attempts
+       union select workspace_id::text from studies`,
     );
     return new Set(rows.map((r: Row) => String(r.id)));
   }

@@ -1,4 +1,4 @@
-import { lstat, mkdir, readdir, readFile } from 'node:fs/promises';
+import { lstat, mkdir, readdir, readFile, rename } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { canonical, readJson, withLock } from './files.js';
 import { git } from './git.js';
@@ -62,6 +62,8 @@ const isId = (n: string) => id.safeParse(n).success;
 /** Every product in the store whose product.json reads, with its disk split by kind. */
 export async function productDiskUsage(
   products: ProductSupervisor,
+  /** Measure only products in these workspaces (review L-2: the person's own). */
+  workspaces?: ReadonlySet<string>,
 ): Promise<ProductDiskUsage[]> {
   const names = await readdir(products.root).catch(() => [] as string[]);
   const out: ProductDiskUsage[] = [];
@@ -69,6 +71,7 @@ export async function productDiskUsage(
     if (!isId(name)) continue;
     const p = await products.product(name).catch(() => null);
     if (!p) continue;
+    if (workspaces && !workspaces.has(p.binding.workspace_id)) continue;
     const dir = products.dir(name);
     const total = await diskSize(dir);
     const repository = await diskSize(join(dir, 'repo'));
@@ -171,6 +174,11 @@ export type CleanupInputs = {
   workspaces: ReadonlySet<string>;
   olderThanDays: number;
   now: Date;
+  /**
+   * List products whose record can't be read (so their project is unknown) as kept. Only the
+   * studio owner sees them (review N-3).
+   */
+  includeUnreadable?: boolean;
 };
 
 const exists = (p: string) =>
@@ -183,7 +191,13 @@ const same = (a: string, b: string) =>
     ? resolve(a).toLowerCase() === resolve(b).toLowerCase()
     : resolve(a) === resolve(b);
 async function tip(repo: string, ref: string): Promise<string | null> {
-  return git(repo, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`])
+  return git(repo, [
+    '--no-optional-locks',
+    'rev-parse',
+    '--verify',
+    '--quiet',
+    `${ref}^{commit}`,
+  ])
     .then((s) => (sha.safeParse(s).success ? s : null))
     .catch(() => null);
 }
@@ -235,16 +249,29 @@ async function judge(
   let status: string, head: string;
   try {
     await canonical(path);
+    // Read-only: no optional index lock, so a build starting meanwhile never meets one
+    // (review L-2). Ignored files are listed too: `git worktree remove` deletes them (M-1).
     status = await git(path, [
+      '--no-optional-locks',
       'status',
       '--porcelain=v1',
       '--untracked-files=all',
+      '--ignored=matching',
     ]);
-    head = await git(path, ['rev-parse', '--verify', 'HEAD']);
+    head = await git(path, [
+      '--no-optional-locks',
+      'rev-parse',
+      '--verify',
+      'HEAD',
+    ]);
   } catch {
     return keep('Git could not read this workspace; left alone.');
   }
-  if (status) return keep('Has changes that are not committed.');
+  const lines = status.split('\n').filter(Boolean);
+  if (lines.some((l) => !l.startsWith('!! ')))
+    return keep('Has changes that are not committed.');
+  if (lines.length)
+    return keep('Has ignored files that are not in any commit.');
   const branch =
     kind === 'task'
       ? `refs/heads/task/${name}`
@@ -269,7 +296,13 @@ async function judge(
     const main = await tip(repo, 'HEAD');
     const merged =
       main !== null &&
-      (await git(repo, ['merge-base', '--is-ancestor', head, main]).then(
+      (await git(repo, [
+        '--no-optional-locks',
+        'merge-base',
+        '--is-ancestor',
+        head,
+        main,
+      ]).then(
         () => true,
         () => false,
       ));
@@ -290,9 +323,12 @@ async function judge(
 }
 
 async function registeredTrees(repo: string): Promise<string[]> {
-  const list = await git(repo, ['worktree', 'list', '--porcelain']).catch(
-    () => '',
-  );
+  const list = await git(repo, [
+    '--no-optional-locks',
+    'worktree',
+    'list',
+    '--porcelain',
+  ]).catch(() => '');
   return list
     .split('\n')
     .filter((l) => l.startsWith('worktree '))
@@ -338,7 +374,7 @@ export async function planWorkspaceCleanup(
         });
     };
     if (ws === null) {
-      if (!o.workspaces.size) continue;
+      if (!o.includeUnreadable) continue;
       await all('Its product record could not be read; left alone.');
       continue;
     }
@@ -380,8 +416,9 @@ export function cleanupPlanHash(
 /**
  * Removes confirmed checkouts, one product at a time under its build lock and its Git lock
  * (the same order a build takes them), judging each again first: anything that changed since
- * the plan is left and reported. `git worktree remove` without --force refuses a checkout
- * with changes, so nothing uncommitted is ever lost.
+ * the plan is left and reported. A checkout with uncommitted, untracked or ignored files is
+ * never offered (Git's `worktree remove` would delete ignored ones), and `git worktree remove`
+ * without --force refuses changes again, so nothing outside a commit is lost.
  */
 export async function removeWorkspaces(
   products: ProductSupervisor,
@@ -425,18 +462,25 @@ export async function removeWorkspaces(
               });
               continue;
             }
+            const path = join(dir, 'worktrees', checked(id, c.name));
             try {
-              await git(repo, [
-                'worktree',
-                'remove',
-                join(dir, 'worktrees', checked(id, c.name)),
-              ]);
+              await git(repo, ['worktree', 'remove', path]);
               removed.push(now);
             } catch (e) {
+              const why = (e instanceof Error ? e.message : String(e)).slice(
+                0,
+                200,
+              );
               failed.push({
                 product_id: productId,
                 name: c.name,
-                reason: `Git refused to remove it: ${(e instanceof Error ? e.message : String(e)).slice(0, 200)}`,
+                reason: await afterFailedRemove(
+                  products,
+                  productId,
+                  c,
+                  path,
+                  why,
+                ),
               });
             }
           }
@@ -463,9 +507,61 @@ export async function removeWorkspaces(
 }
 
 /**
+ * Review M-2: on Windows a file held open (an editor, the indexer, antivirus) can make Git's
+ * delete fail part-way, after Git already dropped the worktree's registration. The half-deleted
+ * folder would then block the product's next build and its Recover. When the folder is no
+ * longer registered and the confirmed commit is still on its branch, the leftover is moved
+ * aside to `worktrees-removed/` (nothing is deleted), so the task's checkout can be made again.
+ */
+async function afterFailedRemove(
+  products: ProductSupervisor,
+  productId: string,
+  c: WorkspaceCandidate,
+  path: string,
+  why: string,
+): Promise<string> {
+  const repo = products.repo(productId);
+  if (!(await exists(path)))
+    return `Git reported an error but the folder is gone: ${why}`;
+  if ((await registeredTrees(repo)).some((r) => same(r, path)))
+    return `Git refused to remove it: ${why}`;
+  const branch =
+    c.kind === 'task'
+      ? `refs/heads/task/${c.name}`
+      : `refs/heads/integration-review/${c.name}`;
+  if ((await tip(repo, branch)) !== c.head)
+    return `Git could not finish removing it and its branch changed; left for a person to look at: ${why}`;
+  const aside = await moveAside(products, productId, path, c.name);
+  return aside
+    ? `Git could not finish removing it (${why}). What was left was moved to ${aside}; its commit is safe on its branch.`
+    : `Git could not finish removing it, and the rest could not be moved aside; close any program using it and run the cleanup again: ${why}`;
+}
+
+/** Moves a leftover checkout into the product's `worktrees-removed/` folder. */
+async function moveAside(
+  products: ProductSupervisor,
+  productId: string,
+  path: string,
+  name: string,
+): Promise<string | null> {
+  const into = join(products.dir(productId), 'worktrees-removed');
+  const rel = `worktrees-removed/${name}-${Date.now()}`;
+  try {
+    await canonical(into, true);
+    await mkdir(into, { recursive: true });
+    await rename(path, join(products.dir(productId), rel));
+    await git(products.repo(productId), ['worktree', 'prune']);
+    return rel;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Makes a task's checkout again from its branch after a cleanup removed it. Returns false when
  * the checkout is already there. The checkout is the branch's exact commit, so a build
- * continues from where it stopped.
+ * continues from where it stopped. A folder that is there but no longer a registered Git
+ * workspace (a removal that failed part-way, review M-2) is moved aside first.
  */
 export async function restoreTaskWorkspace(
   products: ProductSupervisor,
@@ -474,10 +570,20 @@ export async function restoreTaskWorkspace(
 ): Promise<boolean> {
   await products.task(productId, taskId);
   const tree = products.worktree(productId, taskId);
-  if (await exists(tree)) return false;
+  const repo = products.repo(productId);
+  const healthy = async () =>
+    (await exists(tree)) &&
+    (await registeredTrees(repo)).some((r) => same(r, tree));
+  if (await healthy()) return false;
   return withLock(products.dir(productId), async () => {
-    if (await exists(tree)) return false;
-    const repo = products.repo(productId);
+    if (await healthy()) return false;
+    if (
+      (await exists(tree)) &&
+      !(await moveAside(products, productId, tree, taskId))
+    )
+      throw new Error(
+        "This task's workspace was left half-removed and could not be moved aside; close any program using it and try again.",
+      );
     const at = await tip(repo, `refs/heads/task/${taskId}`);
     if (!at)
       throw new Error(
