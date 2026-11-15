@@ -56,7 +56,7 @@ test('a historical qualification keeps its score but cannot appear currently qua
     ),
     /candidate generation job for discovery/,
   );
-  // The live spec-cases-v2 run showed "specification jobundefined": every role is named.
+  // The live spec-cases-v1 run showed "specification jobundefined": every role is named.
   assert.match(
     renderToStaticMarkup(
       QualificationSummary({

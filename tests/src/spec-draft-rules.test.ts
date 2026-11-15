@@ -698,3 +698,59 @@ test('the form asks about one check at a time and drafts go to a route the serve
     'Drafted by m1, checked by you and edited; held-out cases picked by the studio and changed by you.',
   );
 });
+
+test('review 1 of PR #210, N-2: a reply that follows the draft_spec example reads; the live v1 shape does not', () => {
+  // The example as the instructions give it, with each placeholder filled by a plain value.
+  const line = SPEC_DRAFT_INSTRUCTIONS.split('\n').find((l) =>
+    l.startsWith('draft_spec: reply '),
+  )!;
+  const example = line
+    .slice('draft_spec: reply '.length, line.indexOf('. Every text'))
+    .replace(
+      '"cases": [...]',
+      '"cases": [{"args": [], "stdin": "a b\\n", "stdout": "words: 2\\n", "exit_code": 0}, {"args": [], "stdin": "", "stdout": "words: 0\\n", "exit_code": 0}]',
+    )
+    // The product "cli" line sets the file scope and the entry point.
+    .replace('"file_scope": ["..."]', '"file_scope": ["src"]')
+    .replace('"deliverable": "..."', '"deliverable": "src/main.py"')
+    .replace(/"<[^"]*>"/g, '"Plain words"')
+    .replaceAll('"..."', '"Plain words"');
+  const filled = readSpecDraft(example, UPKEEP);
+  assert.ok(filled.ok, filled.ok ? '' : filled.reason);
+  const a = filled.content.acceptance_checks[0]!;
+  assert.deepEqual(
+    [a.key, a.flow, a.statement, a.measure, a.cases?.length],
+    ['A1', 'F1', 'Plain words', 'Plain words', 2],
+  );
+  // The live spec-cases-v1 run's shape: "name" in place of "statement", no measure or flow.
+  const live = JSON.parse(example);
+  for (const c of live.spec.acceptance_checks) {
+    c.name = c.statement;
+    delete c.statement;
+    delete c.measure;
+    delete c.flow;
+  }
+  const r = readSpecDraft(JSON.stringify(live), UPKEEP);
+  assert.equal(r.ok, false);
+  assert.match(r.ok ? '' : r.reason, /does not fit the spec form/);
+  assert.equal(
+    gradeSpecCases(checkOf('wordtally'), JSON.stringify(live)).signal,
+    'schema_invalid',
+  );
+});
+
+test('review 1 of PR #210, N-3: the bundled spec-cases-v2 file is pinned as it was frozen', () => {
+  // Regenerating the file would change this hash and stop older v2 qualifications admitting
+  // drafts; a revised benchmark is a new file (spec-cases-v3), never a rewrite of this one.
+  assert.equal(
+    canonicalHash(
+      JSON.parse(
+        readFileSync(
+          'config/connections/benchmarks/spec-cases-v2.json',
+          'utf8',
+        ),
+      ),
+    ),
+    '4c10c97f9fa315e431c9eebbb91a13e1fd41065863bedb17e4f5df17d21c2730',
+  );
+});

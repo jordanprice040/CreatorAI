@@ -175,6 +175,7 @@ import {
   SPEC_DRAFT_TASK_CLASS,
   currentForSpecDraftRole,
   specCasesBar,
+  specCasesManifestHash,
   specDraftRequestGate,
   toSpecDraft,
   type SpecDraftBinding,
@@ -636,6 +637,17 @@ function withoutRoleVersion(check: unknown): unknown {
   } | null;
   // PR #173 review 3 L-1: a web check names its role version at the top level; the stage's
   // prompt is its system message, which `heldOutPrompts` covers case by case.
+  // Review 1 of PR #210, L-1: a spec cases check names the instructions version and the hash
+  // of the frozen source (which carries the version in its marker comments). Both follow the
+  // prompt, so spec-cases-v1 and spec-cases-v2 share held-out cases.
+  if (c?.kind === 'spec_cases_contract') {
+    const {
+      role_version: _v,
+      source_sha256: _s,
+      ...rest
+    } = c as Record<string, unknown>;
+    return rest;
+  }
   if (c?.kind === 'web_scout_contract' || c?.kind === 'web_reader_contract') {
     const { role_version: _v, ...rest } = c as Record<string, unknown>;
     return rest;
@@ -5272,6 +5284,22 @@ export class ConnectionStore extends AutomationStore {
       throw fail(
         'INVALID_CONTRACT',
         `Every ${tc} case must use exactly the T12 ${role} prompt.`,
+      );
+    // Review 1 of PR #210, N-1: spec cases qualify only on the bundled file, so a hand-made
+    // start of the frozen spec-cases-v1 (or any other copy) never spends requests.
+    if (
+      req.manifest.cases.some(
+        (k) =>
+          (k.check as { kind?: unknown } | undefined)?.kind ===
+          'spec_cases_contract',
+      ) &&
+      canonicalHash(req.manifest) !== specCasesManifestHash()
+    )
+      throw fail(
+        'INVALID_CONTRACT',
+        req.manifest.name === 'spec-cases-v1'
+          ? 'spec-cases-v1 is kept as it ran; qualify on spec-cases-v2.'
+          : 'Spec cases qualify only on the bundled spec-cases-v2 file.',
       );
     if (!conn.settings.allowed_data_classes.includes(req.manifest.data_class))
       throw fail(

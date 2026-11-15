@@ -588,4 +588,54 @@ test('review 2 of PR #206, L-1: a start of spec-cases-v2 runs under the serverâ€
   });
   assert.equal(other.min_held_out_cases, 3);
   assert.deepEqual(other.floor, { numerator: 2, denominator: 3 });
+  const version = async () =>
+    (await store.planConnectionDetail(owner, w.id, c.id)).connection.version;
+  const start = async (manifest: Record<string, unknown>) =>
+    store.startPlanQualification(owner, w.id, c.id, {
+      expected_version: await version(),
+      model_id: 'm',
+      manifest: manifest as never,
+      min_held_out_cases: 5,
+      floor: { numerator: 1, denominator: 1 },
+    });
+  // Review 1 of PR #210, N-1: a hand-made start of the frozen v1 file, or of any copy that is
+  // not the bundled file, is refused before it spends a request.
+  const v1 = bench('spec-cases-v1');
+  await assert.rejects(
+    start(v1),
+    /spec-cases-v1 is kept as it ran; qualify on spec-cases-v2/,
+  );
+  const copy = bench('spec-cases-v2');
+  copy.name = 'spec-cases-mine';
+  await assert.rejects(start(copy), /only on the bundled spec-cases-v2 file/);
+  // Review 1 of PR #210, L-1: v2 reuses v1's held-out cases under a new prompt, so a view of
+  // v1's held-out results (ADR-0052) refuses a v2 start; with no view it went ahead above.
+  const v1Id = randomUUID();
+  await db.pool.query(
+    `insert into plan_qualifications (id,connection_id,model_id,task_class,manifest,manifest_hash,min_held_out_cases,floor,state,development,held_out,created_by,decided_at)
+     values ($1,$2,'m','specification',$3,$4,5,$5,'failed',$6,$6,$7,clock_timestamp())`,
+    [
+      v1Id,
+      c.id,
+      JSON.stringify(v1),
+      canonicalHash(v1),
+      JSON.stringify({ numerator: 1, denominator: 1 }),
+      JSON.stringify({ total: 5, passed: 0 }),
+      owner.actorId,
+    ],
+  );
+  await db.pool.query(
+    `insert into plan_connection_events (id, connection_id, kind, body, actor_id)
+     values ($1,$2,'qualification_held_out_viewed',$3,$4)`,
+    [
+      randomUUID(),
+      c.id,
+      { qualification_id: v1Id, task_class: 'specification' },
+      owner.actorId,
+    ],
+  );
+  await assert.rejects(
+    start(bench('spec-cases-v2')),
+    /5 held-out cases were viewed .* \(ADR-0052\)/,
+  );
 });
