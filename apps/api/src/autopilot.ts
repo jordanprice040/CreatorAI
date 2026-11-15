@@ -3,6 +3,7 @@ import type { PoolClient } from 'pg';
 import {
   AUTOPILOT_STAGE_LABEL,
   ContractError,
+  cutText,
   ExplorationResultSchema,
   WebDiscoveryScopeSchema,
   MODEL_ONLY_ETHICS_NOTE,
@@ -88,9 +89,9 @@ const TERMINAL = new Set(['succeeded', 'failed', 'cancelled']);
 
 const said = (e: unknown) =>
   e instanceof ContractError
-    ? [e.message, ...e.details].join(' ').slice(0, 1000)
+    ? cutText([e.message, ...e.details].join(' '), 1000)
     : e instanceof Error
-      ? e.message.slice(0, 300)
+      ? cutText(e.message, 300)
       : 'The step failed.';
 const codeOf = (e: unknown): ErrorCode | null =>
   e instanceof ContractError ? e.code : null;
@@ -146,6 +147,13 @@ type Stop = {
   asked?: string;
   /** ADR-0100: what kind of stop, for the matching setting and next steps. */
   kind?: AutopilotStopKind;
+  /** The record the stopped step was about (a held web search), kept on the step. */
+  child?: AutopilotStep['child'];
+  /**
+   * The step was refused before it made anything, so it sent no request: the calls it set aside
+   * go back to the autopilot's limit (live run 2026-11-14: 32 calls were held by two refusals).
+   */
+  unsent?: boolean;
 };
 /**
  * ADR-0100: a planned fallback the owner's settings allow instead of a stop. `retry` tries the
@@ -159,7 +167,27 @@ type Fallback = {
     | { kind: 'skip' }
     | { kind: 'gather'; request: GatherRequest };
   child?: AutopilotStep['child'];
+  /** As on Stop: the retried attempt sent nothing, so its calls go back. */
+  unsent?: boolean;
 };
+
+/**
+ * P-12: the web search whose quote-checked claims a person was asked about, when the steps just
+ * before this attempt of `stage` stopped for them. It looks past repeated stops (a Continue with
+ * nothing added stops again without a search of its own), so a later Allow still goes on from
+ * that search instead of searching again (live run 2026-11-14).
+ */
+export function heldSearch(
+  steps: readonly AutopilotStep[],
+  stage: AutopilotStage,
+): string | null {
+  for (let i = steps.length - 1; i >= 0; i -= 1) {
+    const s = steps[i]!;
+    if (s.stage !== stage || s.stop_kind !== 'claims_held') return null;
+    if (s.child?.kind === 'web_discovery') return s.child.id;
+  }
+  return null;
+}
 type GatherRequest = {
   then: 'explore' | 'brief' | 'assess' | 'select';
   reason: string;
@@ -225,6 +253,33 @@ export interface AutopilotRunnerOptions {
 }
 
 export class AutopilotRunner {
+  /**
+   * Keys of steps whose start threw before it committed, so nothing was sent (review 1 of #202,
+   * L-5). Only such a step gives back the calls it set aside: a start that committed may have
+   * spent, and unknown spend is not zero.
+   */
+  readonly #refused = new Set<string>();
+  async #starting<T>(
+    ws: string,
+    step: AutopilotStep,
+    start: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await start();
+    } catch (e) {
+      // Third review N-1: an error, even a ContractError, can come after the start committed
+      // (each start ends with a read that can fail). The start's idempotency receipt is written
+      // in the same transaction, so no receipt for the step's key means nothing was sent. If
+      // the receipt cannot be read, the step is treated as possibly sent.
+      if (step.key) {
+        const committed = await this.store
+          .commandCommitted(ws, step.key)
+          .catch(() => true);
+        if (!committed) this.#refused.add(step.key);
+      }
+      throw e;
+    }
+  }
   readonly #live = new Map<
     string,
     { abort: AbortController; done: Promise<void> }
@@ -517,7 +572,7 @@ export class AutopilotRunner {
           ? {
               ...s,
               state: 'done' as const,
-              note: done.note.slice(0, 1200),
+              note: cutText(done.note, 1200),
               child: done.child ?? s.child,
               problem: done.problem ?? s.problem,
               option: done.option ?? s.option,
@@ -618,7 +673,7 @@ export class AutopilotRunner {
           {
             ...base,
             state: 'stopped',
-            note: planned.note.slice(0, 1200),
+            note: cutText(planned.note, 1200),
             no_retry: planned.final ?? null,
             stop_kind: planned.kind ?? null,
             finished_at: now,
@@ -724,6 +779,15 @@ export class AutopilotRunner {
     switch (stage) {
       case 'research': {
         if (!c.research) return { request: null, calls: 0 };
+        const request = {
+          connection_id: c.research.connection_id,
+          model_id: c.research.model_id,
+          scope: c.research.scope,
+          input_hash: c.research.input_hash,
+        };
+        // P-12: going on from a search whose claims waited for a person sends nothing new.
+        if (this.web && heldSearch(a.steps, 'research'))
+          return { calls: 0, request };
         if (remaining < 2)
           return {
             outcome: 'limit_reached',
@@ -739,15 +803,7 @@ export class AutopilotRunner {
           c.research.connection_id,
         );
         if (capped) return capped;
-        return {
-          calls: 2,
-          request: {
-            connection_id: c.research.connection_id,
-            model_id: c.research.model_id,
-            scope: c.research.scope,
-            input_hash: c.research.input_hash,
-          },
-        };
+        return { calls: 2, request };
       }
       case 'explore': {
         const l = await limitsFor('explore', 1);
@@ -849,7 +905,11 @@ export class AutopilotRunner {
         const { added: _, ...again } = request;
         return {
           request: again,
-          calls: again.question ? Math.min(2, Math.max(0, remaining)) : 0,
+          // P-12: going on from a held search sends no new one.
+          calls:
+            again.question && !(this.web && heldSearch(a.steps, 'gather'))
+              ? Math.min(2, Math.max(0, remaining))
+              : 0,
         };
       }
       case 'proposal': {
@@ -887,11 +947,10 @@ export class AutopilotRunner {
     if (!s || !settingIsOn(s.values, setting)) return stop;
     return {
       ...stop,
-      final:
-        `“${AUTOPILOT_SETTING_TEXT[setting].label}” is already on and it still could not go on. Add evidence or choose under Decide, then start a new autopilot.`.slice(
-          0,
-          300,
-        ),
+      final: cutText(
+        `“${AUTOPILOT_SETTING_TEXT[setting].label}” is already on and it still could not go on. Add evidence or choose under Decide, then start a new autopilot.`,
+        300,
+      ),
     };
   }
 
@@ -906,7 +965,7 @@ export class AutopilotRunner {
       setting,
       settings_version: settings.version,
       instead_of,
-      note: note.slice(0, 600),
+      note: cutText(note, 600),
     };
   }
 
@@ -941,6 +1000,7 @@ export class AutopilotRunner {
           `${stop.note} Trying the step again (the owner's setting “retry a failed step”).`,
         ),
         then: { kind: 'retry' },
+        ...(stop.unsent ? { unsent: true } : {}),
       },
     };
   }
@@ -1028,10 +1088,14 @@ export class AutopilotRunner {
         }
       }
     } catch (e) {
+      // Only a step whose start call itself threw sent nothing (L-5); anything else may have
+      // spent, so its calls stay set aside.
+      const unsent = !!step.key && this.#refused.delete(step.key);
       const stop: Stop = {
         outcome: refusalOutcome(codeOf(e)),
         kind: refusalKind(e),
         note: `${AUTOPILOT_STAGE_LABEL[step.stage]} was refused: ${said(e)}`,
+        ...(unsent ? { unsent: true } : {}),
       };
       return this.#retryOr(ctx, ws, a, step, stop).catch(() => ({ stop }));
     }
@@ -1113,8 +1177,8 @@ export class AutopilotRunner {
     return {
       done: {
         child: { kind: 'web_discovery', id: d.id },
-        note: `${d.explanation} ${admitted} claim${admitted === 1 ? '' : 's'} added by the run's routine approvals${pending ? `; ${pending} checked claim${pending === 1 ? '' : 's'} wait for you under Discover › Search the web` : ''}.`.slice(
-          0,
+        note: cutText(
+          `${d.explanation} ${admitted} claim${admitted === 1 ? '' : 's'} added by the run's routine approvals${pending ? `; ${pending} checked claim${pending === 1 ? '' : 's'} wait for you under Discover › Search the web` : ''}.`,
           1200,
         ),
       },
@@ -1139,9 +1203,11 @@ export class AutopilotRunner {
       stop: {
         outcome: 'needs_person',
         kind: 'claims_held',
-        note: `${extra} The web search found ${n} claim${n === 1 ? '' : 's'} whose only check is that the quotes were found word for word; ${n === 1 ? 'it waits' : 'they wait'} for you under Discover › Search the web (search ${d.id}). Add the ones you agree with and continue, or turn on “Accept quote-checked web claims”.`
-          .trim()
-          .slice(0, 1200),
+        child: { kind: 'web_discovery', id: d.id },
+        note: cutText(
+          `${extra} The web search found ${n} claim${n === 1 ? '' : 's'} whose only check is that the quotes were found word for word; ${n === 1 ? 'it waits' : 'they wait'} for you under Discover › Search the web (search ${d.id}). Add the ones you agree with and continue, or turn on “Accept quote-checked web claims”.`.trim(),
+          1200,
+        ),
       },
     };
   }
@@ -1156,21 +1222,13 @@ export class AutopilotRunner {
     ws: string,
     a: Autopilot,
   ): Promise<{ d: WebDiscovery; added: number; waiting: number } | null> {
-    const prev = a.steps.at(-2);
     const cur = a.steps.at(-1);
-    if (
-      !this.web ||
-      !prev ||
-      !cur ||
-      prev.stage !== cur.stage ||
-      prev.stop_kind !== 'claims_held' ||
-      prev.child?.kind !== 'web_discovery'
-    )
-      return null;
+    const id = cur ? heldSearch(a.steps.slice(0, -1), cur.stage) : null;
+    if (!this.web || !id) return null;
     const settings = await this.#settings(ctx, ws);
     if (settings.values.accept_quote_checked_claims)
-      await this.web.accept(ctx, ws, prev.child.id);
-    const d = await this.web.read(ctx, ws, prev.child.id);
+      await this.web.accept(ctx, ws, id);
+    const d = await this.web.read(ctx, ws, id);
     return {
       d,
       added: d.proposals.filter((p) => p.decision === 'admitted').length,
@@ -1198,7 +1256,10 @@ export class AutopilotRunner {
       };
     let id = step.child?.kind === 'web_discovery' ? step.child.id : undefined;
     if (!id) {
-      const d = await this.web.start(keyed, ws, a.run_id, request);
+      const web = this.web;
+      const d = await this.#starting(ws, step, () =>
+        web.start(keyed, ws, a.run_id, request),
+      );
       id = d.id;
       const child = { kind: 'web_discovery' as const, id };
       if (!(await this.#record(ctx, ws, a, child))) {
@@ -1228,8 +1289,8 @@ export class AutopilotRunner {
       return {
         stop: {
           outcome: d.state === 'cancelled' ? 'cancelled' : 'failed',
-          note: `The web search ended ${d.state}: ${d.explanation}`.slice(
-            0,
+          note: cutText(
+            `The web search ended ${d.state}: ${d.explanation}`,
             1200,
           ),
         },
@@ -1304,7 +1365,7 @@ export class AutopilotRunner {
         else {
           const scope = WebDiscoveryScopeSchema.parse({
             ...(a.config.research?.scope ?? {}),
-            question: req.question.slice(0, 300),
+            question: cutText(req.question, 300),
           });
           const preview = await this.store.previewWebDiscovery(ctx, ws, scope);
           const r = await this.#search(
@@ -1333,7 +1394,7 @@ export class AutopilotRunner {
               (p) => p.check === 'verified' && p.decision === 'pending',
             ).length;
             notes.push(
-              `Searched the web for “${req.question.slice(0, 160)}”: ${searched} claim${searched === 1 ? '' : 's'} added by the run's routine approvals${pending ? `, ${pending} waiting for you under Discover › Search the web` : ''}.`,
+              `Searched the web for “${cutText(req.question, 160)}”: ${searched} claim${searched === 1 ? '' : 's'} added by the run's routine approvals${pending ? `, ${pending} waiting for you under Discover › Search the web` : ''}.`,
             );
             if (searched) await link();
             else if (this.#held(r.d)) held = { d: r.d, n: this.#held(r.d) };
@@ -1349,8 +1410,8 @@ export class AutopilotRunner {
         stop: {
           outcome: 'insufficient_evidence',
           kind: 'thin_evidence',
-          note: `${req.reason} The autopilot gathered evidence but found nothing new. ${notes.join(' ')}`.slice(
-            0,
+          note: cutText(
+            `${req.reason} The autopilot gathered evidence but found nothing new. ${notes.join(' ')}`,
             1200,
           ),
         },
@@ -1359,11 +1420,14 @@ export class AutopilotRunner {
     return {
       done: {
         request: { ...req, then, added },
-        note: `${notes.join(' ') || 'Nothing new was found.'} ${
-          then === 'select' && req.then === 'assess'
-            ? 'Nothing new to assess, so it goes on to choose.'
-            : `Going back to ${AUTOPILOT_STAGE_LABEL[then].toLowerCase()}.`
-        }`.slice(0, 1200),
+        note: cutText(
+          `${notes.join(' ') || 'Nothing new was found.'} ${
+            then === 'select' && req.then === 'assess'
+              ? 'Nothing new to assess, so it goes on to choose.'
+              : `Going back to ${AUTOPILOT_STAGE_LABEL[then].toLowerCase()}.`
+          }`,
+          1200,
+        ),
       },
     };
   }
@@ -1379,17 +1443,13 @@ export class AutopilotRunner {
   ): Promise<Result> {
     let id = step.child?.id;
     if (!id) {
-      const started =
+      const started = await this.#starting(ws, step, () =>
         step.stage === 'explore'
-          ? await this.store.startExploration(keyed, ws, a.run_id, step.request)
+          ? this.store.startExploration(keyed, ws, a.run_id, step.request)
           : step.stage === 'discover'
-            ? await this.store.startDiscovery(keyed, ws, a.run_id, step.request)
-            : await this.store.startAssessment(
-                keyed,
-                ws,
-                a.run_id,
-                step.request,
-              );
+            ? this.store.startDiscovery(keyed, ws, a.run_id, step.request)
+            : this.store.startAssessment(keyed, ws, a.run_id, step.request),
+      );
       id = started.workflow.id;
       if (!(await this.#record(ctx, ws, a, { kind: 'workflow', id }))) {
         // Stopped between the start and the record: stop what was just started (review L-1).
@@ -1406,8 +1466,8 @@ export class AutopilotRunner {
           stop: {
             outcome: 'needs_authority',
             kind: 'approval',
-            note: `${AUTOPILOT_STAGE_LABEL[step.stage]} is waiting for a decision (Monitor › Approvals): ${wf.reason}. Answer it, then continue the autopilot.`.slice(
-              0,
+            note: cutText(
+              `${AUTOPILOT_STAGE_LABEL[step.stage]} is waiting for a decision (Monitor › Approvals): ${wf.reason}. Answer it, then continue the autopilot.`,
               1200,
             ),
           },
@@ -1435,8 +1495,8 @@ export class AutopilotRunner {
     if (wf.state !== 'succeeded')
       return this.#retryOr(ctx, ws, a, step, {
         outcome: wf.state === 'cancelled' ? 'cancelled' : 'failed',
-        note: `${AUTOPILOT_STAGE_LABEL[step.stage]} ended ${wf.state}: ${wf.reason}`.slice(
-          0,
+        note: cutText(
+          `${AUTOPILOT_STAGE_LABEL[step.stage]} ended ${wf.state}: ${wf.reason}`,
           1200,
         ),
       });
@@ -1451,8 +1511,8 @@ export class AutopilotRunner {
       return {
         done: {
           child,
-          note: `The exploration found ${r.candidates.filter((x) => x.disposition === 'candidate').length} candidate problem(s); the first, ${pick.ref} “${pick.title}”, goes on.`.slice(
-            0,
+          note: cutText(
+            `The exploration found ${r.candidates.filter((x) => x.disposition === 'candidate').length} candidate problem(s); the first, ${pick.ref} “${pick.title}”, goes on.`,
             1200,
           ),
         },
@@ -1524,7 +1584,7 @@ export class AutopilotRunner {
       stop: {
         outcome: opts.outcome ?? 'insufficient_evidence',
         kind: 'thin_evidence',
-        note: reason.slice(0, 1200),
+        note: cutText(reason, 1200),
       },
     };
     const settings = await this.#settings(ctx, ws);
@@ -1557,16 +1617,14 @@ export class AutopilotRunner {
     if (typeof route === 'string') {
       if (settings.values.gather_evidence) {
         // Re-review 2 L-1: with the setting on, Continue would only stop here again.
-        (stop as { stop: Stop }).stop.note =
-          `${reason} It could not gather more evidence: ${route}`.slice(
-            0,
-            1200,
-          );
-        (stop as { stop: Stop }).stop.final =
-          `It could not gather more evidence (${route.replace(/\.$/, '')}). Add claims or search the web yourself, then start a new autopilot.`.slice(
-            0,
-            300,
-          );
+        (stop as { stop: Stop }).stop.note = cutText(
+          `${reason} It could not gather more evidence: ${route}`,
+          1200,
+        );
+        (stop as { stop: Stop }).stop.final = cutText(
+          `It could not gather more evidence (${route.replace(/\.$/, '')}). Add claims or search the web yourself, then start a new autopilot.`,
+          300,
+        );
       }
       return stop;
     }
@@ -1588,11 +1646,10 @@ export class AutopilotRunner {
       .map((q) => q.trim())
       .find((q) => q && !asked.has(q.toLowerCase()));
     if (!question) {
-      (stop as { stop: Stop }).stop.note =
-        `${reason} It has already searched the web for every question it had (${asked.size}); add claims or search the web with another question, then start again.`.slice(
-          0,
-          1200,
-        );
+      (stop as { stop: Stop }).stop.note = cutText(
+        `${reason} It has already searched the web for every question it had (${asked.size}); add claims or search the web with another question, then start again.`,
+        1200,
+      );
       (stop as { stop: Stop }).stop.final =
         'It has already searched the web for every question it had. Add claims or search the web with another question, then start a new autopilot.';
       return stop;
@@ -1610,10 +1667,10 @@ export class AutopilotRunner {
           kind: 'gather',
           request: {
             then: 'explore',
-            reason: reason.slice(0, 600),
+            reason: cutText(reason, 600),
             problem_id: null,
             options: null,
-            question: question.slice(0, 300),
+            question: cutText(question, 300),
           },
         },
       },
@@ -1712,8 +1769,8 @@ export class AutopilotRunner {
     return {
       done: {
         child: { kind: 'search_brief', id: made.brief.id },
-        note: `Brief “${made.brief.title}” written from ${pick.ref}, with ${pick.claims.length} claim${pick.claims.length === 1 ? '' : 's'}.`.slice(
-          0,
+        note: cutText(
+          `Brief “${made.brief.title}” written from ${pick.ref}, with ${pick.claims.length} claim${pick.claims.length === 1 ? '' : 's'}.`,
           1200,
         ),
       },
@@ -1779,11 +1836,14 @@ export class AutopilotRunner {
           child: { kind: 'selection', id: current!.id },
           problem: current!.problem,
           option: mine.option,
-          note: `Going on with your choice under Decide: “${mine.option.title}” (${mine.disposition.replaceAll('_', ' ')}).${
-            a.steps.some((s) => s.stage === 'select' && s.asked)
-              ? ' The question the autopilot left under Monitor › Approvals is answered by this choice; you can leave it to expire.'
-              : ''
-          }`.slice(0, 1200),
+          note: cutText(
+            `Going on with your choice under Decide: “${mine.option.title}” (${mine.disposition.replaceAll('_', ' ')}).${
+              a.steps.some((s) => s.stage === 'select' && s.asked)
+                ? ' The question the autopilot left under Monitor › Approvals is answered by this choice; you can leave it to expire.'
+                : ''
+            }`,
+            1200,
+          ),
         },
       };
     }
@@ -1826,7 +1886,7 @@ export class AutopilotRunner {
               kind: 'gather',
               request: {
                 then: 'assess',
-                reason: strict.reason.slice(0, 600),
+                reason: cutText(strict.reason, 600),
                 problem_id: report.problem.id,
                 options: rows.length ? rows.map((r) => r.alternative.id) : null,
                 question: typeof route === 'string' ? null : question,
@@ -1886,11 +1946,14 @@ export class AutopilotRunner {
                 ),
               }
             : {}),
-        note: `Chose “${choice.option.title}” (${choice.request.dispositions.find((d) => d.alternative.id === choice.option.id)!.disposition.replaceAll('_', ' ')}); the other options are deferred.${
-          choice.fallbacks.length
-            ? ` With the owner's autopilot settings: ${choice.fallbacks.map((f) => f.note).join(' ')}`
-            : ''
-        }${flagged ? ` ${MODEL_ONLY_ETHICS_NOTE}` : ''}`.slice(0, 1200),
+        note: cutText(
+          `Chose “${choice.option.title}” (${choice.request.dispositions.find((d) => d.alternative.id === choice.option.id)!.disposition.replaceAll('_', ' ')}); the other options are deferred.${
+            choice.fallbacks.length
+              ? ` With the owner's autopilot settings: ${choice.fallbacks.map((f) => f.note).join(' ')}`
+              : ''
+          }${flagged ? ` ${MODEL_ONLY_ETHICS_NOTE}` : ''}`,
+          1200,
+        ),
       },
     };
   }
@@ -1916,8 +1979,8 @@ export class AutopilotRunner {
       body: flagged
         ? {
             ...draft.body,
-            summary: `${MODEL_ONLY_ETHICS_NOTE} ${draft.body.summary}`.slice(
-              0,
+            summary: cutText(
+              `${MODEL_ONLY_ETHICS_NOTE} ${draft.body.summary}`,
               1200,
             ),
           }
@@ -1935,8 +1998,8 @@ export class AutopilotRunner {
       done: {
         child: { kind: 'proposal', id: made.proposal.id },
         outcome: 'proposal',
-        note: `Saved the proposal “${draft.title}” for “${sel.option.title}”, drafted from the records; sections the records cannot fill say so.${drafted ? ` ${drafted}` : ''} Review it under Proposals.`.slice(
-          0,
+        note: cutText(
+          `Saved the proposal “${draft.title}” for “${sel.option.title}”, drafted from the records; sections the records cannot fill say so.${drafted ? ` ${drafted}` : ''} Review it under Proposals.`,
           1200,
         ),
       },
@@ -2058,23 +2121,24 @@ export class AutopilotRunner {
    */
   async #redo(ctx: CommandContext, ws: string, a: Autopilot, r: Fallback) {
     const now = new Date().toISOString();
-    const steps: AutopilotStep[] = a.steps.map((s, i) =>
-      i === a.steps.length - 1 && s.state === 'running'
-        ? {
-            ...s,
-            state:
-              r.then.kind === 'skip'
-                ? ('skipped' as const)
-                : ('stopped' as const),
-            child: r.child ?? s.child,
-            note: r.fallback.note.slice(0, 1200),
-            fallback: r.fallback,
-            stop_kind: r.fallback.instead_of,
-            finished_at: now,
-          }
-        : s,
-    );
     let reserved = a.calls_reserved;
+    const steps: AutopilotStep[] = a.steps.map((s, i) => {
+      if (i !== a.steps.length - 1 || s.state !== 'running') return s;
+      // A refused attempt sent nothing: give back what it set aside.
+      const release = r.unsent && (r.child ?? s.child) == null ? s.calls : 0;
+      reserved -= release;
+      return {
+        ...s,
+        state:
+          r.then.kind === 'skip' ? ('skipped' as const) : ('stopped' as const),
+        child: r.child ?? s.child,
+        calls: s.calls - release,
+        note: cutText(r.fallback.note, 1200),
+        fallback: r.fallback,
+        stop_kind: r.fallback.instead_of,
+        finished_at: now,
+      };
+    });
     if (r.then.kind === 'gather') {
       const attempt = steps.filter((s) => s.stage === 'gather').length + 1;
       const calls = r.then.request.question
@@ -2091,8 +2155,8 @@ export class AutopilotRunner {
         option: null,
         request: r.then.request,
         key: autopilotKey(a.id, 'gather', attempt),
-        note: `${AUTOPILOT_STAGE_LABEL.gather}: ${r.then.request.reason}`.slice(
-          0,
+        note: cutText(
+          `${AUTOPILOT_STAGE_LABEL.gather}: ${r.then.request.reason}`,
           1200,
         ),
         started_at: now,
@@ -2116,23 +2180,30 @@ export class AutopilotRunner {
   async #finish(ctx: CommandContext, ws: string, a: Autopilot, stopIn: Stop) {
     const stop = await this.#settle(ctx, ws, stopIn);
     const now = new Date().toISOString();
-    const steps = a.steps.map((s, i) =>
-      i === a.steps.length - 1 && s.state === 'running'
-        ? {
-            ...s,
-            state: 'stopped' as const,
-            note: stop.note.slice(0, 1200),
-            no_retry: stop.final ?? null,
-            stop_kind: stop.kind ?? 'other',
-            ...(stop.asked ? { asked: stop.asked } : {}),
-            finished_at: now,
-          }
-        : s,
-    );
+    let reserved = a.calls_reserved;
+    const steps = a.steps.map((s, i) => {
+      if (i !== a.steps.length - 1 || s.state !== 'running') return s;
+      const child = stop.child ?? s.child;
+      // A refused step sent nothing: give back what it set aside.
+      const release = stop.unsent && child == null ? s.calls : 0;
+      reserved -= release;
+      return {
+        ...s,
+        state: 'stopped' as const,
+        child,
+        calls: s.calls - release,
+        note: cutText(stop.note, 1200),
+        no_retry: stop.final ?? null,
+        stop_kind: stop.kind ?? 'other',
+        ...(stop.asked ? { asked: stop.asked } : {}),
+        finished_at: now,
+      };
+    });
     return this.store.advanceAutopilot(ctx, ws, a.id, a.version, {
       steps,
       explanation: stop.note,
       outcome: stop.outcome,
+      ...(reserved !== a.calls_reserved ? { calls_reserved: reserved } : {}),
     });
   }
 }

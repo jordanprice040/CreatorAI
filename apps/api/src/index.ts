@@ -96,6 +96,7 @@ import {
   digest,
   readStudyBuild,
   gradePatchCase,
+  type BuildPorts,
 } from '@creator/executor';
 import { createAuth } from './auth.js';
 import { WebDiscoveryRunner } from './web-discovery.js';
@@ -272,6 +273,8 @@ export function createApi(
     ) => PlanConnectionService;
     /** Test seam: runs a built-in capability check's program (ADR-0090). */
     capabilityRunner?: CapabilityRunner;
+    /** Test seam (B3): wraps each studio build's ports, for scripted fixture role answers. */
+    buildPorts?: (ports: BuildPorts) => BuildPorts;
   } = {},
 ) {
   // X06: NAME_FILE secrets (Docker/systemd credentials) are loaded before anything reads env.
@@ -453,6 +456,7 @@ export function createApi(
             runPlanBuildCall(planService, ctx, ws, connection, body),
           (ctx, ws, connection, body) =>
             planBuildRolesReady(planService, ctx, ws, connection, body),
+          deps.buildPorts,
         )
       : null;
   // X07: payments. Fixture and test-mode processors only; live payments are not built.

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // P14 repo benchmarks CLI. The grading rules live in the frozen config/repo-benchmarks/grader.mjs.
 //
-//   node scripts/p14-benchmark.mjs verify [--set v2|v3|v4]
+//   node scripts/p14-benchmark.mjs verify [--set v2|v3|v4|repair-v1]
 //   node scripts/p14-benchmark.mjs score <benchmark-id> <product-dir> [--runner bwrap|direct] [--trusted]
 //   node scripts/p14-benchmark.mjs compare-spec <benchmark-id> <stored-spec.json>
 //   node scripts/p14-benchmark.mjs freeze --set <set>   (once per set; refuses to overwrite)
@@ -26,14 +26,23 @@ export const SETS = {
   v2: join(ROOT, 'config/repo-benchmarks/grader.mjs'),
   v3: join(ROOT, 'config/repo-benchmarks/v3/grader.mjs'),
   v4: join(ROOT, 'config/repo-benchmarks/v4/grader.mjs'),
+  // B3: the repair benchmark, under its own frozen grader copy.
+  'repair-v1': join(ROOT, 'config/repo-benchmarks/repair-v1/grader.mjs'),
 };
 /** The frozen grader module of a set. */
 export async function loadSet(name = 'v2') {
   if (!(name in SETS)) throw new Error(`Unknown benchmark set ${name}`);
   return import(pathToFileURL(SETS[name]).href);
 }
-/** The set a benchmark id belongs to, from its version suffix (p14-...-v3 is set v3). */
-export const setOf = (id) => /-(v[0-9]+)$/.exec(id ?? '')?.[1] ?? 'v2';
+/**
+ * The set a benchmark id belongs to, from its version suffix (p14-...-v3 is set v3); the repair
+ * benchmark p14-repair-vN is set repair-vN.
+ */
+export const setOf = (id) => {
+  const repair = /^p14-repair-(v[0-9]+)$/.exec(id ?? '');
+  if (repair) return `repair-${repair[1]}`;
+  return /-(v[0-9]+)$/.exec(id ?? '')?.[1] ?? 'v2';
+};
 
 /** Freeze problems plus the studio's own spec schema and build rules; empty when all hold. */
 export async function verify(set = 'v2') {

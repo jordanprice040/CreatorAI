@@ -1,0 +1,48 @@
+{
+  "recipe": "python-build/1",
+  "startup": "python3 -I src/main.py",
+  "passed": 10,
+  "total": 10,
+  "results": [
+    {
+      "check_key": "A1",
+      "passed": true
+    },
+    {
+      "check_key": "A1",
+      "passed": true
+    },
+    {
+      "check_key": "A1",
+      "passed": true
+    },
+    {
+      "check_key": "A1",
+      "passed": true
+    },
+    {
+      "check_key": "A2",
+      "passed": true
+    },
+    {
+      "check_key": "A2",
+      "passed": true
+    },
+    {
+      "check_key": "A2",
+      "passed": true
+    },
+    {
+      "check_key": "A3",
+      "passed": true
+    },
+    {
+      "check_key": "A3",
+      "passed": true
+    },
+    {
+      "check_key": "A4",
+      "passed": true
+    }
+  ]
+}

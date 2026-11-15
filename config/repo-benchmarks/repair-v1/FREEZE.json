@@ -1,0 +1,15 @@
+{
+  "format": "p14-benchmark-freeze/2",
+  "frozen_at": "2026-11-14T23:10:50.158Z",
+  "note": "Set repair-v1. Written by the author before any studio or model run of this set; the git commit and this file hash (recorded in docs/REPO_BENCHMARKS_P14_2026-11-06.md) are the anchor.",
+  "benchmarks": [
+    "p14-repair-v1"
+  ],
+  "files": {
+    "grader.mjs": "f1d783417c4ae050fe873754c4d1da90158c28524e0ab1d3614a30a27681492e",
+    "p14-repair-v1/expectations.json": "0d0d5832020fc0c60a75fa4c30f0dc4988d4adf453f97ac5c09df5079e42b43c",
+    "p14-repair-v1/extended-cases.json": "f5d95208a609014523f137d55fcbc9d86464e81b1cff26a0298d39697774115e",
+    "p14-repair-v1/reference/src/main.py": "8a31b5cdd9f7957d80eb3e2b68936e5ddeb070bc68712ceec2ba26f95b0ab9ab",
+    "p14-repair-v1/spec.json": "54eff2ca2a336d8a1971857f09fcec8076bca54b938c84fd5fa7f5aeb36cfc70"
+  }
+}

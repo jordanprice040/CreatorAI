@@ -2792,9 +2792,33 @@ test('P-12: a web search whose claims wait for a person stops the autopilot; All
   assert.ok(
     isHandsOff({ ...handsOff(OFF), accept_quote_checked_claims: true }),
   );
+  assert.equal(stopped.calls_reserved, 2, 'the search set aside its 2 calls');
 
-  await runner.allowAndContinue(owner, h.ws.id, a.id, {
+  // Live run 2026-11-14: Continue with nothing added stops again without a search of its own,
+  // sets nothing aside and keeps the search it is about.
+  await runner.retry(owner, h.ws.id, a.id, {
     expected_version: stopped.version,
+  });
+  await runner.settled(a.id);
+  const again = runner.with(await h.store.getAutopilot(owner, h.ws.id, a.id));
+  assert.equal(again.outcome, 'needs_person');
+  assert.equal(again.steps.length, 2);
+  assert.equal(again.steps[1]!.stop_kind, 'claims_held');
+  assert.deepEqual(again.steps[1]!.child, {
+    kind: 'web_discovery',
+    id: '00000000-0000-4000-8000-0000000000d2',
+  });
+  assert.equal(again.steps[1]!.calls, 0);
+  assert.equal(again.calls_reserved, 2);
+  assert.equal(started.length, 1, 'Continue did not search again');
+  assert.match(
+    again.next?.find((n) => n.kind === 'continue')?.detail ?? '',
+    /while claims still wait and none were added, it stops here again/,
+  );
+
+  // A later Allow still goes on from that first search instead of searching again.
+  await runner.allowAndContinue(owner, h.ws.id, a.id, {
+    expected_version: again.version,
     settings_version: 0,
     setting: 'accept_quote_checked_claims',
   });
@@ -2807,13 +2831,14 @@ test('P-12: a web search whose claims wait for a person stops the autopilot; All
   );
   assert.equal(accepted, 1);
   assert.equal(started.length, 1, 'no second search');
-  assert.equal(b.steps[1]!.stage, 'research');
-  assert.equal(b.steps[1]!.state, 'done');
+  assert.equal(b.steps[2]!.stage, 'research');
+  assert.equal(b.steps[2]!.state, 'done');
+  assert.equal(b.steps[2]!.calls, 0);
   assert.match(
-    b.steps[1]!.note,
+    b.steps[2]!.note,
     /Went on from the earlier web search: 1 claim added/,
   );
-  assert.equal(b.steps[2]!.stage, 'explore');
+  assert.equal(b.steps[3]!.stage, 'explore');
 });
 
 test('P-11: approvals made with an autopilot end when it ends, stay while it waits for a person, and approvals the run had keep their terms', async (t) => {
@@ -3260,4 +3285,184 @@ test('review 1 L-4: a discovery a person runs gets no cited-claim links, even wi
     [h.ws.id],
   );
   assert.equal(cited.rowCount, 0);
+});
+
+/** A research-only autopilot whose web search is the given stand-in (review 1 of #202). */
+async function researchAutopilot(
+  h: NonNullable<Awaited<ReturnType<typeof setup>>>,
+  web: AutopilotWeb,
+) {
+  const research = {
+    connection_id: '00000000-0000-4000-8000-0000000000c1',
+    model_id: 'gpt-test',
+    scope: WebDiscoveryScopeSchema.parse({ interests: ['volunteers'] }),
+    input_hash: 'c'.repeat(64),
+  };
+  const runner = new AutopilotRunner(h.store, web, {
+    pollMs: 5,
+    onWait: () => h.worker.settle(),
+  });
+  const runId = await h.run(
+    h.policy(['research', 'evidence', 'model_work', 'selection'], {
+      data_classes: ['public', 'synthetic'],
+    }),
+  );
+  const a = await runner.start(
+    owner,
+    h.ws.id,
+    runId,
+    h.body(h.config({ research })),
+  );
+  await runner.settled(a.id);
+  return h.store.getAutopilot(owner, h.ws.id, a.id);
+}
+const webStub = (start: AutopilotWeb['start']): AutopilotWeb => ({
+  accept: async () => null,
+  start,
+  read: async () => {
+    throw new Error('Reading failed (test).');
+  },
+  isActive: () => true,
+  resume: async () => null,
+  cancel: async () => null,
+});
+
+test('live run 2026-11-14: a step refused before it sent anything gives back the calls it set aside, also on a retry', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  let starts = 0;
+  const refusing = webStub(async () => {
+    starts += 1;
+    throw new ContractError(
+      'INVALID_CONTRACT',
+      'Refused before any request (test).',
+    );
+  });
+  const b = await researchAutopilot(h, refusing);
+  assert.equal(b.outcome, 'failed', b.explanation);
+  assert.match(b.explanation, /Refused before any request/);
+  assert.equal(starts, 1);
+  assert.ok(
+    b.steps.every((s) => s.child === null && s.calls === 0),
+    JSON.stringify(b.steps),
+  );
+  assert.equal(b.calls_reserved, 0, 'nothing stays set aside for a refusal');
+
+  // Review 1 L-6: with one retry allowed, both refused attempts give their calls back.
+  await h.store.saveAutopilotSettings(owner, h.ws.id, {
+    expected_version: 0,
+    values: { ...AUTOPILOT_SETTINGS_DEFAULT, retry_failed: 1 },
+  });
+  starts = 0;
+  const c = await researchAutopilot(h, refusing);
+  assert.equal(c.outcome, 'failed', c.explanation);
+  assert.equal(starts, 2, 'tried twice');
+  assert.equal(c.steps.length, 2);
+  assert.ok(
+    c.steps.every((s) => s.calls === 0),
+    JSON.stringify(c.steps),
+  );
+  assert.equal(c.calls_reserved, 0);
+});
+
+test('review 1 of #202 L-5: a start that returned keeps its calls set aside even when recording it failed', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  // The search starts (so it may have spent), then recording its child fails once.
+  let failNext = false;
+  const advance = h.store.advanceAutopilot.bind(h.store);
+  h.store.advanceAutopilot = async (...args) => {
+    if (failNext) {
+      failNext = false;
+      throw new Error('Recording failed (test).');
+    }
+    return advance(...args);
+  };
+  const b = await researchAutopilot(
+    h,
+    webStub(async () => {
+      failNext = true;
+      return { id: '00000000-0000-4000-8000-0000000000d4' };
+    }),
+  );
+  h.store.advanceAutopilot = advance;
+  assert.equal(b.outcome, 'failed', b.explanation);
+  assert.match(b.explanation, /Recording failed/);
+  assert.equal(b.steps[0]!.child, null, 'the child was never recorded');
+  assert.equal(b.steps[0]!.calls, 2, 'unknown spend is not zero');
+  assert.equal(b.calls_reserved, 2);
+});
+
+test('re-review of #202 L-2: a discovery start that committed and then threw a plain error keeps its calls set aside', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  // The store commits the discovery, then its follow-up read fails (not a refusal).
+  const start = h.store.startDiscovery.bind(h.store);
+  h.store.startDiscovery = async (...args) => {
+    await start(...args);
+    throw new Error('The read after the start failed (test).');
+  };
+  const a = await h.start(await h.run());
+  h.store.startDiscovery = start;
+  assert.equal(a.outcome, 'failed', a.explanation);
+  const discover = a.steps.find((s) => s.stage === 'discover')!;
+  assert.match(discover.note, /The read after the start failed/);
+  assert.equal(discover.child, null);
+  assert.ok(discover.calls > 0, 'the step may have spent');
+  assert.equal(
+    a.calls_reserved,
+    a.steps.reduce((n, s) => n + s.calls, 0),
+  );
+});
+
+test('third review of #202 N-1: a start that committed and then threw a refusal keeps its calls set aside', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  // The discovery commits (its receipt is written), then a later read is refused.
+  const start = h.store.startDiscovery.bind(h.store);
+  h.store.startDiscovery = async (...args) => {
+    await start(...args);
+    throw new ContractError(
+      'ACCESS_DENIED',
+      'The read after the start was refused (test).',
+    );
+  };
+  const a = await h.start(await h.run());
+  h.store.startDiscovery = start;
+  // A refused role check stops for a person's authority.
+  assert.equal(a.outcome, 'needs_authority', a.explanation);
+  const discover = a.steps.find((s) => s.stage === 'discover')!;
+  assert.match(discover.note, /The read after the start was refused/);
+  assert.equal(discover.child, null);
+  assert.ok(discover.calls > 0, 'it committed, so it may have spent');
+  assert.ok(await h.store.commandCommitted(h.ws.id, discover.key!));
+  assert.equal(
+    a.calls_reserved,
+    a.steps.reduce((n, s) => n + s.calls, 0),
+  );
+});
+
+test('re-review of #202 L-1: a stop note with an emoji across the cut stores without a lone surrogate', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  // "The web search ended failed: " is 29 characters; the emoji starts at 1199.
+  const explanation = 'a'.repeat(1199 - 29) + '😀 and more after the cut';
+  const b = await researchAutopilot(h, {
+    ...webStub(async () => ({ id: '00000000-0000-4000-8000-0000000000d5' })),
+    read: async () =>
+      ({
+        id: '00000000-0000-4000-8000-0000000000d5',
+        version: 1,
+        state: 'failed',
+        explanation,
+        proposals: [],
+      }) as unknown as WebDiscovery,
+  });
+  assert.equal(b.outcome, 'failed', b.explanation);
+  const note = b.steps[0]!.note;
+  assert.equal(note.length, 1199);
+  assert.doesNotMatch(note, /[\uD800-\uDBFF]$/);
+  assert.equal(b.explanation, note);
 });

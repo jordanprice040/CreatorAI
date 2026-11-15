@@ -5,6 +5,7 @@ import {
   SearchBriefBodySchema,
   StartDiscoveryRequestSchema,
   StartExplorationRequestSchema,
+  cutText,
   parse,
   type CatalogEntry,
   type ClaimEvidence,
@@ -54,7 +55,7 @@ const summaryOf = (kind: string, body: Row | null): string => {
         : kind === 'search_brief'
           ? body.measurable_problem
           : body.rationale;
-  return typeof text === 'string' ? text.slice(0, 400) : '';
+  return typeof text === 'string' ? cutText(text, 400) : '';
 };
 
 /**
@@ -158,6 +159,9 @@ export class DiscoveryStore extends ResearchStore {
     const context: DiscoveryWorkflowContext = {
       packet,
       packet_hash: canonicalHash(packet),
+      // L-3, re-review N-3: the duplicate check always reads every fetched record at full
+      // length, also those the packet left out or cut.
+      ...(catalog.length ? { duplicates_against: catalog.slice(0, 40) } : {}),
       perspectives: req.perspectives,
       excluded: req.excluded,
       max_revisions: req.max_revisions,

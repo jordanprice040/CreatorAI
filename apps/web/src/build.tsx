@@ -71,6 +71,7 @@ import {
   envelopeFor,
   needsRecover,
 } from './build-defaults.js';
+import { BuildDetails, BuildProgressSchema } from './build-progress.js';
 
 // What GET /products returns (apps/api/src/products.ts, ADR-0046).
 const sha = z.string().regex(/^[0-9a-f]{40}$/);
@@ -95,6 +96,8 @@ const BuildSchema = z.object({
   fixture: z.boolean().nullable(),
   finished_at: z.string().nullable(),
   package: JobSchema.nullable(),
+  /** B3: the task's newest build only; null for older builds and unreadable folders. */
+  progress: BuildProgressSchema.nullable().optional(),
 });
 const ProductEntrySchema = z.object({
   product: z.object({
@@ -1131,14 +1134,26 @@ function Product({
                     {!standard && ` ${shortId(b.id)}`} · started{' '}
                     {when(b.started_at)}
                     {b.fixture && ' · fixture'}
-                    {b.reason && (
-                      <small>
-                        {' '}
-                        ·{' '}
-                        {standard
-                          ? plainReason(b.reason)
-                          : b.reason.replace(/^Error: /, '')}
-                      </small>
+                    {b.reason &&
+                      !(standard && b === builds[0] && b.progress) && (
+                        <small>
+                          {' '}
+                          ·{' '}
+                          {standard
+                            ? plainReason(b.reason)
+                            : b.reason.replace(/^Error: /, '')}
+                        </small>
+                      )}
+                    {b === builds[0] && (
+                      <BuildDetails
+                        state={b.state}
+                        reason={b.reason}
+                        progress={b.progress ?? null}
+                        recipe={p.recipe ?? 'python-build/1'}
+                        archive={archiveName(b, packaged(b))}
+                        plain={plainReason(b.reason ?? '')}
+                        fixture={b.fixture === true}
+                      />
                     )}
                     {b.state === 'checkpoint' &&
                       b === builds[0] &&
@@ -1221,6 +1236,13 @@ function Product({
       })}
     </article>
   );
+}
+
+/** The source archive's download name (apps/api/src/artifacts.ts), once packaged. */
+function archiveName(b: Build, artifactId: string | undefined) {
+  return b.commit && artifactId
+    ? `creator-${b.commit.slice(0, 10)}-${artifactId.slice(0, 8)}.tar`
+    : null;
 }
 
 /**
