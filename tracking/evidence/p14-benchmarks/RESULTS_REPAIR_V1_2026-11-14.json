@@ -1,0 +1,425 @@
+{
+  "format": "p14-benchmark-results/1",
+  "benchmark_id": "p14-repair-v1",
+  "set": "repair-v1",
+  "date": "2026-11-14 (UTC runs 2026-11-15 00:01-00:08)",
+  "freeze_json_sha256": "a6d18687d5ae0b1933c201050ac85b59c142bd293c51f0df0e53e4300eb47eea",
+  "benchmark_commit": "d29ee31 (PR #203, branch claude/project-thread-bn6eyf)",
+  "studio": {
+    "code_commit": "d29ee31",
+    "worktree": "C:\\dev\\creator_agent_main (detached)",
+    "database": "creator_studio",
+    "schema": 63,
+    "worker": "WSL2 isolation worker (Ubuntu, Bubblewrap 0.11.1)"
+  },
+  "route": {
+    "kind": "plan_roles",
+    "connection_id": "4e4a7bec-c1ca-4f31-8f87-b11ed5fc81d4",
+    "connection_label": "ChatGPT plan",
+    "model_id": "gpt-6-astra",
+    "cost_usd": "0.00"
+  },
+  "workspace": {
+    "id": "88df6c10-7310-4ec0-b623-7f48046bc447",
+    "name": "Jordan's Creator Studio",
+    "note": "The brief named the Testing workspace; it has no plan connection, and connections were not to be changed, so the runs used the workspace that holds the ChatGPT-plan connection, as the P14 v2-v4 runs did."
+  },
+  "method": "Run, records, selection, spec (from spec.json), humility reviews, freeze, compare-spec and product via the studio API and CLI (driver .creator/p14-benchmarks/repair-v1/tools/p14.mjs, adapted from v4). Build via CLI build-task with the frozen caps (2 repairs, 6 requests, 6000 output tokens, 120 s, synthetic): the first ask stopped at the build approval, which was approved once in the Build page in-place approval, then build-task ran the build. Packaged and downloaded via CLI; scored with the frozen grader under Bubblewrap in WSL2.",
+  "authorization": "Jordan's typed OK in the project thread, 2026-11-14 23:55 UTC ('I OK both those steps').",
+  "result": {
+    "verified": "3 of 3",
+    "repair_rounds_used": "0 of 3 attempts",
+    "note": "No attempt needed a repair: every first draft passed 10/10 studio cases (incl. 6/6 held out) and the reviewer approved with no findings. Under owner decision D that is the result; nothing was re-run. The live repair path and its Build page view were not observed live."
+  },
+  "plan_requests_total": 6,
+  "plan_requests_utc_day": {
+    "before": 0,
+    "after": 6
+  },
+  "attempts": [
+    {
+      "attempt": 1,
+      "run_id": "a8f7def7-ab80-49de-90f4-1ce5325b08b8",
+      "selection_id": "a2c96b8a-ec1f-493f-8409-71ad52573238",
+      "spec": {
+        "id": "7431c67d-8b57-4119-b4a7-daaba8159d25",
+        "version": 1
+      },
+      "product_id": "a5884537-7b53-44cd-b156-1517a7322b58",
+      "task_id": "7ca981a9-b2d0-43c3-a5fd-03eb5aadf55b",
+      "compare_spec": {
+        "pass": true,
+        "output": "OK the stored spec equals the frozen p14-repair-v1 spec"
+      },
+      "preflight_blockers": [],
+      "approval": {
+        "stop_build_id": "c627facd-c6b0-4986-bf7a-2a47825b06ce",
+        "decision_id": "2cc6d797-385b-498e-8720-4ccc7a9058ac",
+        "answered_in": "Build page in-place approval"
+      },
+      "build_id": "1ee0b615-4437-4f99-be66-76751bf7d317",
+      "outcome": "verified_candidate",
+      "reason": "Fresh review and executed acceptance cases passed for this exact task candidate",
+      "requests": 2,
+      "repair_rounds": 0,
+      "refused_patches": 0,
+      "wall_ms": 39695,
+      "started_at": "2026-11-15T00:02:46.458Z",
+      "finished_at": "2026-11-15T00:03:26.154Z",
+      "files_changed": [
+        {
+          "path": "src/main.py",
+          "added": 64,
+          "deleted": 2
+        }
+      ],
+      "diff_lines": 66,
+      "base_commit": "4a9eecc6dc710483e6d31c95b5d3b5f9ff4da841",
+      "commit": "113cb77fbfd13646327c4a5dfc6696192164eaaf",
+      "plan_hash": "9186d959366a4316b456f23d5503051648b8974e90a61bba6c1f7f90b62995fc",
+      "spec_hash": "e9e8b3ea9a33cda2dd13a69bc395059fe3f1a2e07ebbe207f1323cc8f8edde6c",
+      "fixture": false,
+      "reviews": [
+        {
+          "file": "review-0.json",
+          "verdict": "approve",
+          "findings": []
+        }
+      ],
+      "qa_rounds": {
+        "0": {
+          "development": {
+            "total": 4,
+            "passed": 4
+          },
+          "held_out": {
+            "total": 6,
+            "passed": 6
+          }
+        }
+      },
+      "call_outcomes": [
+        {
+          "file": "call-1-outcome.json",
+          "request_id": "89503f54-e8bc-49b5-bd07-bea1f8fbf76d",
+          "status": "succeeded",
+          "reason_code": "ok"
+        },
+        {
+          "file": "call-2-outcome.json",
+          "request_id": "0869fa05-0758-486b-afcb-6ca39dc32114",
+          "status": "succeeded",
+          "reason_code": "ok"
+        }
+      ],
+      "plan_requests_before": {
+        "utc_day": 0,
+        "all_time": 149,
+        "at": "2026-11-15T00:01:09.109Z"
+      },
+      "plan_requests_after": {
+        "utc_day": 2,
+        "all_time": 151,
+        "at": "2026-11-15T00:03:26.618Z"
+      },
+      "package": {
+        "artifact_id": "3e959695-6268-450b-b54d-0140605f3f4a",
+        "manifest_sha256": "9c98a843e468793cdff92ea4b23a276dde022ef42d350b5fd869fcfbb2e0d721",
+        "state": "verified",
+        "archive_sha256": "6715647921b54760ef282a153a82ff9cad477c3b402d2155cac927ba4080c1c7",
+        "archive_bytes": 4608
+      },
+      "grader": {
+        "format": "p14-score/2",
+        "benchmark_id": "p14-repair-v1",
+        "freeze_sha256": "a6d18687d5ae0b1933c201050ac85b59c142bd293c51f0df0e53e4300eb47eea",
+        "grader_sha256": "f1d783417c4ae050fe873754c4d1da90158c28524e0ab1d3614a30a27681492e",
+        "frozen_spec_sha256": "54eff2ca2a336d8a1971857f09fcec8076bca54b938c84fd5fa7f5aeb36cfc70",
+        "product_tree_sha256": "2bc6a8b86967b9cd46e06012ed0a3914290c5e88210045b116d4f023b8993a85",
+        "runner": "bwrap",
+        "compile_error": null,
+        "build": {
+          "passed": 10,
+          "total": 10
+        },
+        "build_held_out": {
+          "passed": 6,
+          "total": 6
+        },
+        "extended": {
+          "passed": 22,
+          "total": 22
+        },
+        "structure": null,
+        "resources": {
+          "max_case_cpu_s": 0.026,
+          "max_case_rss_kb": 11716
+        },
+        "pass": true,
+        "failures": []
+      },
+      "pass_bar": {
+        "verified_candidate": true,
+        "requests_within_6": true,
+        "compare_spec": true,
+        "grader_pass": true
+      }
+    },
+    {
+      "attempt": 2,
+      "run_id": "21a13faf-3061-4cb2-955a-573c6aec7ed0",
+      "selection_id": "1e63de0f-d163-42e5-a433-df6400626022",
+      "spec": {
+        "id": "eb315242-a053-4d89-9434-5de4e778e803",
+        "version": 1
+      },
+      "product_id": "7915fd0c-93c0-4071-a9ac-f42ebd7cb996",
+      "task_id": "5aae4289-c1d9-434c-b282-9cedb25136b3",
+      "compare_spec": {
+        "pass": true,
+        "output": "OK the stored spec equals the frozen p14-repair-v1 spec"
+      },
+      "preflight_blockers": [],
+      "approval": {
+        "stop_build_id": "8e7aa364-6ec3-444a-93fd-4aa5a9828633",
+        "decision_id": "340c7073-2a0c-4f8d-b189-c775dc82162b",
+        "answered_in": "Build page in-place approval"
+      },
+      "build_id": "3a4cacdb-e05e-49dd-abb2-23d4d3155344",
+      "outcome": "verified_candidate",
+      "reason": "Fresh review and executed acceptance cases passed for this exact task candidate",
+      "requests": 2,
+      "repair_rounds": 0,
+      "refused_patches": 0,
+      "wall_ms": 38247,
+      "started_at": "2026-11-15T00:05:15.469Z",
+      "finished_at": "2026-11-15T00:05:53.716Z",
+      "files_changed": [
+        {
+          "path": "src/main.py",
+          "added": 73,
+          "deleted": 2
+        }
+      ],
+      "diff_lines": 75,
+      "base_commit": "200b7835e53e8d349036285046299051e0af5966",
+      "commit": "dc44f8fde9733cc3e362d3950f3e1d909f05382a",
+      "plan_hash": "38cf9894f3ce0d66163b171ab3eddcfc19850ef4483aa34bcf176aa32b29487a",
+      "spec_hash": "5472e58102194171e0e299908628cb307f0049786f98dce6d0a745aaf89db6a4",
+      "fixture": false,
+      "reviews": [
+        {
+          "file": "review-0.json",
+          "verdict": "approve",
+          "findings": []
+        }
+      ],
+      "qa_rounds": {
+        "0": {
+          "development": {
+            "total": 4,
+            "passed": 4
+          },
+          "held_out": {
+            "total": 6,
+            "passed": 6
+          }
+        }
+      },
+      "call_outcomes": [
+        {
+          "file": "call-1-outcome.json",
+          "request_id": "f8edd379-6778-43aa-8cbc-b6d29cbc57e0",
+          "status": "succeeded",
+          "reason_code": "ok"
+        },
+        {
+          "file": "call-2-outcome.json",
+          "request_id": "2b5e027d-67c9-42ee-a1be-b981952ba172",
+          "status": "succeeded",
+          "reason_code": "ok"
+        }
+      ],
+      "plan_requests_before": {
+        "utc_day": 2,
+        "all_time": 151,
+        "at": "2026-11-15T00:04:31.257Z"
+      },
+      "plan_requests_after": {
+        "utc_day": 4,
+        "all_time": 153,
+        "at": "2026-11-15T00:05:54.217Z"
+      },
+      "package": {
+        "artifact_id": "8ca3a795-fe2d-41c2-9eea-a1c1eb6e9445",
+        "manifest_sha256": "bebac5485b21e4cb9ce49d03db19896ca715b5e1fb0c60622c7a25f0286c257b",
+        "state": "verified",
+        "archive_sha256": "094bc3543c4c1e7937bd150be9c7844bce7b38d1df6012b8cebf5f9e6a3bb0a6",
+        "archive_bytes": 5120
+      },
+      "grader": {
+        "format": "p14-score/2",
+        "benchmark_id": "p14-repair-v1",
+        "freeze_sha256": "a6d18687d5ae0b1933c201050ac85b59c142bd293c51f0df0e53e4300eb47eea",
+        "grader_sha256": "f1d783417c4ae050fe873754c4d1da90158c28524e0ab1d3614a30a27681492e",
+        "frozen_spec_sha256": "54eff2ca2a336d8a1971857f09fcec8076bca54b938c84fd5fa7f5aeb36cfc70",
+        "product_tree_sha256": "74a9054fdd531e957db340d838bddb2cccc7d580d3fe77497c7456ef46e3b5f6",
+        "runner": "bwrap",
+        "compile_error": null,
+        "build": {
+          "passed": 10,
+          "total": 10
+        },
+        "build_held_out": {
+          "passed": 6,
+          "total": 6
+        },
+        "extended": {
+          "passed": 22,
+          "total": 22
+        },
+        "structure": null,
+        "resources": {
+          "max_case_cpu_s": 0.025,
+          "max_case_rss_kb": 11716
+        },
+        "pass": true,
+        "failures": []
+      },
+      "pass_bar": {
+        "verified_candidate": true,
+        "requests_within_6": true,
+        "compare_spec": true,
+        "grader_pass": true
+      }
+    },
+    {
+      "attempt": 3,
+      "run_id": "8a471074-1147-4d95-9a69-ad7c8a8ee4bb",
+      "selection_id": "3b713f98-b191-4af8-ab52-db9df84b4817",
+      "spec": {
+        "id": "beabdb3f-eee4-4875-bdc4-c2355e5a60db",
+        "version": 1
+      },
+      "product_id": "203c2734-419b-4c60-80dd-d1889f0e46f6",
+      "task_id": "c8a67237-e54b-43ed-bdd6-b04010a0fa68",
+      "compare_spec": {
+        "pass": true,
+        "output": "OK the stored spec equals the frozen p14-repair-v1 spec"
+      },
+      "preflight_blockers": [],
+      "approval": {
+        "stop_build_id": "825c8c31-930c-4648-a335-86817f64383a",
+        "decision_id": "909043e8-7a1a-4453-be1d-22492a69ed30",
+        "answered_in": "Build page in-place approval"
+      },
+      "build_id": "7df577fe-c16b-4e0a-97dc-f77e1a6f849b",
+      "outcome": "verified_candidate",
+      "reason": "Fresh review and executed acceptance cases passed for this exact task candidate",
+      "requests": 2,
+      "repair_rounds": 0,
+      "refused_patches": 0,
+      "wall_ms": 45604,
+      "started_at": "2026-11-15T00:07:19.175Z",
+      "finished_at": "2026-11-15T00:08:04.779Z",
+      "files_changed": [
+        {
+          "path": "src/main.py",
+          "added": 63,
+          "deleted": 2
+        }
+      ],
+      "diff_lines": 65,
+      "base_commit": "4e8353904d3eacf56ecfd774e0343d3d9bf5c77b",
+      "commit": "b9a50748c83ca826fa38d3ba01b4a48d2fbbbff4",
+      "plan_hash": "42b52cd3c327d66ef4ceb9e49b311e7c9d272a96d542e2b686701bbe48b0626a",
+      "spec_hash": "15da3b550f2defd2ed175de66389076d2370059cc09c899b1010a1d9e5ba2e65",
+      "fixture": false,
+      "reviews": [
+        {
+          "file": "review-0.json",
+          "verdict": "approve",
+          "findings": []
+        }
+      ],
+      "qa_rounds": {
+        "0": {
+          "development": {
+            "total": 4,
+            "passed": 4
+          },
+          "held_out": {
+            "total": 6,
+            "passed": 6
+          }
+        }
+      },
+      "call_outcomes": [
+        {
+          "file": "call-1-outcome.json",
+          "request_id": "b5cd59c4-2544-476f-b17d-ef22e98b4f52",
+          "status": "succeeded",
+          "reason_code": "ok"
+        },
+        {
+          "file": "call-2-outcome.json",
+          "request_id": "17f66bdb-50a2-4e68-87e8-1a1770275c3e",
+          "status": "succeeded",
+          "reason_code": "ok"
+        }
+      ],
+      "plan_requests_before": {
+        "utc_day": 4,
+        "all_time": 153,
+        "at": "2026-11-15T00:06:57.507Z"
+      },
+      "plan_requests_after": {
+        "utc_day": 6,
+        "all_time": 155,
+        "at": "2026-11-15T00:08:05.251Z"
+      },
+      "package": {
+        "artifact_id": "f29c6812-9a3b-4692-bb7f-ef96bbbd0638",
+        "manifest_sha256": "30f6e452fa9449c1bae10a47efae4eec9b5d950dde738021f7c8d3886fb52eab",
+        "state": "verified",
+        "archive_sha256": "7074b15b307d62c80fed9fd0d6b812e95f5375008525482a514b65325bc19689",
+        "archive_bytes": 4608
+      },
+      "grader": {
+        "format": "p14-score/2",
+        "benchmark_id": "p14-repair-v1",
+        "freeze_sha256": "a6d18687d5ae0b1933c201050ac85b59c142bd293c51f0df0e53e4300eb47eea",
+        "grader_sha256": "f1d783417c4ae050fe873754c4d1da90158c28524e0ab1d3614a30a27681492e",
+        "frozen_spec_sha256": "54eff2ca2a336d8a1971857f09fcec8076bca54b938c84fd5fa7f5aeb36cfc70",
+        "product_tree_sha256": "d3af362f092902c6db46e4fc715c2c6a964cdd405dc5c55c6803415c3f435952",
+        "runner": "bwrap",
+        "compile_error": null,
+        "build": {
+          "passed": 10,
+          "total": 10
+        },
+        "build_held_out": {
+          "passed": 6,
+          "total": 6
+        },
+        "extended": {
+          "passed": 22,
+          "total": 22
+        },
+        "structure": null,
+        "resources": {
+          "max_case_cpu_s": 0.029,
+          "max_case_rss_kb": 11656
+        },
+        "pass": true,
+        "failures": []
+      },
+      "pass_bar": {
+        "verified_candidate": true,
+        "requests_within_6": true,
+        "compare_spec": true,
+        "grader_pass": true
+      }
+    }
+  ]
+}
