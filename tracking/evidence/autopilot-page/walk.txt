@@ -1,0 +1,19 @@
+workspace db118cd0-e896-431e-9c0b-12c64fbd9ccd
+autopilot needs_person tie
+PASS the autopilot stopped at a tie
+PASS the read offers Allow and continue first
+nav Chat | Projects | Autopilot | Sources | Monitor | Models and connections | Settings
+PASS Autopilot is in the left nav just below Projects
+PASS its count shows the one autopilot waiting for you
+PASS the page has its own address (#/autopilot/run)
+PASS the stopped autopilot is first, under Working or waiting for you, marked as waiting
+PASS its card offers Allow and continue too
+PASS its card says what to do next
+PASS the page holds, in order: working or waiting, start, how much is automated, settings
+PASS the start form is on the page
+PASS the settings panel is on the page
+PASS Discover has no autopilot or automation panel any more
+PASS Discover's Run it for me opens the Autopilot page
+PASS Continue on the page continued the autopilot (it stopped at the tie again)
+PASS no horizontal scroll at phone width
+PASS no console errors ()

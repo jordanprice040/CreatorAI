@@ -186,7 +186,8 @@ await page.goto(`${WEB}/#/chat/conversations?ws=${ws}`);
 const nav = page.getByRole('navigation', { name: 'Pages' });
 await nav.getByRole('link', { name: /Autopilot/ }).waitFor({ timeout: 15000 });
 const labels = (await nav.getByRole('link').allTextContents()).map((t) =>
-  t.replace(/\d+.*$/, '').trim(),
+  // Leave out a count or an activity dot's text after the name.
+  t.replace(/(\d|:).*$/, '').trim(),
 );
 console.log('nav', labels.join(' | '));
 check(

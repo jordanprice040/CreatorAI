@@ -453,31 +453,38 @@ export function Autopilot({
             open={open}
           />
         )}
-        {owner && a.state === 'running' && (
-          <button
-            className="secondary"
-            disabled={busy}
-            onClick={() => void control(a, 'cancel')}
-          >
-            Stop
-          </button>
-        )}
-        {offered &&
-          (can.ok ? (
-            <button disabled={busy} onClick={() => void control(a, 'continue')}>
-              Continue the autopilot from{' '}
-              {AUTOPILOT_STAGE_LABEL[a.stage].toLowerCase()}
+        {/* Stop, Continue and Allow and continue, apart so no two buttons touch. */}
+        <div className="card-actions">
+          {owner && a.state === 'running' && (
+            <button
+              className="secondary"
+              disabled={busy}
+              onClick={() => void control(a, 'cancel')}
+            >
+              Stop
             </button>
-          ) : (
-            <p className="small">{can.reason}</p>
-          ))}
-        <AllowAndContinue
-          a={a}
-          base={base}
-          session={session}
-          owner={owner}
-          onDone={() => ctx.refresh()}
-        />
+          )}
+          {offered &&
+            (can.ok ? (
+              <button
+                className="secondary strong"
+                disabled={busy}
+                onClick={() => void control(a, 'continue')}
+              >
+                Continue the autopilot from{' '}
+                {AUTOPILOT_STAGE_LABEL[a.stage].toLowerCase()}
+              </button>
+            ) : (
+              <p className="small">{can.reason}</p>
+            ))}
+          <AllowAndContinue
+            a={a}
+            base={base}
+            session={session}
+            owner={owner}
+            onDone={() => ctx.refresh()}
+          />
+        </div>
       </article>
     );
   }
