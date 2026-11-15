@@ -534,6 +534,46 @@ export const BenchmarkCaseSchema = z.strictObject({
   max_output_tokens: counter.min(1).max(200000),
   check: BenchmarkCheckSchema,
 });
+/**
+ * ADR-0110: how a build role's answer may be wrapped. `one_json_fence` accepts exactly one
+ * markdown code fence (opened by ```json or a bare ```, closed by ``` on its own line) around the
+ * whole answer, with nothing but whitespace outside it. Any other surrounding text still fails.
+ * A manifest without the field grades the raw answer strictly, as every earlier version did.
+ */
+export const RoleAnswerWrappingSchema = z.literal('one_json_fence');
+export type RoleAnswerWrapping = z.infer<typeof RoleAnswerWrappingSchema>;
+
+const ONE_JSON_FENCE = /^\s*```(?:json)?[ \t]*\r?\n([\s\S]*)\r?\n[ \t]*```\s*$/;
+
+/**
+ * The text inside the one fence that wraps a whole build-role answer, or null when the answer is
+ * not wrapped that way. Greedy, so a second fence or any text after the first closing fence stays
+ * inside the result and makes it invalid JSON rather than being dropped.
+ */
+export function unwrapOneJsonFence(text: string): string | null {
+  const m = ONE_JSON_FENCE.exec(text);
+  return m ? m[1]! : null;
+}
+
+/**
+ * Parses a build role's answer (ADR-0110). Strict JSON first; with `one_json_fence`, an answer
+ * that is exactly one fence around JSON is parsed from inside the fence. Throws SyntaxError
+ * otherwise. `fenced` says which form was accepted, for the record.
+ */
+export function parseRoleAnswer(
+  text: string,
+  wrapping: RoleAnswerWrapping | null,
+): { json: unknown; fenced: boolean } {
+  try {
+    return { json: JSON.parse(text) as unknown, fenced: false };
+  } catch (e) {
+    const inner =
+      wrapping === 'one_json_fence' ? unwrapOneJsonFence(text) : null;
+    if (inner === null) throw e;
+    return { json: JSON.parse(inner) as unknown, fenced: true };
+  }
+}
+
 export const BenchmarkManifestSchema = z
   .strictObject({
     format: z.literal('route-benchmark/1'),
@@ -541,10 +581,22 @@ export const BenchmarkManifestSchema = z
     fixture: z.boolean(),
     task_class: TaskClassSchema,
     data_class: DataClassSchema,
+    /** ADR-0110: absent means the raw answer must be strict JSON. Build roles only. */
+    answer_wrapping: RoleAnswerWrappingSchema.optional(),
     cases: z.array(BenchmarkCaseSchema).min(2).max(200),
     provenance: note,
   })
   .superRefine((b, ctx) => {
+    if (
+      b.answer_wrapping !== undefined &&
+      b.task_class !== 'patch_build' &&
+      b.task_class !== 'independent_review'
+    )
+      ctx.addIssue({
+        code: 'custom',
+        message:
+          'Only build-role benchmarks (patch_build, independent_review) may accept a fenced answer.',
+      });
     for (const c of b.cases)
       if (c.check.kind === 'discovery_contract') {
         const required =

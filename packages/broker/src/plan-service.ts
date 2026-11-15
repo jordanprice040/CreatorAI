@@ -17,6 +17,8 @@ import {
   type PlanTaskClass,
   type Admission,
   type BenchmarkCheck,
+  parseRoleAnswer,
+  unwrapOneJsonFence,
 } from '@creator/contracts';
 import {
   BUILD_ROLE_PROMPTS,
@@ -1557,14 +1559,24 @@ export class PlanConnectionService {
             }
           : {}),
         score: (text, outcome) => {
+          // ADR-0110: a build-role benchmark frozen with answer_wrapping accepts exactly one
+          // code fence around the whole answer; the grader sees what is inside it. Without the
+          // field (every earlier version) the raw answer is graded strictly.
+          const wrapping = manifest.answer_wrapping ?? null;
           if (c.check.kind === 'patch_cases')
             return outcome.kind === 'completed'
-              ? scorer!(ctx, c.check, text)
+              ? scorer!(
+                  ctx,
+                  c.check,
+                  text !== null && wrapping === 'one_json_fence'
+                    ? (unwrapOneJsonFence(text) ?? text)
+                    : text,
+                )
               : 'provider_error';
           let json: unknown = null;
           if (text !== null && c.output_format === 'json')
             try {
-              json = JSON.parse(text);
+              json = parseRoleAnswer(text, wrapping).json;
             } catch {
               return 'schema_invalid';
             }
