@@ -94,7 +94,13 @@ export function autopilotEndsApprovals(
 ): boolean {
   return (
     a.state === 'finished' &&
-    (a.outcome === 'failed' || !autopilotContinuable(a).ok)
+    (a.outcome === 'failed' ||
+      // The end time is not part of this rule: approvals end with the autopilot's own stop.
+      !autopilotContinuable({
+        state: a.state,
+        outcome: a.outcome,
+        steps: a.steps,
+      }).ok)
   );
 }
 
@@ -361,9 +367,16 @@ export type Autopilot = z.infer<typeof AutopilotSchema>;
  */
 export function autopilotContinuable(
   a: Pick<Autopilot, 'state' | 'outcome' | 'steps'> &
-    Partial<Pick<Autopilot, 'approvals_ended_at'>>,
+    Partial<Pick<Autopilot, 'approvals_ended_at' | 'config'>>,
+  /** The server refuses Continue once the end time has passed (EXPIRED); so does this. */
+  now = Date.now(),
 ): { ok: true } | { ok: false; reason: string } {
   if (a.state !== 'finished') return { ok: false, reason: 'It is running.' };
+  if (a.config && Date.parse(a.config.limits.ends_at) <= now)
+    return {
+      ok: false,
+      reason: 'Its end time has passed; start a new autopilot.',
+    };
   if (a.approvals_ended_at)
     return {
       ok: false,
@@ -681,7 +694,7 @@ const NEXT: Record<AutopilotStopKind, Omit<AutopilotNext, 'setting'>[]> = {
  */
 export function autopilotNextSteps(
   a: Pick<Autopilot, 'state' | 'outcome' | 'steps'> &
-    Partial<Pick<Autopilot, 'approvals_ended_at'>>,
+    Partial<Pick<Autopilot, 'approvals_ended_at' | 'config'>>,
   /** Re-review 2 L-1: the owner's settings now; a setting already on is not offered again. */
   settings?: AutopilotSettingsValues,
 ): AutopilotNext[] {

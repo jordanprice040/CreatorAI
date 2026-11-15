@@ -3917,7 +3917,7 @@ fieldset.gate-checklist li input {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface-raised);
-  padding: 4px 16px 12px;
+  padding: 12px 16px;
   margin: 12px 0;
 }
 .autopilot-page .card-actions {
@@ -3926,6 +3926,12 @@ fieldset.gate-checklist li input {
   align-items: flex-start;
   gap: 10px;
   margin-top: 10px;
+}
+.autopilot-page .card-actions p {
+  margin: 0;
+}
+.autopilot-page .card-actions .allow-detail {
+  margin-top: 6px;
 }
 .autopilot-page .card-actions:empty {
   display: none;

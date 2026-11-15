@@ -580,11 +580,15 @@ export function nextStep(view: StepView, f: StudioFacts): Step {
         text: 'Write up a recommended non-code option as a proposal below. Software options go to a spec under Build instead.',
       };
     case 'autopilot':
-      if (f.autopilots && f.autopilots.waiting > 0)
+      if (f.autopilots && f.autopilots.waiting > 0) {
+        const one = f.autopilots.waiting === 1;
         return {
           tone: 'next',
-          text: `${plural(f.autopilots.waiting, 'autopilot')} ${f.autopilots.waiting === 1 ? 'waits' : 'wait'} for you below: do what its card says, then press Continue on it.`,
+          text: f.owner
+            ? `${plural(f.autopilots.waiting, 'autopilot')} ${one ? 'waits' : 'wait'} for you below: do what ${one ? 'its' : 'each'} card says, then press Continue on that card.`
+            : `${plural(f.autopilots.waiting, 'autopilot')} ${one ? 'waits' : 'wait'} for the workspace owner to continue ${one ? 'it' : 'them'}.`,
         };
+      }
       if (f.autopilots && f.autopilots.running > 0)
         return {
           tone: 'clear',

@@ -784,6 +784,7 @@ function App() {
             session={s}
             workspace={workspace}
             open={open}
+            focus={pageRoute.id}
           />
         );
       case 'files':
@@ -1012,7 +1013,8 @@ function App() {
                     ? 0
                     : page.key === 'monitor'
                       ? facts.pending
-                      : page.key === 'autopilot'
+                      : // Only the owner can continue one (review 1 of #213, N-7).
+                        page.key === 'autopilot' && facts.owner
                         ? (facts.autopilots?.waiting ?? 0)
                         : 0;
                   const working =

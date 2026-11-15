@@ -23,10 +23,13 @@ export function AutopilotPage({
   session,
   workspace,
   open,
+  focus = '',
 }: {
   session: SessionInfo;
   workspace: Workspace;
   open: (view: View, id?: string) => void;
+  /** An autopilot id from the address: the page opens on its card. */
+  focus?: string;
 }) {
   return (
     <section
@@ -57,6 +60,7 @@ export function AutopilotPage({
         session={session}
         workspace={workspace}
         open={open}
+        focus={focus}
         between={
           <>
             <Automation

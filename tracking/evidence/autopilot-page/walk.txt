@@ -1,10 +1,16 @@
-workspace db118cd0-e896-431e-9c0b-12c64fbd9ccd
+workspace b4b6aaf0-dbe4-43f2-92ad-ec19b6ed191c
 autopilot needs_person tie
 PASS the autopilot stopped at a tie
 PASS the read offers Allow and continue first
 nav Chat | Projects | Autopilot | Sources | Monitor | Models and connections | Settings
 PASS Autopilot is in the left nav just below Projects
-PASS its count shows the one autopilot waiting for you
+PASS its count shows the two autopilots waiting for you
+PASS two waiting cards, each naming its run and until when it can continue
+card heads 1
+PASS after its end time the short autopilot leaves Working or waiting
+PASS it is under Earlier autopilots, saying its end time has passed, with no Continue
+PASS Earlier autopilots offer no Continue or Allow
+PASS the nav count drops to 1
 PASS the page has its own address (#/autopilot/run)
 PASS the stopped autopilot is first, under Working or waiting for you, marked as waiting
 PASS its card offers Allow and continue too
@@ -15,5 +21,6 @@ PASS the settings panel is on the page
 PASS Discover has no autopilot or automation panel any more
 PASS Discover's Run it for me opens the Autopilot page
 PASS Continue on the page continued the autopilot (it stopped at the tie again)
+PASS a link with the autopilot id (#/autopilot/run?ws=…&id=…) opens its card
 PASS no horizontal scroll at phone width
 PASS no console errors ()

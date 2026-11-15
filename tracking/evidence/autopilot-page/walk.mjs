@@ -133,34 +133,48 @@ const config = {
     problem: { id: problem.id, version: problem.version },
   },
 };
-const policy = {
-  ...autopilotRoutinePolicy(config, '100000000000'),
-  rationale: 'Walk autopilot policy.',
-};
-const entity = await post(`${base}/entities`, {
-  kind: 'run',
-  title: 'Walk autopilot run',
-  body: {
-    state: 'queued',
-    experiment_condition: 'human_in_loop',
-    discovery_method: 'structured',
-    config_hash: null,
+/** A new run whose approvals cover the autopilot, and the autopilot on it, once stopped. */
+async function startOne(cfg, title) {
+  const policy = {
+    ...autopilotRoutinePolicy(cfg, '100000000000'),
+    rationale: 'Walk autopilot policy.',
+  };
+  const entity = await post(`${base}/entities`, {
+    kind: 'run',
+    title,
+    body: {
+      state: 'queued',
+      experiment_condition: 'human_in_loop',
+      discovery_method: 'structured',
+      config_hash: null,
+    },
+  });
+  const run = await post(`${base}/runs`, {
+    run: { id: entity.id, version: 1 },
+    autonomy_mode: 'human_in_loop',
+    stage_gates: null,
+    initial_grants: [],
+    routine_policy: { ...policy, summary_seen: routinePolicySummary(policy) },
+  });
+  const ap = await post(`${base}/runs/${run.run_id}/autopilots`, {
+    config: cfg,
+    summary_seen: autopilotSummary(cfg),
+  });
+  await wait(
+    async () => (await get(`${base}/autopilots/${ap.id}`)).state === 'finished',
+  );
+  return ap;
+}
+// Review 1 of #213, H-1: a second autopilot whose end time passes while the page is open.
+const shortEnd = Date.now() + 75_000;
+const short = await startOne(
+  {
+    ...config,
+    limits: { ...config.limits, ends_at: new Date(shortEnd).toISOString() },
   },
-});
-const run = await post(`${base}/runs`, {
-  run: { id: entity.id, version: 1 },
-  autonomy_mode: 'human_in_loop',
-  stage_gates: null,
-  initial_grants: [],
-  routine_policy: { ...policy, summary_seen: routinePolicySummary(policy) },
-});
-const ap = await post(`${base}/runs/${run.run_id}/autopilots`, {
-  config,
-  summary_seen: autopilotSummary(config),
-});
-await wait(
-  async () => (await get(`${base}/autopilots/${ap.id}`)).state === 'finished',
+  'Walk short autopilot run',
 );
+const ap = await startOne(config, 'Walk autopilot run');
 const stopped = await get(`${base}/autopilots/${ap.id}`);
 console.log('autopilot', stopped.outcome, stopped.steps.at(-1).stop_kind);
 check(
@@ -204,11 +218,53 @@ await page.waitForFunction(
   { timeout: 30000 },
 );
 check(
-  (await navLink.locator('.nav-count').textContent())?.startsWith('1'),
-  'its count shows the one autopilot waiting for you',
+  (await navLink.locator('.nav-count').textContent())?.startsWith('2'),
+  'its count shows the two autopilots waiting for you',
 );
 await navLink.click();
 await page.getByRole('heading', { name: 'Autopilot', level: 2 }).waitFor();
+const waitingCards = page.locator(
+  'section[aria-labelledby="autopilot-now-title"] article.card.waiting',
+);
+await waitingCards.nth(1).waitFor({ timeout: 15000 });
+const heads = await waitingCards.locator('p').first().allTextContents();
+check(
+  (await waitingCards.count()) === 2 &&
+    (await waitingCards
+      .filter({ hasText: 'Walk short autopilot run' })
+      .count()) === 1 &&
+    (await waitingCards.filter({ hasText: /can continue until/ }).count()) ===
+      2,
+  'two waiting cards, each naming its run and until when it can continue',
+);
+console.log('card heads', heads.length);
+// The short one's end time passes with the page open: it moves to Earlier autopilots, and
+// the nav count drops, without reloading.
+await page.waitForTimeout(Math.max(0, shortEnd - Date.now()) + 40_000);
+check(
+  (await waitingCards.count()) === 1 &&
+    (await waitingCards
+      .filter({ hasText: 'Walk short autopilot run' })
+      .count()) === 0,
+  'after its end time the short autopilot leaves Working or waiting',
+);
+const earlierFold = page.locator('section[aria-label="Earlier autopilots"]');
+check(
+  (await earlierFold
+    .locator('article.card', { hasText: 'Its end time has passed' })
+    .count()) === 1,
+  'it is under Earlier autopilots, saying its end time has passed, with no Continue',
+);
+check(
+  (await earlierFold
+    .getByRole('button', { name: /Continue the autopilot|Allow/ })
+    .count()) === 0,
+  'Earlier autopilots offer no Continue or Allow',
+);
+check(
+  (await navLink.locator('.nav-count').textContent())?.startsWith('1'),
+  'the nav count drops to 1',
+);
 check(
   page.url().includes('#/autopilot/run'),
   'the page has its own address (#/autopilot/run)',
@@ -292,6 +348,15 @@ await wait(async () => {
 check(
   true,
   'Continue on the page continued the autopilot (it stopped at the tie again)',
+);
+
+// A link to one autopilot opens its card, here inside the folded Earlier autopilots.
+await page.goto(`${WEB}/#/autopilot/run?ws=${ws}&id=${short.id}`);
+const linked = page.locator(`#autopilot-card-${short.id}`);
+await linked.waitFor({ state: 'visible', timeout: 15000 });
+check(
+  await linked.isVisible(),
+  'a link with the autopilot id (#/autopilot/run?ws=…&id=…) opens its card',
 );
 
 // Phone width.

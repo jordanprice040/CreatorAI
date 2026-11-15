@@ -4,7 +4,9 @@
 
 What now works: **Autopilot** is its own page in the left nav, just below Projects (`#/autopilot/run`). It holds the whole autopilot flow: autopilots working or waiting for you first (steps as they happen, Stop, what to do next, **Continue the autopilot from …**, Allow and continue), then the start form, How much is automated, Autopilot settings (now its own section) and earlier autopilots, folded. The nav entry counts autopilots waiting to be continued and shows a dot while one works. Discover no longer holds the autopilot panels; its Run it for me choice opens the page. A stopped card's Search the web and Open the exploration go to Discover and open that panel.
 
-Checks: CHECKS_PLACEHOLDER
+Review 1 (1 High, 6 Lows, 7 nits) fixed: an autopilot past its end time no longer shows Continue or counts as waiting. It moves to Earlier autopilots, even while the page is open.
+
+Checks (cloud container, throwaway PostgreSQL 16): `pnpm typecheck` and `pnpm format:check` pass, and so do the targeted web and autopilot suites. Full `pnpm test:db` at ab1f11e: 1349 tests, 1315 pass, 29 skipped, and only the 5 known PowerShell-wrapper failures. The browser walk (`tracking/evidence/autopilot-page/`, fixture provider, $0) passes 22 of 22 checks, including an autopilot whose end time passes while the page is open and a link to one autopilot (`#/autopilot/run?ws=…&id=<autopilot id>`) that opens its card.
 
 ## November 15 update — spec drafting fixed after its first live qualification (B2 follow-up; ADR-0107 amendment)
 

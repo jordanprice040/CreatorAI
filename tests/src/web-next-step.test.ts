@@ -179,11 +179,23 @@ test('the Autopilot page leads with autopilots waiting to be continued', async (
     autopilots: { running: 0, waiting: 1 },
   });
   assert.equal(one.tone, 'next');
-  assert.match(one.text, /^1 autopilot waits for you .*press Continue/);
+  assert.match(
+    one.text,
+    /^1 autopilot waits for you below: do what its card says, then press Continue on that card\./,
+  );
   assert.match(
     nextStep('autopilot', { ...done, autopilots: { running: 0, waiting: 2 } })
       .text,
-    /^2 autopilots wait/,
+    /^2 autopilots wait for you below: do what each card says/,
+  );
+  // Only the owner can continue one (review 1 of #213, N-7).
+  assert.equal(
+    nextStep('autopilot', {
+      ...done,
+      owner: false,
+      autopilots: { running: 0, waiting: 2 },
+    }).text,
+    '2 autopilots wait for the workspace owner to continue them.',
   );
   assert.match(
     nextStep('autopilot', { ...done, autopilots: { running: 1, waiting: 0 } })

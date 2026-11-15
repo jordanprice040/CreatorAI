@@ -46,7 +46,7 @@ import { AllowAndContinue } from './autopilot-next.js';
 import { useAutopilotSettings } from './autopilot-settings.js';
 import { heldClaimsSetting } from './autopilot-held.js';
 import { routeHash, type View } from './pages.js';
-import { revealWhenShown } from './discovery-progress.js';
+import { revealWhenShown, whenShown } from './discovery-progress.js';
 
 // P13 (ADR-0092): "Run it for me". One form sets up a new run with routine approvals covering
 // exactly the autopilot's steps and starts the autopilot; the owner confirms both summaries.
@@ -81,26 +81,19 @@ const MARK: Record<string, string> = {
   stopped: '✗',
   skipped: '–',
 };
+const TitledSchema = z.object({ id: z.string(), title: z.string() });
+/** A name cut at a word, with an ellipsis, for a card's header. */
+const shortName = (t: string, n: number) => {
+  if (t.length <= n) return t;
+  const cut = t.slice(0, n);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > n / 2 ? cut.slice(0, space) : cut).replace(/[\s,:;.]+$/, '')}…`;
+};
 const list = (s: string) =>
   s
     .split(/\n|,/)
     .map((x) => x.trim())
     .filter(Boolean);
-
-/**
- * Waits for Explore for me to be on the page in view (Discover may be mounting for the first
- * time), then asks it to open the autopilot's exploration; Explore opens its panel itself.
- */
-function openExplorationWhenShown(detail: { id: string; at: string }) {
-  let tries = 0;
-  const look = () => {
-    const page = document.querySelector('.draft-page:not([hidden])');
-    if (page?.querySelector('#explore-title'))
-      window.dispatchEvent(new CustomEvent(OPEN_EXPLORATION, { detail }));
-    else if (++tries < 20) setTimeout(look, 100);
-  };
-  setTimeout(look, 0);
-}
 
 /** Working now, or stopped and waiting for the person to continue it. */
 export const autopilotCurrent = (a: AutopilotRecord) =>
@@ -112,6 +105,7 @@ export function Autopilot({
   workspace,
   open,
   between,
+  focus = '',
 }: {
   session: SessionInfo;
   workspace: Workspace;
@@ -119,6 +113,8 @@ export function Autopilot({
   open: (view: View, id?: string) => void;
   /** Shown after the start form and before the earlier autopilots (the page's other parts). */
   between?: ReactNode;
+  /** An autopilot id from the address (`#/autopilot/run?ws=…&id=…`): its card is shown. */
+  focus?: string;
 }) {
   const base = `workspaces/${workspace.id}`;
   // ADR-0100: a web search the owner's settings allow needs the run's approvals to cover it.
@@ -126,13 +122,34 @@ export function Autopilot({
   const owner = workspace.role === 'owner';
   const fixture = workspace.record_mode === 'fixture';
   const ctx = useLoad(async () => {
-    const [autopilots, routing] = await Promise.all([
+    const [autopilots, routing, runs, problems] = await Promise.all([
       api(z.array(AutopilotSchema), `${base}/autopilots`),
       loadRoutes(base),
+      // Review 1 of #213, L-4: each card names its run and problem, so two cards differ.
+      api(z.array(TitledSchema), `${base}/entities?kind=run`).catch(() => []),
+      api(z.array(TitledSchema), `${base}/entities?kind=problem`).catch(
+        () => [],
+      ),
     ]);
-    return { autopilots, ...routing };
+    return {
+      autopilots,
+      ...routing,
+      names: new Map([...runs, ...problems].map((e) => [e.id, e.title])),
+    };
   }, [workspace.id]);
   const c = ctx.data;
+  // A link to one autopilot (`id` in the address) opens its card, unfolding Earlier autopilots
+  // when it is there, once the list has loaded.
+  const shownFocus = useRef('');
+  useEffect(() => {
+    if (!focus || !c || shownFocus.current === focus) return;
+    const el = document.getElementById(`autopilot-card-${focus}`);
+    if (!el) return;
+    shownFocus.current = focus;
+    const fold = el.closest('details');
+    if (fold) fold.open = true;
+    reveal(el, `autopilot-card-${focus}`);
+  }, [focus, c]);
   // The automation levels panel starts autopilots too (P33).
   useEffect(() => {
     const again = () => ctx.refresh();
@@ -158,8 +175,18 @@ export function Autopilot({
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  // Stop and Continue answer on their card's section, not under the start form.
-  const [controlError, setControlError] = useState('');
+  // Stop and Continue answer on the card that was pressed (review 1 of #213, L-3).
+  const [controlError, setControlError] = useState<{
+    id: string;
+    text: string;
+  } | null>(null);
+  // Review 1 of #213, H-1: an autopilot can pass its end time while the page is open, and then
+  // it can no longer continue; drawing again each half minute moves it to Earlier autopilots.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick((n) => n + 1), 30_000);
+    return () => clearInterval(t);
+  }, []);
   // The end time is fixed while the owner reads the summary, so the summary read is the one
   // sent. It is worked out again when the hours change, and when the page comes back into view
   // unless the summary is confirmed (then only once the end time is close or past).
@@ -370,7 +397,7 @@ export function Autopilot({
 
   async function control(a: AutopilotRecord, what: 'cancel' | 'continue') {
     setBusy(true);
-    setControlError('');
+    setControlError(null);
     try {
       await api(AutopilotSchema, `${base}/autopilots/${a.id}/${what}`, {
         csrf: session.csrf_token,
@@ -380,7 +407,7 @@ export function Autopilot({
             : { expected_version: a.version },
       });
     } catch (err) {
-      setControlError(message(err));
+      setControlError({ id: a.id, text: message(err) });
     } finally {
       setBusy(false);
       // Final UX pass K-3: the next start counts its hours from now, not from the page load.
@@ -400,19 +427,86 @@ export function Autopilot({
       a.state === 'finished' &&
       !!a.outcome &&
       (AUTOPILOT_RETRYABLE.includes(a.outcome) || can.ok);
+    const line = (s: AutopilotRecord['steps'][number], i: number) => (
+      <li key={i} value={i + 1}>
+        {MARK[s.state]} {AUTOPILOT_STAGE_LABEL[s.stage]}
+        {s.attempt > 1 ? ` (try ${s.attempt})` : ''}: {s.note}
+      </li>
+    );
+    // Review 1 of #213, L-5: on a current card the last three steps show and the earlier ones
+    // fold, so Continue stays near the top however many times it was tried.
+    const shown = now ? a.steps.slice(-3) : a.steps;
+    const folded = now ? a.steps.slice(0, -3) : [];
+    const last = a.steps.at(-1);
+    // N-5: the explanation is left out when the last step's note already says it.
+    const repeats =
+      !!last?.note &&
+      (last.note === a.explanation ||
+        last.note.includes(a.explanation.slice(0, 120)) ||
+        a.explanation.includes(last.note.slice(0, 120)));
+    const run = c?.names.get(a.run_id);
+    const problem = a.config.start?.problem
+      ? c?.names.get(a.config.start.problem.id)
+      : undefined;
     const steps = (
-      <ol className="small">
-        {a.steps.map((s, i) => (
-          <li key={i}>
-            {MARK[s.state]} {AUTOPILOT_STAGE_LABEL[s.stage]}
-            {s.attempt > 1 ? ` (try ${s.attempt})` : ''}: {s.note}
-          </li>
-        ))}
-      </ol>
+      <>
+        {folded.length > 0 && (
+          <details>
+            <summary>Earlier steps ({folded.length})</summary>
+            <ol className="small">{folded.map((s, i) => line(s, i))}</ol>
+          </details>
+        )}
+        <ol className="small">
+          {shown.map((s, i) => line(s, folded.length + i))}
+        </ol>
+      </>
+    );
+    const actions = (
+      // Stop, Continue and Allow and continue, apart so no two buttons touch.
+      <div className="card-actions">
+        {owner && a.state === 'running' && (
+          <button
+            className="secondary"
+            disabled={busy}
+            onClick={() => void control(a, 'cancel')}
+          >
+            Stop
+          </button>
+        )}
+        {offered &&
+          (can.ok ? (
+            <button
+              className="secondary strong"
+              disabled={busy}
+              onClick={() => void control(a, 'continue')}
+            >
+              Continue the autopilot from{' '}
+              {AUTOPILOT_STAGE_LABEL[a.stage].toLowerCase()}
+            </button>
+          ) : (
+            <p className="small">{can.reason}</p>
+          ))}
+        {!owner && now && a.state === 'finished' && (
+          <p className="small">The workspace owner can continue it.</p>
+        )}
+        <AllowAndContinue
+          a={a}
+          base={base}
+          session={session}
+          owner={owner}
+          onDone={() => ctx.refresh()}
+        />
+        {controlError?.id === a.id && (
+          <p className="error" role="alert">
+            {controlError.text}
+          </p>
+        )}
+      </div>
     );
     return (
       <article
         key={a.id}
+        id={`autopilot-card-${a.id}`}
         className={now && a.state === 'finished' ? 'card waiting' : 'card'}
         aria-label="Autopilot"
       >
@@ -428,63 +522,52 @@ export function Autopilot({
               : a.config.start
                 ? 'Automate the rest · '
                 : ''}
+            {problem ? `${shortName(problem, 70)} · ` : ''}
+            {run ? `${shortName(run, 50)} · ` : ''}
             started {when(a.created_at)} · {a.calls_reserved} of{' '}
             {a.config.limits.max_calls} calls set aside
+            {now
+              ? a.state === 'running'
+                ? ` · stops by ${when(a.config.limits.ends_at)}`
+                : ` · can continue until ${when(a.config.limits.ends_at)}`
+              : ''}
             {a.state === 'running' && !a.active
               ? ' · not being driven by this studio process (it carries on after a restart)'
               : ''}
           </span>
         </p>
-        <p>{a.explanation}</p>
-        {/* What it did is the progress while it works; on an older one it is folded. */}
+        {!repeats && <p>{a.explanation}</p>}
         {now ? (
-          steps
-        ) : (
-          <details>
-            <summary>Its steps ({a.steps.length})</summary>
+          <>
+            {owner && a.state === 'finished' && a.outcome && (
+              <NextAfterStop
+                autopilot={a}
+                workspace={workspace}
+                acceptsHeld={!!settings?.accept_quote_checked_claims}
+                open={open}
+              />
+            )}
+            {actions}
             {steps}
-          </details>
+          </>
+        ) : (
+          <>
+            {/* An older one's steps are folded; it can no longer continue. */}
+            <details>
+              <summary>Its steps ({a.steps.length})</summary>
+              {steps}
+            </details>
+            {owner && a.state === 'finished' && a.outcome && (
+              <NextAfterStop
+                autopilot={a}
+                workspace={workspace}
+                acceptsHeld={!!settings?.accept_quote_checked_claims}
+                open={open}
+              />
+            )}
+            {actions}
+          </>
         )}
-        {owner && a.state === 'finished' && a.outcome && (
-          <NextAfterStop
-            autopilot={a}
-            workspace={workspace}
-            acceptsHeld={!!settings?.accept_quote_checked_claims}
-            open={open}
-          />
-        )}
-        {/* Stop, Continue and Allow and continue, apart so no two buttons touch. */}
-        <div className="card-actions">
-          {owner && a.state === 'running' && (
-            <button
-              className="secondary"
-              disabled={busy}
-              onClick={() => void control(a, 'cancel')}
-            >
-              Stop
-            </button>
-          )}
-          {offered &&
-            (can.ok ? (
-              <button
-                className="secondary strong"
-                disabled={busy}
-                onClick={() => void control(a, 'continue')}
-              >
-                Continue the autopilot from{' '}
-                {AUTOPILOT_STAGE_LABEL[a.stage].toLowerCase()}
-              </button>
-            ) : (
-              <p className="small">{can.reason}</p>
-            ))}
-          <AllowAndContinue
-            a={a}
-            base={base}
-            session={session}
-            owner={owner}
-            onDone={() => ctx.refresh()}
-          />
-        </div>
       </article>
     );
   }
@@ -507,17 +590,15 @@ export function Autopilot({
             ) : (
               <>
                 <p className="small">
-                  A stopped autopilot waits here until its end time. Do what its
-                  card says, then press Continue on the card.
+                  A stopped autopilot waits here until its end time, then moves
+                  to Earlier autopilots.{' '}
+                  {owner
+                    ? 'Do what its card says, then press Continue on that card.'
+                    : 'The workspace owner can continue it.'}
                 </p>
                 {current.map((a) => card(a, true))}
               </>
             ))}
-          {controlError && (
-            <p className="error" role="alert">
-              {controlError}
-            </p>
-          )}
         </Status>
       </section>
       <section className="explore" aria-labelledby="autopilot-title">
@@ -851,7 +932,14 @@ function NextAfterStop({
       onClick={() => {
         // On Discover › Explore for me, its own tab.
         open('submit');
-        openExplorationWhenShown({ id: exploration.id, at: exploreStarted });
+        // Once Explore for me is on the page in view, it opens its panel and the exploration.
+        whenShown('explore-title', () =>
+          window.dispatchEvent(
+            new CustomEvent(OPEN_EXPLORATION, {
+              detail: { id: exploration.id, at: exploreStarted },
+            }),
+          ),
+        );
       }}
     >
       Open the exploration

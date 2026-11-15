@@ -469,7 +469,7 @@ export function Automation({
         csrf: session.csrf_token,
         body: {
           expected_version: a.version,
-          reason: 'Set to Manual from the Discover page.',
+          reason: 'Set to Manual from the Autopilot page.',
         },
       });
     } catch (e) {
@@ -589,9 +589,9 @@ export function Automation({
                         reveal(e.currentTarget, 'autopilot-title')
                       }
                     >
-                      Run it for me
-                    </button>
-                    .
+                      Start an autopilot
+                    </button>{' '}
+                    above.
                   </p>
                 ) : (
                   <>
