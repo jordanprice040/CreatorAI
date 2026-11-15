@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { createApi, DEFAULT_OWNER_ACTOR_ID } from '../api/dist/index.js';
 import { migrate } from '../../packages/db/dist/index.js';
+import { APP_PORT_ENV } from '../../packages/domain/dist/index.js';
 
 const require = createRequire(
   new URL('../../packages/db/package.json', import.meta.url),
@@ -59,6 +60,8 @@ try {
     CREATOR_DEV_LOGIN_CODE: code,
     CREATOR_COOKIE_SECURE: secure ? 'true' : 'false',
     CREATOR_WORKER: 'off',
+    // ADR-0108: the native shell uses the installed app's ports, not the dev range.
+    ...APP_PORT_ENV,
   });
   api.server.listen(4310, '127.0.0.1');
   await once(api.server, 'listening');
@@ -78,7 +81,12 @@ try {
       '5173',
       '--strictPort',
     ],
-    { cwd: resolve('apps/web'), windowsHide: true, stdio: 'ignore' },
+    {
+      cwd: resolve('apps/web'),
+      env: { ...process.env, ...APP_PORT_ENV },
+      windowsHide: true,
+      stdio: 'ignore',
+    },
   );
   let ready = false;
   for (let i = 0; i < 100; i++) {

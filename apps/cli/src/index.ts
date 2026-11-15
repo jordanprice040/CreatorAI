@@ -96,6 +96,7 @@ import {
   recipePasses,
 } from '@creator/contracts';
 import {
+  DEV_PORTS,
   DISCOVERY_SCENARIOS,
   FIXTURE_SPEC,
   fixtureDispositions,
@@ -407,7 +408,7 @@ function version(raw: string | undefined) {
 
 export async function runCli(
   args: string[],
-  base = 'http://127.0.0.1:4310',
+  base = `http://127.0.0.1:${DEV_PORTS.api}`,
   write: (value: string) => void = console.log,
 ): Promise<number> {
   // Asking for help is not an error: print the usage as plain text and succeed.

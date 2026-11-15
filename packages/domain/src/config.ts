@@ -25,14 +25,47 @@ export const ServiceConfigSchema = z
     (c) => c.host === '127.0.0.1' || c.deployment_mode === 'hosted',
     'Local deployment listens on 127.0.0.1 only.',
   );
+/**
+ * ADR-0108: the installed desktop app (and a hosted deployment) keep these ports. They are
+ * part of the app's identity: the window's origin, its session cookie and saved settings,
+ * and the shell's navigation checks are bound to them.
+ */
+export const APP_PORTS = { web: 5173, api: 4310, preview: 4320 } as const;
+/**
+ * ADR-0108: a local development run (`pnpm dev`, `dev:api`, `dev:web`, `smoke`) defaults to
+ * its own range, so a dev studio never holds the installed app's ports. Reviewer throwaway
+ * setups use 5183/4330/4340 and the theme-intent verifier 5188/4318/4328.
+ */
+export const DEV_PORTS = { web: 5273, api: 4410, preview: 4420 } as const;
+/** The environment that pins a service to the installed app's ports. */
+export const APP_PORT_ENV = {
+  CREATOR_WEB_PORT: String(APP_PORTS.web),
+  CREATOR_API_PORT: String(APP_PORTS.api),
+  CREATOR_PREVIEW_PORT: String(APP_PORTS.preview),
+} as const;
+/** Ports other Creator Agent setups use by convention; a dev fallback never picks one. */
+export const RESERVED_PORTS: ReadonlySet<number> = new Set([
+  ...Object.values(APP_PORTS),
+  ...Object.values(DEV_PORTS),
+  5183,
+  4330,
+  4340,
+  5188,
+  4318,
+  4328,
+]);
+/** The defaults for this environment: the app's ports when hosted, the dev range locally. */
+export const defaultPorts = (env: Record<string, string | undefined>) =>
+  env.CREATOR_DEPLOYMENT_MODE === 'hosted' ? APP_PORTS : DEV_PORTS;
 export function serviceConfig(env: Record<string, string | undefined>) {
+  const ports = defaultPorts(env);
   return parse(
     ServiceConfigSchema,
     {
       host: env.CREATOR_LISTEN_HOST ?? env.CREATOR_HOST ?? '127.0.0.1',
-      api_port: env.CREATOR_API_PORT ?? '4310',
-      web_port: env.CREATOR_WEB_PORT ?? '5173',
-      preview_port: env.CREATOR_PREVIEW_PORT ?? '4320',
+      api_port: env.CREATOR_API_PORT ?? String(ports.api),
+      web_port: env.CREATOR_WEB_PORT ?? String(ports.web),
+      preview_port: env.CREATOR_PREVIEW_PORT ?? String(ports.preview),
       deployment_mode: env.CREATOR_DEPLOYMENT_MODE ?? 'local',
       data_mode: env.CREATOR_DATA_MODE ?? 'fixture',
       provider: env.CREATOR_PROVIDER ?? 'fixture',
@@ -106,7 +139,7 @@ export function authConfig(env: Record<string, string | undefined>) {
           owner_subject: env.CREATOR_OIDC_OWNER_SUBJECT,
           web_origin:
             env.CREATOR_WEB_ORIGIN ??
-            `http://127.0.0.1:${env.CREATOR_WEB_PORT ?? '5173'}`,
+            `http://127.0.0.1:${env.CREATOR_WEB_PORT ?? defaultPorts(env).web}`,
         }
       : null;
   const hosted = env.CREATOR_DEPLOYMENT_MODE === 'hosted';

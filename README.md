@@ -22,7 +22,8 @@ pnpm build
 pnpm dev
 ```
 
-Open [the local app](http://127.0.0.1:5173). Without CREATOR_DATABASE_URL, only
+Open [the local app](http://127.0.0.1:5273) (development ports; the installed
+desktop app uses 5173). Without CREATOR_DATABASE_URL, only
 the stateless fixture demonstration is available. For saved records and sign-in,
 configure loopback PostgreSQL, run `pnpm db:migrate`, then start the app and use
 the one-run login link printed by the API.
