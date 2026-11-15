@@ -207,8 +207,10 @@ export interface ProjectReportInput {
   claims_not_listed: number;
   humility: ReportHumility[];
   humility_omitted: number;
-  /** Build work with no package manifest, which the Builds list cannot show. */
-  unpackaged: { products: number; artifacts: number };
+  /** Artifact records with no package manifest, which the Builds list cannot show. */
+  unpackaged_artifacts: number;
+  /** Active product (catalog) records. They are not builds; the report does not cover them. */
+  product_records: number;
   interventions: ReportIntervention[];
   interventions_omitted: number;
   specs: ReportSpec[];
@@ -462,10 +464,10 @@ export function projectReportMarkdown(raw: ProjectReportInput): {
   out.push('## Builds, reviews and QA', '');
   if (!r.builds.length)
     out.push('No packaged build (package manifest) is recorded.', '');
-  const { products, artifacts } = r.unpackaged;
-  if (products || artifacts)
+  const artifacts = r.unpackaged_artifacts;
+  if (artifacts)
     out.push(
-      `${products ? plural(products, 'product') : ''}${products && artifacts ? ' and ' : ''}${artifacts ? plural(artifacts, 'artifact') : ''} ${products + artifacts === 1 ? 'is' : 'are'} recorded without a package manifest (for example a build that stopped before packaging), so ${products + artifacts === 1 ? 'it is' : 'they are'} not listed here. See Projects › Build.`,
+      `${plural(artifacts, 'artifact is', 'artifacts are')} recorded without a package manifest (for example a build that stopped before packaging), so ${artifacts === 1 ? 'it is' : 'they are'} not listed here. See Projects › Build.`,
       '',
     );
   for (const b of r.builds) {
@@ -579,6 +581,10 @@ export function projectReportMarkdown(raw: ProjectReportInput): {
   if (r.claims_not_listed)
     limits.push(
       `${plural(r.claims_not_listed, 'claim is', 'claims are')} recorded but not listed, because ${r.claims_not_listed === 1 ? 'it is' : 'they are'} not linked to a listed problem or its options (or the list was cut). See Sources › Sources and claims.`,
+    );
+  if (r.product_records)
+    limits.push(
+      `${plural(r.product_records, 'product record (catalog)', 'product records (catalog)')} ${r.product_records === 1 ? 'is' : 'are'} not covered by this report.`,
     );
   if (r.specs.some((x) => x.checks_unreadable))
     limits.push(

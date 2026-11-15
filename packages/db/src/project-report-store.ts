@@ -153,7 +153,7 @@ export class ProjectReportStore extends RunbookStore {
       claims_not_listed: 0,
       humility: [],
       humility_omitted: 0,
-      unpackaged: await this.reportUnpackaged(c, ws),
+      ...(await this.reportUnpackaged(c, ws)),
       interventions: [],
       interventions_omitted: 0,
       specs: await this.reportSpecs(c, ws),
@@ -508,7 +508,10 @@ export class ProjectReportStore extends RunbookStore {
     return { list, omitted: Math.max(0, total - list.length) };
   }
 
-  /** Products, and artifacts with no package manifest: build work the Builds list cannot show. */
+  /**
+   * Artifacts with no package manifest (build output the Builds list cannot show), and
+   * product records, counted apart: a product is a catalog record, not a build.
+   */
   private async reportUnpackaged(c: PoolClient, ws: string) {
     const r = (
       await c.query(
@@ -521,7 +524,10 @@ export class ProjectReportStore extends RunbookStore {
         [ws],
       )
     ).rows[0] as Row;
-    return { products: Number(r.products), artifacts: Number(r.artifacts) };
+    return {
+      unpackaged_artifacts: Number(r.artifacts),
+      product_records: Number(r.products),
+    };
   }
 
   private async reportSpecs(c: PoolClient, ws: string) {

@@ -37,7 +37,8 @@ function emptyInput(): ProjectReportInput {
     claims_not_listed: 0,
     humility: [],
     humility_omitted: 0,
-    unpackaged: { products: 0, artifacts: 0 },
+    unpackaged_artifacts: 0,
+    product_records: 0,
     interventions: [],
     interventions_omitted: 0,
     specs: [],
@@ -184,7 +185,8 @@ test('report text: secrets and personal paths removed, record text cannot forge 
       incurred_nano: '696650000',
     },
   ];
-  input.unpackaged = { products: 2, artifacts: 1 };
+  input.unpackaged_artifacts = 1;
+  input.product_records = 2;
   input.money.unknown_attempts = 1;
   input.money.unknown_exposure_nano = '1500000000';
   input.money.attempts = { unknown: 1 };
@@ -234,9 +236,12 @@ test('report text: secrets and personal paths removed, record text cannot forge 
   assert.match(markdown, /Allow this\? Approve once: Fine for now\./);
   // Unreadable checks say so; build work without a manifest is counted.
   assert.match(markdown, /The checks of this version could not be read/);
+  assert.match(markdown, /^1 artifact is recorded without a package manifest/m);
+  // Product records are catalog entries, not builds: mentioned apart, in neutral words.
+  assert.doesNotMatch(markdown, /product\w* (is|are) recorded without/);
   assert.match(
     markdown,
-    /2 products and 1 artifact are recorded without a package manifest/,
+    /^- 2 product records \(catalog\) are not covered by this report\.$/m,
   );
   assert.match(
     markdown,
@@ -409,6 +414,23 @@ test('a project report is built from the records, with access, fixture labels an
     ],
   );
 
+  // A catalog product (not a build) and an artifact a build left before packaging (R2-L1).
+  await s.store.createEntity(owner, s.ws.id, {
+    kind: 'product',
+    title: 'Roster with reminders',
+    body: { stage: 'captured', summary: 'A catalog idea, not a build (test).' },
+  });
+  await s.store.createEntity(owner, s.ws.id, {
+    kind: 'artifact',
+    title: 'Unpackaged output',
+    body: {
+      storage_uri: 'fixture://unpackaged',
+      sha256: sha('unpackaged'),
+      bytes: 5,
+      media_type: 'application/x-tar',
+    },
+  });
+
   // Outcomes still open and a refused evaluation, as the broker leaves them (L-5, L-8).
   const envelopeId = (await s.store.listEnvelopes(owner, s.ws.id))[0]!.id;
   const reservation = (status: string, reserved: number, finished: boolean) =>
@@ -572,6 +594,23 @@ test('a project report is built from the records, with access, fixture labels an
     /\| Owner budget \| global \| active \| 100\.00 simulated units \|/,
   );
   assert.doesNotMatch(md, /US dollars|\$[0-9]/);
+  // Only the artifact without a manifest counts as unpackaged build output; the
+  // packaged one is listed, and the product is a catalog record mentioned apart.
+  const products = (
+    await s.db.pool.query(
+      `select count(*)::int as n from entities
+        where workspace_id = $1 and kind = 'product' and status = 'active'`,
+      [s.ws.id],
+    )
+  ).rows[0].n as number;
+  assert.ok(products >= 1);
+  assert.match(md, /^1 artifact is recorded without a package manifest/m);
+  assert.doesNotMatch(md, /product\w* (is|are) recorded without/);
+  assert.ok(
+    md.includes(
+      `- ${products} product record${products === 1 ? '' : 's'} (catalog) ${products === 1 ? 'is' : 'are'} not covered by this report.`,
+    ),
+  );
   // Every plan request through the workspace's connection, chat ones included.
   assert.match(
     md,
