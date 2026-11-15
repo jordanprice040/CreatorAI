@@ -2927,7 +2927,11 @@ export {
   fitNote,
   gatherQuestion,
   namesOf,
+  nextGatherQuestion,
   refusalKind,
+  spentCandidates,
+  trimSpent,
+  type SpentDetail,
   webResearch,
   type AutopilotWeb,
 } from './autopilot.js';

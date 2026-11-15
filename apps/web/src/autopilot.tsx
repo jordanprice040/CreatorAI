@@ -424,7 +424,7 @@ export function Autopilot({
                     />{' '}
                     Search the web first (ChatGPT plan models only)
                   </label>
-                  {search && route?.kind === 'plan' && route.chatgpt && (
+                  {researchOn && (
                     <>
                       <label htmlFor="ap-question">
                         Question for the search (optional)
@@ -433,10 +433,15 @@ export function Autopilot({
                         id="ap-question"
                         maxLength={300}
                         value={question}
+                        aria-describedby={
+                          !question.trim() && !list(interests).length
+                            ? 'ap-question-hint'
+                            : undefined
+                        }
                         onChange={(e) => setQuestion(e.target.value)}
                       />
                       {!question.trim() && !list(interests).length && (
-                        <p className="small">
+                        <p className="small" id="ap-question-hint">
                           With no question or interests, the search starts from
                           broad public topics, and its claims may have little to
                           do with each other.

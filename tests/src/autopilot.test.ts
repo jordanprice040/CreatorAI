@@ -60,7 +60,11 @@ import {
   fitNote,
   gatherQuestion,
   namesOf,
+  nextGatherQuestion,
   refusalKind,
+  spentCandidates,
+  trimSpent,
+  type SpentDetail,
   type AutopilotWeb,
 } from '@creator/api';
 import { discoverySetup, owner } from './discovery-harness.js';
@@ -3530,5 +3534,128 @@ test('live rerun (November 15): notes are cut at a word, keep their ending, and 
   assert.equal(
     gatherQuestion(null, 'Volunteers miss shifts'),
     'Volunteers miss shifts',
+  );
+  // An empty reason leaves only what happens next, with no leading space (review 1 N-4).
+  assert.equal(fitNote('', 'Gathering evidence.', 120), 'Gathering evidence.');
+  assert.equal(
+    fitNote('  ', 'Gathering evidence.', 120),
+    'Gathering evidence.',
+  );
+});
+
+test('review 1 L-1/L-4: unused calls go back only from finished, settled workflows, from the step that holds them', () => {
+  const X = '00000000-0000-4000-8000-0000000000a1';
+  const Y = '00000000-0000-4000-8000-0000000000a2';
+  const step = (
+    state: AutopilotStep['state'],
+    calls: number,
+    child: string,
+  ): AutopilotStep =>
+    ({
+      stage: 'discover',
+      state,
+      calls,
+      child: { kind: 'workflow', id: child },
+    }) as unknown as AutopilotStep;
+  const ap = (steps: AutopilotStep[]) =>
+    ({
+      steps,
+      calls_reserved: steps.reduce((n, s) => n + s.calls, 0) + 2,
+    }) as unknown as Parameters<typeof trimSpent>[0];
+  const done = (
+    attempts: number,
+    extra: Partial<SpentDetail> = {},
+  ): SpentDetail => ({
+    workflow: { state: 'succeeded' },
+    usage: { attempts, in_flight: 0 },
+    subscription_usage: null,
+    ...extra,
+  });
+  const one = ap([step('running', 24, X)]);
+  // Settled: keeps what it used.
+  const t = trimSpent(one, new Map([[X, done(5)]]));
+  assert.equal(t.steps[0]!.calls, 5);
+  assert.equal(t.calls_reserved, one.calls_reserved - 19);
+  // Plan requests count when they are more than the attempts.
+  const plan = trimSpent(
+    one,
+    new Map([
+      [
+        X,
+        done(2, {
+          subscription_usage: { requests: 9, in_flight: 0, unresolved: 0 },
+        }),
+      ],
+    ]),
+  );
+  assert.equal(plan.steps[0]!.calls, 9);
+  // Unknown is not zero: an unresolved or in-flight plan request, an API request in flight or
+  // a workflow still working keeps the whole reservation.
+  for (const d of [
+    done(1, {
+      subscription_usage: { requests: 1, in_flight: 0, unresolved: 1 },
+    }),
+    done(1, {
+      subscription_usage: { requests: 1, in_flight: 1, unresolved: 0 },
+    }),
+    done(1, { usage: { attempts: 1, in_flight: 1 } }),
+    { ...done(1), workflow: { state: 'running' } },
+  ])
+    assert.equal(trimSpent(one, new Map([[X, d]])), one);
+  // Never more than it set aside: a workflow that used it all changes nothing.
+  assert.equal(trimSpent(one, new Map([[X, done(30)]])), one);
+  // A step stopped before its workflow finished keeps the reservation; the step that carries
+  // the workflow on sets nothing aside, so the stopped step is the one trimmed.
+  const carried = ap([step('stopped', 24, X), step('running', 0, X)]);
+  assert.deepEqual(spentCandidates(carried), [X]);
+  const c = trimSpent(carried, new Map([[X, done(5)]]));
+  assert.deepEqual(
+    c.steps.map((s) => s.calls),
+    [5, 0],
+  );
+  assert.equal(c.calls_reserved, carried.calls_reserved - 19);
+  // Trimming again changes nothing (no double give-back).
+  assert.equal(trimSpent(c, new Map([[X, done(5)]])), c);
+  // A failed workflow and its retry: each keeps what it used; the total stays the sum.
+  const retry = ap([step('stopped', 7, X), step('running', 7, Y)]);
+  assert.deepEqual(spentCandidates(retry).sort(), [X, Y].sort());
+  const r = trimSpent(
+    retry,
+    new Map([
+      [X, { ...done(2), workflow: { state: 'failed' } }],
+      [Y, done(3)],
+    ]),
+  );
+  assert.deepEqual(
+    r.steps.map((s) => s.calls),
+    [2, 3],
+  );
+  assert.equal(r.calls_reserved, retry.calls_reserved - 9);
+  // Done steps and stopped steps that hold nothing are not read again.
+  assert.deepEqual(
+    spentCandidates(ap([step('done', 5, X), step('stopped', 0, Y)])),
+    [],
+  );
+});
+
+test('review 1 L-3: a later gather round never repeats a question; it moves to the next option, then the problem', () => {
+  const opts = [
+    { title: 'Swap board', unknown: ['effort'] },
+    { title: 'Reminder texts', unknown: [] },
+  ];
+  const asked = new Set<string>();
+  const first = nextGatherQuestion(opts, 'Volunteers miss shifts', asked)!;
+  assert.equal(first.about, 'Swap board');
+  asked.add(first.question.toLowerCase());
+  const second = nextGatherQuestion(opts, 'Volunteers miss shifts', asked)!;
+  assert.equal(second.about, 'Reminder texts');
+  asked.add(second.question.toLowerCase());
+  const third = nextGatherQuestion(opts, 'Volunteers miss shifts', asked)!;
+  assert.equal(third.about, null);
+  assert.equal(third.question, 'Volunteers miss shifts');
+  asked.add(third.question.toLowerCase());
+  assert.equal(
+    nextGatherQuestion(opts, 'Volunteers miss shifts', asked),
+    undefined,
   );
 });

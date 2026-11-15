@@ -87,6 +87,75 @@ export function webResearch(
 
 const TERMINAL = new Set(['succeeded', 'failed', 'cancelled']);
 
+/** What `trimSpent` reads of a workflow: its state and what its requests used. */
+export type SpentDetail = {
+  workflow: { state: string };
+  usage: { attempts: number; in_flight: number };
+  subscription_usage?:
+    | {
+        requests: number;
+        in_flight: number;
+        unresolved: number;
+      }
+    | null
+    | undefined;
+};
+
+/**
+ * Workflows whose steps may still hold calls they did not use: the running step's, and those of
+ * stopped steps that still set calls aside (a stop can come before its workflow finishes).
+ */
+export function spentCandidates(a: Autopilot): string[] {
+  const ids = new Set<string>();
+  a.steps.forEach((s, i) => {
+    if (s.child?.kind !== 'workflow') return;
+    if (
+      (i === a.steps.length - 1 && s.state === 'running') ||
+      (s.state === 'stopped' && s.calls > 0)
+    )
+      ids.add(s.child.id);
+  });
+  return [...ids];
+}
+
+/**
+ * Live rerun (November 15): a step sets aside its workflow's worst case before anything is
+ * sent. Once that workflow has finished with nothing in flight or unresolved, the steps that
+ * share it keep only what it used (attempts, or plan requests, whichever is more) and the rest
+ * goes back to the autopilot. Unknown outcomes keep the whole reservation (invariant 5). A
+ * step carrying on an earlier attempt's workflow sets nothing aside, so the reservation is
+ * trimmed on the latest step that holds it (review 1 L-1).
+ */
+export function trimSpent(
+  a: Autopilot,
+  details: ReadonlyMap<string, SpentDetail>,
+): Autopilot {
+  let steps = a.steps;
+  let reserved = a.calls_reserved;
+  for (const [child, d] of details) {
+    if (!TERMINAL.has(d.workflow.state)) continue;
+    const plan = d.subscription_usage;
+    if (d.usage.in_flight || plan?.in_flight || plan?.unresolved) continue;
+    const used = Math.max(d.usage.attempts, plan?.requests ?? 0);
+    let held = 0;
+    for (const s of steps) if (s.child?.id === child) held += s.calls;
+    let give = held - used;
+    for (let i = steps.length - 1; i >= 0 && give > 0; i--) {
+      const s = steps[i]!;
+      if (s.child?.id !== child || s.calls <= 0) continue;
+      const take = Math.min(give, s.calls);
+      steps = steps.map((x, j) =>
+        j === i ? { ...x, calls: x.calls - take } : x,
+      );
+      reserved -= take;
+      give -= take;
+    }
+  }
+  return reserved === a.calls_reserved
+    ? a
+    : { ...a, steps, calls_reserved: reserved };
+}
+
 /** Cuts text at a word boundary with an ellipsis, never splitting a surrogate pair. */
 export function cutWords(text: string, max: number): string {
   if (text.length <= max) return text;
@@ -102,10 +171,10 @@ export function cutWords(text: string, max: number): string {
 export function fitNote(head: string, tail: string, max: number): string {
   const end = cutWords(tail, max);
   const room = max - end.length - 1;
-  return room >= 20 ? `${cutWords(head, room)} ${end}` : end;
+  const start = room >= 20 ? cutWords(head.trim(), room) : '';
+  return start ? `${start} ${end}` : end;
 }
 
-/** “A”, “B”, “C” and 2 more. */
 /**
  * Live rerun (November 15): a bare option title brought back claims that did not touch the
  * unknowns. The gather question names what is unknown, the option and the problem it is for.
@@ -124,6 +193,25 @@ export function gatherQuestion(
   );
 }
 
+/**
+ * Review 1 L-3: the first gather question no earlier round asked (compared without case),
+ * trying the options in order and then the problem itself; undefined when all were asked.
+ */
+export function nextGatherQuestion(
+  options: { title: string; unknown: readonly string[] }[],
+  problem: string,
+  asked: ReadonlySet<string>,
+): { about: string | null; question: string } | undefined {
+  return [
+    ...options.map((o) => ({
+      about: o.title as string | null,
+      question: gatherQuestion(o, problem),
+    })),
+    { about: null, question: gatherQuestion(null, problem) },
+  ].find((q) => !asked.has(q.question.toLowerCase()));
+}
+
+/** “A”, “B”, “C” and 2 more. */
 export function namesOf(titles: string[], shown = 3): string {
   const named = titles.slice(0, shown).map((t) => `“${cutWords(t, 80)}”`);
   const more = titles.length - named.length;
@@ -1202,7 +1290,11 @@ export class AutopilotRunner {
               settings,
               'next_candidate',
               r.stop.kind ?? 'failed_step',
-              `${r.stop.note} Skipped the web search and explored the recorded claims instead.`,
+              fitNote(
+                r.stop.note,
+                'Skipped the web search and explored the recorded claims instead.',
+                600,
+              ),
             ),
             then: { kind: 'skip' },
           },
@@ -1646,7 +1738,11 @@ export class AutopilotRunner {
               settings,
               'next_candidate',
               'thin_evidence',
-              `${reason} Trying the exploration's next candidate problem.`,
+              fitNote(
+                reason,
+                "Trying the exploration's next candidate problem.",
+                600,
+              ),
             ),
             then: {
               kind: 'gather',
@@ -1709,7 +1805,7 @@ export class AutopilotRunner {
           settings,
           'gather_evidence',
           'thin_evidence',
-          `${reason} Gathering evidence, then exploring again.`,
+          fitNote(reason, 'Gathering evidence, then exploring again.', 600),
         ),
         then: {
           kind: 'gather',
@@ -1918,16 +2014,27 @@ export class AutopilotRunner {
         const rows = report.suitability.candidates.filter((c) =>
           (strict.options ?? []).some((o) => o.id === c.alternative.id),
         );
-        const first = rows[0];
-        const question = gatherQuestion(
-          first
-            ? {
-                title: first.alternative.title,
-                unknown: first.unknown_criteria,
-              }
-            : null,
-          report.problem.title,
+        // Review 1 L-3: each round asks a question no earlier round asked, trying the options
+        // in order and then the problem itself; with none left it only links recorded claims.
+        const asked = new Set(
+          a.steps.flatMap((s) =>
+            s.stage === 'gather' && s.request?.question
+              ? [String(s.request.question).toLowerCase()]
+              : [],
+          ),
         );
+        const fresh = nextGatherQuestion(
+          rows.map((r) => ({
+            title: r.alternative.title,
+            unknown: r.unknown_criteria,
+          })),
+          report.problem.title,
+          asked,
+        );
+        const search = typeof route === 'string' ? undefined : fresh;
+        const searching = search
+          ? ` (searching the web about ${search.about ? `“${cutWords(search.about, 80)}”` : 'the problem'})`
+          : '';
         return {
           redo: {
             fallback: this.#fb(
@@ -1936,7 +2043,7 @@ export class AutopilotRunner {
               strict.kind,
               fitNote(
                 strict.reason,
-                `Gathering evidence for ${namesOf(rows.map((r) => r.alternative.title)) || 'the options'}, then assessing again.`,
+                `Gathering evidence for ${namesOf(rows.map((r) => r.alternative.title)) || 'the options'}${searching}, then assessing again.`,
                 600,
               ),
             ),
@@ -1947,7 +2054,7 @@ export class AutopilotRunner {
                 reason: cutText(strict.reason, 600),
                 problem_id: report.problem.id,
                 options: rows.length ? rows.map((r) => r.alternative.id) : null,
-                question: typeof route === 'string' ? null : question,
+                question: search?.question ?? null,
               },
             },
           },
@@ -2179,24 +2286,14 @@ export class AutopilotRunner {
    * unknown outcome is not zero (invariant 5).
    */
   async #trimSpent(ctx: CommandContext, ws: string, a: Autopilot) {
-    const last = a.steps.at(-1);
-    if (!last || last.state !== 'running' || last.child?.kind !== 'workflow')
-      return a;
-    const detail = await this.store
-      .getWorkflow(ctx, ws, last.child.id)
-      .catch(() => null);
-    if (!detail || !TERMINAL.has(detail.workflow.state)) return a;
-    const plan = detail.subscription_usage;
-    if (detail.usage.in_flight || plan?.in_flight || plan?.unresolved) return a;
-    const used = Math.max(detail.usage.attempts, plan?.requests ?? 0);
-    if (used >= last.calls) return a;
-    return {
-      ...a,
-      steps: a.steps.map((s, i) =>
-        i === a.steps.length - 1 ? { ...s, calls: used } : s,
-      ),
-      calls_reserved: a.calls_reserved - (last.calls - used),
-    };
+    const ids = spentCandidates(a);
+    if (!ids.length) return a;
+    const details = new Map<string, SpentDetail>();
+    for (const id of ids) {
+      const d = await this.store.getWorkflow(ctx, ws, id).catch(() => null);
+      if (d) details.set(id, d);
+    }
+    return trimSpent(a, details);
   }
 
   /**

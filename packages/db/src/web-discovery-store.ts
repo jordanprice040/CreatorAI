@@ -42,6 +42,17 @@ import {
 /** Starts the claim count a discovery's explanation ends with (replaced on each pass). */
 const CLAIMS_MARK = 'Claims so far:';
 
+/**
+ * Before the mark existed (main 9172584), a pass appended its count sentences straight after the
+ * reading note. They start at the first of those known openings; the rest is the reading note.
+ */
+function withoutOldCount(text: string): string {
+  const at = text.search(
+    / (?:\d+ checked claims? waits?|The autopilot accepted \d|Your routine policy added \d|Quote-checked claims an autopilot found wait)/,
+  );
+  return at >= 0 ? text.slice(0, at) : text;
+}
+
 // ADR-0086 (P12): web discovery records. The runner (apps/api) drives the stages; every state
 // change goes through a guarded update here, so a cancel between two steps always wins and a
 // stage that already moved on is never written over.
@@ -687,11 +698,10 @@ export class WebDiscoveryStore extends PortfolioStore {
           assumption_ids: [],
           humility_review: null,
           flags: [],
-          justification:
-            `Add the web discovery claim “${String((r.proposal as CheckedProposal).title)}”; its quotes were found word for word in the fetched pages.`.slice(
-              0,
-              1200,
-            ),
+          justification: cutText(
+            `Add the web discovery claim “${String((r.proposal as CheckedProposal).title)}”; its quotes were found word for word in the fetched pages.`,
+            1200,
+          ),
         };
         const dry = await this.wouldAdmit(c, ws, runId, action);
         if (
@@ -748,12 +758,24 @@ export class WebDiscoveryStore extends PortfolioStore {
           .join(' ');
         // Live rerun (November 15): a later pass (the owner's setting turned on) replaces the
         // earlier pass's claim count instead of adding to it, so the note never contradicts itself.
+        // Review 1 N-2: an explanation written before the mark existed drops its earlier
+        // count sentences too, and the base is shortened so the mark and the count always fit.
+        const tail = ` ${CLAIMS_MARK} ${cutText(summary, 600)}`;
+        const prior = (
+          await c.query(
+            'select explanation from web_discoveries where id = $1',
+            [id],
+          )
+        ).rows[0] as { explanation: string } | undefined;
+        const before = prior?.explanation ?? '';
+        const marked = before.indexOf(` ${CLAIMS_MARK}`);
+        const base = (
+          marked >= 0 ? before.slice(0, marked) : withoutOldCount(before)
+        ).trimEnd();
         await c.query(
-          `update web_discoveries set explanation = left(
-               coalesce(substring(explanation from '^(.*?) ${CLAIMS_MARK}'), explanation)
-                 || ' ${CLAIMS_MARK} ' || $2, 1200),
+          `update web_discoveries set explanation = $2,
              version = version + 1, updated_at = clock_timestamp() where id = $1`,
-          [id, cutText(summary, 600)],
+          [id, cutText(base, 1200 - tail.length) + tail],
         );
       }
       return {
@@ -886,6 +908,26 @@ export class WebDiscoveryStore extends PortfolioStore {
       ...p.evidence.filter((e) => e.stance === 'supports'),
       ...p.evidence.filter((e) => e.stance !== 'supports'),
     ];
+    // Review 1 N-1: a contrary quote that loses its passage's row to a supporting one stays
+    // visible in that row's rationale instead of being dropped silently.
+    const contrary = new Map<string, string[]>();
+    for (const e of p.evidence)
+      if (
+        e.verified &&
+        e.passage_id &&
+        e.stance !== 'supports' &&
+        p.evidence.some(
+          (x) =>
+            x.stance === 'supports' &&
+            x.verified &&
+            x.passage_id === e.passage_id &&
+            webQuoteLongEnough(x.quote),
+        )
+      )
+        contrary.set(e.passage_id, [
+          ...(contrary.get(e.passage_id) ?? []),
+          e.quote,
+        ]);
     for (const e of ordered) {
       // The stored excerpt is checked again by addClaimSupportIn; the length rule here.
       if (
@@ -904,7 +946,18 @@ export class WebDiscoveryStore extends PortfolioStore {
           stance: e.stance,
           support_type: p.basis === 'observation' ? 'quotation' : 'inference',
           quote: e.quote,
-          rationale,
+          rationale: cutText(
+            [
+              rationale,
+              ...(e.stance === 'supports'
+                ? (contrary.get(e.passage_id) ?? []).map(
+                    (q) =>
+                      `The same page also has a contrary quote, not recorded as its own row: “${cutText(q, 300)}”`,
+                  )
+                : []),
+            ].join(' '),
+            1200,
+          ),
         });
         rows += 1;
       } catch (err) {

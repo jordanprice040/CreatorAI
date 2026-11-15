@@ -3,6 +3,7 @@
 ## November 15 handoff — autopilot fixes from the live rerun (findings 1–7)
 
 Branch `claude/project-thread-77qqks` from main 3473b05, no migration or ADR. `web-discovery-store.ts`: `#admitOne` adds supports first and one support row per passage; `CLAIMS_MARK` replaces the summary's claim count. `autopilot.ts`: exported `cutWords`, `fitNote`, `namesOf`, `gatherQuestion`; `#gather` builds one link note; `#trimSpent` runs after every step and before `#finish`/`#redo`, and `advanceAutopilot` now receives `calls_reserved` on every path. `autopilot-store.ts` cuts explanations at 1200. Web: `ap-question` input and the broad-search hint. Next: independent review in a separate thread; a live rerun after merge needs Jordan's typed OK.
+Review 1 fixes: `trimSpent(a, details)` and `spentCandidates(a)` are pure and exported (the runner's `#trimSpent` reads the workflows); `nextGatherQuestion(options, problem, asked)` picks the select-gather question; `withoutOldCount` in `web-discovery-store.ts` strips pre-mark count sentences. Next: re-review in a separate thread.
 
 ## November 14 handoff — B1: building qualified in the app (ADR-0105, migration 65)
 
