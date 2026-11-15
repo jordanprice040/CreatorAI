@@ -42,6 +42,40 @@ import {
 /** Starts the claim count a discovery's explanation ends with (replaced on each pass). */
 const CLAIMS_MARK = 'Claims so far:';
 
+type Quote = Pick<
+  CheckedProposal['evidence'][number],
+  'verified' | 'passage_id' | 'stance' | 'quote'
+>;
+
+/**
+ * Review 1 N-1 and review 2 N-3: a claim version keeps one support row per passage. Given the
+ * quotes in the order they are recorded (supporting first), this names, per passage, every
+ * other distinct quote that loses the passage's row, so the kept row's rationale keeps it
+ * visible instead of dropping it silently.
+ */
+export function droppedQuotes(
+  ordered: readonly Quote[],
+): Map<string, string[]> {
+  const usable = (e: Quote) =>
+    e.verified &&
+    !!e.passage_id &&
+    (e.stance !== 'supports' || webQuoteLongEnough(e.quote));
+  const keeper = new Map<string, Quote>();
+  for (const e of ordered)
+    if (usable(e) && !keeper.has(e.passage_id!)) keeper.set(e.passage_id!, e);
+  const dropped = new Map<string, string[]>();
+  for (const e of ordered) {
+    const kept = usable(e) ? keeper.get(e.passage_id!) : undefined;
+    if (!kept || kept === e) continue;
+    if (kept.stance === e.stance && kept.quote === e.quote) continue;
+    dropped.set(e.passage_id!, [
+      ...(dropped.get(e.passage_id!) ?? []),
+      `The same page also has ${e.stance === 'supports' ? 'another supporting' : 'a contrary'} quote, not recorded as its own row: “${cutText(e.quote, 300)}”`,
+    ]);
+  }
+  return dropped;
+}
+
 /**
  * Before the mark existed (main 9172584), a pass appended its count sentences straight after the
  * reading note. They start at the first of those known openings; the rest is the reading note.
@@ -908,26 +942,7 @@ export class WebDiscoveryStore extends PortfolioStore {
       ...p.evidence.filter((e) => e.stance === 'supports'),
       ...p.evidence.filter((e) => e.stance !== 'supports'),
     ];
-    // Review 1 N-1: a contrary quote that loses its passage's row to a supporting one stays
-    // visible in that row's rationale instead of being dropped silently.
-    const contrary = new Map<string, string[]>();
-    for (const e of p.evidence)
-      if (
-        e.verified &&
-        e.passage_id &&
-        e.stance !== 'supports' &&
-        p.evidence.some(
-          (x) =>
-            x.stance === 'supports' &&
-            x.verified &&
-            x.passage_id === e.passage_id &&
-            webQuoteLongEnough(x.quote),
-        )
-      )
-        contrary.set(e.passage_id, [
-          ...(contrary.get(e.passage_id) ?? []),
-          e.quote,
-        ]);
+    const dropped = droppedQuotes(ordered);
     for (const e of ordered) {
       // The stored excerpt is checked again by addClaimSupportIn; the length rule here.
       if (
@@ -947,15 +962,7 @@ export class WebDiscoveryStore extends PortfolioStore {
           support_type: p.basis === 'observation' ? 'quotation' : 'inference',
           quote: e.quote,
           rationale: cutText(
-            [
-              rationale,
-              ...(e.stance === 'supports'
-                ? (contrary.get(e.passage_id) ?? []).map(
-                    (q) =>
-                      `The same page also has a contrary quote, not recorded as its own row: “${cutText(q, 300)}”`,
-                  )
-                : []),
-            ].join(' '),
+            [rationale, ...(dropped.get(e.passage_id) ?? [])].join(' '),
             1200,
           ),
         });

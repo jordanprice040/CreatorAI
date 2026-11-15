@@ -101,6 +101,17 @@ export type SpentDetail = {
     | undefined;
 };
 
+/** A finished workflow with nothing in flight or unresolved: what it used is final. */
+export function spentSettled(d: SpentDetail): boolean {
+  const plan = d.subscription_usage;
+  return (
+    TERMINAL.has(d.workflow.state) &&
+    !d.usage.in_flight &&
+    !plan?.in_flight &&
+    !plan?.unresolved
+  );
+}
+
 /**
  * Workflows whose steps may still hold calls they did not use: the running step's, and those of
  * stopped steps that still set calls aside (a stop can come before its workflow finishes).
@@ -133,9 +144,8 @@ export function trimSpent(
   let steps = a.steps;
   let reserved = a.calls_reserved;
   for (const [child, d] of details) {
-    if (!TERMINAL.has(d.workflow.state)) continue;
+    if (!spentSettled(d)) continue;
     const plan = d.subscription_usage;
-    if (d.usage.in_flight || plan?.in_flight || plan?.unresolved) continue;
     const used = Math.max(d.usage.attempts, plan?.requests ?? 0);
     let held = 0;
     for (const s of steps) if (s.child?.id === child) held += s.calls;
@@ -169,7 +179,8 @@ export function cutWords(text: string, max: number): string {
  * second part whole; the reason is shortened at a word instead.
  */
 export function fitNote(head: string, tail: string, max: number): string {
-  const end = cutWords(tail, max);
+  const end = cutWords(tail.trim(), max);
+  if (!end) return cutWords(head.trim(), max);
   const room = max - end.length - 1;
   const start = room >= 20 ? cutWords(head.trim(), room) : '';
   return start ? `${start} ${end}` : end;
@@ -390,6 +401,8 @@ export class AutopilotRunner {
    * spent, and unknown spend is not zero.
    */
   readonly #refused = new Set<string>();
+  /** Finished, settled workflows' use, read once (review 2 N-2); kept small. */
+  readonly #settledSpend = new Map<string, SpentDetail>();
   async #starting<T>(
     ws: string,
     step: AutopilotStep,
@@ -1131,7 +1144,11 @@ export class AutopilotRunner {
           settings,
           'retry_failed',
           'failed_step',
-          `${stop.note} Trying the step again (the owner's setting “retry a failed step”).`,
+          fitNote(
+            stop.note,
+            "Trying the step again (the owner's setting “retry a failed step”).",
+            600,
+          ),
         ),
         then: { kind: 'retry' },
         ...(stop.unsent ? { unsent: true } : {}),
@@ -1315,8 +1332,9 @@ export class AutopilotRunner {
     return {
       done: {
         child: { kind: 'web_discovery', id: d.id },
-        note: cutText(
-          `${d.explanation} ${admitted} claim${admitted === 1 ? '' : 's'} added by the run's routine approvals${pending ? `; ${pending} checked claim${pending === 1 ? '' : 's'} wait for you under Discover › Search the web` : ''}.`,
+        note: fitNote(
+          d.explanation,
+          `${admitted} claim${admitted === 1 ? '' : 's'} added by the run's routine approvals${pending ? `; ${pending} checked claim${pending === 1 ? '' : 's'} wait for you under Discover › Search the web` : ''}.`,
           1200,
         ),
       },
@@ -1342,8 +1360,9 @@ export class AutopilotRunner {
         outcome: 'needs_person',
         kind: 'claims_held',
         child: { kind: 'web_discovery', id: d.id },
-        note: cutText(
-          `${extra} The web search found ${n} claim${n === 1 ? '' : 's'} whose only check is that the quotes were found word for word; ${n === 1 ? 'it waits' : 'they wait'} for you under Discover › Search the web (search ${d.id}). Add the ones you agree with and continue, or turn on “Accept quote-checked web claims”.`.trim(),
+        note: fitNote(
+          extra,
+          `The web search found ${n} claim${n === 1 ? '' : 's'} whose only check is that the quotes were found word for word; ${n === 1 ? 'it waits' : 'they wait'} for you under Discover › Search the web (search ${d.id}). Add the ones you agree with and continue, or turn on “Accept quote-checked web claims”.`,
           1200,
         ),
       },
@@ -1550,8 +1569,9 @@ export class AutopilotRunner {
         stop: {
           outcome: 'insufficient_evidence',
           kind: 'thin_evidence',
-          note: cutText(
-            `${req.reason} The autopilot gathered evidence but found nothing new. ${[...linkNote(), ...notes].join(' ')}`,
+          note: fitNote(
+            `${req.reason} The autopilot gathered evidence but found nothing new.`,
+            [...linkNote(), ...notes].join(' '),
             1200,
           ),
         },
@@ -1761,8 +1781,9 @@ export class AutopilotRunner {
     if (typeof route === 'string') {
       if (settings.values.gather_evidence) {
         // Re-review 2 L-1: with the setting on, Continue would only stop here again.
-        (stop as { stop: Stop }).stop.note = cutText(
-          `${reason} It could not gather more evidence: ${route}`,
+        (stop as { stop: Stop }).stop.note = fitNote(
+          reason,
+          `It could not gather more evidence: ${route}`,
           1200,
         );
         (stop as { stop: Stop }).stop.final = cutText(
@@ -1790,8 +1811,9 @@ export class AutopilotRunner {
       .map((q) => q.trim())
       .find((q) => q && !asked.has(q.toLowerCase()));
     if (!question) {
-      (stop as { stop: Stop }).stop.note = cutText(
-        `${reason} It has already searched the web for every question it had (${asked.size}); add claims or search the web with another question, then start again.`,
+      (stop as { stop: Stop }).stop.note = fitNote(
+        reason,
+        `It has already searched the web for every question it had (${asked.size}); add claims or search the web with another question, then start again.`,
         1200,
       );
       (stop as { stop: Stop }).stop.final =
@@ -2290,8 +2312,31 @@ export class AutopilotRunner {
     if (!ids.length) return a;
     const details = new Map<string, SpentDetail>();
     for (const id of ids) {
+      // Review 2 N-2: a finished workflow with nothing in flight or unresolved never changes
+      // what it used, so it is read once (the trim itself is worked out on every pass).
+      const known = this.#settledSpend.get(id);
+      if (known) {
+        details.set(id, known);
+        continue;
+      }
       const d = await this.store.getWorkflow(ctx, ws, id).catch(() => null);
-      if (d) details.set(id, d);
+      if (!d) continue;
+      const spent: SpentDetail = {
+        workflow: { state: d.workflow.state },
+        usage: { attempts: d.usage.attempts, in_flight: d.usage.in_flight },
+        subscription_usage: d.subscription_usage
+          ? {
+              requests: d.subscription_usage.requests,
+              in_flight: d.subscription_usage.in_flight,
+              unresolved: d.subscription_usage.unresolved,
+            }
+          : null,
+      };
+      details.set(id, spent);
+      if (spentSettled(spent)) {
+        if (this.#settledSpend.size >= 500) this.#settledSpend.clear();
+        this.#settledSpend.set(id, spent);
+      }
     }
     return trimSpent(a, details);
   }

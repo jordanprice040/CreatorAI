@@ -2930,6 +2930,7 @@ export {
   nextGatherQuestion,
   refusalKind,
   spentCandidates,
+  spentSettled,
   trimSpent,
   type SpentDetail,
   webResearch,

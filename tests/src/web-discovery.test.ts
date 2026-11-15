@@ -35,6 +35,7 @@ import {
 } from '@creator/domain';
 import {
   ConnectionStore,
+  droppedQuotes,
   heldOutKeys,
   heldOutSeen,
   heldOutPrompts,
@@ -1626,4 +1627,33 @@ test('live rerun (November 15): two checked quotes from one passage add one supp
   );
   assert.equal(kept.rows[0].stance, 'supports');
   assert.match(kept.rows[0].rationale, /also has a contrary quote/);
+});
+
+test('review 2 N-3: every distinct quote that loses its page’s row is named, also two contrary quotes with no supporting one', () => {
+  const long = (w: string) => `${w} `.repeat(12).trim();
+  const q = (
+    passage_id: string,
+    stance: 'supports' | 'contradicts',
+    quote: string,
+  ) => ({ verified: true, passage_id, stance, quote });
+  const d = droppedQuotes([
+    q('p1', 'supports', long('yes')),
+    q('p1', 'supports', long('yes')),
+    q('p1', 'contradicts', long('no')),
+    q('p2', 'contradicts', long('maybe')),
+    q('p2', 'contradicts', long('never')),
+    {
+      verified: false,
+      passage_id: 'p3',
+      stance: 'contradicts' as const,
+      quote: 'x',
+    },
+  ]);
+  // The identical supporting repeat is not named; the contrary one is.
+  assert.equal(d.get('p1')?.length, 1);
+  assert.match(d.get('p1')![0]!, /a contrary quote.*“no no/);
+  // Two contrary quotes and no supporting one: the second is named on the first's row.
+  assert.equal(d.get('p2')?.length, 1);
+  assert.match(d.get('p2')![0]!, /a contrary quote.*“never/);
+  assert.equal(d.has('p3'), false);
 });

@@ -63,6 +63,7 @@ import {
   nextGatherQuestion,
   refusalKind,
   spentCandidates,
+  spentSettled,
   trimSpent,
   type SpentDetail,
   type AutopilotWeb,
@@ -3541,6 +3542,8 @@ test('live rerun (November 15): notes are cut at a word, keep their ending, and 
     fitNote('  ', 'Gathering evidence.', 120),
     'Gathering evidence.',
   );
+  // An empty ending leaves the reason alone, with no trailing space (review 2).
+  assert.equal(fitNote('Nothing new.', '', 120), 'Nothing new.');
 });
 
 test('review 1 L-1/L-4: unused calls go back only from finished, settled workflows, from the step that holds them', () => {
@@ -3602,6 +3605,16 @@ test('review 1 L-1/L-4: unused calls go back only from finished, settled workflo
     { ...done(1), workflow: { state: 'running' } },
   ])
     assert.equal(trimSpent(one, new Map([[X, d]])), one);
+  // Only a finished workflow with nothing in flight or unresolved is read once and kept.
+  assert.equal(spentSettled(done(1)), true);
+  assert.equal(
+    spentSettled(done(1, { usage: { attempts: 1, in_flight: 1 } })),
+    false,
+  );
+  assert.equal(
+    spentSettled({ ...done(1), workflow: { state: 'running' } }),
+    false,
+  );
   // Never more than it set aside: a workflow that used it all changes nothing.
   assert.equal(trimSpent(one, new Map([[X, done(30)]])), one);
   // A step stopped before its workflow finished keeps the reservation; the step that carries
