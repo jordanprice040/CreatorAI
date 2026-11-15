@@ -816,7 +816,11 @@ export function checkForDraft(
 
 /** Where a case problem shows in the form: the case's field key, else the check's. */
 export function problemKey(
-  p: { check: string; list: 'cases' | 'browser_cases' | null; index: number | null },
+  p: {
+    check: string;
+    list: 'cases' | 'browser_cases' | null;
+    index: number | null;
+  },
   checkKeys: readonly string[],
 ): string | null {
   const i = checkKeys.indexOf(p.check);

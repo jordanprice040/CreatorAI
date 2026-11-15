@@ -3930,3 +3930,42 @@ pre.commands {
   max-height: 16rem;
   overflow: auto;
 }
+/* ADR-0107 (B2): model-drafted specs on Build › Write a spec. */
+.spec-form .spec-drafting {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+}
+.draft-honesty {
+  margin: 0.5rem 0;
+  padding-left: 1.25rem;
+  color: var(--text-2);
+}
+.case-problems {
+  margin: 0.25rem 0;
+}
+.case-problems ul,
+ul.case-problems {
+  margin: 0.25rem 0;
+  padding-left: 1.25rem;
+}
+.checked-against {
+  margin: 0.5rem 0;
+}
+.checked-against ul {
+  margin: 0.25rem 0 0.5rem;
+  padding-left: 1.25rem;
+  overflow-wrap: anywhere;
+}
+.checked-against .tag {
+  display: inline-block;
+  padding: 0 0.4rem;
+  border: 1px solid var(--warn-border);
+  border-radius: 4px;
+  background: var(--warn-bg);
+  color: var(--warn);
+  font-size: 0.85em;
+}
+.spec-form .sf-helpers {
+  margin: 0.25rem 0;
+}

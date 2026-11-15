@@ -1607,7 +1607,13 @@ export class PlanConnectionService {
               ? scorer!(ctx, c.check, text)
               : 'provider_error';
           let json: unknown = null;
-          if (text !== null && c.output_format === 'json')
+          // ADR-0107: a spec draft reply is read as the drafting page reads it (a fenced JSON
+          // object counts), so the grader takes the text itself.
+          if (
+            text !== null &&
+            c.output_format === 'json' &&
+            c.check.kind !== 'spec_cases_contract'
+          )
             try {
               json = JSON.parse(text);
             } catch {

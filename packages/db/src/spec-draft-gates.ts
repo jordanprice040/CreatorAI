@@ -13,7 +13,6 @@ import {
   type SpecContent,
   type SpecDraft,
   type SpecDraftedMark,
-  type SpecDraftResult,
 } from '@creator/contracts';
 import { canonicalHash } from '@creator/domain';
 import { iso, type Row } from './store.js';
@@ -32,7 +31,7 @@ export interface SpecDraftBinding {
 export const toSpecDraft = (r: Row): SpecDraft => {
   const result = r.redacted_at
     ? null
-    : SpecDraftResultSchema.safeParse(r.result).data ?? null;
+    : (SpecDraftResultSchema.safeParse(r.result).data ?? null);
   const problems = r.redacted_at
     ? []
     : ((r.problems as unknown[] | null) ?? []).flatMap((p) => {
@@ -165,10 +164,16 @@ export async function specDraftRequestGate(
 }
 
 /**
- * The drafted mark of a spec version saved with these draft ids (ADR-0107), or the prior
- * version's mark when no new draft is named. Each draft must be a completed spec or edge case
- * draft of this option, in this workspace, with its words still kept; anything else refuses
- * the save, so a mark never names a draft that is not what it says.
+ * The drafted mark of a spec version saved with these draft ids (ADR-0107), carrying the prior
+ * version's drafts. Each newly named draft must be a completed spec or edge case draft of this
+ * option, in this workspace, with its words still kept; anything else refuses the save, so a
+ * mark never names a draft that is not what it says.
+ *
+ * `edited` and `held_out` are worked out again on every save from the drafts the mark names,
+ * so a later revision that changes a drafted case or the held-out pick says so. The spec is
+ * compared with the newest whole-spec draft after setting aside the edge cases that were added
+ * as suggested; an edge case that is no longer there as suggested counts as edited. When the
+ * drafts' words were redacted, the prior values are carried over.
  */
 export async function draftedMark(
   c: PoolClient,
@@ -182,29 +187,25 @@ export async function draftedMark(
   const known = new Set(prior?.drafts.map((d) => d.id) ?? []);
   const fresh = ids.filter((x) => !known.has(x));
   if (!fresh.length && !prior) return undefined;
-  const { rows } = fresh.length
-    ? await c.query(
-        'select * from spec_drafts where workspace_id = $1 and id = any($2::uuid[])',
-        [ws, fresh],
-      )
-    : { rows: [] as Row[] };
+  const all = [...known, ...fresh];
+  const { rows } = await c.query(
+    'select * from spec_drafts where workspace_id = $1 and id = any($2::uuid[])',
+    [ws, all],
+  );
   const found = new Map((rows as Row[]).map((r) => [String(r.id), r]));
-  const bad: string[] = [];
-  const added: { row: Row; result: SpecDraftResult }[] = [];
-  for (const x of fresh) {
+  const read = (x: string) => {
     const r = found.get(x);
     const result = r ? SpecDraftResultSchema.safeParse(r.result).data : null;
-    if (
-      !r ||
-      r.state !== 'completed' ||
-      r.redacted_at ||
-      String(r.alternative_id) !== alternativeId ||
-      !result ||
-      (result.kind !== 'spec' && result.kind !== 'edge_case')
-    )
-      bad.push(x.slice(0, 8));
-    else added.push({ row: r, result });
-  }
+    return r &&
+      r.state === 'completed' &&
+      !r.redacted_at &&
+      String(r.alternative_id) === alternativeId &&
+      result &&
+      (result.kind === 'spec' || result.kind === 'edge_case')
+      ? { row: r, result }
+      : null;
+  };
+  const bad = fresh.filter((x) => !read(x)).map((x) => x.slice(0, 8));
   if (bad.length)
     throw new ContractError(
       'INVALID_CONTRACT',
@@ -212,42 +213,64 @@ export async function draftedMark(
     );
   const drafts = [
     ...(prior?.drafts ?? []),
-    ...added.map(({ row, result }) => ({
-      id: String(row.id),
-      kind: result.kind as 'spec' | 'edge_case',
-      model_id: String(row.model_id),
-    })),
+    ...fresh.map((x) => {
+      const { row, result } = read(x)!;
+      return {
+        id: String(row.id),
+        kind: result.kind as 'spec' | 'edge_case',
+        model_id: String(row.model_id),
+      };
+    }),
   ].slice(-40);
   if (!drafts.length) return undefined;
-  // `edited` and `held_out` follow the newest whole-spec draft named in this save; without
-  // one they are carried over (and an edge case counts as edited when it is not there as drafted).
-  const spec = [...added].reverse().find((a) => a.result.kind === 'spec');
-  let edited = prior?.edited ?? false;
-  let held_out: SpecDraftedMark['held_out'] = prior?.held_out ?? 'none';
-  if (spec && spec.result.kind === 'spec') {
-    edited =
-      canonicalHash(draftComparable(content)) !==
-      canonicalHash(draftComparable(spec.result.content));
-    const pick = (p: { check: string; list: string; index: number }) =>
-      `${p.check}/${p.list}/${p.index}`;
-    held_out =
-      JSON.stringify(spec.result.picks.map(pick).sort()) ===
-      JSON.stringify(heldOutOf(content).map(pick).sort())
-        ? 'studio_pick'
-        : 'changed';
+  const named = drafts.map((d) => read(d.id));
+  if (named.some((n) => !n))
+    return {
+      drafts,
+      edited: prior?.edited ?? false,
+      held_out: prior?.held_out ?? 'none',
+    };
+  const same = (a: unknown, b: unknown) =>
+    canonicalHash({ ...(a as object), held_out: false }) ===
+    canonicalHash({ ...(b as object), held_out: false });
+  const edges = named.flatMap((n) =>
+    n!.result.kind === 'edge_case' ? [n!.result] : [],
+  );
+  let edited = false;
+  for (const e of edges) {
+    const check = content.acceptance_checks.find((a) => a.key === e.check);
+    const there = e.case
+      ? check?.cases?.some((x) => same(x, e.case))
+      : check?.browser_cases?.some((x) => same(x, e.browser_case));
+    if (!there) edited = true;
   }
-  for (const { result } of added)
-    if (result.kind === 'edge_case') {
-      const check = content.acceptance_checks.find(
-        (a) => a.key === result.check,
+  const spec = [...named].reverse().find((n) => n!.result.kind === 'spec');
+  if (!spec || spec.result.kind !== 'spec')
+    return { drafts, edited, held_out: 'none' };
+  // The spec without the edge cases added as suggested, compared with the drafted spec.
+  const own = structuredClone(content);
+  for (const a of own.acceptance_checks) {
+    const mine = edges.filter((e) => e.check === a.key);
+    if (a.cases)
+      a.cases = a.cases.filter(
+        (x) => !mine.some((e) => e.case && same(x, e.case)),
       );
-      const same = (a: unknown, b: unknown) =>
-        canonicalHash({ ...(a as object), held_out: false }) ===
-        canonicalHash({ ...(b as object), held_out: false });
-      const there = result.case
-        ? check?.cases?.some((x) => same(x, result.case))
-        : check?.browser_cases?.some((x) => same(x, result.browser_case));
-      if (!there) edited = true;
-    }
+    if (a.browser_cases)
+      a.browser_cases = a.browser_cases.filter(
+        (x) => !mine.some((e) => e.browser_case && same(x, e.browser_case)),
+      );
+  }
+  if (
+    canonicalHash(draftComparable(own)) !==
+    canonicalHash(draftComparable(spec.result.content))
+  )
+    edited = true;
+  const pick = (p: { check: string; list: string; index: number }) =>
+    `${p.check}/${p.list}/${p.index}`;
+  const held_out =
+    JSON.stringify(spec.result.picks.map(pick).sort()) ===
+    JSON.stringify(heldOutOf(content).map(pick).sort())
+      ? 'studio_pick'
+      : 'changed';
   return { drafts, edited, held_out };
 }

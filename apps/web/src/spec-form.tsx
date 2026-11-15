@@ -466,7 +466,10 @@ export function SpecForm({
     const key = (p: { check: string; list: string; index: number }) =>
       `${p.check}/${p.list}/${p.index}`;
     const a = usedDraft.result.picks.map(key).sort().join();
-    return { kept: a === heldOutOf(content).map(key).sort().join(), n: usedDraft.result.picks.length };
+    return {
+      kept: a === heldOutOf(content).map(key).sort().join(),
+      n: usedDraft.result.picks.length,
+    };
   })();
   const edited = JSON.stringify(d) !== JSON.stringify(start);
   const newFlow = nextKey('F', flowKeys, given);
@@ -566,8 +569,8 @@ export function SpecForm({
           {route && (
             <>
               <p className="small">
-                {route.model_id} proposes the requirements, acceptance checks and
-                suggested cases for this option. The studio checks the cases
+                {route.model_id} proposes the requirements, acceptance checks
+                and suggested cases for this option. The studio checks the cases
                 and holds about a third of them out at random. You check and
                 edit everything; nothing is saved until you press Save spec.
               </p>
@@ -1016,7 +1019,8 @@ export function SpecForm({
             {err(`checks.${i}.covered`)}
             {problemsAt(`checks.${i}`)}
             {canDraft &&
-              (c.method === 'automated_test' || c.method === 'browser_check') && (
+              (c.method === 'automated_test' ||
+                c.method === 'browser_check') && (
                 <div className="sf-helpers">
                   {helperButton(
                     `edge.${c.key}`,

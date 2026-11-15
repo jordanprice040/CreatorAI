@@ -283,23 +283,32 @@ const obj = (v: unknown) =>
 /** A drafted command-line case, or null when it is not one. */
 function readCase(v: unknown): SpecCase | null {
   const o = obj(v);
-  const args = Array.isArray(o.args)
-    ? o.args.filter((a): a is string => typeof a === 'string')
-    : [];
+  // A case is read exactly or not at all: a value of the wrong type is never guessed at, so a
+  // kept case always means what the model wrote.
+  if (
+    (o.args !== undefined &&
+      !(Array.isArray(o.args) && o.args.every((a) => typeof a === 'string'))) ||
+    (o.stdin !== undefined && typeof o.stdin !== 'string') ||
+    typeof o.stdout !== 'string'
+  )
+    return null;
   const exit =
-    typeof o.exit_code === 'number'
-      ? o.exit_code
-      : typeof o.exit_code === 'string' && /^\d+$/.test(o.exit_code)
-        ? Number(o.exit_code)
-        : 0;
+    o.exit_code === undefined
+      ? 0
+      : typeof o.exit_code === 'number'
+        ? o.exit_code
+        : typeof o.exit_code === 'string' && /^\d+$/.test(o.exit_code)
+          ? Number(o.exit_code)
+          : null;
+  if (exit === null) return null;
   const c = CaseSchema.safeParse({
-    args,
-    stdin: str(o.stdin),
-    stdout: str(o.stdout),
+    args: (o.args as string[] | undefined) ?? [],
+    stdin: (o.stdin as string | undefined) ?? '',
+    stdout: o.stdout,
     exit_code: exit,
     held_out: false,
   });
-  return c.success && Object.hasOwn(o, 'stdout') ? c.data : null;
+  return c.success ? c.data : null;
 }
 
 /** A drafted browser case (steps as typed lines), or null with the reason. */
@@ -784,8 +793,13 @@ export function draftComparable(c: SpecContent) {
     maintenance: null,
     acceptance_checks: c.acceptance_checks.map((a) => ({
       ...a,
-      cases: a.cases?.map((x) => ({ ...x, held_out: false })),
-      browser_cases: a.browser_cases?.map((x) => ({ ...x, held_out: false })),
+      // An empty list and no list read the same.
+      cases: a.cases?.length
+        ? a.cases.map((x) => ({ ...x, held_out: false }))
+        : undefined,
+      browser_cases: a.browser_cases?.length
+        ? a.browser_cases.map((x) => ({ ...x, held_out: false }))
+        : undefined,
     })),
   };
 }

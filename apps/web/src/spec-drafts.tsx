@@ -204,8 +204,8 @@ export function DraftHonesty() {
     <ul className="small draft-honesty">
       <li>
         The cases are yours to check. The studio checks their shape and finds
-        repeats and contradictions; it cannot know whether an expected output
-        is right.
+        repeats and contradictions; it cannot know whether an expected output is
+        right.
       </li>
       <li>
         A model of the same family may write the code, and the two can share
@@ -213,8 +213,8 @@ export function DraftHonesty() {
         neither builder nor reviewer sees) stay in place.
       </li>
       <li>
-        Nothing is saved, frozen or built until you save the spec, freeze it
-        and start a build.
+        Nothing is saved, frozen or built until you save the spec, freeze it and
+        start a build.
       </li>
     </ul>
   );
@@ -248,9 +248,7 @@ export function SpecDraftOffer({
           ? ' Fixture connection: the text is canned, not a model’s.'
           : ''}
       </p>
-      {d.reason && (
-        <p className={r ? 'small' : 'error'}>{d.reason}</p>
-      )}
+      {d.reason && <p className={r ? 'small' : 'error'}>{d.reason}</p>}
       {r && (
         <>
           <p>
@@ -261,12 +259,17 @@ export function SpecDraftOffer({
               <strong>The model’s notes:</strong> {r.notes}
             </p>
           )}
-          <CaseProblems problems={d.problems} title="The studio’s checks of the drafted cases" />
+          <CaseProblems
+            problems={d.problems}
+            title="The studio’s checks of the drafted cases"
+          />
           <CheckedAgainst content={r.content} />
           <DraftHonesty />
           <div className="actions">
             {used ? (
-              <span className="small">In the form below. Check every case.</span>
+              <span className="small">
+                In the form below. Check every case.
+              </span>
             ) : replaces && !confirm ? (
               <button
                 type="button"
@@ -327,8 +330,7 @@ export function CaseProblems({
   problems: readonly SpecCaseProblem[];
   title: string;
 }) {
-  if (!problems.length)
-    return <p className="small">{title}: nothing found.</p>;
+  if (!problems.length) return <p className="small">{title}: nothing found.</p>;
   const sorted = [...problems].sort(
     (a, b) => Number(a.level === 'warning') - Number(b.level === 'warning'),
   );
@@ -462,8 +464,8 @@ export function Explanation({
       aria-label={`Explanation by ${d.model_id}`}
     >
       <p className="small" role="status">
-        <strong>Explanation</strong> · {draftLine(d)} It describes the case
-        as it was when you asked.
+        <strong>Explanation</strong> · {draftLine(d)} It describes the case as
+        it was when you asked.
       </p>
       {d.reason && <p className={r ? 'small' : 'error'}>{d.reason}</p>}
       {r && <p className="model-draft-text small">{r.explanation}</p>}

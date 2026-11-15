@@ -530,9 +530,7 @@ export function BuildView({
                         : s.latest_freeze
                           ? 'changed since its last freeze'
                           : 'not frozen'}
-                      {drafted && (
-                        <small> · {draftedMarkText(drafted)}</small>
-                      )}
+                      {drafted && <small> · {draftedMarkText(drafted)}</small>}
                       {s.blockers.length > 0 && (
                         <small> · {s.blockers.join('; ')}</small>
                       )}

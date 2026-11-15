@@ -352,7 +352,8 @@ interface QueueRow {
   created_by: string;
 }
 const words = (s: string) => s.replace(/_/g, ' ');
-type QueueRole = 'assessment' | 'discovery' | 'web_discovery' | null;
+type QueueRole =
+  'assessment' | 'discovery' | 'web_discovery' | 'spec_drafts' | null;
 /**
  * ADR-0089 (after P34): the role a benchmark qualifies, from its checks, as the app's
  * `manifestRole`: assessment, discovery or web discovery checks, or none (a task class with one
@@ -376,6 +377,9 @@ const manifestRole = (manifest: { cases?: unknown }): QueueRole => {
     )
   )
     return 'web_discovery';
+  // ADR-0107: the spec cases benchmark qualifies drafting specs.
+  if (kinds.size === 1 && kinds.has('spec_cases_contract'))
+    return 'spec_drafts';
   return null;
 };
 /** The role a qualification is admitted for (ADR-0089); none for one-role tasks or old prompts. */
@@ -386,7 +390,9 @@ const qualificationRole = (q: PlanQualification): QueueRole =>
       ? 'discovery'
       : q.admits_web_discovery === true
         ? 'web_discovery'
-        : null;
+        : q.admits_spec_drafts === true
+          ? 'spec_drafts'
+          : null;
 const clip = (s: string) => (s.length > 1200 ? `${s.slice(0, 1199)}…` : s);
 
 /**
@@ -3034,11 +3040,11 @@ export class ConnectionStore extends AutomationStore {
    */
   async #closeStaleSpecDrafts(c: PoolClient, ws: string, altId: string) {
     await c.query(
-      `update spec_drafts set state = 'failed', finished_at = clock_timestamp(),
+      `update spec_drafts ca set state = 'failed', finished_at = clock_timestamp(),
          reason = 'The studio stopped before this draft was recorded. Nothing more is known about it.'
-       where workspace_id = $1 and alternative_id = $2 and state = 'pending'
-         and created_at < ${CHAT_ANSWER_STALE_POINT}
-         and not (id = any($3::uuid[]))`,
+       where ca.workspace_id = $1 and ca.alternative_id = $2 and ca.state = 'pending'
+         and ca.created_at < ${CHAT_ANSWER_STALE_POINT}
+         and not (ca.id = any($3::uuid[]))`,
       [ws, altId, [...this.#liveSpecDrafts]],
     );
   }
@@ -3191,7 +3197,7 @@ export class ConnectionStore extends AutomationStore {
             `select e.status, v.title, v.body, v.version from entities e
                join entity_versions v on v.entity_id = e.id
               where e.workspace_id = $1 and e.id = $2
-                and v.version = coalesce($3, e.current_version)`,
+                and v.version = coalesce($3, e.version)`,
             [uuid(ws), id, version],
           )
         ).rows[0] as Row | undefined;
@@ -7394,7 +7400,10 @@ function readDraftReply(
         problems: [],
         reason: `The drafted spec is ${bytes.toLocaleString('en-US')} bytes; a saved spec holds at most about ${SPEC_DRAFT_BODY_MAX.toLocaleString('en-US')}, so it was not kept. Ask again, or write a shorter spec.`,
       };
-    const picked = pickHeldOut(read.content, () => randomInt(0, 2 ** 31) / 2 ** 31);
+    const picked = pickHeldOut(
+      read.content,
+      () => randomInt(0, 2 ** 31) / 2 ** 31,
+    );
     return {
       result: {
         kind: 'spec',
