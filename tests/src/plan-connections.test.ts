@@ -2247,6 +2247,12 @@ test('build-role plan requests need the exact role prompt, a qualification and a
     'Model m is not qualified for patch_build (the T12 builder) under its current prompt.',
   ]);
   assert.match((await ready(human))[0]!, /human-only/);
+  // ADR-0109 review L-5: the build reads the connection's input cap at its preflight.
+  const detail = await s.store.planConnectionDetail(owner, ws.id, conn.id);
+  assert.equal(
+    await service.buildRoleInputCap(owner, ws.id, conn.id),
+    detail.connection.settings.caps.responses.max_input_chars,
+  );
   // A frozen study assignment keeps its adopted route.
   const studyRun = await entity('human_in_loop', 'human_in_loop');
   const studyId = randomUUID();

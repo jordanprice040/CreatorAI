@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FileTextViewSchema,
   WorkspaceFileDetailSchema,
@@ -16,23 +16,40 @@ import { Markdown } from './markdown-view.js';
 import { MARKDOWN_MAX_CHARS } from './markdown.js';
 import { noteUploadLimit, startUploads } from './transfers.js';
 import type { Workspace } from '@creator/contracts';
+import {
+  KIND_TEXT,
+  noViewerText,
+  officeOpen,
+  svgDataUrl,
+  viewerFor,
+} from './file-viewer-rules.js';
+import { useFileBytes } from './file-bytes.js';
+
+// ADR-0106: the heavier viewers load only when a file of their kind is opened.
+const PdfView = lazy(() =>
+  import('./pdf-view.js').then((m) => ({ default: m.PdfView })),
+);
+const DocxView = lazy(() =>
+  import('./docx-view.js').then((m) => ({ default: m.DocxView })),
+);
+const SheetView = lazy(() =>
+  import('./sheet-view.js').then((m) => ({ default: m.SheetView })),
+);
+const SlidesView = lazy(() =>
+  import('./slides-view.js').then((m) => ({ default: m.SlidesView })),
+);
+const ArchiveView = lazy(() =>
+  import('./archive-view.js').then((m) => ({ default: m.ArchiveView })),
+);
+const CodeView = lazy(() =>
+  import('./code-view.js').then((m) => ({ default: m.CodeView })),
+);
 
 const SORT_TEXT: Record<FileSort, string> = {
   newest: 'Newest first',
   oldest: 'Oldest first',
   name: 'Name A–Z',
 };
-const KIND_TEXT: Record<string, string> = {
-  text: 'Text',
-  markdown: 'Markdown',
-  json: 'JSON',
-  csv: 'CSV',
-  code: 'Code (shown as text)',
-  image: 'Image',
-  pdf: 'PDF',
-  other: 'Other',
-};
-
 const filesPath = (ws: string) => `workspaces/${ws}/files`;
 
 /**
@@ -56,6 +73,8 @@ export function Files({
   const [q, setQ] = useState('');
   const [query, setQuery] = useState('');
   const [deleted, setDeleted] = useState(false);
+  // ADR-0106: a document reads better across the page; the list comes back with one press.
+  const [wide, setWide] = useState(false);
   const [more, setMore] = useState<WorkspaceFilePage['items']>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [moreError, setMoreError] = useState('');
@@ -192,7 +211,7 @@ export function Files({
           can be up to {bytesText(d.file_limit_bytes)}.
         </p>
       )}
-      <div className="files-layout">
+      <div className={wide && focus ? 'files-layout wide' : 'files-layout'}>
         <Status
           loading={page.loading}
           error={page.error}
@@ -258,6 +277,8 @@ export function Files({
             workspace={workspace}
             close={() => onFocus('')}
             changed={() => page.refresh()}
+            wide={wide}
+            setWide={setWide}
           />
         )}
       </div>
@@ -271,12 +292,16 @@ function FileDetail({
   workspace,
   close,
   changed,
+  wide,
+  setWide,
 }: {
   id: string;
   session: SessionInfo;
   workspace: Workspace;
   close: () => void;
   changed: () => void;
+  wide: boolean;
+  setWide: (wide: boolean) => void;
 }) {
   const base = `${filesPath(workspace.id)}/${id}`;
   const detail = useLoad(
@@ -325,6 +350,14 @@ function FileDetail({
               <>
                 <div className="file-detail-head">
                   <h3 id="file-detail-title">{f.name}</h3>
+                  <button
+                    type="button"
+                    className="text wide-toggle"
+                    aria-pressed={wide}
+                    onClick={() => setWide(!wide)}
+                  >
+                    {wide ? 'Show the list' : 'Full width'}
+                  </button>
                   <button type="button" className="text" onClick={close}>
                     Close
                   </button>
@@ -556,7 +589,11 @@ function VersionFacts({ v }: { v: WorkspaceFileVersion }) {
   );
 }
 
-/** Inert viewers: text is always text, images come from a sandboxed same-origin URL. */
+/**
+ * Inert viewers (ADR-0072, ADR-0106): text is always text, code is coloured text, images come
+ * from a sandboxed same-origin URL, and PDF, Word, Excel, PowerPoint and ZIP files are read
+ * from their original bytes by bundled libraries that never run what is inside them.
+ */
 function FileView({
   base,
   name,
@@ -566,30 +603,125 @@ function FileView({
   name: string;
   v: WorkspaceFileVersion;
 }) {
-  const text = useLoad(
-    async () =>
-      v.has_text
-        ? api(FileTextViewSchema, `${base}/text?version=${v.version}`, {
-            timeoutMs: 20000,
-          })
-        : null,
-    [base, v.version, v.has_text],
-  );
-  const [source, setSource] = useState(false);
-  if (v.kind === 'image')
+  const viewer = viewerFor(v, name);
+  if (viewer === 'image')
     return (
       <figure className="file-view">
         <img src={`/api/${base}/raw?version=${v.version}`} alt={name} />
       </figure>
     );
-  if (!v.has_text)
-    return (
-      <p className="notice">
-        {v.kind === 'pdf'
-          ? 'PDF preview is not available in the studio yet. Download the original to open it.'
-          : 'The studio has no viewer for this kind of file. Download the original to open it.'}
-      </p>
+  if (viewer === 'none') return <p className="notice">{noViewerText(name)}</p>;
+  if (
+    viewer === 'pdf' ||
+    viewer === 'document' ||
+    viewer === 'spreadsheet' ||
+    viewer === 'presentation' ||
+    viewer === 'archive'
+  )
+    return <BinaryView base={base} name={name} v={v} viewer={viewer} />;
+  return <TextFileView base={base} name={name} v={v} svg={viewer === 'svg'} />;
+}
+
+const LOADING = <p className="small">Opening the viewer…</p>;
+
+function BinaryView({
+  base,
+  name,
+  v,
+  viewer,
+}: {
+  base: string;
+  name: string;
+  v: WorkspaceFileVersion;
+  viewer: 'pdf' | 'document' | 'spreadsheet' | 'presentation' | 'archive';
+}) {
+  const bytes = useFileBytes(base, v.version);
+  // Re-review L-1: an Office file is opened only after every part was inflated once, counted,
+  // and found within bounds (officeOpen), so a part that lies about its size is refused.
+  // Review 6: a spreadsheet is then handed to SheetJS only as a fresh stored ZIP of the parts
+  // checked here, so it never parses the original file's headers.
+  const [check, setCheck] = useState<{
+    bytes: ArrayBuffer;
+    refusal: string | null;
+    repacked?: ArrayBuffer;
+  } | null>(null);
+  const [round, setRound] = useState(0);
+  useEffect(() => {
+    const data = bytes.data;
+    if (
+      !data ||
+      (viewer !== 'document' &&
+        viewer !== 'spreadsheet' &&
+        viewer !== 'presentation')
+    )
+      return;
+    let stop = false;
+    void officeOpen(new Uint8Array(data), viewer === 'spreadsheet').then(
+      (opened) => {
+        if (!stop) setCheck({ bytes: data, ...opened });
+      },
     );
+    return () => {
+      stop = true;
+    };
+  }, [bytes.data, viewer, round]);
+  if (bytes.error) return <p className="error">{bytes.error}</p>;
+  if (!bytes.data) return <p className="small">Reading the file…</p>;
+  const data = bytes.data;
+  const office =
+    viewer === 'document' ||
+    viewer === 'spreadsheet' ||
+    viewer === 'presentation';
+  if (office && check?.bytes !== data)
+    return <p className="small">Checking the file…</p>;
+  if (office && check?.refusal)
+    return <p className="notice">{check.refusal}</p>;
+  return (
+    <div className="file-view">
+      <Suspense fallback={LOADING}>
+        {viewer === 'pdf' ? (
+          <PdfView bytes={data} name={name} />
+        ) : viewer === 'document' ? (
+          <DocxView bytes={data} name={name} />
+        ) : viewer === 'spreadsheet' ? (
+          check?.repacked ? (
+            <SheetView
+              bytes={check.repacked}
+              transfer
+              onSpent={() => setRound((r) => r + 1)}
+            />
+          ) : (
+            <SheetView bytes={data} />
+          )
+        ) : viewer === 'presentation' ? (
+          <SlidesView bytes={data} />
+        ) : (
+          <ArchiveView bytes={data} />
+        )}
+      </Suspense>
+    </div>
+  );
+}
+
+function TextFileView({
+  base,
+  name,
+  v,
+  svg,
+}: {
+  base: string;
+  name: string;
+  v: WorkspaceFileVersion;
+  svg: boolean;
+}) {
+  const text = useLoad(
+    async () =>
+      api(FileTextViewSchema, `${base}/text?version=${v.version}`, {
+        timeoutMs: 20000,
+      }),
+    [base, v.version],
+  );
+  const [source, setSource] = useState(false);
   return (
     <Status
       loading={text.loading}
@@ -605,29 +737,70 @@ function FileView({
               the whole file.
             </p>
           )}
-          {v.kind === 'markdown' && (
+          {(v.kind === 'markdown' || svg) && (
             <label className="chip">
               <input
                 type="checkbox"
                 checked={source}
                 onChange={(e) => setSource(e.target.checked)}
               />
-              Show Markdown source
+              {svg ? 'Show SVG source' : 'Show Markdown source'}
             </label>
           )}
-          <TextView kind={v.kind} text={text.data.text} source={source} />
+          {svg && !source && !text.data.truncated ? (
+            <SvgPicture text={text.data.text} name={name} />
+          ) : (
+            <TextView
+              kind={v.kind}
+              name={name}
+              text={text.data.text}
+              source={source}
+            />
+          )}
         </div>
       )}
     </Status>
   );
 }
 
+/**
+ * An SVG drawn as an image: a browser never runs scripts, loads other files or follows links
+ * in an SVG shown through <img>. Review H-1: the picture comes from a data: URL, never a blob:
+ * URL, because a blob: URL belongs to the studio's origin, so "Open image in new tab" would run
+ * the SVG's scripts as the studio. A data: URL has an opaque origin: opened as a page, its
+ * scripts can run but get no studio cookie (SameSite=Strict), no CSRF token and no CORS access,
+ * and the installed app refuses to navigate to it. Falls back to the source if it does not draw.
+ */
+function SvgPicture({ text, name }: { text: string; name: string }) {
+  const url = useMemo(() => svgDataUrl(text), [text]);
+  const [broken, setBroken] = useState(false);
+  if (broken)
+    return (
+      <>
+        <p className="small">
+          This SVG could not be drawn; here is its source.
+        </p>
+        <TextView kind="code" name={name} text={text} source />
+      </>
+    );
+  return (
+    <figure className="file-view svg-view">
+      <img src={url} alt={name} onError={() => setBroken(true)} />
+      <figcaption className="small">
+        Drawn as a picture; scripts and links inside it are switched off.
+      </figcaption>
+    </figure>
+  );
+}
+
 function TextView({
   kind,
+  name,
   text,
   source,
 }: {
   kind: string;
+  name: string;
   text: string;
   source: boolean;
 }) {
@@ -668,6 +841,17 @@ function TextView({
           </p>
         )}
       </div>
+    );
+  if (kind === 'code' || kind === 'json' || kind === 'markdown')
+    return (
+      <Suspense fallback={<pre className="file-text">{rendered.pre}</pre>}>
+        <CodeView
+          text={rendered.pre ?? ''}
+          name={name}
+          kind={kind}
+          original={text}
+        />
+      </Suspense>
     );
   return <pre className="file-text">{rendered.pre}</pre>;
 }

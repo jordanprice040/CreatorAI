@@ -553,6 +553,8 @@ export async function runCli(
       return binding;
     };
     const buildPorts = (productId: string): BuildPorts => {
+      /** Review L-5: the input cap each plan connection reported at its build preflight. */
+      const inputCaps = new Map<string, number>();
       let coverage: { grant_id: string; grant_version: number } | null = null;
       let humility: { id: string; version: number } | null = null;
       return {
@@ -713,18 +715,28 @@ export async function runCli(
         },
         planRolesReady: async (target) => {
           const p = await local.product(productId);
-          return (
-            await call(
-              z.strictObject({ blockers: z.array(z.string()) }),
-              `${ws(p.binding.workspace_id)}/plan-connections/${target.connection_id}/build-roles-ready`,
-              {
-                model_id: target.model_id,
-                run_id: target.run_id,
-                data_class: target.data_class,
-              },
-              10_000,
-            )
-          ).blockers;
+          const r = await call(
+            z.strictObject({
+              blockers: z.array(z.string()),
+              max_input_chars: z.number().int().positive(),
+            }),
+            `${ws(p.binding.workspace_id)}/plan-connections/${target.connection_id}/build-roles-ready`,
+            {
+              model_id: target.model_id,
+              run_id: target.run_id,
+              data_class: target.data_class,
+            },
+            10_000,
+          );
+          inputCaps.set(target.connection_id, r.max_input_chars);
+          return r.blockers;
+        },
+        // Review L-5: read from the preflight answer just before.
+        planRoleInputCap: async (target) => {
+          const cap = inputCaps.get(target.connection_id);
+          if (cap === undefined)
+            throw new Error('The plan roles preflight has not run');
+          return cap;
         },
       };
     };

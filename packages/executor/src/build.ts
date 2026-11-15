@@ -167,6 +167,11 @@ export interface BuildPorts {
     run_id: string;
     data_class: BuildPlan['data_class'];
   }): Promise<string[]>;
+  /**
+   * ADR-0109 review L-5: the plan connection's per-request input cap (instructions plus input),
+   * read before the build starts; a later part that would not fit refuses its round.
+   */
+  planRoleInputCap?(target: { connection_id: string }): Promise<number>;
 }
 /** What one build approval covers (ADR-0054); the ports bind it to the product's frozen spec. */
 export interface BuildApprovalScope {
@@ -615,6 +620,8 @@ export class BuildSupervisor {
       let lastReview: unknown = null;
       // Candidates this build has sent to review and QA.
       const judged = new Set<string>();
+      /** The plan connection's input cap, read before the builder is sent (review L-5). */
+      let inputCap: number | null = null;
       try {
         if (plan.plan_roles) {
           // Both roles must be admissible before the grant is used or the builder is sent.
@@ -625,7 +632,13 @@ export class BuildSupervisor {
             run_id: plan.run_id,
             data_class: plan.data_class,
           });
-          await jsonWrite(join(dir, 'plan-roles-preflight.json'), { blockers });
+          inputCap = ports.planRoleInputCap
+            ? await ports.planRoleInputCap(plan.plan_roles)
+            : null;
+          await jsonWrite(join(dir, 'plan-roles-preflight.json'), {
+            blockers,
+            input_cap: inputCap,
+          });
           if (blockers.length)
             throw new Error(`Plan roles are not ready: ${blockers.join(' ')}`);
         }
@@ -733,14 +746,21 @@ export class BuildSupervisor {
               // Review L-2: a later part whose packet no longer fits the role-packet bound is
               // the round's size, not a fault: the round is refused with advice and nothing
               // from it is applied. (A first part that does not fit stops the build as before:
-              // the task's own files are too large.)
-              const bound = plan.plan_roles
+              // the task's own files are too large.) Review L-5: on the plan route the
+              // connection's input cap, which counts the builder prompt too, binds when smaller.
+              const ceiling = plan.plan_roles
                 ? PLAN_ROLE_CONTEXT_MAX
                 : BROKER_ROLE_CONTEXT_MAX;
+              const room =
+                inputCap === null
+                  ? ceiling
+                  : Math.min(ceiling, inputCap - PROMPTS.builder.length);
               const size = JSON.stringify(builderPacket).length;
-              if (part > 1 && size > bound) {
+              if (part > 1 && size > room) {
                 await refuse(
-                  `Part ${part} of this round would send ${size} characters, more than a request may carry (${bound}), so none of the round was applied`,
+                  room < ceiling
+                    ? `Part ${part} of this round would send ${size} characters, more than the connection's input limit leaves after the builder prompt (${room} of ${inputCap}), so none of the round was applied`
+                    : `Part ${part} of this round would send ${size} characters, more than a request may carry (${room}), so none of the round was applied`,
                   [
                     'Change fewer or smaller files per round, use edits instead of whole files, or finish in fewer parts.',
                   ],

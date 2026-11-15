@@ -235,7 +235,11 @@ export function Autopilot({
         ]
       : []),
     ...(plan?.blockers ?? []),
-    ...(!draft.success ? draft.error.issues.map((i) => i.message) : []),
+    // Live check follow-up 5: with no model or budget yet, the empty ids fail the draft too;
+    // the line above already says what to add, so the raw "Invalid UUID" lines are not shown.
+    ...(route && !draft.success
+      ? draft.error.issues.map((i) => i.message)
+      : []),
     ...(search && !researchOn
       ? [
           'Searching the web needs a ChatGPT plan model; choose one or untick the search.',
@@ -593,7 +597,7 @@ export function Autopilot({
                 </label>
                 {blockers.length > 0 && (
                   <ul className="error">
-                    {blockers.map((b) => (
+                    {[...new Set(blockers)].map((b) => (
                       <li key={b}>{b}</li>
                     ))}
                   </ul>

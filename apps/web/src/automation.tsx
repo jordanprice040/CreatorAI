@@ -315,7 +315,7 @@ export function Automation({
     ...(level === 'rest' && !problem
       ? ['There is no recorded problem yet; run discovery first.']
       : []),
-    ...(level === 'rest' && !restDraft.success
+    ...(level === 'rest' && route && !restDraft.success
       ? restDraft.error.issues.map((i) => i.message)
       : []),
     // Used-up steps or a passed end time are what the widened approvals fix, so Apply goes
@@ -763,7 +763,7 @@ export function Automation({
                     </label>
                     {blockers.length > 0 && (
                       <ul className="error">
-                        {blockers.map((b) => (
+                        {[...new Set(blockers)].map((b) => (
                           <li key={b}>{b}</li>
                         ))}
                       </ul>

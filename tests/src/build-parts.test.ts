@@ -628,7 +628,7 @@ test('review M-1: a round that edits a file past the limit comes back as feedbac
           {
             path: 'src/main.py',
             before_hash: hashOf(p, 'src/main.py'),
-            // Each replace is within the contract; together they pass 128 KiB.
+            // Each replace is within the contract; together they exceed 128 KiB.
             edits: [
               {
                 find: 'import json',
@@ -745,6 +745,56 @@ test('review L-2: later parts send a changed file once, and a part too large to 
     /the last patch was refused: Part 2 of this round would send \d+ characters, more than a request may carry \(20000\)/,
   );
   assert.equal(await head(b.tree), b.product.initial_commit);
+});
+
+test('review L-5: a later part over the connection input cap refuses the round, not the build', async (t) => {
+  const s = await setup(t);
+  // A 64,000-character cap: part 2 would carry part 1's 70,000 characters staged plus its
+  // files, under the 200,000 packet ceiling but over what the cap leaves after the prompt.
+  s.script((p, n) => {
+    if (n === 1)
+      return answer(
+        p,
+        [
+          {
+            path: 'src/fill.py',
+            before_hash: null,
+            content: 'q'.repeat(70000),
+          },
+        ],
+        false,
+      );
+    return answer(p, [
+      {
+        path: 'src/main.py',
+        before_hash: hashOf(p, 'src/main.py'),
+        content: BUILD_FIXTURE_SOURCE,
+      },
+    ]);
+  });
+  const caps: string[] = [];
+  const result = await s.run(
+    { max_repairs: 1, max_calls: 5 },
+    {
+      planRoleInputCap: async (target) => {
+        caps.push(target.connection_id);
+        return 64000;
+      },
+    },
+  );
+  assert.equal(result.state, 'verified_candidate', result.reason);
+  assert.equal(caps.length, 1, 'the cap is read once, at the preflight');
+  const builders = s.packets.filter((p) => p.role === 'builder');
+  // Part 1 of round 0, then (part 2 never sent) round 1's one part.
+  assert.equal(builders.length, 2);
+  assert.equal(builders[1]!.packet.round.part, 1);
+  assert.match(
+    builders[1]!.packet.feedback.refused_patch.reason,
+    /Part 2 of this round would send \d+ characters, more than the connection's input limit leaves after the builder prompt \(\d+ of 64000\), so none of the round was applied/,
+  );
+  await assert.rejects(readFile(join(s.tree, 'src/fill.py'), 'utf8'), {
+    code: 'ENOENT',
+  });
 });
 
 test('the Codex builder gets no further parts, and complete false refuses its round', async (t) => {
