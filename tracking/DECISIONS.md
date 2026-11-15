@@ -23,6 +23,8 @@ Not covered: no live run yet (each needs Jordan's typed OK: `docs/BUILD_QUALIFIC
 
 **Amendment (November 15, review 4 of PR #200: one Low, two nits, all fixed; fourth re-cut before any run).** (L-1) The structure bar reads a trailing backslash as Python does: only the file's one final line ending is dropped, so a backslash followed by a blank or comment line at the end is valid, and a backslash on the last line (even alone) is an error. (N-1) The record carries `max_input_chars`, the cap recorded at Start, and the app's record line shows it. (N-2) A run stopped because the cap was lowered names the fewest characters Start accepts for that benchmark (`min_input_chars`, also recorded at Start in migration 65).
 
+Review 5 (two nits) fixed: the scorer label is `recipe-scorer/5` to match the fourth re-cut's scorer, and the freezes were re-cut for it.
+
 Rejected: keeping the v4 pass bars (the app cannot run them); a global switch per recipe (ADR-0078 L-9 still holds: a pass is per connection, model and prompt pair); running attempts as catalog runs (it would add runs, specs and products to the person's catalog); re-sending an interrupted attempt (it could double-count a verdict).
 
 ## ADR-0101 — The Path branches after Selection, and a proposal's missing sections can be drafted by the chat model (November 14, 2026)

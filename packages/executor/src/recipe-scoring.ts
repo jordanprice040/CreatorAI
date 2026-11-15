@@ -6,7 +6,7 @@ import { ContractError, type RecipePassBar } from '@creator/contracts';
  * (`scorer:recipe-scoring.ts`), and a test holds them equal: changing a rule here needs new
  * benchmark versions, never an edited freeze.
  */
-export const RECIPE_SCORER_VERSION = 'recipe-scorer/4';
+export const RECIPE_SCORER_VERSION = 'recipe-scorer/5';
 
 /**
  * Review 1 L-2 and re-review L-2: role answers that end a request without the contract, caused
