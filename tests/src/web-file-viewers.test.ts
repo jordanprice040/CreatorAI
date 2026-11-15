@@ -215,6 +215,9 @@ function deflated(
     data: Uint8Array;
     declare?: number;
     raw?: Uint8Array;
+    /** Compression method in the central directory, when it should differ from the local 8. */
+    centralMethod?: number;
+    localName?: string;
   }[],
 ): Uint8Array {
   const u16 = (n: number) => [n & 0xff, (n >> 8) & 0xff];
@@ -224,6 +227,7 @@ function deflated(
   let offset = 0;
   for (const p of parts) {
     const n = [...Buffer.from(p.name)];
+    const ln = [...Buffer.from(p.localName ?? p.name)];
     const body = [...(p.raw ?? deflateRawSync(p.data))];
     const size = p.declare ?? p.data.length;
     const head = [
@@ -235,13 +239,18 @@ function deflated(
       ...u32(0),
       ...u32(body.length),
       ...u32(size),
-      ...u16(n.length),
+      ...u16(ln.length),
       ...u16(0),
-      ...n,
+      ...ln,
     ];
     chunks.push(head, body);
     central.push(...u32(0x02014b50), ...u16(20), ...u16(20), ...u16(0));
-    central.push(...u16(8), ...u32(0), ...u32(0), ...u32(body.length));
+    central.push(
+      ...u16(p.centralMethod ?? 8),
+      ...u32(0),
+      ...u32(0),
+      ...u32(body.length),
+    );
     central.push(...u32(size), ...u16(n.length), ...u16(0), ...u16(0));
     central.push(...u16(0), ...u16(0), ...u32(0), ...u32(offset), ...n);
     offset += head.length + body.length;
@@ -301,4 +310,33 @@ test('an Office part that lies about its size is refused without inflating it al
   );
   // Not a ZIP: left to its viewer.
   assert.equal(await r.officeCheck(new Uint8Array([0xd0, 0xcf, 0x11])), null);
+});
+
+// Review 3 L-1: SheetJS reads a part's method from its local header and JSZip from the central
+// directory, so a part "stored" centrally but deflated locally would be counted as its stored
+// size and inflated in full by SheetJS. Headers that disagree are refused as damaged.
+test('an Office part whose local and central headers disagree is refused', async () => {
+  const r = await rules();
+  const raw = deflateRawSync(new Uint8Array(8 * 1024 * 1024));
+  const sneaky = deflated([
+    { name: 'xl/workbook.xml', data: new TextEncoder().encode('<w/>') },
+    {
+      name: 'xl/worksheets/sheet1.xml',
+      data: raw,
+      raw,
+      declare: raw.length,
+      centralMethod: 0,
+    },
+  ]);
+  assert.equal(r.officeRefusal(sneaky), null);
+  assert.match((await r.officeCheck(sneaky)) ?? '', /may be damaged/);
+  // A local name that is not the central one.
+  const renamed = deflated([
+    {
+      name: 'xl/workbook.xml',
+      localName: 'xl/other.xml',
+      data: new TextEncoder().encode('<w/>'),
+    },
+  ]);
+  assert.match((await r.officeCheck(renamed)) ?? '', /may be damaged/);
 });

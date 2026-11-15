@@ -112,6 +112,51 @@ async function inflatedSize(data: Uint8Array, limit: number): Promise<number> {
 }
 
 /**
+ * Review 3 L-1: JSZip reads a part by its central directory entry, SheetJS by its local header
+ * (method, flags, name, and ZIP64 sizes from either). So the two must say the same thing, or
+ * the check here could count one part while a viewer inflates another: the method, the
+ * data-descriptor flag (and no encryption), the name, and (when the sizes are not after the data)
+ * both sizes must agree, and no ZIP64 extra field may override them. Office files written by
+ * Office, LibreOffice and the usual libraries agree in all of these.
+ */
+function localDisagrees(
+  bytes: Uint8Array,
+  view: DataView,
+  e: {
+    name: string;
+    method: number;
+    flags: number;
+    zip64: boolean;
+    size: number | null;
+    compressed: number | null;
+    offset: number | null;
+  },
+): boolean {
+  const at = e.offset!;
+  const flags = view.getUint16(at + 6, true);
+  if (e.zip64 || (flags | e.flags) & 0x2041) return true;
+  if ((flags & 0x08) !== (e.flags & 0x08)) return true;
+  if (view.getUint16(at + 8, true) !== e.method) return true;
+  if (!(flags & 0x08)) {
+    if (view.getUint32(at + 18, true) !== e.compressed) return true;
+    if (view.getUint32(at + 22, true) !== e.size) return true;
+  }
+  const nameLen = view.getUint16(at + 26, true);
+  const extraLen = view.getUint16(at + 28, true);
+  if (at + 30 + nameLen + extraLen > bytes.length) return true;
+  const raw = bytes.subarray(at + 30, at + 30 + nameLen);
+  const name = new TextDecoder(flags & 0x800 ? 'utf-8' : 'latin1').decode(raw);
+  if (name !== e.name) return true;
+  for (
+    let x = at + 30 + nameLen, end = x + extraLen;
+    x + 4 <= end;
+    x += 4 + view.getUint16(x + 2, true)
+  )
+    if (view.getUint16(x, true) === 0x0001) return true;
+  return false;
+}
+
+/**
  * Re-review L-1: the sizes a ZIP declares can lie, and JSZip, docx-preview and SheetJS inflate
  * a whole part before they compare it. So before an Office viewer opens a file, every part is
  * inflated once here (natively, a slice at a time, counting the output) and the file is
@@ -129,6 +174,7 @@ export async function officeCheck(bytes: Uint8Array): Promise<string | null> {
     const at = e.offset;
     if (at + 30 > bytes.length || view.getUint32(at, true) !== 0x04034b50)
       return OFFICE_DAMAGED;
+    if (localDisagrees(bytes, view, e)) return OFFICE_DAMAGED;
     const start =
       at + 30 + view.getUint16(at + 26, true) + view.getUint16(at + 28, true);
     if (start + e.compressed > bytes.length) return OFFICE_DAMAGED;

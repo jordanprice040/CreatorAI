@@ -12,7 +12,9 @@ Review 1 fixes (November 15): an SVG picture is a `data:` URL, so opening it in 
 
 Re-review fixes (November 15): Office files are opened only after every part was inflated once and counted, so a part whose headers understate its size is refused before a viewer inflates it (a 137 KB `.pptx` hiding 100 MiB behind a stated 1,000 bytes is refused); far PDF pages also drop pdf.js's decoded page data; non-ASCII slide picture names count correctly; a ZIP64 archive's total says "at least". Checked: typecheck, format, build, `pnpm test:db` (1241 tests: 1207 pass, 29 skipped, the 5 known PowerShell-wrapper failures), the walk with 15 samples (0 outside requests, 0 dialogs, 0 console errors). Main with #199 merged in.
 
-Open: another re-review in a separate thread; a walk in the installed app after merge.
+Review 3 fix (November 15): an Office file whose local headers disagree with its central directory (a part "stored" in one and deflated in the other, which SheetJS would inflate in full) is refused as damaged. Checked: typecheck, format, build, `pnpm test:db` (1242 tests: 1208 pass, 29 skipped, the 5 known PowerShell-wrapper failures), the walk (15 samples; Word, Excel and PowerPoint open, both bombs refused, 0 outside requests, 0 dialogs, 0 console errors).
+
+Open: a walk in the installed app after merge.
 
 ## November 14 update — ChatGPT plan per-run cap default 30 and the held web-claims next step (PR #199)
 

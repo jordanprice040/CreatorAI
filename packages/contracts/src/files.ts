@@ -282,6 +282,10 @@ export type ZipEntry = {
   /** Compression method (0 stored, 8 deflate) and where the entry's local header starts. */
   method: number;
   offset: number | null;
+  /** General-purpose flags (bit 0 encrypted, bit 3 sizes after the data, bit 11 UTF-8). */
+  flags: number;
+  /** The central entry carries a ZIP64 extra field, whose sizes some readers prefer. */
+  zip64: boolean;
 };
 /** Entries listed beyond this are not read; the listing says it stopped. */
 export const ZIP_ENTRY_MAX = 5000;
@@ -333,6 +337,13 @@ export function zipEntries(
     const raw = b.subarray(at + 46, at + 46 + nameLen);
     const name = (flags & 0x800 || names === 'utf8' ? utf8 : latin).decode(raw);
     const offset = view.getUint32(at + 42, true);
+    let zip64 = false;
+    for (
+      let x = at + 46 + nameLen, end = Math.min(x + extraLen, b.length);
+      x + 4 <= end;
+      x += 4 + view.getUint16(x + 2, true)
+    )
+      if (view.getUint16(x, true) === 0x0001) zip64 = true;
     entries.push({
       name,
       size: size === 0xffffffff ? null : size,
@@ -340,6 +351,8 @@ export function zipEntries(
       dir: name.endsWith('/'),
       method,
       offset: offset === 0xffffffff ? null : offset,
+      flags,
+      zip64,
     });
     at += 46 + nameLen + extraLen + commentLen;
   }

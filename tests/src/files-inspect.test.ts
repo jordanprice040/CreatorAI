@@ -182,7 +182,16 @@ test('the archive listing reads names and sizes without unpacking', () => {
   assert.equal(z.total, 2);
   assert.equal(z.more, false);
   assert.deepEqual(z.entries, [
-    { name: 'docs/', size: 0, compressed: 0, dir: true, method: 0, offset: 0 },
+    {
+      name: 'docs/',
+      size: 0,
+      compressed: 0,
+      dir: true,
+      method: 0,
+      offset: 0,
+      flags: 2048,
+      zip64: false,
+    },
     {
       name: 'docs/caf\u00e9.txt',
       size: 5,
@@ -190,6 +199,8 @@ test('the archive listing reads names and sizes without unpacking', () => {
       dir: false,
       method: 0,
       offset: 35,
+      flags: 2048,
+      zip64: false,
     },
   ]);
   // Re-review N-2: a UTF-8 name saved without the UTF-8 flag reads as the ZIP format says
