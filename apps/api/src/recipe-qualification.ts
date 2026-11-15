@@ -208,7 +208,10 @@ export class RecipeQualificationRunner {
   constructor(
     private readonly deps: {
       store: RunnerStore;
-      service: Pick<PlanConnectionService, 'buildRole' | 'buildRolesReady'>;
+      service: Pick<
+        PlanConnectionService,
+        'buildRole' | 'buildRolesReady' | 'buildRoleInputCap'
+      >;
       /** The qualification harness's own product store and worker (never the studio's). */
       products: ProductSupervisor;
       executor: ExecutionSupervisor;
@@ -490,6 +493,8 @@ export class RecipeQualificationRunner {
           run_id: null,
           data_class: t.data_class,
         }),
+      planRoleInputCap: async (t) =>
+        service.buildRoleInputCap(ctx, ws, t.connection_id),
     };
     const outcome = await new BuildSupervisor(products, executor).run(
       product.id,

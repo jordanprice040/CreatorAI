@@ -923,8 +923,21 @@ export const FreezeOutcomeSchema = z.strictObject({
 });
 export type FreezeOutcome = z.infer<typeof FreezeOutcomeSchema>;
 
-/** The most executable cases one build runs (the build plan's limit). */
-export const MAX_BUILD_CASES = 10;
+/**
+ * The most executable cases one build runs (the build plan's limit). ADR-0109 (B4): 30, up from
+ * 10; every round runs all of them, one after another, within the build's time limit.
+ */
+export const MAX_BUILD_CASES = 30;
+/** How many frozen cases a build of `taskKey` runs (browser cases for a web task). */
+export function buildCaseCount(s: SpecContent, taskKey: string): number {
+  const task = s.tasks.find((t) => t.key === taskKey);
+  const checks = s.acceptance_checks.filter((a) =>
+    task?.acceptance.includes(a.key),
+  );
+  return checks.every((a) => a.method === 'browser_check')
+    ? checks.flatMap((a) => a.browser_cases ?? []).length
+    : checks.flatMap((a) => a.cases ?? []).length;
+}
 const METHOD_NAMES: Record<string, string> = {
   automated_test: 'automated test',
   browser_check: 'browser check',

@@ -2961,7 +2961,16 @@ export { WebDiscoveryRunner, stepId, answerJson } from './web-discovery.js';
 export {
   AutopilotRunner,
   autopilotKey,
+  cutWords,
+  fitNote,
+  gatherQuestion,
+  namesOf,
+  nextGatherQuestion,
   refusalKind,
+  spentCandidates,
+  spentSettled,
+  trimSpent,
+  type SpentDetail,
   webResearch,
   type AutopilotWeb,
 } from './autopilot.js';

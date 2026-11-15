@@ -1482,6 +1482,19 @@ export class PlanConnectionService {
     return out;
   }
 
+  /**
+   * ADR-0109 review L-5: the connection's per-request input cap (instructions plus input), so
+   * a build can refuse a later part that would not fit as round feedback instead of stopping.
+   */
+  async buildRoleInputCap(
+    ctx: CommandContext,
+    ws: string,
+    connectionId: string,
+  ): Promise<number> {
+    const d = await this.deps.store.planConnectionDetail(ctx, ws, connectionId);
+    return d.connection.settings.caps.responses.max_input_chars;
+  }
+
   /** Uses the owner's one-shot approval for one live call that verifies model access. */
   async verifyModel(
     ctx: CommandContext,

@@ -16,6 +16,8 @@ import {
   type WebLead,
   type WebSearchCall,
   AUTOPILOT_QUOTE_CHECK_LABEL,
+  ContractError,
+  cutText,
 } from '@creator/contracts';
 import {
   SCOUT_PROMPT,
@@ -36,6 +38,74 @@ import {
   type CommandContext,
   type Row,
 } from './store.js';
+
+/** Starts the claim count a discovery's explanation ends with (replaced on each pass). */
+const CLAIMS_MARK = 'Claims so far:';
+
+type Quote = Pick<
+  CheckedProposal['evidence'][number],
+  'verified' | 'passage_id' | 'stance' | 'quote'
+>;
+
+/**
+ * Review 1 N-1 and review 2 N-3: a claim version keeps one support row per passage. Given the
+ * quotes in the order they are recorded (supporting first), this names, per passage, every
+ * other distinct quote that loses the passage's row, so the kept row's rationale keeps it
+ * visible instead of dropping it silently.
+ */
+export function droppedQuotes(
+  ordered: readonly Quote[],
+): Map<string, string[]> {
+  const usable = (e: Quote) =>
+    e.verified &&
+    !!e.passage_id &&
+    (e.stance !== 'supports' || webQuoteLongEnough(e.quote));
+  const keeper = new Map<string, Quote>();
+  for (const e of ordered)
+    if (usable(e) && !keeper.has(e.passage_id!)) keeper.set(e.passage_id!, e);
+  // Review 3 N-1: each distinct quote is named once per page.
+  const lost = new Map<string, Quote[]>();
+  for (const e of ordered) {
+    const kept = usable(e) ? keeper.get(e.passage_id!) : undefined;
+    if (!kept || kept === e) continue;
+    const same = (x: Quote) => x.stance === e.stance && x.quote === e.quote;
+    const list = lost.get(e.passage_id!) ?? [];
+    if (same(kept) || list.some(same)) continue;
+    lost.set(e.passage_id!, [...list, e]);
+  }
+  // Review 3 N-2: two are quoted, the rest counted, so the rationale never cuts a quote.
+  const dropped = new Map<string, string[]>();
+  for (const [passage, list] of lost) {
+    const named = list
+      .slice(0, 2)
+      .map(
+        (e) =>
+          `The same page also has ${e.stance === 'supports' ? 'another supporting' : 'a contrary'} quote, not recorded as its own row: “${cutText(e.quote, 300)}”`,
+      );
+    const more = list.length - named.length;
+    dropped.set(
+      passage,
+      more > 0
+        ? [
+            ...named,
+            `It has ${more} more quote${more === 1 ? '' : 's'} not recorded as ${more === 1 ? 'its own row' : 'their own rows'}.`,
+          ]
+        : named,
+    );
+  }
+  return dropped;
+}
+
+/**
+ * Before the mark existed (main 9172584), a pass appended its count sentences straight after the
+ * reading note. They start at the first of those known openings; the rest is the reading note.
+ */
+function withoutOldCount(text: string): string {
+  const at = text.search(
+    / (?:\d+ checked claims? waits?|The autopilot accepted \d|Your routine policy added \d|Quote-checked claims an autopilot found wait)/,
+  );
+  return at >= 0 ? text.slice(0, at) : text;
+}
 
 // ADR-0086 (P12): web discovery records. The runner (apps/api) drives the stages; every state
 // change goes through a guarded update here, so a cancel between two steps always wins and a
@@ -682,11 +752,10 @@ export class WebDiscoveryStore extends PortfolioStore {
           assumption_ids: [],
           humility_review: null,
           flags: [],
-          justification:
-            `Add the web discovery claim “${String((r.proposal as CheckedProposal).title)}”; its quotes were found word for word in the fetched pages.`.slice(
-              0,
-              1200,
-            ),
+          justification: cutText(
+            `Add the web discovery claim “${String((r.proposal as CheckedProposal).title)}”; its quotes were found word for word in the fetched pages.`,
+            1200,
+          ),
         };
         const dry = await this.wouldAdmit(c, ws, runId, action);
         if (
@@ -721,8 +790,10 @@ export class WebDiscoveryStore extends PortfolioStore {
           admitted += 1;
         } catch (err) {
           await c.query('rollback to savepoint web_claim');
+          // Only the studio's own refusals are shown as they are; anything else (a database
+          // error) is named plainly instead of quoting its internals.
           skipped.push(
-            `claim ${Number(r.ordinal) + 1}: ${err instanceof Error ? err.message : 'refused'}`,
+            `claim ${Number(r.ordinal) + 1}: ${err instanceof ContractError ? err.message : 'the studio could not record it'}`,
           );
         }
       }
@@ -739,10 +810,26 @@ export class WebDiscoveryStore extends PortfolioStore {
         ]
           .filter(Boolean)
           .join(' ');
+        // Live rerun (November 15): a later pass (the owner's setting turned on) replaces the
+        // earlier pass's claim count instead of adding to it, so the note never contradicts itself.
+        // Review 1 N-2: an explanation written before the mark existed drops its earlier
+        // count sentences too, and the base is shortened so the mark and the count always fit.
+        const tail = ` ${CLAIMS_MARK} ${cutText(summary, 600)}`;
+        const prior = (
+          await c.query(
+            'select explanation from web_discoveries where id = $1',
+            [id],
+          )
+        ).rows[0] as { explanation: string } | undefined;
+        const before = prior?.explanation ?? '';
+        const marked = before.indexOf(` ${CLAIMS_MARK}`);
+        const base = (
+          marked >= 0 ? before.slice(0, marked) : withoutOldCount(before)
+        ).trimEnd();
         await c.query(
-          `update web_discoveries set explanation = left(explanation || ' ' || $2, 1200),
+          `update web_discoveries set explanation = $2,
              version = version + 1, updated_at = clock_timestamp() where id = $1`,
-          [id, summary.slice(0, 600)],
+          [id, cutText(base, 1200 - tail.length) + tail],
         );
       }
       return {
@@ -867,14 +954,25 @@ export class WebDiscoveryStore extends PortfolioStore {
     });
     const rationale = `From web discovery ${String(r.discovery_id)}; the studio found this quote word for word in the stored passage.`;
     let rows = 0;
-    for (const e of p.evidence) {
+    // Live rerun (November 15): one passage can hold two checked quotes for the same claim,
+    // but a claim version keeps one support row per passage (claim_support_active). The
+    // first quote from a passage is kept, supporting quotes before contrary ones.
+    const seen = new Set<string>();
+    const ordered = [
+      ...p.evidence.filter((e) => e.stance === 'supports'),
+      ...p.evidence.filter((e) => e.stance !== 'supports'),
+    ];
+    const dropped = droppedQuotes(ordered);
+    for (const e of ordered) {
       // The stored excerpt is checked again by addClaimSupportIn; the length rule here.
       if (
         !e.verified ||
         !e.passage_id ||
-        (e.stance === 'supports' && !webQuoteLongEnough(e.quote))
+        (e.stance === 'supports' && !webQuoteLongEnough(e.quote)) ||
+        seen.has(e.passage_id)
       )
         continue;
+      seen.add(e.passage_id);
       try {
         await this.addClaimSupportIn(c, ctx, ws, claim.id, {
           evidence: 'passage',
@@ -883,7 +981,10 @@ export class WebDiscoveryStore extends PortfolioStore {
           stance: e.stance,
           support_type: p.basis === 'observation' ? 'quotation' : 'inference',
           quote: e.quote,
-          rationale,
+          rationale: cutText(
+            [rationale, ...(dropped.get(e.passage_id) ?? [])].join(' '),
+            1200,
+          ),
         });
         rows += 1;
       } catch (err) {
