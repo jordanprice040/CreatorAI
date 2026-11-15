@@ -1,5 +1,9 @@
 # Build status — November 10, 2026
 
+## November 15 update — sidebar, borders and top bar polish (no migration or ADR)
+
+What now works: in the sidebar the theme button (named "Light theme"/"Dark theme") sits above Standard/Advanced, both above the divider, which now sits above "Local control"; the top bar's Model and usage pills line up with the other items (they had the global `details` top margin); Back to top sits 16 px in from the panel's right border; a button on its own line keeps 12 px from the box under it (fixes "Record this selection", "Assess again" and "Refresh devices" touching boxes). Evidence and the border sweep script: `tracking/evidence/ui-polish-borders/`. Web CSS and `main.tsx` only.
+
 ## November 15 update — spec drafting fixed after its first live qualification (B2 follow-up; ADR-0107 amendment)
 
 The first live `spec-cases-v1` qualification (gpt-6-astra, ChatGPT plan, dev studio at main 334d0e5 schema 67, 8 requests, $0) failed every case as `schema_invalid`: the drafting instructions never listed an acceptance check's fields, so the model wrote `name` instead of `statement` and left out `measure` and `flow`. Fixed: instructions `spec-draft-v3` list the fields; benchmark `spec-cases-v2` (same programs and pass bar; v1 kept as it ran); the Qualify result row names the drafting-specs role. A recorded view of v1's held-out results now refuses a v2 start (they are the same held-out cases), a hand-made start of v1 is refused in words, and v2's hash is pinned. Not yet run live: a `spec-cases-v2` qualification (about 8 requests, $0; needs Jordan's typed OK). Checks: typecheck, format check, full `pnpm test:db` (1316 tests, 1282 pass, 29 skipped, the 5 known PowerShell-wrapper failures) and the fixture browser walk again (7 of 7, 0 axe violations).

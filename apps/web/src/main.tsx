@@ -912,12 +912,17 @@ function App() {
   // In the studio it sits in the sidebar foot, so it never wraps onto its own topbar line.
   const themeButton = (
     <button
-      className="ghost icon-button theme-button"
+      className={
+        inStudio ? 'ghost theme-button' : 'ghost icon-button theme-button'
+      }
       onClick={theme.toggle}
       aria-label={theme.theme === 'dark' ? 'Use light theme' : 'Use dark theme'}
       title={theme.theme === 'dark' ? 'Use light theme' : 'Use dark theme'}
     >
       <Icon name={theme.theme === 'dark' ? 'sun' : 'moon'} />
+      {inStudio && (
+        <span>{theme.theme === 'dark' ? 'Light theme' : 'Dark theme'}</span>
+      )}
     </button>
   );
   return (
@@ -1050,9 +1055,11 @@ function App() {
                 })}
               </ul>
             </nav>
-            <div className="sidebar-foot">
-              <ViewModeSwitch compact />
+            <div className="sidebar-controls">
               {themeButton}
+              <ViewModeSwitch compact />
+            </div>
+            <div className="sidebar-foot">
               <span>Local control</span>
               <span>Models are used only through connections you approve.</span>
             </div>
