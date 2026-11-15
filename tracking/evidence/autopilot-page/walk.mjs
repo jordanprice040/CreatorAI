@@ -252,8 +252,9 @@ const earlierFold = page.locator('section[aria-label="Earlier autopilots"]');
 check(
   (await earlierFold
     .locator('article.card', { hasText: 'Its end time has passed' })
+    .filter({ hasText: 'Ended: its end time passed' })
     .count()) === 1,
-  'it is under Earlier autopilots, saying its end time has passed, with no Continue',
+  'it is under Earlier autopilots, headed Ended: its end time passed, with no Continue',
 );
 check(
   (await earlierFold

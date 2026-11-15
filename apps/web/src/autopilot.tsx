@@ -122,22 +122,41 @@ export function Autopilot({
   const owner = workspace.role === 'owner';
   const fixture = workspace.record_mode === 'fixture';
   const ctx = useLoad(async () => {
-    const [autopilots, routing, runs, problems] = await Promise.all([
+    const [autopilots, routing] = await Promise.all([
       api(z.array(AutopilotSchema), `${base}/autopilots`),
       loadRoutes(base),
-      // Review 1 of #213, L-4: each card names its run and problem, so two cards differ.
+    ]);
+    return { autopilots, ...routing };
+  }, [workspace.id]);
+  const c = ctx.data;
+  // Review 1 of #213, L-4: each card names its run and problem, so two cards differ. Read on
+  // their own, not with the list polled every 3 s, and again only when an autopilot names a
+  // run or problem not read yet (review 2, L-3).
+  const [names, setNames] = useState<Map<string, string>>(new Map());
+  const wanted = (c?.autopilots ?? [])
+    .flatMap((a) => [a.run_id, a.config.start?.problem.id ?? ''])
+    .filter((id) => id && !names.has(id));
+  const missing = [...new Set(wanted)].sort().join(',');
+  useEffect(() => {
+    if (!missing) return;
+    let live = true;
+    void Promise.all([
       api(z.array(TitledSchema), `${base}/entities?kind=run`).catch(() => []),
       api(z.array(TitledSchema), `${base}/entities?kind=problem`).catch(
         () => [],
       ),
-    ]);
-    return {
-      autopilots,
-      ...routing,
-      names: new Map([...runs, ...problems].map((e) => [e.id, e.title])),
+    ]).then(([runs, problems]) => {
+      if (!live) return;
+      const next = new Map(names);
+      for (const e of [...runs, ...problems]) next.set(e.id, e.title);
+      // An id with no record keeps an empty name, so it is not asked for again.
+      for (const id of missing.split(',')) if (!next.has(id)) next.set(id, '');
+      setNames(next);
+    });
+    return () => {
+      live = false;
     };
-  }, [workspace.id]);
-  const c = ctx.data;
+  }, [missing, workspace.id]);
   // A link to one autopilot (`id` in the address) opens its card, unfolding Earlier autopilots
   // when it is there, once the list has loaded.
   const shownFocus = useRef('');
@@ -430,7 +449,8 @@ export function Autopilot({
     const line = (s: AutopilotRecord['steps'][number], i: number) => (
       <li key={i} value={i + 1}>
         {MARK[s.state]} {AUTOPILOT_STAGE_LABEL[s.stage]}
-        {s.attempt > 1 ? ` (try ${s.attempt})` : ''}: {s.note}
+        {s.attempt > 1 ? ` (try ${s.attempt})` : ''}:{' '}
+        {repeats && i === a.steps.length - 1 ? 'see above.' : s.note}
       </li>
     );
     // Review 1 of #213, L-5: on a current card the last three steps show and the earlier ones
@@ -438,15 +458,16 @@ export function Autopilot({
     const shown = now ? a.steps.slice(-3) : a.steps;
     const folded = now ? a.steps.slice(0, -3) : [];
     const last = a.steps.at(-1);
-    // N-5: the explanation is left out when the last step's note already says it.
+    // N-5 (review 2, N-1): the stop's reason shows once, above the next step; the last step
+    // then points to it instead of repeating it.
     const repeats =
       !!last?.note &&
       (last.note === a.explanation ||
         last.note.includes(a.explanation.slice(0, 120)) ||
         a.explanation.includes(last.note.slice(0, 120)));
-    const run = c?.names.get(a.run_id);
+    const run = names.get(a.run_id);
     const problem = a.config.start?.problem
-      ? c?.names.get(a.config.start.problem.id)
+      ? names.get(a.config.start.problem.id)
       : undefined;
     const steps = (
       <>
@@ -514,7 +535,13 @@ export function Autopilot({
           <strong>
             {a.state === 'running'
               ? `Working: ${AUTOPILOT_STAGE_LABEL[a.stage].toLowerCase()}`
-              : (OUTCOME_LABEL[a.outcome ?? ''] ?? words(a.outcome ?? ''))}
+              : // Review 2 of #213, L-1: a stop that can no longer continue is not waiting.
+                !now &&
+                  a.outcome &&
+                  AUTOPILOT_RETRYABLE.includes(a.outcome) &&
+                  !can.ok
+                ? `Ended: ${can.reason.startsWith('Its end time') ? 'its end time passed' : 'it cannot continue'}`
+                : (OUTCOME_LABEL[a.outcome ?? ''] ?? words(a.outcome ?? ''))}
           </strong>{' '}
           <span className="small">
             {a.automation_id
@@ -536,7 +563,7 @@ export function Autopilot({
               : ''}
           </span>
         </p>
-        {!repeats && <p>{a.explanation}</p>}
+        <p>{a.explanation}</p>
         {now ? (
           <>
             {owner && a.state === 'finished' && a.outcome && (

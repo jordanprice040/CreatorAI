@@ -3,7 +3,6 @@ import { useViewMode } from './view-mode.js';
 import {
   AUTOMATION_LEVEL_TEXT,
   AUTOMATION_SELECTION_ACTIONS,
-  AUTOPILOT_RETRYABLE,
   autopilotContinuable,
   AUTOPILOT_MIN_CALLS,
   AutopilotConfigSchema,
@@ -84,9 +83,10 @@ export function currentLevel(
   if (
     latest &&
     (latest.state === 'running' ||
+      // Review 2 of #213, L-2: only one that can still continue waits (not one past its end
+      // time, or whose approvals ended); the Autopilot page uses the same rule.
       (latest.outcome !== null &&
-        (AUTOPILOT_RETRYABLE.includes(latest.outcome) ||
-          autopilotContinuable({ ...latest, steps: latest.steps ?? [] }).ok)))
+        autopilotContinuable({ ...latest, steps: latest.steps ?? [] }).ok))
   ) {
     // An autopilot a selection level started that is still working or waiting after the level
     // ended: the run is Manual now (review L-3, review 2 N-1).
