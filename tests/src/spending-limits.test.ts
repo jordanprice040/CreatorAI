@@ -433,6 +433,61 @@ class HoldProbe extends StudyStore {
   }
 }
 
+test('a final attempt that does not fit the shared T15 ledger is refused without the ledger exposure', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const a = await s.workspace('real');
+  const probe = new HoldProbe(s.db.pool);
+  probe.spending = s.store.spending;
+  // Another final attempt already holds the whole T15 ledger.
+  const total = BigInt(probe.evaluation.budget.t15_total_cap_nano_usd);
+  await s.openFinalHold(a.ws.id, await a.run(), total);
+  const runId = await a.run();
+  const { studyId, attemptId } = await s.openFinalHold(a.ws.id, runId, null);
+  const c = await s.db.pool.connect();
+  let refused;
+  try {
+    await c.query('begin');
+    refused = await probe.hold(
+      c,
+      a.ws.id,
+      {
+        id: attemptId,
+        study_id: studyId,
+        workspace_id: a.ws.id,
+        run_id: runId,
+      } as StudyAttempt,
+      {
+        governance: {},
+        synthetic: false,
+        config: { max_cost_nano_usd: '1' },
+      } as unknown as StudyInput,
+    );
+    await c.query('commit');
+  } finally {
+    c.release();
+  }
+  // ADR-0113 (re-review N-1): the ledger is shared by every workspace's final attempts, so
+  // its exposure goes only to the spending manager's record.
+  assert.equal(refused?.ledger, 't15-final');
+  const events = await s.db.pool.query(
+    "select payload from study_events where attempt_id = $1 and kind = 'budget_refused'",
+    [attemptId],
+  );
+  assert.equal(events.rows[0]?.payload.exposure_before_nano_usd, undefined);
+  const error = budgetRefusal(refused!);
+  assert.ok(
+    !JSON.stringify([error.message, error.details]).includes(String(total)),
+  );
+  const detail = (await s.store.spendLimits(owner)).recent_refusals[0];
+  assert.equal(detail?.reason_code, 'study_t15_ledger');
+  assert.equal(detail?.study_attempt_id, attemptId);
+  assert.match(
+    detail!.explanation,
+    new RegExp(`${total} already held or spent`),
+  );
+});
+
 test('a final study attempt whose cap is above the per-run limit is refused before it starts', async (t) => {
   const s = await setup(t);
   if (!s) return;

@@ -43,6 +43,8 @@ export function Settings({
     [],
   );
   const notManager = data.data === 'not_manager';
+  // Re-review N-2: until the server says whether this person is the manager, show neither the
+  // manager's wording nor the limits panel (whose own request would only be refused).
   const c = data.data === 'not_manager' ? null : data.data;
   /**
    * What the person reviewed. While the confirm step is open, reloads pause and the request
@@ -145,13 +147,15 @@ export function Settings({
           a workspace does not include it.
         </p>
       ) : (
-        <p>
-          The most Creator Agent may spend on real model and tool calls, across
-          every workspace. Each call reserves its maximum cost first and is
-          refused if it would pass this ceiling. Fixture workspaces use
-          simulated units and are not counted. Only the studio spending manager,
-          you, can change it here; agents can&apos;t.
-        </p>
+        c && (
+          <p>
+            The most Creator Agent may spend on real model and tool calls,
+            across every workspace. Each call reserves its maximum cost first
+            and is refused if it would pass this ceiling. Fixture workspaces use
+            simulated units and are not counted. Only the studio spending
+            manager, you, can change it here; agents can&apos;t.
+          </p>
+        )
       )}
       {!notManager && (
         <Status
@@ -315,7 +319,7 @@ export function Settings({
         </Status>
       )}
 
-      {!notManager && <SpendingLimits session={session} />}
+      {c && <SpendingLimits session={session} />}
 
       <EvidenceSites
         key={workspace.id}

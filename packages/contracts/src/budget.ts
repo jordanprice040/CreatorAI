@@ -416,6 +416,8 @@ export const SpendLimitsViewSchema = z.strictObject({
           'runtime_unknown_cost',
           'runtime_run_limit',
           'runtime_model_limit',
+          /** A final study attempt that does not fit the shared T15 study ledger. */
+          'study_t15_ledger',
         ]),
         explanation: z.string().min(1).max(2000),
         created_at: timestamp,

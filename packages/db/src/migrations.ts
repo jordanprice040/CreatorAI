@@ -3898,7 +3898,7 @@ create table spending_refusals (
  study_attempt_id uuid references study_attempts(id),
  workspace_id uuid not null references workspaces(id),
  run_id uuid not null,
- reason_code text not null check (reason_code in ('runtime_ceiling', 'runtime_unknown_cost', 'runtime_run_limit', 'runtime_model_limit')),
+ reason_code text not null check (reason_code in ('runtime_ceiling', 'runtime_unknown_cost', 'runtime_run_limit', 'runtime_model_limit', 'study_t15_ledger')),
  explanation text not null check (length(explanation) between 1 and 2000),
  created_at timestamptz not null default clock_timestamp(),
  check (num_nonnulls(reservation_id, study_attempt_id) = 1)
