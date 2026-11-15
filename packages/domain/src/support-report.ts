@@ -294,18 +294,66 @@ const VOWELLESS = new Set([
   'html',
   'css',
 ]);
+// Two-letter words that join CamelCase names (JavaScriptHeapOutOfMemory).
+const SHORT_WORDS = new Set(
+  'of to in on at by is as or if id io ok up no do go my we be ui os db'.split(
+    ' ',
+  ),
+);
+// Consonant pairs common in English words. Random letters are mostly made of other pairs
+// (review 6 R6-L1).
+const COMMON_PAIRS = new Set(
+  (
+    'th ch sh ph wh gh ck ng nk nt nd ns nc ng nf nv nl ng st sp sc sk sm sn sl sw tr pr br ' +
+    'cr dr fr gr bl cl fl gl pl rt rd rn rm rs rk rl rc rg rp rv rb rf rh lt ld lf lk lm lp ' +
+    'ls lv ll lc lb mp mb ms mm ct pt ft xt xp xc ss tt pp ff nn rr dd gg bb cc zz ts ds ks ' +
+    'ps gs bs ws wn wl wr tw dw tc qu ht hr hn hl hm hs lw rw nw tl tm tn dl dm dn dg dv bj ' +
+    'gn gm mn sq sy ty ry ly ny my py ky dy fy gy hy by cy vy wy lth nth'
+  ).split(' '),
+);
+function rarePairs(word: string): number {
+  let rare = 0;
+  const w = word.toLowerCase();
+  for (let i = 1; i < w.length; i++) {
+    const a = w[i - 1]!;
+    const b = w[i]!;
+    if (/[aeiou]/.test(a) || /[aeiou]/.test(b)) continue;
+    if (!COMMON_PAIRS.has(a + b)) rare++;
+  }
+  return rare;
+}
 function readsAsName(alnum: string): boolean {
   const pieces = alnum.match(CAMEL_PIECE) ?? [];
   if (pieces.length < 2) return false;
   let numbers = 0;
+  let letters = 0;
+  let vowels = 0;
+  let rare = 0;
   for (const p of pieces) {
     if (/^[0-9]+$/.test(p)) {
       if (++numbers > 2 || p.length > 3) return false;
     } else if (/^[A-Z]+$/.test(p)) {
       if (p.length < 2 || p.length > 6) return false;
-    } else if (!readsAsWord(p)) return false;
+    } else {
+      if (!(/^[A-Z]/.test(p) ? readsAsCapitalized(p) : readsAsWord(p)))
+        return false;
+      if (!VOWELLESS.has(p.toLowerCase())) rare += rarePairs(p);
+      letters += p.length;
+      vowels += p.replace(/[^aeiouy]/gi, '').length;
+    }
   }
-  return true;
+  // Across its word pieces a real name has at least a fifth vowels and at most one unusual
+  // consonant pair (review 6 R6-L1).
+  return letters === 0 || (vowels / letters >= 0.2 && rare <= 1);
+}
+// Capitalized pieces get a looser test than all-lower-case runs, since a capital marks a
+// word boundary: a known short word, or 3 to 14 letters with a vowel and no run of five
+// consonants (Network, First, Strength) (review 6 R6-L1).
+function readsAsCapitalized(p: string): boolean {
+  const w = p.toLowerCase();
+  if (VOWELLESS.has(w) || SHORT_WORDS.has(w)) return true;
+  if (w.length < 3 || w.length > 14) return false;
+  return /[aeiouy]/.test(w) && !/[^aeiouy]{5}/.test(w);
 }
 // A piece reads as a word when it is a known vowelless word, a short word of 3 or 4 letters
 // with a vowel (Plan, Task), or 5 to 14 letters with at least 30% vowels (y included) and no
@@ -365,6 +413,10 @@ const HEX_DIGEST =
   /^(?:sha(?:1|224|256|384|512)?|md5|blake2[bs]?)[-:_][0-9a-f]{16,}$/i;
 export function isOpaqueSecret(s: string): boolean {
   if (REQUEST_ID.test(s) || HEX_DIGEST.test(s)) return false;
+  // name=value: a readable name is judged apart from its value (review 6 R6-N1).
+  const pair = /^([A-Za-z][A-Za-z0-9]*)=(.+)$/.exec(s);
+  if (pair && (readsAsName(pair[1]!) || isWord(pair[1]!)))
+    return pair[2]!.length >= 16 && isOpaqueSecret(pair[2]!);
   const parts = s.split(/[-/_.=+]+/).filter(Boolean);
   if (parts.some((p) => looksRandom(p, 16))) return true;
   // Dotted names (files, hosts, versions) and runs with a word in them are judged by their

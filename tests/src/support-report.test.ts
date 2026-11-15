@@ -364,6 +364,16 @@ test('review 5: random lower-case runs and CamelCase-shaped tokens are hidden at
     'AbortControllerTimeout',
     'ECONNREFUSEDBYREMOTEHOST',
     'DESKTOPAPPLICATIONSERVER',
+    // Review 6 R6-L1: real CamelCase error names with few vowels or two-letter words.
+    'LengthCheckFailedError',
+    'StrengthMeterComponent',
+    'JavaScriptHeapOutOfMemory',
+    'NetworkFirstStrategy',
+    'OutOfBoundsWriteError',
+    'MaxListenersExceededWarning',
+    'NavigationTimeoutExceeded',
+    // R6-N1: a readable name joined to its value by "=".
+    'DefaultEndpointsProtocol=https',
   ]) {
     const { text, hidden } = redactSupportText(`x ${keep} y`);
     assert.equal(text, `x ${keep} y`);
