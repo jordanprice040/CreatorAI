@@ -469,6 +469,13 @@ export class RoutingStore extends GitHubStore {
         'INVALID_CONTRACT',
         'Patch-build benchmarks qualify plan connections only (ADR-0048).',
       );
+    // The dollar route grades with strict JSON; a fence-accepting manifest would be recorded as
+    // accepting a fence it never accepted, so it is refused here.
+    if (manifest.answer_wrapping !== undefined)
+      throw fail(
+        'INVALID_CONTRACT',
+        'Fence-accepting benchmarks qualify plan connections only (ADR-0110).',
+      );
     const hash = canonicalHash(manifest);
     return this.tx(async (c) => {
       await this.requireOwner(c, ws, ctx.actorId);

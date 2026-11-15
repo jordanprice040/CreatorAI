@@ -666,3 +666,21 @@ test('ADR-0098 re-review 3 L-2: two route outcomes of one promotion never deadlo
       String(x.status === 'rejected' && x.reason),
     );
 });
+
+test('ADR-0110 review 1 L-2: the dollar route refuses a fence-accepting benchmark it would grade strictly', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const { store } = s;
+  const { ws } = await s.workspace('real');
+  const fenced = read(
+    'config/connections/benchmarks/t12-reviewer-v3.json',
+  ) as Record<string, unknown>;
+  await rejects('INVALID_CONTRACT', store.registerBenchmark(owner, ws, fenced));
+  // The same cases without the marker (t12-reviewer-v2) register on a real workspace.
+  const strict = await store.registerBenchmark(
+    owner,
+    ws,
+    read('config/connections/benchmarks/t12-reviewer-v2.json'),
+  );
+  assert.equal(strict.manifest.name, 't12-reviewer-v2');
+});

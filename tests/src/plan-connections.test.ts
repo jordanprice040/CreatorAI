@@ -2937,6 +2937,113 @@ test('a patch-build qualification is graded by the studio scorer, and a scorer c
   );
 });
 
+test('ADR-0110: a fence-accepting build-role benchmark grades inside one fence; strict versions and extra text still fail', async (t) => {
+  let answer = APPROVE;
+  const s = await setup(t, {
+    respond: (body) =>
+      body.instructions === BUILD_ROLE_PROMPTS.reviewer ||
+      body.instructions === BUILD_ROLE_PROMPTS.builder
+        ? answer
+        : 'ok',
+  });
+  if (!s) return;
+  const { store, ws } = s;
+  await s.signIn();
+  let conn = await s.ready();
+  conn = await store.updatePlanSettings(owner, ws.id, conn.id, {
+    expected_version: conn.version,
+    settings: {
+      ...conn.settings,
+      allowed_task_classes: [
+        ...new Set([
+          ...conn.settings.allowed_task_classes,
+          'independent_review',
+          'patch_build',
+        ]),
+      ],
+    },
+  });
+  conn = await store.acceptPlanCaps(owner, ws.id, conn.id, {
+    expected_version: conn.version,
+    settings_hash: conn.settings_hash,
+  });
+  const grant = await store.createPlanVerificationGrant(owner, ws.id, conn.id, {
+    expected_version: conn.version,
+    model_id: 'm',
+    path: 'responses',
+    expires_in_minutes: 5,
+  });
+  await s.service.verifyModel(owner, ws.id, conn.id, {
+    id: grant.id,
+    model_id: 'm',
+  });
+  const graded: (string | null)[] = [];
+  const service = new PlanConnectionService({
+    store,
+    vault: s.vault,
+    fixtureEndpoints: {
+      auth_base: s.fake.auth_base,
+      api_base: s.fake.api_base,
+    },
+    openBrowser: () => {},
+    callbackPort: 0,
+    patchScorer: async (_ctx, _check, text) => {
+      graded.push(text);
+      return 'accepted';
+    },
+  });
+  const run = async (manifest: Record<string, unknown>) => {
+    const q = await store.startPlanQualification(owner, ws.id, conn.id, {
+      expected_version: (await s.current()).version,
+      model_id: 'm',
+      manifest,
+      min_held_out_cases: 3,
+      floor: { numerator: 3, denominator: 3 },
+    });
+    const done = await service.runQualification(owner, ws.id, q.id);
+    assert.ok(done.state === 'decided');
+    const results = await store.planQualificationResults(owner, ws.id, q.id);
+    return { state: done.qualification.state, results };
+  };
+  const fenced = { ...reviewManifest(), answer_wrapping: 'one_json_fence' };
+  answer = `\`\`\`json\n${APPROVE}\n\`\`\``;
+  const pass = await run(fenced);
+  assert.equal(pass.state, 'qualified');
+  // The raw answer, fence and all, is what the record keeps.
+  assert.ok(pass.results.cases.every((c) => c.answer === answer));
+  // The same fenced answers fail a strict version, as t12-reviewer-v2 graded them.
+  const strict = await run(reviewManifest());
+  assert.equal(strict.state, 'failed');
+  assert.ok(strict.results.cases.every((c) => c.signal === 'schema_invalid'));
+  // Any text outside the one fence still fails a fence-accepting version.
+  answer = `Here is my review.\n\`\`\`json\n${APPROVE}\n\`\`\``;
+  const chatty = await run(fenced);
+  assert.equal(chatty.state, 'failed');
+  assert.ok(chatty.results.cases.every((c) => c.signal === 'schema_invalid'));
+  // The patch scorer is handed what is inside the fence; a strict version hands it the raw text.
+  const inner = '{"summary":"s","submission":null,"blocker":"b"}';
+  answer = `\`\`\`\n${inner}\n\`\`\``;
+  const patchManifest = {
+    ...reviewManifest(BUILD_ROLE_PROMPTS.builder),
+    task_class: 'patch_build',
+    cases: reviewManifest(BUILD_ROLE_PROMPTS.builder).cases.map((c) => ({
+      ...c,
+      check: {
+        kind: 'patch_cases',
+        file_scope: ['src'],
+        cases: [
+          { check_key: 'A1', args: [], stdin: '', stdout: '', exit_code: 0 },
+        ],
+      },
+    })),
+  };
+  await run({ ...patchManifest, answer_wrapping: 'one_json_fence' });
+  assert.deepEqual(graded, [inner, inner, inner, inner]);
+  graded.length = 0;
+  await run(patchManifest);
+  assert.deepEqual(graded, [answer, answer, answer, answer]);
+});
+
 test('PR #130 review L-1: a revised discovery role keeps the held-out case keys and changes the prompt', () => {
   const m = read(
     'config/connections/benchmarks/discovery-synthetic-v2/scoring.json',
