@@ -7,7 +7,7 @@ What now works: Monitor > Workers has a **Support report** section. "Prepare sup
 Checked in the cloud container on a throwaway PostgreSQL 16 database:
 - `pnpm typecheck` and `pnpm format:check` pass.
 - `tests/src/support-report.test.ts` (3 tests) plants tokens, keys, cookies, passwords, emails and user paths in the redactor, in rendered facts and in database rows, and proves none reach the report; it also checks the 20-failure limit, fixture labels, owner-only access and that the route takes no writes.
-- Full `pnpm test:db`: TESTDB_RESULT.
+- Full `pnpm test:db` on beeff94: 1367 tests, 1333 pass, 29 skipped, and only the 5 known PowerShell-wrapper failures.
 - Browser walk `tracking/evidence/support-report/walk.mjs`: 8 of 8 checks in both themes (planted secret and path hidden, clipboard equals preview).
 
 Limitations: the failure list reads recorded failure states only (no service log lines). Product builds keep their failures in files, not the database, so a failed build shows here only through its workflow, autopilot or model-request rows. Redaction is pattern-based and errs on hiding too much.
