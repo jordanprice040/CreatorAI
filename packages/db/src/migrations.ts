@@ -3743,6 +3743,26 @@ join lateral (select actor_id from workspace_members where workspace_id = pc.wor
 where pc.id = '4e4a7bec-c1ca-4f31-8f87-b11ed5fc81d4';
 `,
   },
+  {
+    // ADR-0109 (B4): a build may state up to 20 role requests and 5 repair rounds (owner caps,
+    // proposal I), up from 6 and 2. Existing rows all fit the wider checks; nothing is rewritten.
+    version: 68,
+    name: 'build_approval_caps',
+    sql: `
+alter table build_approvals drop constraint build_approvals_request_limit_check;
+alter table build_approvals drop constraint build_approvals_max_repairs_check;
+alter table build_approvals add constraint build_approvals_request_limit_check
+ check (request_limit between 2 and 20);
+alter table build_approvals add constraint build_approvals_max_repairs_check
+ check (max_repairs between 0 and 5);
+alter table build_approval_asks drop constraint build_approval_asks_request_limit_check;
+alter table build_approval_asks drop constraint build_approval_asks_max_repairs_check;
+alter table build_approval_asks add constraint build_approval_asks_request_limit_check
+ check (request_limit between 2 and 20);
+alter table build_approval_asks add constraint build_approval_asks_max_repairs_check
+ check (max_repairs between 0 and 5);
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {
