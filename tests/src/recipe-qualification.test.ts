@@ -41,6 +41,7 @@ import {
 } from '@creator/executor';
 import {
   RecipeQualificationRunner,
+  firstBuilderInputFloor,
   sendWhenFree,
   recipeBenchmarkOffers,
   startRecipeQualification,
@@ -217,6 +218,7 @@ test('ADR-0105: the structure bar reads the package, and infrastructure stops ar
     ["def f(): pass\nx = 'open\n", /a string is never closed/],
     ['def f(): pass\nx = 1)\n', /closed that was never opened/],
     ['def f(): pass\nx = 1 \\', /continues past the end/],
+    ['def f(): pass\nx = 1 \\\n', /continues past the end/],
   ] as const) {
     const bad = ok.map((f) =>
       f.path === 'src/ledger/report.py' ? { ...f, content } : f,
@@ -469,10 +471,23 @@ async function setup(t: test.TestContext) {
     reviewer: 'approve',
     /** Awaited before each answer, so a test can act while a request is in flight. */
     before: async () => {},
+    /** Answer every role request with the ChatGPT plan's refusal of the model. */
+    refuseModel: false,
   };
   const fake = await fakePlan({
     beforeResponse: () => answer.before(),
     respond: (body) => {
+      if (
+        answer.refuseModel &&
+        (body.instructions === BUILD_ROLE_PROMPTS.builder ||
+          body.instructions === BUILD_ROLE_PROMPTS.reviewer)
+      )
+        return {
+          kind: 'error' as const,
+          status: 400,
+          code: 'subscription_sharing_unsupported_capability',
+          param: 'model',
+        };
       const input = (body.input as { content: string }[])[0]!.content;
       if (body.instructions === BUILD_ROLE_PROMPTS.builder) {
         const p = JSON.parse(input) as {
@@ -1115,4 +1130,91 @@ test('re-review L-3: a role request waits while another request runs, within its
     { pollMs: 1, stopped: () => true },
   ).catch(() => {});
   assert.equal(tries, 1);
+});
+
+const setInputCap = (
+  s: { db: { pool: { query: Function } }; conn: { id: string } },
+  n: number,
+) =>
+  s.db.pool.query(
+    `update plan_connections set settings = jsonb_set(settings, '{caps,responses,max_input_chars}', to_jsonb($2::int))
+      where id = $1`,
+    [s.conn.id, n],
+  );
+
+test('third review L-1: Start needs an input cap that fits the first builder request; one that refuses it before the roles wrote anything stops the run', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  await s.qualifyRoles();
+  const bench = await loadRecipeBenchmark('p15-small-signup-v5');
+  const floor = firstBuilderInputFloor(bench);
+  await setInputCap(s, floor - 1);
+  await rejects(
+    'INVALID_TRANSITION',
+    s.start('p15-small-signup-v5'),
+    /per-request input cap \(\d+ characters\) is smaller than this benchmark's first builder request/,
+  );
+  // At the floor, Start is allowed; the real first request is larger, so admission refuses it.
+  await setInputCap(s, floor);
+  const q = await s.start('p15-small-signup-v5');
+  const sent = s.fake.responseRequests.length;
+  const done = await s.run(q.id);
+  assert.deepEqual(s.errors, []);
+  assert.equal(done.state, 'stopped', done.reason ?? '');
+  assert.deepEqual(
+    done.attempts.map((a) => a.state),
+    ['invalid', 'invalid'],
+  );
+  assert.match(done.attempts[0]!.reason!, /input_cap_before_roles/);
+  assert.equal(s.fake.responseRequests.length, sent, 'nothing was sent');
+});
+
+test('third review L-1: an input cap lowered during the run is a setting change, never a model failure', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  await s.qualifyRoles();
+  const q = await s.start('p15-small-signup-v5');
+  let calls = 0;
+  s.answer.before = async () => {
+    // After the builder's request, the owner lowers the cap below the reviewer's input.
+    if (++calls === 1) await setInputCap(s, 1000);
+  };
+  const done = await s.run(q.id);
+  assert.deepEqual(s.errors, []);
+  assert.equal(done.state, 'stopped', done.reason ?? '');
+  assert.deepEqual(
+    done.attempts.map((a) => a.state),
+    ['invalid'],
+  );
+  assert.match(done.attempts[0]!.reason!, /input_cap_changed/);
+  assert.match(
+    done.reason!,
+    /input cap was lowered from \d+ to 1000 characters/,
+  );
+  // An input-cap refusal with the cap unchanged, after the roles wrote, is the roles' work.
+  const refused = refusalError(
+    new ContractError(
+      'ACCESS_DENIED',
+      'This plan request is not admitted.',
+      ['too large'],
+      [{ code: 'cap_reached', text: 'too large' }],
+    ),
+  );
+  assert.equal(infrastructureStop(String(refused)), false);
+});
+
+test('third review N-2: the ChatGPT plan refusing the model reaches a build as model_refused and fails the attempt', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  await s.qualifyRoles();
+  const q = await s.start('p15-small-signup-v5');
+  s.answer.refuseModel = true;
+  const done = await s.run(q.id);
+  assert.deepEqual(s.errors, []);
+  assert.equal(done.state, 'not_qualified', done.reason ?? '');
+  assert.deepEqual(
+    done.attempts.map((a) => a.state),
+    ['failed'],
+  );
+  assert.match(done.attempts[0]!.reason!, /Role stopped: failed model_refused/);
 });

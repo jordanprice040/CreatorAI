@@ -158,7 +158,10 @@ export async function nextRecipeAttempt(
   id: string,
   holder: string,
   requestLimit: number,
-  room: (connectionId: string) => Promise<RecipeRoom> = async () => ({
+  room: (
+    connectionId: string,
+    recordedInputCap: number | null,
+  ) => Promise<RecipeRoom> = async () => ({
     kind: 'ok',
   }),
 ): Promise<NextRecipeAttempt> {
@@ -205,7 +208,10 @@ export async function nextRecipeAttempt(
       );
       return { kind: 'end' };
     }
-    const free = await room(String(q.connection_id));
+    const free = await room(
+      String(q.connection_id),
+      q.max_input_chars == null ? null : Number(q.max_input_chars),
+    );
     if (free.kind === 'stop') {
       await finishQualification(
         c,

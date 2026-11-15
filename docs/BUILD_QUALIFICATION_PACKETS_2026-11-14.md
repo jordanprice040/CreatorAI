@@ -68,13 +68,16 @@ another connection refusal, a connection that no longer allows both build roles 
 an earlier request with an unknown outcome, a request running past its time limit, or a daily cap
 without room for a build (2 requests) stops the qualification as stopped with the reason; another
 request still running makes it wait and look again 15 seconds later. Start is refused while a
-request with an unknown outcome is open or the sign-in is lost.
+request with an unknown outcome is open, the sign-in is lost, or the input cap is too small.
 
 **Keep the connection free while a packet runs:** no chat, autopilot or model check on it. The
 connection takes one request at a time. During an attempt, a role request waits up to 4 minutes
 for another request to finish; a longer wait ends the attempt without a verdict (it is replaced
-once). A request refused because the roles' own output made its input larger than the per-request
-input cap fails the attempt, and so does a refusal to serve the model asked for, on either route.
+once). Don't change the connection's per-request input cap during a packet either: Start records it
+and refuses a cap too small for the benchmark's first builder request, and a cap lowered during the
+run stops it. A request refused because the roles' own output made its input larger than the
+recorded cap fails the attempt, and so does a refusal to serve the model asked for, on either
+route.
 
 ## What to record
 

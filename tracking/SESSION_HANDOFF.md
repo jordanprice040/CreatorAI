@@ -8,6 +8,8 @@ Review 1 fixes (November 15): `nextRecipeAttempt` takes a `room` callback (`Reci
 
 Re-review fixes (November 15): `recipe-scoring.ts` is `recipe-scorer/3` with `ROLE_CAUSED_REFUSALS`, `refusalError` (coded build reason) and `onlyBusyRefusal`; the runner wraps `buildRole` in `sendWhenFree` (bounded wait `RECIPE_ROLE_BUSY_WAIT_MS`, 4 min). `PlanConnectionService.buildRole` reports any `model_refused` outcome other than Claude's as `model_refused`. `pythonReadProblem` backs the structure bar. `#recipeRoom(c, conn, classes)` also checks `connectionRefusals`.
 
+Third review fixes (November 15): migration 65 adds `recipe_qualifications.max_input_chars` (check: set exactly when in_app). `startRecipeQualification` bound takes `min_input_chars` (`firstBuilderInputFloor`); `ConnectionStore.recipeInputCapLowered(attemptId)` feeds the runner's `sendWhenFree({ inputCap })`; `refusalError(e, inputCap)`. The fake plan's `respond` may return an error step.
+
 ## November 14 handoff — UX pass P-2 (Path branches) and P-5 (draft the missing sections) (ADR-0101, migration 64)
 
 Branch `claude/project-thread-ta0ygk` from main 7edcd3e. Migration 64 `proposal_section_drafts` (one pending row per proposal, `(proposal_id, client_id)` replay, settle-once trigger that only allows a redaction after settling); ADR-0101 in `tracking/DECISIONS.md`. Decide holds 65/0102, Discover 66/0103, Shell 67/0104.

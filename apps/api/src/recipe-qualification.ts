@@ -59,9 +59,10 @@ const POLL_MS = 15_000;
 export const RECIPE_ATTEMPT_DEADLINE_MS = 60 * 60_000;
 /**
  * Re-review L-3: how long a role request waits, at most, for another request on its connection
- * (a chat answer, an autopilot step, a model check) to finish. Longer than any one request may
- * run (the Claude Code connection allows 180 s), so a request that was sent always finishes or
- * is cut off inside it.
+ * (a chat answer, an autopilot step, a model check) to finish. It covers the usual request time
+ * limits (180 s on a Claude Code connection, the connection's own limit on a ChatGPT plan
+ * connection, 120 s by default); a request allowed longer can outlast it, and the waiting
+ * attempt then ends without a verdict (infrastructure), never as a failure.
  */
 export const RECIPE_ROLE_BUSY_WAIT_MS = 4 * 60_000;
 const ROLE_BUSY_POLL_MS = 5_000;
@@ -77,6 +78,10 @@ export async function sendWhenFree<T>(
     boundMs?: number;
     pollMs?: number;
     stopped?: () => boolean;
+    /** How to record an input-cap refusal (see `refusalError`). */
+    inputCap?: () => Promise<
+      'input_cap_before_roles' | 'input_cap_changed' | undefined
+    >;
   } = {},
 ): Promise<T> {
   const until = Date.now() + (opts.boundMs ?? RECIPE_ROLE_BUSY_WAIT_MS);
@@ -94,7 +99,7 @@ export async function sendWhenFree<T>(
         );
         continue;
       }
-      throw refusalError(e) ?? e;
+      throw refusalError(e, await opts.inputCap?.()) ?? e;
     }
   }
 }
@@ -129,6 +134,15 @@ export async function recipeBenchmarkOffers(
 }
 
 /** The owner's start: the studio binds the frozen benchmark and the current role prompts. */
+/**
+ * Third review L-1: a floor under the size of a benchmark's first builder request as admission
+ * counts it (instructions plus input): the builder prompt and the frozen spec content. The real
+ * request also carries the task and its files, so it is larger; Start refuses a cap below this.
+ */
+export const firstBuilderInputFloor = (
+  bench: Pick<RecipeBenchmark, 'content'>,
+) => BUILD_ROLE_PROMPTS.builder.length + JSON.stringify(bench.content).length;
+
 export async function startRecipeQualification(
   store: ConnectionStore,
   ctx: CommandContext,
@@ -151,6 +165,7 @@ export async function startRecipeQualification(
     attempts_needed: bench.info.attempts,
     freeze_sha256: bench.freeze_sha256,
     ...currentRolePromptHashes(),
+    min_input_chars: firstBuilderInputFloor(bench),
   });
 }
 
@@ -165,6 +180,7 @@ type RunnerStore = Pick<
   | 'finishRecipeAttempt'
   | 'abandonRecipeQualification'
   | 'getRecipeQualification'
+  | 'recipeInputCapLowered'
 >;
 
 const message = (e: unknown) =>
@@ -398,6 +414,8 @@ export class RecipeQualificationRunner {
       cases,
       plan_roles: target,
     };
+    // Role requests this attempt has sent, so an input-cap refusal of the first is told apart.
+    let sentRoles = 0;
     const ports: BuildPorts = {
       current: async () => ({ binding, spec }),
       assertActive: async () => {
@@ -438,8 +456,9 @@ export class RecipeQualificationRunner {
       call: async () => {
         throw new Error('Build qualifications use the plan roles only.');
       },
-      planRole: async (t, request) =>
-        sendWhenFree(
+      planRole: async (t, request) => {
+        const first = sentRoles++ === 0;
+        return sendWhenFree(
           () =>
             service.buildRole(ctx, ws, t.connection_id, {
               role: t.role,
@@ -452,8 +471,19 @@ export class RecipeQualificationRunner {
               logical_operation_id: request.logical_operation_id,
               recipe_attempt_id: attemptId,
             }),
-          { stopped: () => this.#stopped },
-        ),
+          {
+            stopped: () => this.#stopped,
+            // Third review L-1: an input-cap refusal is the roles' work only after they wrote
+            // something and while the cap is the one recorded at Start.
+            inputCap: async () =>
+              first
+                ? 'input_cap_before_roles'
+                : (await this.deps.store.recipeInputCapLowered(attemptId))
+                  ? 'input_cap_changed'
+                  : undefined,
+          },
+        );
+      },
       planRolesReady: async (t) =>
         service.buildRolesReady(ctx, ws, t.connection_id, {
           model_id: t.model_id,

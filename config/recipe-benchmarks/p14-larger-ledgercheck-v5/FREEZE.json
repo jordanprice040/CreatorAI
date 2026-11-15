@@ -2,7 +2,7 @@
   "format": "recipe-benchmark-freeze/1",
   "benchmark_id": "p14-larger-ledgercheck-v5",
   "files": {
-    "expectations.json": "b31effe0e987a7b25c2780bad0b28e26354c4cef903b0e1303bdf4fa340fba31",
+    "expectations.json": "de2cce223eae40cb06a55f0e26fabe257a45bd6e32958e94d1a32af1b3eeb355",
     "extended-cases.json": "f51e95ec785308a95687a1fe8f1a4fb4cec8e3818eca9ec4ae5f9b182a4e5378",
     "reference/src/ledger/__init__.py": "20b04f8cf179708ab0c374be8402942a192a1aafdd0774c61a32ae0cde5e3779",
     "reference/src/ledger/parse.py": "aa057ea2eb3c17dd227a326a5d323a755fb9f59d6f1e7905793b4d39bc844708",
@@ -10,6 +10,6 @@
     "reference/src/ledger/rules.py": "03a7c7352a3a309630606564de8c7561564ce830e8bcd8ee9c62e5ccb834c757",
     "reference/src/main.py": "cb175725e1546de6cb26ac3624e85b8fb5f66359ea894bd7c27928fabb537efe",
     "spec.json": "9be9172db504218013638834054f748e998a106832189da74d89dff94d85427b",
-    "scorer:recipe-scoring.ts": "f777f17ae481313dcc89135d03872118663cc0ef07a831b5037750037ba5d835"
+    "scorer:recipe-scoring.ts": "3d372d12fa056a338e68038efca441e5b5d011021e68513e71981840a3e18a02"
   }
 }

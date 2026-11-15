@@ -3674,6 +3674,8 @@ create table recipe_qualifications (
  state text not null check (state in ('running','qualified','not_qualified','stopped')),
  attempts_needed integer not null check (attempts_needed between 1 and 10),
  passed integer not null default 0 check (passed between 0 and attempts_needed),
+ -- The connection's per-request input cap at Start (null on an imported record).
+ max_input_chars integer check (max_input_chars >= 1),
  reason text,
  evidence text,
  lease_holder text,
@@ -3684,7 +3686,8 @@ create table recipe_qualifications (
  finished_at timestamptz,
  check ((state = 'running') = (finished_at is null)),
  check (state <> 'qualified' or passed = attempts_needed),
- check ((source = 'imported') = (evidence is not null))
+ check ((source = 'imported') = (evidence is not null)),
+ check ((source = 'in_app') = (max_input_chars is not null))
 );
 create unique index recipe_qualifications_one_running on recipe_qualifications (connection_id)
  where state = 'running';

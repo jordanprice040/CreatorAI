@@ -6,7 +6,7 @@ import { ContractError, type RecipePassBar } from '@creator/contracts';
  * (`scorer:recipe-scoring.ts`), and a test holds them equal: changing a rule here needs new
  * benchmark versions, never an edited freeze.
  */
-export const RECIPE_SCORER_VERSION = 'recipe-scorer/3';
+export const RECIPE_SCORER_VERSION = 'recipe-scorer/4';
 
 /**
  * Review 1 L-2 and re-review L-2: role answers that end a request without the contract, caused
@@ -28,11 +28,13 @@ export const ROLE_CAUSED_STOPS: readonly string[] = [
 
 /**
  * Re-review L-1: admission refusal codes the roles' own work causes. `cap_reached` is the
- * per-request input cap (a builder that wrote too much makes the reviewer's or the repair's
- * input too big); `attempt_request_limit` is the attempt's own request limit (the call cap).
- * Every other refusal (an earlier request with an unknown outcome or one still running, the
- * daily cap, a lost sign-in, a connection setting changed during the run) judges nothing about
- * the roles' work.
+ * per-request input cap when the roles' own output made the input too big (a builder that wrote
+ * too much makes the reviewer's or the repair's input too large); `attempt_request_limit` is the
+ * attempt's own request limit (the call cap). Third review L-1: an input-cap refusal of an
+ * attempt's first request (`input_cap_before_roles`: the roles wrote nothing yet) or after the
+ * cap was lowered since Start (`input_cap_changed`) is not the roles' work. Every other refusal
+ * (an earlier request with an unknown outcome or one still running, the daily cap, a lost
+ * sign-in, a connection setting changed during the run) judges nothing about the roles' work.
  */
 export const ROLE_CAUSED_REFUSALS: readonly string[] = [
   'cap_reached',
@@ -47,11 +49,17 @@ const REFUSED = /^Error: Plan request refused \(([^)]*)\)/;
  * Plan admission carries its codes (ADR-0087); a build qualification's own check names the
  * attempt's request limit as `attempt_request_limit` and any other mismatch as `not_covered`.
  */
-export function refusalError(e: unknown): Error | null {
+export function refusalError(
+  e: unknown,
+  /** The code an input-cap refusal (`cap_reached`) is recorded under, when the caller knows. */
+  inputCap?: 'input_cap_before_roles' | 'input_cap_changed',
+): Error | null {
   if (!(e instanceof ContractError) || e.code !== 'ACCESS_DENIED') return null;
   const coded = e.reasons;
   const codes = coded.length
-    ? coded.map((r) => r.code)
+    ? coded.map((r) =>
+        r.code === 'cap_reached' && inputCap ? inputCap : r.code,
+      )
     : e.details.map((d) =>
         /has used its \d+ requests/.test(d)
           ? 'attempt_request_limit'
@@ -168,7 +176,9 @@ function pythonRead(source: string): {
   const lines: string[] = [];
   let current = '';
   let depth = 0;
-  for (const raw of out.split(/\r?\n/)) {
+  // Third review N-1: the file's final newlines end no statement, so a backslash on the last
+  // line still continues past the end of the file.
+  for (const raw of out.replace(/(\r?\n)+$/, '').split(/\r?\n/)) {
     const continued = raw.endsWith('\\');
     const line = continued ? raw.slice(0, -1) : raw;
     current = current ? `${current} ${line.trim()}` : line;

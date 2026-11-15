@@ -6242,6 +6242,12 @@ export class ConnectionStore extends AutomationStore {
       freeze_sha256: string;
       builder_prompt_sha256: string;
       reviewer_prompt_sha256: string;
+      /**
+       * Third review L-1: the fewest characters the benchmark's first builder request can be
+       * (the builder prompt and the frozen spec). Start refuses a connection whose per-request
+       * input cap is below it, so the cap can't refuse a request before the roles wrote anything.
+       */
+      min_input_chars: number;
     },
   ): Promise<RecipeQualificationRecord> {
     const ctx = normalize(ctxIn);
@@ -6276,6 +6282,11 @@ export class ConnectionStore extends AutomationStore {
           problems.push(
             `${req.model_id} isn't qualified as the ${tc === 'patch_build' ? 'builder (t12-builder benchmark)' : 'reviewer (t12-reviewer benchmark)'} on this connection yet. Run that qualification first, above.`,
           );
+      const cap = conn.settings.caps.responses.max_input_chars;
+      if (cap < bound.min_input_chars)
+        problems.push(
+          `This connection's per-request input cap (${cap} characters) is smaller than this benchmark's first builder request (at least ${bound.min_input_chars}). Raise it under Models and connections, then start again.`,
+        );
       const room = await this.#recipeRoom(c, conn, false);
       if (room.kind === 'stop')
         problems.push(
@@ -6299,8 +6310,8 @@ export class ConnectionStore extends AutomationStore {
       await c.query(
         `insert into recipe_qualifications (id, workspace_id, connection_id, recipe, benchmark_id,
            model_id, builder_prompt_sha256, reviewer_prompt_sha256, freeze_sha256, source, fixture,
-           state, attempts_needed, created_by)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,'in_app',$10,'running',$11,$12)`,
+           state, attempts_needed, created_by, max_input_chars)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,'in_app',$10,'running',$11,$12,$13)`,
         [
           id,
           uuid(ws),
@@ -6314,6 +6325,7 @@ export class ConnectionStore extends AutomationStore {
           conn.fixture,
           bound.attempts_needed,
           ctx.actorId,
+          cap,
         ],
       );
       const rows = (
@@ -6427,19 +6439,57 @@ export class ConnectionStore extends AutomationStore {
     requestLimit: number,
   ): Promise<NextRecipeAttempt> {
     return this.tx((c) =>
-      nextRecipeAttempt(c, id, holder, requestLimit, async (connectionId) => {
-        const ws = (
-          await c.query(
-            'select workspace_id from plan_connections where id = $1',
-            [connectionId],
-          )
-        ).rows[0] as Row | undefined;
-        if (!ws)
-          return { kind: 'stop', reason: 'The connection no longer exists.' };
-        const conn = await this.#lock(c, String(ws.workspace_id), connectionId);
-        return this.#recipeRoom(c, conn);
-      }),
+      nextRecipeAttempt(
+        c,
+        id,
+        holder,
+        requestLimit,
+        async (connectionId, recordedCap) => {
+          const ws = (
+            await c.query(
+              'select workspace_id from plan_connections where id = $1',
+              [connectionId],
+            )
+          ).rows[0] as Row | undefined;
+          if (!ws)
+            return { kind: 'stop', reason: 'The connection no longer exists.' };
+          const conn = await this.#lock(
+            c,
+            String(ws.workspace_id),
+            connectionId,
+          );
+          const cap = conn.settings.caps.responses.max_input_chars;
+          // Third review L-1: a cap lowered since Start is a setting changed during the run.
+          if (recordedCap != null && cap < recordedCap)
+            return {
+              kind: 'stop',
+              reason: `the connection's per-request input cap was lowered from ${recordedCap} to ${cap} characters since the start. Start the qualification again with the cap you want it to run under.`,
+            };
+          return this.#recipeRoom(c, conn);
+        },
+      ),
     );
+  }
+
+  /**
+   * Third review L-1: whether the connection's per-request input cap is now below the one
+   * recorded when this attempt's qualification started (a setting changed during the run, so an
+   * input-cap refusal judges nothing about the roles). False when the attempt is unknown.
+   */
+  async recipeInputCapLowered(attemptId: string): Promise<boolean> {
+    const r = (
+      await this.pool.query(
+        `select q.max_input_chars as recorded,
+                (pc.settings->'caps'->'responses'->>'max_input_chars')::int as current
+           from recipe_qualification_attempts a
+           join recipe_qualifications q on q.id = a.qualification_id
+           join plan_connections pc on pc.id = q.connection_id
+          where a.id = $1`,
+        [uuid(attemptId)],
+      )
+    ).rows[0] as
+      { recorded: number | null; current: number | null } | undefined;
+    return r?.recorded != null && r.current != null && r.current < r.recorded;
   }
 
   /**
@@ -6470,7 +6520,7 @@ export class ConnectionStore extends AutomationStore {
     if (own.length)
       return {
         kind: 'stop',
-        reason: `the connection can't take requests now: ${own.join(' ')} Fix it under Models, then start the qualification again.`,
+        reason: `the connection can't take requests now: ${own.join(' ')} Start the qualification again once that is resolved.`,
       };
     const usage = await this.#usage(c, conn.id, null, null);
     const caps = conn.settings.caps;

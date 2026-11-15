@@ -2,12 +2,12 @@
   "format": "recipe-benchmark-freeze/1",
   "benchmark_id": "p15-small-signup-v5",
   "files": {
-    "expectations.json": "ef20cace083d64bc9f9f3bf9266e955ad892fbdfd3fa6baea47b34bc88cdfd5c",
+    "expectations.json": "b6fd1848059e25d10d657f6c75bf2063dacb476822f8f7f55410e1c01cc6ade9",
     "reference/site/app.js": "0c9d1d02a05cdc5a83b4dcbddca30a2fa6ff4f93b4863900c7adbda7efd8e2bc",
     "reference/site/index.html": "a37556353c0fe4c851c9ec2a0f4ca3d5a70fee6dc951296d4af45fe6b74ac533",
     "reference/site/style.css": "167666550c04833877a36cde4c47275b8a0518dbe7249ad9fd4be31cb491aca4",
     "spec.json": "1b53d40af7547067c313c865542f99ba488cfaa766c6165e61d02f538fee1c82",
     "checker:web_recipe.py": "b229c4704f1b9803c943c79b65d895a12ef967ac85737000bcdf1b37d4b57f64",
-    "scorer:recipe-scoring.ts": "f777f17ae481313dcc89135d03872118663cc0ef07a831b5037750037ba5d835"
+    "scorer:recipe-scoring.ts": "3d372d12fa056a338e68038efca441e5b5d011021e68513e71981840a3e18a02"
   }
 }
