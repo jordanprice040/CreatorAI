@@ -34,6 +34,7 @@ import {
   refusalError,
   importsLedger,
   hasTopLevelFunction,
+  pythonReadProblem,
   infrastructureStop,
   loadRecipeBenchmark,
   recipeFreezeProblems,
@@ -212,6 +213,13 @@ test('ADR-0105: the structure bar reads the package, and infrastructure stops ar
     structureBar(ok.filter((f) => f.path !== 'src/ledger/parse.py')).detail,
     /parse\.py is missing/,
   );
+  // Review 4 L-1: a backslash followed by a blank or comment line at the end is valid Python.
+  for (const content of [
+    'def f():\n    return 1 \\\n\n',
+    'def f():\r\n    return 1 \\\r\n\r\n',
+    'def f():\n    return 1 \\\n# c\n',
+  ])
+    assert.equal(pythonReadProblem(content), null, JSON.stringify(content));
   // Re-review N-1: a module that can't be read as Python fails, as v4's parse did.
   for (const [content, why] of [
     ['def f(): pass\ndef g(\n', /a bracket is never closed/],
@@ -219,6 +227,8 @@ test('ADR-0105: the structure bar reads the package, and infrastructure stops ar
     ['def f(): pass\nx = 1)\n', /closed that was never opened/],
     ['def f(): pass\nx = 1 \\', /continues past the end/],
     ['def f(): pass\nx = 1 \\\n', /continues past the end/],
+    ['def f(): pass\r\nx = 1 \\\r\n', /continues past the end/],
+    ['def f(): pass\n\\\n', /continues past the end/],
   ] as const) {
     const bad = ok.map((f) =>
       f.path === 'src/ledger/report.py' ? { ...f, content } : f,
@@ -418,6 +428,7 @@ test('ADR-0105: only a finished, non-fixture qualified record lifts the trial la
     recipe: 'static-web/1',
     benchmark_id: 'p15-small-signup-v5',
     freeze_sha256: 'a'.repeat(64),
+    max_input_chars: 64000,
     source: 'in_app',
     fixture: false,
     state: 'qualified',
@@ -1189,8 +1200,10 @@ test('third review L-1: an input cap lowered during the run is a setting change,
   assert.match(done.attempts[0]!.reason!, /input_cap_changed/);
   assert.match(
     done.reason!,
-    /input cap was lowered from \d+ to 1000 characters/,
+    /input cap was lowered from \d+ to 1000 characters.*\(at least \d+ characters for this benchmark\)/,
   );
+  // Review 4 N-1: the record says which cap the result ran under.
+  assert.equal(done.max_input_chars, SETTINGS.caps.responses.max_input_chars);
   // An input-cap refusal with the cap unchanged, after the roles wrote, is the roles' work.
   const refused = refusalError(
     new ContractError(

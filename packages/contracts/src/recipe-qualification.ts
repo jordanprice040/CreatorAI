@@ -214,6 +214,11 @@ export const RecipeQualificationRecordSchema = z.strictObject({
   reviewer_prompt_sha256: hash,
   /** SHA-256 of the benchmark's FREEZE.json when it started. */
   freeze_sha256: hash,
+  /**
+   * Third review L-1 and review 4 N-1: the connection's per-request input cap recorded at Start,
+   * which the pass and no-verdict rules read; null on an imported record.
+   */
+  max_input_chars: z.number().int().min(1).nullable(),
   /** `imported`: a pass recorded before the studio could run these (the November 6 one). */
   source: z.enum(['in_app', 'imported']),
   /** Run on a fixture connection: says nothing about a real model. */

@@ -78,6 +78,7 @@ const record = (
   model_id: 'm',
   ...prompts,
   freeze_sha256: 'd'.repeat(64),
+  max_input_chars: 64000,
   source: 'in_app',
   fixture: false,
   state: 'qualified',
@@ -186,4 +187,6 @@ test("the Build note says qualified only for a non-fixture pass on these roles a
     m.recordLine(record({ source: 'imported' }), prompts),
     /recorded before the app/,
   );
+  // Review 4 N-1: the line names the input cap the result ran under.
+  assert.match(m.recordLine(record({}), prompts), /input cap 64000 characters/);
 });

@@ -71,6 +71,8 @@ export function toRecipeQualification(
     builder_prompt_sha256: String(r.builder_prompt_sha256),
     reviewer_prompt_sha256: String(r.reviewer_prompt_sha256),
     freeze_sha256: String(r.freeze_sha256),
+    max_input_chars:
+      r.max_input_chars == null ? null : Number(r.max_input_chars),
     source: r.source as RecipeQualificationRecord['source'],
     fixture: Boolean(r.fixture),
     state: r.state as RecipeQualificationRecord['state'],
@@ -160,7 +162,8 @@ export async function nextRecipeAttempt(
   requestLimit: number,
   room: (
     connectionId: string,
-    recordedInputCap: number | null,
+    /** The input cap recorded at Start and the fewest characters Start accepted. */
+    recordedInputCap: { max: number; min: number } | null,
   ) => Promise<RecipeRoom> = async () => ({
     kind: 'ok',
   }),
@@ -210,7 +213,9 @@ export async function nextRecipeAttempt(
     }
     const free = await room(
       String(q.connection_id),
-      q.max_input_chars == null ? null : Number(q.max_input_chars),
+      q.max_input_chars == null
+        ? null
+        : { max: Number(q.max_input_chars), min: Number(q.min_input_chars) },
     );
     if (free.kind === 'stop') {
       await finishQualification(

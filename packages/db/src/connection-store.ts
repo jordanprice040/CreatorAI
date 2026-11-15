@@ -6310,8 +6310,8 @@ export class ConnectionStore extends AutomationStore {
       await c.query(
         `insert into recipe_qualifications (id, workspace_id, connection_id, recipe, benchmark_id,
            model_id, builder_prompt_sha256, reviewer_prompt_sha256, freeze_sha256, source, fixture,
-           state, attempts_needed, created_by, max_input_chars)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,'in_app',$10,'running',$11,$12,$13)`,
+           state, attempts_needed, created_by, max_input_chars, min_input_chars)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,'in_app',$10,'running',$11,$12,$13,$14)`,
         [
           id,
           uuid(ws),
@@ -6326,6 +6326,7 @@ export class ConnectionStore extends AutomationStore {
           bound.attempts_needed,
           ctx.actorId,
           cap,
+          bound.min_input_chars,
         ],
       );
       const rows = (
@@ -6460,10 +6461,10 @@ export class ConnectionStore extends AutomationStore {
           );
           const cap = conn.settings.caps.responses.max_input_chars;
           // Third review L-1: a cap lowered since Start is a setting changed during the run.
-          if (recordedCap != null && cap < recordedCap)
+          if (recordedCap != null && cap < recordedCap.max)
             return {
               kind: 'stop',
-              reason: `the connection's per-request input cap was lowered from ${recordedCap} to ${cap} characters since the start. Start the qualification again with the cap you want it to run under.`,
+              reason: `the connection's per-request input cap was lowered from ${recordedCap.max} to ${cap} characters since the start. Start the qualification again with the cap you want it to run under (at least ${recordedCap.min} characters for this benchmark).`,
             };
           return this.#recipeRoom(c, conn);
         },

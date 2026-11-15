@@ -133,6 +133,8 @@ export function recordLine(
       ? `recorded before the app could run it (${when} UTC)`
       : `${when} UTC`,
   ];
+  if (r.max_input_chars != null)
+    parts.push(`input cap ${r.max_input_chars} characters`);
   if (r.fixture) parts.push('fixture, not evidence about a real model');
   if (prompts && r.state === 'qualified' && !onCurrentPrompts(r, prompts))
     parts.push('on older role prompts, so it no longer lifts the trial label');

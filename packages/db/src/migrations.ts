@@ -3676,6 +3676,8 @@ create table recipe_qualifications (
  passed integer not null default 0 check (passed between 0 and attempts_needed),
  -- The connection's per-request input cap at Start (null on an imported record).
  max_input_chars integer check (max_input_chars >= 1),
+ -- The fewest input characters Start accepted for this benchmark (null on an imported record).
+ min_input_chars integer check (min_input_chars >= 1),
  reason text,
  evidence text,
  lease_holder text,
@@ -3687,7 +3689,8 @@ create table recipe_qualifications (
  check ((state = 'running') = (finished_at is null)),
  check (state <> 'qualified' or passed = attempts_needed),
  check ((source = 'imported') = (evidence is not null)),
- check ((source = 'in_app') = (max_input_chars is not null))
+ check ((source = 'in_app') = (max_input_chars is not null)),
+ check ((source = 'in_app') = (min_input_chars is not null))
 );
 create unique index recipe_qualifications_one_running on recipe_qualifications (connection_id)
  where state = 'running';

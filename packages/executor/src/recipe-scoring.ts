@@ -176,10 +176,14 @@ function pythonRead(source: string): {
   const lines: string[] = [];
   let current = '';
   let depth = 0;
-  // Third review N-1: the file's final newlines end no statement, so a backslash on the last
-  // line still continues past the end of the file.
-  for (const raw of out.replace(/(\r?\n)+$/, '').split(/\r?\n/)) {
+  // Third review N-1 and review 4 L-1: a backslash joins the next physical line. The file's one
+  // final line ending starts no further line, so a backslash on the last line continues past
+  // the end of the file (an error, even alone on its line); a blank or comment line after it
+  // ends the statement, as Python reads it.
+  let lastContinued = false;
+  for (const raw of out.replace(/\r?\n$/, '').split(/\r?\n/)) {
     const continued = raw.endsWith('\\');
+    lastContinued = continued;
     const line = continued ? raw.slice(0, -1) : raw;
     current = current ? `${current} ${line.trim()}` : line;
     for (const c of line) {
@@ -196,7 +200,7 @@ function pythonRead(source: string): {
     }
   }
   if (depth > 0) problem ??= 'a bracket is never closed';
-  else if (current.trim())
+  else if (lastContinued)
     problem ??= 'a line continues past the end of the file';
   if (current.trim()) lines.push(current);
   return { lines, problem };
