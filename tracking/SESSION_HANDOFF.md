@@ -6,7 +6,9 @@ Branch `claude/project-thread-wi5qfs` from main 3473b05. `packages/domain/src/co
 
 Review 1 fixes: `packages/db/src/studio-lock.ts` (`takeStudioLock`, `STUDIO_LOCK_KEY` 4310108, holder named via `application_name`), taken in `scripts/dev.mjs` after port planning and in `serveStudio` before listening (`STUDIO_RUNNING`, exit 7; Rust shows it under its default arm). `apps/desktop/worker.mjs` `approvalOrigin`. `ports.ts` `system32()`, `CREATOR_PORT_FALLBACK` spellings. Tests: `tests/src/studio-lock.test.ts`, more in `dev-ports.test.ts` and `studio-service.test.ts`. Next: re-review.
 
-Review 2 fixes: `takeStudioLock(url, label, { onLost, onNote, connectMs, retryMs })` watches its connection's `end` and retakes with backoff (1/2/5/10 s); `onLost` when another studio holds it. `apps/api/src/studio-guard.ts` `guardStudio(env, label, onLost)` (exported as `@creator/api/studio-guard`) is used by `scripts/dev.mjs` and `apps/api/src/main.ts`; `serveStudio` races `stop` with the lost lock. Next: re-review.
+Review 2 fixes: `takeStudioLock(url, label, { onLost, onNote, connectMs, retryMs })` watches its connection's `end` and retakes with backoff (1/2/5/10 s); `onLost` when another studio holds it. `apps/api/src/studio-guard.ts` `guardStudio(env, label, onLost)` (exported as `@creator/api/studio-guard`) is used by `scripts/dev.mjs` and `apps/api/src/main.ts`; `serveStudio` races `stop` with the lost lock.
+
+Review 3 nits: `studio.rs` STUDIO_RUNNING arm (title, hint, hide the studio window, show the status window); `main.ts` default `shutdown` exits. No further review; PR marked ready. Rust not compiled in the cloud.
 
 ## November 14 handoff — B1: building qualified in the app (ADR-0105, migration 65)
 

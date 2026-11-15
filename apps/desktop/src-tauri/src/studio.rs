@@ -600,11 +600,22 @@ impl Supervisor {
                         }
                         "DATABASE_UNAVAILABLE" => ("The studio database is not reachable", message),
                         "DATABASE_NEWER" => ("This app is older than the studio database", message),
+                        // ADR-0108: refused at start, or stopped because another studio took
+                        // the database while this one's connection to it was down.
+                        "STUDIO_RUNNING" => (
+                            "Another studio is using this database",
+                            format!("{message} Close the other studio (or its development terminal), then choose Retry."),
+                        ),
                         _ => ("The studio service could not start", message),
                     };
                     let mut s = Status::new("failed", title, &hint);
                     s.action = Some("retry");
                     self.set(s);
+                    if code == "STUDIO_RUNNING" {
+                        // The studio window would show a service that has stopped serving.
+                        crate::hide_studio(&self.app);
+                        crate::show_control(&self.app);
+                    }
                 }
                 _ => {}
             }

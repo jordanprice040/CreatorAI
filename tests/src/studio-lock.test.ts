@@ -251,3 +251,47 @@ test('the dev launchers read the URL from its file, explain a bad URL, and refus
   assert.equal(code, 1, out);
   assert.match(out, /already running on this database \(from file\)/);
 });
+
+test('`pnpm dev:api` stops when another studio takes its database during a connection drop (review 3 N-2)', async (t) => {
+  const db = await freshDatabase(t);
+  if (!db) return;
+  const child = spawn(process.execPath, ['apps/api/dist/main.js'], {
+    windowsHide: true,
+    env: {
+      ...process.env,
+      CREATOR_DATABASE_URL: db.url,
+      CREATOR_API_PORT: String(await freePort()),
+      CREATOR_PREVIEW_PORT: String(await freePort()),
+      CREATOR_WORKER: 'off',
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const exited = once(child, 'exit');
+  t.after(() => child.kill());
+  let out = '';
+  child.stdout.on('data', (b) => (out += b));
+  child.stderr.on('data', (b) => (out += b));
+  await until('dev:api serving', () => /Private previews/.test(out));
+  const other = new pg.Client({
+    connectionString: db.url,
+    application_name: 'creator-agent-studio pnpm dev, web port 5273',
+  });
+  other.on('error', () => undefined);
+  await other.connect();
+  t.after(() => other.end().catch(() => undefined));
+  const pid = await holderPid(db.pool);
+  assert.ok(pid);
+  const waiting = other.query('select pg_advisory_lock($1)', [STUDIO_LOCK_KEY]);
+  await until('the other studio waits', async () => {
+    const r = await db.pool.query(
+      `select count(*)::int as n from pg_locks where locktype = 'advisory' and not granted and objid = $1`,
+      [STUDIO_LOCK_KEY],
+    );
+    return r.rows[0].n === 1;
+  });
+  await db.pool.query('select pg_terminate_backend($1)', [pid]);
+  await waiting;
+  const [code] = await exited;
+  assert.equal(code, 1, out);
+  assert.match(out, /another studio started on this database/);
+});

@@ -26,7 +26,9 @@ export function loginNotice(
 }
 // ADR-0108 (review 2 L-3): `pnpm dev:api` runs the in-process workflow worker too, so it
 // holds the one-studio-per-database lock like `pnpm dev` (not in a hosted deployment).
-let shutdown: () => Promise<void> = async () => undefined;
+// Until the servers are set up below, losing the lock ends the process outright (review 3
+// N-2); afterwards `shutdown` closes the API and its worker first.
+let shutdown: () => Promise<void> = async () => process.exit(1);
 const guard = await guardStudio(
   process.env,
   `pnpm dev:api, process ${process.pid}`,
