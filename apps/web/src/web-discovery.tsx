@@ -128,7 +128,7 @@ export function WebDiscover({
   const [exclusions, setExclusions] = useState('');
   const [skip, setSkip] = useState('');
   useEffect(() => {
-    if (sites) setSkip(sites.skip);
+    if (sites?.skip !== undefined) setSkip(sites.skip);
   }, [sites?.nonce]);
   const [maxFetches, setMaxFetches] = useState(8);
   const [maxClaims, setMaxClaims] = useState(8);

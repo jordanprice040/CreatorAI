@@ -6,6 +6,8 @@ What now works: Discover › Discover from claims lists past discoveries ("Start
 
 Checked in the cloud container on a throwaway PostgreSQL 16 database: `pnpm typecheck`, `pnpm format:check`; new `tests/src/past-projects.test.ts` (store: setup only, newest first, exploration websites, one entry per brief, no claim/budget/price-list ids, redacted brief skipped, non-member refused) and `tests/src/web-past-project.test.ts` (form mapping and fallbacks); `workflow-api.test.ts` checks the route. Walk on a throwaway studio (dev-double, ports 5183/4330/4340, `seed-discovery`) at 1440 and 390 px: picker and notice render, fold summaries say "the past project", no axe serious/critical, no sideways scroll, no console errors (`tracking/evidence/f9-past-project/`). Full `pnpm test:db`: see the PR.
 
+Review 1 fixes (M-1, L-1 to L-4, five nits) are in; on a throwaway database with 300,000 extra audit events the batched exploration lookup takes 24 ms in one scan, where the old per-run lookup took about 33 ms per past discovery (100 ms for 3).
+
 Not done: no live run or device walk; the walk's past projects came from fixture discoveries without an exploration, so the website hand-off is covered by tests only.
 ## November 15 update — the frozen extra-large build benchmark p14-xl-v1 (ADR-0114, no migration)
 

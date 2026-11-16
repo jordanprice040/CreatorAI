@@ -24,14 +24,24 @@ type Fill = {
   notes: string[];
 };
 type Settings = { dataClass: string; oversight: string; route: string };
-type Conn = { id: string; label: string; models: string[] };
+type Conn = {
+  id: string;
+  label: string;
+  models: string[];
+  qualified: string[];
+  blockers: string[];
+  allowedDataClasses: string[];
+};
+type Handoff = { only?: string; skip?: string; nonce: number } | null;
 type Mod = {
   fillFromPast: (
     p: PastProject,
     o: { fixture: boolean; defaults: Settings; connections: Conn[] },
   ) => Fill;
   copiedSettings: (f: Fill) => Record<string, unknown>;
-  pastProjectLabel: (p: PastProject) => string;
+  pastProjectLabel: (p: PastProject, day?: (iso: string) => string) => string;
+  sitesHandoff: (f: Fill, nonce: number) => Handoff;
+  sitesText: (f: Fill) => string;
   NOT_COPIED: string;
 };
 type Defaults = { studioDefaults: (fixture: boolean) => Settings };
@@ -84,6 +94,9 @@ const conn = {
   id: '55555555-5555-4555-8555-555555555555',
   label: 'ChatGPT plan',
   models: ['gpt-6-astra'],
+  qualified: ['gpt-6-astra'],
+  blockers: [],
+  allowedDataClasses: ['synthetic', 'public'],
 };
 
 test('a past project fills the brief, settings, websites and connection, and nothing else', async () => {
@@ -153,7 +166,7 @@ test('what cannot be copied as it was falls back and says why', async () => {
     ...opts,
     connections: [{ ...conn, models: ['other-model'] }],
   });
-  assert.equal(stale.connectionId, conn.id);
+  assert.equal(stale.connectionId, '');
   assert.equal(stale.model, '');
   assert.match(stale.notes.join(' '), /no longer a verified model/);
 
@@ -188,7 +201,7 @@ test('what cannot be copied as it was falls back and says why', async () => {
 test('the picker label names the theme, the day and how it ended', async () => {
   const m = (await loadWeb('past-project.ts')) as Mod;
   assert.equal(
-    m.pastProjectLabel(past({ state: 'cancelled' })),
+    m.pastProjectLabel(past({ state: 'cancelled' }), (iso) => iso.slice(0, 10)),
     'Missed first appointments at rural clinics · 2026-11-10 · stopped',
   );
   const long = 'x'.repeat(120);
@@ -198,4 +211,78 @@ test('the picker label names the theme, the day and how it ended', async () => {
     }),
   );
   assert.ok(label.startsWith(`${'x'.repeat(69)}…`));
+});
+
+test('review 1 L-1: a past connection that cannot run a discovery now is not selected', async () => {
+  const m = (await loadWeb('past-project.ts')) as Mod;
+  const d = (await loadWeb('discover-defaults.ts')) as Defaults;
+  const defaults = d.studioDefaults(false);
+  const pick = (c: Partial<Conn>) =>
+    m.fillFromPast(past(), {
+      fixture: false,
+      defaults,
+      connections: [{ ...conn, ...c }],
+    });
+  const signedOut = pick({ blockers: ['Sign in with ChatGPT again'] });
+  assert.equal(signedOut.connectionId, '');
+  assert.equal(signedOut.model, '');
+  assert.match(
+    signedOut.notes.join(' '),
+    /can't run a discovery right now \(Sign in/,
+  );
+  const noPublic = pick({ allowedDataClasses: ['synthetic'] });
+  assert.equal(noPublic.connectionId, '');
+  assert.match(noPublic.notes.join(' '), /does not allow public data/);
+  const unqualified = pick({ qualified: [] });
+  assert.equal(unqualified.connectionId, '');
+  assert.match(
+    unqualified.notes.join(' '),
+    /not qualified for every discovery step/,
+  );
+  // A ready connection with a qualified model is selected, with no note.
+  const ready = pick({});
+  assert.equal(ready.connectionId, conn.id);
+  assert.deepEqual(ready.notes, []);
+});
+
+test('review 1 L-3, N-1, N-4: only the website lists it had are handed on, said in words', async () => {
+  const m = (await loadWeb('past-project.ts')) as Mod;
+  const d = (await loadWeb('discover-defaults.ts')) as Defaults;
+  const opts = {
+    fixture: false,
+    defaults: d.studioDefaults(false),
+    connections: [conn],
+  };
+  const sites = (only: string[], skip: string[]) =>
+    m.fillFromPast(
+      past({
+        sites: { exploration_id: null, only_hosts: only, excluded_hosts: skip },
+      }),
+      opts,
+    );
+  // None: nothing is handed on, so lists typed on the other panels stay.
+  const none = sites([], []);
+  assert.equal(m.sitesHandoff(none, 1), null);
+  assert.equal(m.sitesText(none), '');
+  // Only "only these": Explore gets it; the skip fields are left alone.
+  const only = sites(['who.int'], []);
+  assert.deepEqual(m.sitesHandoff(only, 2), { only: 'who.int', nonce: 2 });
+  assert.match(
+    m.sitesText(only),
+    /only-these website list .* Explore for me\.$/,
+  );
+  assert.doesNotMatch(m.sitesText(only), /Search the web/);
+  const skip = sites([], ['ads.example']);
+  assert.deepEqual(m.sitesHandoff(skip, 3), { skip: 'ads.example', nonce: 3 });
+  assert.match(m.sitesText(skip), /Explore for me and Search the web/);
+  // A fixture workspace says why a public project starts synthetic.
+  const fx = m.fillFromPast(past(), {
+    ...opts,
+    fixture: true,
+    defaults: d.studioDefaults(true),
+  });
+  assert.equal(fx.dataClass, 'synthetic');
+  assert.match(fx.notes.join(' '), /fixture workspace/);
+  // N-2: the brief's own budget text is copied; only API budgets and price lists are not.
+  assert.match(m.NOT_COPIED, /API budgets and price lists/);
 });

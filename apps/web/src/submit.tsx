@@ -101,6 +101,9 @@ import {
   copiedSettings,
   fillFromPast,
   pastProjectLabel,
+  sitesHandoff,
+  sitesText,
+  startedDay,
   type SitesHandoff,
 } from './past-project.js';
 import './past-project.css';
@@ -259,37 +262,24 @@ export function Submit({
   useQualifyOffers(base);
   const ctx = useLoad(async () => {
     let connectionError = '';
-    const [
-      claims,
-      runs,
-      workflows,
-      envelopes,
-      pricing,
-      connections,
-      names,
-      past,
-    ] = await Promise.all([
-      api(
-        z.array(StoredEntitySchema),
-        `${base}/entities?kind=claim&status=active`,
-      ),
-      api(z.array(RunControlSchema), `${base}/runs`),
-      api(z.array(WorkflowSchema), `${base}/workflows`),
-      api(z.array(EnvelopeSchema), `${base}/budgets`),
-      api(z.array(PricingSnapshotSchema), `${base}/pricing`),
-      api(z.array(PlanConnectionSchema), `${base}/plan-connections`).catch(
-        (e) => {
-          connectionError = `Could not load connections: ${message(e)}`;
-          return [];
-        },
-      ),
-      runNames(base),
-      // F9 (ADR-0125): past projects to start a similar one from; optional, so a failed
-      // read only leaves the picker out.
-      api(PastProjectsSchema, `${base}/past-projects`).catch(
-        () => [] as PastProject[],
-      ),
-    ]);
+    const [claims, runs, workflows, envelopes, pricing, connections, names] =
+      await Promise.all([
+        api(
+          z.array(StoredEntitySchema),
+          `${base}/entities?kind=claim&status=active`,
+        ),
+        api(z.array(RunControlSchema), `${base}/runs`),
+        api(z.array(WorkflowSchema), `${base}/workflows`),
+        api(z.array(EnvelopeSchema), `${base}/budgets`),
+        api(z.array(PricingSnapshotSchema), `${base}/pricing`),
+        api(z.array(PlanConnectionSchema), `${base}/plan-connections`).catch(
+          (e) => {
+            connectionError = `Could not load connections: ${message(e)}`;
+            return [];
+          },
+        ),
+        runNames(base),
+      ]);
     const planDetails = await Promise.all(
       connections.map((conn) =>
         api(
@@ -334,9 +324,18 @@ export function Submit({
       planDetails: planDetails.filter((p) => p !== null),
       connectionError,
       ceiling,
-      past,
     };
   }, [workspace.id]);
+  // F9 (ADR-0125): past projects to start a similar one from. Read on its own (review 1 M-1),
+  // so the form never waits for it; optional, so a failed read only leaves the picker out.
+  const pastLoad = useLoad(
+    () =>
+      api(PastProjectsSchema, `${base}/past-projects`).catch(
+        () => [] as PastProject[],
+      ),
+    [workspace.id],
+  );
+  const past = pastLoad.data ?? [];
   // useLoad reads again, quietly, each time this page is shown (coming back from Decisions
   // or anywhere), so the current state shows without a manual refresh; typed fields are kept.
 
@@ -421,15 +420,23 @@ export function Submit({
   const [dataClass, setDataClass] = useState<DataClass>(start.dataClass);
   const [revisions, setRevisions] = useState(start.revisions);
   const [presetNote, setPresetNote] = useState('');
-  // F9 (ADR-0125): a past project the form was filled from, what it set, and its notes.
-  const [maxAge, setMaxAge] = useState(180);
+  // F9 (ADR-0125): the past project the form was filled from, in the workspace it was used
+  // in. Its stale-after days and website lists apply only while its notice shows (review 1
+  // L-2), and only in that workspace (L-4): clearing it puts both back.
   const [pastPick, setPastPick] = useState('');
-  const [copiedFrom, setCopiedFrom] = useState<{
+  const [copy, setCopy] = useState<{
+    ws: string;
     project: PastProject;
     settings: Partial<RoutineSettings>;
     notes: string[];
+    sitesNote: string;
+    maxAge: number;
+    sites: SitesHandoff;
   } | null>(null);
-  const [sites, setSites] = useState<SitesHandoff>(null);
+  const copiedFrom = copy?.ws === workspace.id ? copy : null;
+  const maxAge = copiedFrom?.maxAge ?? 180;
+  const sites = copiedFrom?.sites ?? null;
+  useEffect(() => setPastPick(''), [workspace.id]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [errorFixes, setErrorFixes] = useState<FixAction[]>([]);
@@ -476,7 +483,7 @@ export function Submit({
     );
     setOpenClaims(new Set(picked.map((x) => x.claim_id)));
     setExplored(pick.brief);
-    setCopiedFrom(null);
+    setCopy(null);
     setTried(false);
     reveal(sectionRef.current, 'discover');
   }
@@ -980,7 +987,7 @@ export function Submit({
         }).catch(() => undefined);
       setExplored(null);
       setAgainst(new Set());
-      setCopiedFrom(null);
+      setCopy(null);
       setStartedId(started.workflow.id);
     } catch (err) {
       setError(message(err));
@@ -1008,6 +1015,13 @@ export function Submit({
         id: d.connection.id,
         label: d.connection.label,
         models: verifiedModels(d),
+        qualified: verifiedModels(d).filter((m) =>
+          DISCOVERY_CLASSES.every((tc) =>
+            isDiscoveryQualified(d.qualifications, m, tc),
+          ),
+        ),
+        blockers: [...d.blockers],
+        allowedDataClasses: [...d.connection.settings.allowed_data_classes],
       })),
     });
     setTheme(f.theme);
@@ -1024,7 +1038,6 @@ export function Submit({
     setConstraints(f.constraints);
     setExcluded(f.excluded);
     setRevisions(f.revisions);
-    setMaxAge(f.maxAgeDays);
     setDataClass(f.dataClass);
     setNewMode(f.oversight);
     setResourceKind(f.route);
@@ -1039,8 +1052,15 @@ export function Submit({
     setAgainst(new Set());
     setExplored(null);
     setTried(false);
-    setSites({ only: f.onlySites, skip: f.skipSites, nonce: Date.now() });
-    setCopiedFrom({ project: p, settings: copiedSettings(f), notes: f.notes });
+    setCopy({
+      ws: workspace.id,
+      project: p,
+      settings: copiedSettings(f),
+      notes: f.notes,
+      sitesNote: sitesText(f),
+      maxAge: f.maxAgeDays,
+      sites: sitesHandoff(f, Date.now()),
+    });
   }
   const viewer = workspace.role === 'viewer';
   return (
@@ -1154,7 +1174,7 @@ export function Submit({
           {guided &&
             ' Routine settings use the defaults shown under each fold.'}
         </p>
-        {!viewer && c && c.past.length > 0 && (
+        {!viewer && past.length > 0 && (
           <div className="past-start">
             <label htmlFor="b-past">Start from a past project (optional)</label>
             <div className="past-row">
@@ -1165,7 +1185,7 @@ export function Submit({
                 onChange={(e) => setPastPick(e.target.value)}
               >
                 <option value="">Choose a past project…</option>
-                {c.past.map((p) => (
+                {past.map((p) => (
                   <option key={p.workflow_id} value={p.workflow_id}>
                     {pastProjectLabel(p)}
                   </option>
@@ -1174,9 +1194,9 @@ export function Submit({
               <button
                 type="button"
                 className="secondary"
-                disabled={!c.past.some((p) => p.workflow_id === pastPick)}
+                disabled={!past.some((p) => p.workflow_id === pastPick)}
                 onClick={() => {
-                  const p = c.past.find((x) => x.workflow_id === pastPick);
+                  const p = past.find((x) => x.workflow_id === pastPick);
                   if (p) startFromPast(p);
                 }}
               >
@@ -1195,11 +1215,9 @@ export function Submit({
             <p>
               <strong>Filled from a past project:</strong>{' '}
               {copiedFrom.project.brief.body.theme} (started{' '}
-              {copiedFrom.project.started_at.slice(0, 10)}). Check every field
+              {startedDay(copiedFrom.project.started_at)}). Check every field
               before starting; this starts a new brief and a new run.
-              {(copiedFrom.project.sites.only_hosts.length > 0 ||
-                copiedFrom.project.sites.excluded_hosts.length > 0) &&
-                ' Its website lists are filled in on Explore for me and Search the web.'}
+              {copiedFrom.sitesNote && ` ${copiedFrom.sitesNote}`}
               {maxAge !== 180 &&
                 ` Passages older than ${maxAge} days count as stale, as they did there.`}
             </p>

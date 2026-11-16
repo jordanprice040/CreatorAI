@@ -20,40 +20,50 @@ export async function pastProjects(
   c: PoolClient,
   ws: string,
 ): Promise<PastProject[]> {
+  // Review 1 M-1: one row per brief version in SQL (the newest run that used it), and the
+  // exploration links read in one batched query below, not one audit-log scan per run.
   const { rows } = await c.query(
-    `select w.id, w.run_id, w.state, w.created_at, w.data_class, w.resource_setup,
-            w.envelope_id,
-            w.subject_id, w.subject_version,
-            w.context->'perspectives' as perspectives,
-            w.context->'excluded' as excluded,
-            w.context->'max_revisions' as max_revisions,
-            w.context->'packet'->'max_age_days' as max_age_days,
-            v.title, v.body, r.autonomy_mode,
-            (select a.payload->>'workflow_id' from audit_events a
-              where a.workspace_id = w.workspace_id
-                and a.action = 'exploration.brief_created'
-                and a.subject_id = w.subject_id
-              order by a.sequence desc limit 1) as exploration_id
-       from workflows w
-       join entity_versions v
-         on v.workspace_id = w.workspace_id and v.entity_id = w.subject_id
-        and v.version = w.subject_version
-       left join run_controls r
-         on r.workspace_id = w.workspace_id and r.run_id = w.run_id
-      where w.workspace_id = $1 and w.role = 'r02_discovery' and v.body is not null
-        and not exists (select 1 from study_attempts s
-                         where s.workspace_id = w.workspace_id and s.run_id = w.run_id)
-      order by w.created_at desc, w.id
-      limit 200`,
-    [ws],
+    `select * from (
+       select distinct on (w.subject_id, w.subject_version)
+              w.id, w.run_id, w.state, w.created_at, w.data_class, w.resource_setup,
+              w.envelope_id, w.subject_id, w.subject_version,
+              w.context->'perspectives' as perspectives,
+              w.context->'excluded' as excluded,
+              w.context->'max_revisions' as max_revisions,
+              w.context->'packet'->'max_age_days' as max_age_days,
+              v.title, v.body, r.autonomy_mode
+         from workflows w
+         join entity_versions v
+           on v.workspace_id = w.workspace_id and v.entity_id = w.subject_id
+          and v.version = w.subject_version
+         left join run_controls r
+           on r.workspace_id = w.workspace_id and r.run_id = w.run_id
+        where w.workspace_id = $1 and w.role = 'r02_discovery' and v.body is not null
+          and not exists (select 1 from study_attempts s
+                           where s.workspace_id = w.workspace_id and s.run_id = w.run_id)
+        order by w.subject_id, w.subject_version, w.created_at desc, w.id
+     ) newest
+     order by created_at desc, id
+     limit $2`,
+    // A little slack for entries skipped below because they no longer parse.
+    [ws, PAST_PROJECTS_MAX * 2],
   );
-  const explorations = [
-    ...new Set(
-      rows
-        .map((r: Row) => r.exploration_id)
-        .filter((x): x is string => typeof x === 'string'),
-    ),
-  ];
+  const briefs = [...new Set(rows.map((r: Row) => String(r.subject_id)))];
+  const picked = new Map<string, string>();
+  if (briefs.length) {
+    const links = await c.query(
+      `select distinct on (subject_id) subject_id, payload->>'workflow_id' as workflow_id
+         from audit_events
+        where workspace_id = $1 and action = 'exploration.brief_created'
+          and subject_id = any($2::uuid[])
+        order by subject_id, sequence desc`,
+      [ws, briefs],
+    );
+    for (const r of links.rows as Row[])
+      if (typeof r.workflow_id === 'string')
+        picked.set(String(r.subject_id), r.workflow_id);
+  }
+  const explorations = [...new Set(picked.values())];
   const scopes = new Map<string, Row>();
   if (explorations.length) {
     const found = await c.query(
@@ -66,16 +76,11 @@ export async function pastProjects(
       if (r.scope && typeof r.scope === 'object')
         scopes.set(String(r.id), r.scope as Row);
   }
-  const seen = new Set<string>();
   const out: PastProject[] = [];
   for (const r of rows as Row[]) {
     if (out.length >= PAST_PROJECTS_MAX) break;
-    const key = `${String(r.subject_id)}:${Number(r.subject_version)}`;
-    if (seen.has(key)) continue;
-    const explorationId =
-      typeof r.exploration_id === 'string' && scopes.has(r.exploration_id)
-        ? r.exploration_id
-        : null;
+    const link = picked.get(String(r.subject_id));
+    const explorationId = link && scopes.has(link) ? link : null;
     const scope = explorationId ? scopes.get(explorationId) : undefined;
     const parsed = PastProjectSchema.safeParse({
       workflow_id: String(r.id),
@@ -104,7 +109,6 @@ export async function pastProjects(
       connection: connectionOf(r.resource_setup, r.envelope_id),
     });
     if (!parsed.success) continue;
-    seen.add(key);
     out.push(parsed.data);
   }
   return out;

@@ -34,7 +34,7 @@ export type PastProjectFill = {
   /** The plan connection and model to select; empty leaves the form's own default. */
   connectionId: string;
   model: string;
-  /** For Explore for me and Search the web, one website per line. */
+  /** For Explore for me and Search the web, one website per line; empty when it had none. */
   onlySites: string;
   skipSites: string;
   /** Plain-words notes on what was not copied as it was, and why. */
@@ -45,21 +45,64 @@ export type PastProjectFill = {
  * Websites handed to Explore for me and Search the web, one per line. Each hand-off has its
  * own nonce, so using the same past project twice fills the fields again.
  */
-export type SitesHandoff = { only: string; skip: string; nonce: number } | null;
+export type SitesHandoff = {
+  /** Left out when the past project had no such list, so a typed list is kept (review 1 L-3). */
+  only?: string;
+  skip?: string;
+  nonce: number;
+} | null;
 
-/** A plan connection the form can offer now, with its verified models. */
-export type ConnectionNow = { id: string; label: string; models: string[] };
+/** The website lists a fill hands on: only those the past project had. */
+export function sitesHandoff(f: PastProjectFill, nonce: number): SitesHandoff {
+  if (!f.onlySites && !f.skipSites) return null;
+  return {
+    ...(f.onlySites ? { only: f.onlySites } : {}),
+    ...(f.skipSites ? { skip: f.skipSites } : {}),
+    nonce,
+  };
+}
+
+/** Where the website lists went, in words (review 1 N-1); empty when there were none. */
+export function sitesText(f: PastProjectFill): string {
+  if (f.onlySites && f.skipSites)
+    return 'Its websites are filled in: the only-these and skip lists on Explore for me, and the skip list on Search the web.';
+  if (f.onlySites)
+    return 'Its only-these website list is filled in on Explore for me.';
+  if (f.skipSites)
+    return 'Its skip website list is filled in on Explore for me and Search the web.';
+  return '';
+}
+
+/**
+ * A plan connection as the form sees it now: its verified models, the models qualified for
+ * every discovery step, why it refuses (blockers) and the data classes it allows.
+ */
+export type ConnectionNow = {
+  id: string;
+  label: string;
+  models: string[];
+  qualified: string[];
+  blockers: string[];
+  allowedDataClasses: string[];
+};
 
 /** Always said: what a new project never takes from a past one. */
 export const NOT_COPIED =
-  'Claims, evidence roles, approvals, decisions, budgets and routine approvals are not copied: attach the claims this project rests on and confirm each permission again.';
+  'Claims, evidence roles, approvals, decisions, API budgets and price lists, and routine approvals are not copied: attach the claims this project rests on and confirm each permission again.';
+
+/** The day a past project started, in this browser's time zone (review 1 N-3). */
+export const startedDay = (iso: string) =>
+  new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' });
 
 /** A short label for a past project in the picker. */
-export function pastProjectLabel(p: PastProject): string {
-  const day = p.started_at.slice(0, 10);
+export function pastProjectLabel(
+  p: PastProject,
+  day: (iso: string) => string = startedDay,
+): string {
+  const started = day(p.started_at);
   const title = p.brief.body.theme || p.brief.title;
   const cut = title.length > 70 ? `${title.slice(0, 69)}…` : title;
-  return `${cut} · ${day} · ${STATE[p.state] ?? p.state}`;
+  return `${cut} · ${started} · ${STATE[p.state] ?? p.state}`;
 }
 
 const STATE: Record<string, string> = {
@@ -101,7 +144,12 @@ export function fillFromPast(
   const notes: string[] = [];
 
   let dataClass: DataClass = s.data_class;
-  if (opts.fixture && dataClass !== 'synthetic') dataClass = 'synthetic';
+  if (opts.fixture && dataClass !== 'synthetic') {
+    dataClass = 'synthetic';
+    notes.push(
+      'This is a fixture workspace, so it starts with synthetic data whatever the past project used.',
+    );
+  }
   if (dataClass === 'private_approved') {
     // Defaults and presets never hold the private class (discover-defaults parsePreset).
     dataClass = d.dataClass;
@@ -138,17 +186,31 @@ export function fillFromPast(
   } else if (conn?.kind === 'subscription') {
     route = 'subscription';
     const now = opts.connections.find((x) => x.id === conn.connection_id);
+    // Review 1 L-1: the past connection and model are selected only when they can run a
+    // discovery now; otherwise the form keeps its own default, which skips blocked ones.
     if (!now)
       notes.push(
         'Its plan connection is no longer listed, so the usual connection is selected.',
       );
+    else if (now.blockers.length)
+      notes.push(
+        `Its plan connection ${now.label} can't run a discovery right now (${now.blockers[0]}), so the usual connection is selected.`,
+      );
+    else if (!now.allowedDataClasses.includes(dataClass))
+      notes.push(
+        `${now.label} does not allow ${DATA_TEXT[dataClass]} data, so the usual connection is selected.`,
+      );
+    else if (!now.models.includes(conn.model_id))
+      notes.push(
+        `${conn.model_id} is no longer a verified model on ${now.label}, so the usual connection and model are selected.`,
+      );
+    else if (!now.qualified.includes(conn.model_id))
+      notes.push(
+        `${conn.model_id} is not qualified for every discovery step on ${now.label}, so the usual connection and model are selected.`,
+      );
     else {
       connectionId = now.id;
-      if (now.models.includes(conn.model_id)) model = conn.model_id;
-      else
-        notes.push(
-          `${conn.model_id} is no longer a verified model on ${now.label}, so its usual model is selected.`,
-        );
+      model = conn.model_id;
     }
   } else if (conn?.kind === 'local')
     notes.push(

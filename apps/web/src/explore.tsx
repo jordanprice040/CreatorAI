@@ -175,8 +175,8 @@ export function Explore({
   const [skip, setSkip] = useState('');
   useEffect(() => {
     if (!sites) return;
-    setOnly(sites.only);
-    setSkip(sites.skip);
+    if (sites.only !== undefined) setOnly(sites.only);
+    if (sites.skip !== undefined) setSkip(sites.skip);
   }, [sites?.nonce]);
   const [maxCandidates, setMaxCandidates] = useState(3);
   const [maxClaims, setMaxClaims] = useState(30);
