@@ -29,6 +29,7 @@ import {
   type EntityDetail,
 } from '@creator/contracts';
 import { canonicalHash } from '@creator/domain';
+import { consumeNotifications } from './notifications.js';
 
 export interface Actor {
   id: string;
@@ -1358,6 +1359,8 @@ export class Store {
     const e = rows[0] as Row | undefined;
     if (!e) throw fail('NOT_FOUND', 'Audit event not found.');
     await this.consume(c, e);
+    // ADR-0116 (N1): notifications claim the event in their own inbox row, like history.
+    await consumeNotifications(c, e);
     const claim = await c.query(
       'insert into consumer_inbox (consumer, event_id) values ($1, $2) on conflict do nothing',
       [HISTORY_CONSUMER, eventId],

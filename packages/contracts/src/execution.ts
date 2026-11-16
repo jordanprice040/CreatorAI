@@ -356,6 +356,7 @@ export const HealthSchema = z.strictObject({
       outbox: MaintenanceJobSchema,
       broker_recovery: MaintenanceJobSchema,
       retrieval_recovery: MaintenanceJobSchema,
+      notifications: MaintenanceJobSchema,
     }),
   }),
   /** Durable portfolio scheduler state (owner decision 2026-10-20); codes only, no messages. */

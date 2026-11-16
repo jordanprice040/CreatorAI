@@ -3909,6 +3909,61 @@ create index spending_refusals_recent on spending_refusals (created_at desc);
 `,
   },
   {
+    // ADR-0116 (N1): durable per-person notifications. A notification only links to the place to
+    // act. `notification_sources` names why each row exists (an audit event id or a hook's stable
+    // key), so a replayed event or a repeated hook changes nothing; distinct sources with the
+    // same dedup key raise `occurrences` without a second interruption. At most one client wins
+    // the interruption: the claim is a conditional update from 'pending'.
+    version: 70,
+    name: 'notifications',
+    sql: `
+create table notification_preferences (
+ actor_id uuid primary key references actors(id),
+ version integer not null check (version >= 1),
+ body jsonb not null check (jsonb_typeof(body) = 'object'),
+ updated_at timestamptz not null default clock_timestamp()
+);
+create table notifications (
+ id uuid primary key,
+ actor_id uuid not null references actors(id),
+ workspace_id uuid references workspaces(id),
+ event_key text not null check (length(event_key) between 1 and 60),
+ severity text not null check (severity in ('needs_you', 'warning', 'info')),
+ mode text not null check (mode in ('interrupt', 'toast_only', 'inbox')),
+ title text not null check (length(title) between 1 and 140),
+ body text not null default '' check (length(body) <= 400),
+ link text not null check (length(link) between 2 and 300 and link like '#/%'),
+ subject_kind text not null check (length(subject_kind) between 1 and 40),
+ subject_id text not null check (length(subject_id) between 1 and 80),
+ dedupe_key text not null check (length(dedupe_key) between 1 and 200),
+ occurrences integer not null default 1 check (occurrences >= 1),
+ interrupt_state text not null check (interrupt_state in ('pending', 'claimed', 'none', 'held_quiet', 'expired')),
+ interrupted_via text check (interrupted_via in ('toast', 'windows', 'digest')),
+ interrupted_at timestamptz,
+ batch_id uuid,
+ first_at timestamptz not null default clock_timestamp(),
+ last_at timestamptz not null default clock_timestamp(),
+ read_at timestamptz,
+ dismissed_at timestamptz,
+ withdrawn_at timestamptz,
+ unique (actor_id, dedupe_key),
+ check ((interrupt_state = 'claimed') = (interrupted_via is not null)),
+ check ((interrupted_via is null) = (interrupted_at is null)),
+ check (batch_id is null or interrupt_state <> 'pending')
+);
+create index notifications_inbox on notifications (actor_id, read_at, last_at desc);
+create index notifications_pending on notifications (actor_id, first_at) where interrupt_state = 'pending';
+create table notification_sources (
+ notification_id uuid not null references notifications(id) on delete cascade,
+ source_key text not null check (length(source_key) between 1 and 200),
+ actor_id uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ primary key (notification_id, source_key),
+ unique (actor_id, source_key)
+);
+`,
+  },
+  {
     // ADR-0122 (F13): the study effort timer. A step starts on the server clock; its browser
     // totals arrive once, with the intervention that ends it. Both rows are append-only, and an
     // unfinished step stays visible. Versions 70-71 are reserved by other milestones.
