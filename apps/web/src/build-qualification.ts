@@ -239,6 +239,6 @@ export function pythonBuildNote(
       ? `This task froze ${cases} cases, so its package will be an unqualified trial`
       : 'If the package has more than one Python file, it will be labelled an unqualified trial';
   return route.kind === 'roles'
-    ? `${when}: ${route.model_id} has not passed p14-larger-ledgercheck-v5 on this connection with today's role prompts. Qualify building under Models and connections to lift the label.`
+    ? `${when}: ${route.model_id} has not passed p14-larger-ledgercheck-v5 or v6 on this connection with today's role prompts. Qualify building under Models and connections to lift the label.`
     : `${when}: this route (${route.kind === 'codex' ? 'the Codex builder' : 'the pay-per-use broker'}) has no build qualification, so the label cannot be lifted here.`;
 }
