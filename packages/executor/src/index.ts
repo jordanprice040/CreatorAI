@@ -6,6 +6,7 @@ export * from './build-progress.js';
 export * from './builder-answer.js';
 export * from './tar.js';
 export * from './artifacts.js';
+export * from './storage-usage.js';
 export * from './study-build.js';
 export * from './paired.js';
 export * from './codex-host.js';

@@ -11,6 +11,8 @@ import {
   digest,
   pathSchema,
   runStudyBuild,
+  restoreBuildWorkspace,
+  restoreTaskWorkspace,
   type BuildPorts,
   bindingSchema,
   type Binding,
@@ -778,6 +780,8 @@ export async function runCli(
           if (refusal)
             throw new Error(`This build can't start yet. ${refusal}`);
         }
+        // ADR-0121: a checkout removed by storage cleanup comes back from its branch first.
+        await restoreTaskWorkspace(local, rest[0]!, rest[1]!);
         data = await new BuildSupervisor(local, executor).run(
           rest[0]!,
           rest[1]!,
@@ -789,6 +793,10 @@ export async function runCli(
         break;
       }
       case 'build-status':
+        // Review N-6: a read; only a checkout cleanup removed is made again, nothing moves.
+        await restoreBuildWorkspace(local, rest[0]!, rest[1]!, {
+          onlyIfMissing: true,
+        });
         data = await new BuildSupervisor(local, executor).status(
           rest[0]!,
           rest[1]!,
@@ -1002,6 +1010,7 @@ export async function runCli(
         );
         break;
       case 'product-patch':
+        await restoreTaskWorkspace(local, rest[0]!, rest[1]!);
         data = await local.apply(
           rest[0]!,
           rest[1]!,
@@ -1010,6 +1019,7 @@ export async function runCli(
         );
         break;
       case 'product-integrate':
+        await restoreTaskWorkspace(local, rest[0]!, rest[1]!);
         data = await local.integrate(
           rest[0]!,
           rest[1]!,
@@ -1019,6 +1029,7 @@ export async function runCli(
         );
         break;
       case 'product-build':
+        await restoreTaskWorkspace(local, rest[0]!, rest[1]!);
         data = await executor.run(
           rest[0]!,
           rest[1]!,

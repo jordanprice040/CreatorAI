@@ -72,6 +72,9 @@ const Files = lazy(() =>
 const Operations = lazy(() =>
   import('./operations.js').then((m) => ({ default: m.Operations })),
 );
+const Storage = lazy(() =>
+  import('./storage.js').then((m) => ({ default: m.Storage })),
+);
 const GitHub = lazy(() =>
   import('./github.js').then((m) => ({ default: m.GitHub })),
 );
@@ -740,6 +743,8 @@ function App() {
         return <Models key={workspace.id} workspace={workspace} session={s} />;
       case 'operations':
         return <Operations />;
+      case 'storage':
+        return <Storage session={s} />;
       case 'settings':
         return <Settings session={s} workspace={workspace} open={open} />;
       case 'payments':
