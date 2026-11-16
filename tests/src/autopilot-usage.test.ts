@@ -9,6 +9,7 @@ import {
   WebDiscoveryScopeSchema,
   autoResumeView,
   autoResumeWaitMs,
+  autopilotStepConnection,
   autopilotRequestFloor,
   autopilotSummary,
   routinePolicySummary,
@@ -169,14 +170,14 @@ test('ADR-0124: waits are 1, 2, then 4 hours; the view says when it checks, and 
     autoResumeView(a(), { checks: 1, turned_off_at: null }, now)?.next_check_at,
     '2026-11-16T11:30:00.000Z',
   );
-  // The daily cap is read at each check, so it has no due time.
+  // Review 1 L-2: the daily cap waits on the same schedule (and then also needs room).
   const daily = autoResumeView(
     a({ steps: [stopped('daily_cap')] }),
     fresh,
     now,
   );
   assert.equal(daily?.state, 'waiting');
-  assert.equal(daily?.next_check_at, null);
+  assert.equal(daily?.next_check_at, '2026-11-16T10:30:00.000Z');
   // Other stops, a cancel, a running one, a passed or too-close end time: not waiting.
   for (const v of [
     a({ steps: [stopped('run_cap')] }),
@@ -236,28 +237,44 @@ function fakeConnection(state: { quota: string; version: number }) {
   };
 }
 
+type FakeState = {
+  quota: string;
+  version: number;
+  dayUsed: number;
+  runUsed: number;
+};
+
+/** Two fake plan connections: CONN (the fields on the store) and OTHER (`other`). */
 class FakePlan extends ConnectionStore {
   quota = 'exhausted';
   version = 3;
   dayUsed = 45;
   runUsed = 0;
+  other: FakeState = { quota: 'unknown', version: 7, dayUsed: 0, runUsed: 0 };
   resets: string[] = [];
-  override async planRunRoomIn() {
+  #state(id: string): FakeState | null {
+    const k = id.toLowerCase();
+    return k === CONN ? this : k === OTHER ? this.other : null;
+  }
+  override async planRunRoomIn(
+    ...args: Parameters<ConnectionStore['planRunRoomIn']>
+  ) {
+    const st = this.#state(args[3])!;
     return {
       per_run: 30,
-      used: this.runUsed,
-      daily_left: Math.max(0, 50 - this.dayUsed),
+      used: st.runUsed,
+      daily_left: Math.max(0, 50 - st.dayUsed),
       daily_cap: 50,
     };
   }
   override async planConnectionDetail(
     ...args: Parameters<ConnectionStore['planConnectionDetail']>
   ) {
-    if (args[2].toLowerCase() !== CONN)
-      return super.planConnectionDetail(...args);
+    const st = this.#state(args[2]);
+    if (!st) return super.planConnectionDetail(...args);
     return {
-      connection: fakeConnection(this),
-      usage: { last_24h_requests: this.dayUsed, extra_requests: 0 },
+      connection: { ...fakeConnection(st), id: args[2].toLowerCase() },
+      usage: { last_24h_requests: st.dayUsed, extra_requests: 0 },
     } as unknown as Awaited<
       ReturnType<ConnectionStore['planConnectionDetail']>
     >;
@@ -265,11 +282,14 @@ class FakePlan extends ConnectionStore {
   override async resetPlanQuotaObservation(
     ...args: Parameters<ConnectionStore['resetPlanQuotaObservation']>
   ) {
+    const st = this.#state(args[2])!;
+    if (args[3] !== st.version)
+      throw new ContractError('VERSION_CONFLICT', 'Stale (test).');
     this.resets.push(
-      `${args[0].autopilot ? 'autopilot' : 'person'}:${args[3]}`,
+      `${args[0].autopilot ? 'autopilot' : 'person'}:${st === this ? '' : 'other:'}${args[3]}`,
     );
-    this.quota = 'unknown';
-    this.version += 1;
+    st.quota = 'unknown';
+    st.version += 1;
     return null as unknown as Awaited<
       ReturnType<ConnectionStore['resetPlanQuotaObservation']>
     >;
@@ -578,6 +598,14 @@ test('ADR-0124: a daily-cap stop continues once the cap has room for the stopped
     [a.id, `{${a.steps.length - 1},stop_kind}`],
   );
   h.store.quota = 'unknown';
+  h.store.dayUsed = 40;
+  // Review 1 L-2: not before its wait, even with room.
+  await h.runner.resumeDue();
+  assert.equal(
+    (await h.store.getAutopilot(owner, h.ws.id, a.id)).state,
+    'finished',
+  );
+  await h.stoppedHoursAgo(a, 2);
   h.store.dayUsed = 49; // 1 left; the search needs 2.
   await h.runner.resumeDue();
   assert.equal(
@@ -591,4 +619,144 @@ test('ADR-0124: a daily-cap stop continues once the cap has room for the stopped
   assert.deepEqual(h.store.resets, [], 'nothing to clear for the daily cap');
   const continued = await h.audit(a.id, 'autopilot.continued');
   assert.match(String(continued[0]!.payload.reason), /daily request cap/);
+});
+
+test('review 1 M-1: a stopped gather search is rechecked on the research connection it used', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  assert.equal(
+    autopilotStepConnection(
+      { research: research(OTHER), resource_setup: plan() },
+      'gather',
+    ),
+    OTHER,
+  );
+  assert.equal(
+    autopilotStepConnection(
+      { research: null, resource_setup: plan() },
+      'gather',
+    ),
+    CONN,
+  );
+  assert.equal(
+    autopilotStepConnection(
+      { research: research(OTHER), resource_setup: plan() },
+      'assess',
+    ),
+    CONN,
+  );
+  const a = await h.stoppedOnLimit();
+  // Recorded as a gather round's search on a separate research connection.
+  await h.db.pool.query(
+    `update autopilots set
+       config = jsonb_set(config, '{research,connection_id}', to_jsonb($2::text)),
+       steps = jsonb_set(steps, $3::text[], '"gather"')
+     where id = $1`,
+    [a.id, OTHER, `{${a.steps.length - 1},stage}`],
+  );
+  await h.stoppedHoursAgo(a, 2);
+  // The main connection is clear, but the research one is still marked used up and full today.
+  h.store.quota = 'unknown';
+  h.store.dayUsed = 0;
+  h.store.other = { quota: 'exhausted', version: 7, dayUsed: 50, runUsed: 0 };
+  await h.runner.resumeDue();
+  assert.equal(
+    (await h.store.getAutopilot(owner, h.ws.id, a.id)).state,
+    'finished',
+  );
+  assert.deepEqual(h.store.resets, []);
+  // Room on the research connection: it continues, and that connection's mark is cleared.
+  h.store.other.dayUsed = 10;
+  await h.runner.resumeDue();
+  await h.runner.settled(a.id);
+  assert.deepEqual(h.store.resets, ['autopilot:other:7']);
+  assert.equal(
+    (await h.store.getAutopilot(owner, h.ws.id, a.id)).auto_resume?.checks,
+    1,
+  );
+});
+
+test('review 1 L-3: a usage-limit stop with no per-run room left is not continued and nothing is cleared', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  const a = await h.stoppedOnLimit();
+  await h.stoppedHoursAgo(a, 2);
+  h.store.runUsed = 29; // 1 left; the search needs 2.
+  await h.runner.resumeDue();
+  const still = await h.store.getAutopilot(owner, h.ws.id, a.id);
+  assert.equal(still.state, 'finished');
+  assert.equal(still.auto_resume?.checks, 0);
+  assert.deepEqual(h.store.resets, []);
+});
+
+test('review 1 N-5: two checks racing continue once; the eighth continue is the last', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  const a = await h.stoppedOnLimit();
+  await h.stoppedHoursAgo(a, 2);
+  const second = new AutopilotRunner(h.store, null, { pollMs: 5 });
+  await Promise.all([h.runner.resumeDue(), second.resumeDue()]);
+  await Promise.all([h.runner.settled(a.id), second.settled(a.id)]);
+  assert.equal((await h.audit(a.id, 'autopilot.continued')).length, 1);
+  assert.equal(
+    (await h.store.getAutopilot(owner, h.ws.id, a.id)).auto_resume?.checks,
+    1,
+  );
+  // Used up: shown as such, left off the waiting list, and the database refuses a ninth.
+  h.store.quota = 'exhausted';
+  const b = await h.stoppedOnLimit();
+  await h.db.pool.query(
+    'update autopilots set resume_checks = $2 where id = $1',
+    [b.id, AUTO_RESUME_MAX_CHECKS],
+  );
+  const used = await h.store.getAutopilot(owner, h.ws.id, b.id);
+  assert.equal(used.auto_resume?.state, 'used_up');
+  assert.ok(
+    !(await h.store.autopilotsAwaitingResume()).some((x) => x.id === b.id),
+  );
+  await assert.rejects(
+    h.db.pool.query('update autopilots set resume_checks = $2 where id = $1', [
+      b.id,
+      AUTO_RESUME_MAX_CHECKS + 1,
+    ]),
+    /autopilots_resume_checks_check/,
+  );
+});
+
+test('review 1 L-1/L-4/N-2: the waiting list skips stops that cannot continue; per-run wording follows the start check', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  const a = await h.stoppedOnLimit();
+  assert.ok(
+    (await h.store.autopilotsAwaitingResume()).some((x) => x.id === a.id),
+  );
+  // A stop on the per-run cap never continues by itself, so it is not listed.
+  await h.db.pool.query(
+    `update autopilots set steps = jsonb_set(steps, $2::text[], '"run_cap"') where id = $1`,
+    [a.id, `{${a.steps.length - 1},stop_kind}`],
+  );
+  assert.ok(
+    !(await h.store.autopilotsAwaitingResume()).some((x) => x.id === a.id),
+  );
+  // Research on its own connection with too little per-run room: a warning, not a refusal.
+  h.store.quota = 'unknown';
+  h.store.dayUsed = 0;
+  h.store.other = { quota: 'unknown', version: 7, dayUsed: 0, runUsed: 29 };
+  const runId = await h.run();
+  const check = await h.runner.usageCheck(owner, h.ws.id, {
+    config: h.config({ research: research(OTHER) }),
+    run_id: runId,
+  });
+  const other = check.connections.find((c) => c.connection_id === OTHER)!;
+  assert.equal(other.fit, 'per_run');
+  assert.equal(other.up_to, 1);
+  assert.match(other.line, /It will stop when the per-run cap is reached/);
+  assert.doesNotMatch(other.line, /start is refused/);
+  assert.match(other.line, /for the web search, more if it gathers evidence/);
+  // A start at selection makes no model request: no connection line.
+  const problem = { id: '00000000-0000-4000-8000-0000000000aa', version: 1 };
+  const select = await h.runner.usageCheck(owner, h.ws.id, {
+    config: h.config({ research: null, start: { stage: 'select', problem } }),
+  });
+  assert.equal(select.connections.length, 0);
 });

@@ -99,9 +99,10 @@ export function ResumeChoice({
         onChange={(e) => onChange(e.target.checked)}
       />{' '}
       If the plan's usage limit or the daily request cap stops it, continue
-      automatically once the limit resets. It checks again after 1, 2, then
-      every 4 hours, at most {AUTO_RESUME_MAX_CHECKS} times, and only inside
-      this run's approvals, call limit and end time.
+      automatically once the limit resets. Both limits are checked again after
+      1, 2, then every 4 hours; the daily cap also needs room for the stopped
+      step. At most {AUTO_RESUME_MAX_CHECKS} times, and only inside this run's
+      approvals, call limit and end time.
     </label>
   );
 }
@@ -129,9 +130,7 @@ export function AutoResumeStatus({
     ['usage_limit', 'daily_cap'].includes(a.steps.at(-1)?.stop_kind ?? '');
   const text =
     r.state === 'waiting'
-      ? r.next_check_at
-        ? `It continues by itself: it checks the plan's usage limit again at ${when(r.next_check_at)} (automatic continue ${r.checks + 1} of ${r.max}).`
-        : `It continues by itself once the connection's daily request cap has room for this step (automatic continue ${r.checks + 1} of ${r.max}).`
+      ? `It continues by itself: it checks the ${a.steps.at(-1)?.stop_kind === 'daily_cap' ? "connection's daily request cap" : "plan's usage limit"} again ${r.next_check_at ? `at ${when(r.next_check_at)}` : 'soon'} (automatic continue ${r.checks + 1} of ${r.max}).`
       : r.state === 'turned_off'
         ? `Continuing by itself after a usage limit was turned off${r.turned_off_at ? ` ${when(r.turned_off_at)}` : ''}.`
         : r.state === 'used_up'

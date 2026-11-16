@@ -70,11 +70,28 @@ export function autopilotRequestFloor(
 }
 
 /**
- * How long after a usage-limit stop the next automatic check waits: 1, 2, then 4 hours. Each
- * check may send one request that the plan refuses again, so checks are few and spaced.
+ * How long after a usage-limit or daily-cap stop the next automatic check waits: 1, 2, then 4
+ * hours. A usage-limit check may send one request the plan refuses again, and the daily cap frees
+ * one request at a time, so checks are few and spaced.
  */
 export function autoResumeWaitMs(checks: number): number {
   return Math.min(4, 2 ** Math.max(0, checks)) * 3_600_000;
+}
+
+/**
+ * Review 1 M-1: the plan connection a step sends its requests on. A search (the first one, or a
+ * gather round's) uses the research connection when there is one, as `#searchRoute` does; every
+ * other model step uses the main route's. Null when the step's route is not a plan connection.
+ */
+export function autopilotStepConnection(
+  c: Pick<AutopilotConfig, 'research' | 'resource_setup'>,
+  stage: AutopilotStage,
+): string | null {
+  if ((stage === 'research' || stage === 'gather') && c.research)
+    return c.research.connection_id;
+  return c.resource_setup.kind === 'subscription'
+    ? c.resource_setup.connection_id
+    : null;
 }
 
 /**
@@ -108,7 +125,8 @@ export function autoResumeView(
     !autopilotContinuable(a, now).ok
   )
     return { ...base, state: 'on' };
-  if (kind === 'daily_cap') return { ...base, state: 'waiting' };
+  // Review 1 L-2: the daily cap frees one request at a time, so it waits as the plan's limit does
+  // (and then also needs room for the stopped step), rather than using every continue in minutes.
   const stoppedAt = Date.parse(last?.finished_at ?? '') || now;
   const next = stoppedAt + autoResumeWaitMs(record.checks);
   if (next >= Date.parse(a.config.limits.ends_at))

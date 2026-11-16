@@ -348,7 +348,7 @@ export const AutopilotAutoResumeSchema = z.strictObject({
   /** Automatic continues made so far, and the most it may make. */
   checks: counter,
   max: counter,
-  /** While waiting: when it checks the limit again (null: whenever the daily cap has room). */
+  /** While waiting: when it next checks the limit (null otherwise). */
   next_check_at: timestamp.nullable(),
   turned_off_at: timestamp.nullable(),
 });

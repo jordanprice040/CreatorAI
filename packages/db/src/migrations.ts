@@ -3917,6 +3917,7 @@ create index spending_refusals_recent on spending_refusals (created_at desc);
     name: 'autopilot_auto_resume',
     sql: `
 alter table autopilots add column resume_checks integer not null default 0;
+-- 8 is AUTO_RESUME_MAX_CHECKS (contracts autopilot.ts).
 alter table autopilots add constraint autopilots_resume_checks_check
  check (resume_checks between 0 and 8);
 alter table autopilots add column auto_resume_off_at timestamptz;

@@ -19,6 +19,8 @@ import {
   AutopilotControlRequestSchema,
   AutopilotStepSchema,
   AutoResumeOffRequestSchema,
+  AUTO_RESUME_KINDS,
+  AUTO_RESUME_MAX_CHECKS,
   autoResumeView,
   ROUTINE_STAGE_ACTIONS,
   routineStopFix,
@@ -1104,7 +1106,6 @@ export class AutopilotStore extends WebDiscoveryStore {
     });
   }
 
-  /** Autopilots a stopped studio left running, for the runner to pick up after a restart. */
   // ---- ADR-0124 (F2): continuing by itself after a usage limit ---------------------------
 
   /**
@@ -1112,13 +1113,18 @@ export class AutopilotStore extends WebDiscoveryStore {
    * checks each one's view, due time and connection before continuing it). System read.
    */
   async autopilotsAwaitingResume(): Promise<Autopilot[]> {
+    // Review 1 L-1: only stops on a limit that passes with time and before the end time, so
+    // autopilots that can never continue do not fill the list and crowd out newer ones.
     const { rows } = await this.pool.query(
       `select * from autopilots
         where state = 'finished' and outcome = 'limit_reached'
           and (config->>'resume_after_limit') = 'true'
-          and auto_resume_off_at is null and resume_checks < 8
+          and auto_resume_off_at is null and resume_checks < $1
           and approvals_ended_at is null
-        order by updated_at limit 100`,
+          and (config->'limits'->>'ends_at')::timestamptz > clock_timestamp()
+          and steps->(jsonb_array_length(steps) - 1)->>'stop_kind' = any($2::text[])
+        order by updated_at desc limit 100`,
+      [AUTO_RESUME_MAX_CHECKS, AUTO_RESUME_KINDS],
     );
     return (rows as Row[]).map(toAutopilot);
   }
@@ -1237,6 +1243,7 @@ export class AutopilotStore extends WebDiscoveryStore {
     });
   }
 
+  /** Autopilots a stopped studio left running, for the runner to pick up after a restart. */
   async runningAutopilots(): Promise<
     { workspace_id: string; id: string; created_by: string }[]
   > {

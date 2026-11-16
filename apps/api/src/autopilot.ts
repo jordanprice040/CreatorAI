@@ -25,6 +25,7 @@ import {
   AutopilotUsageCheckRequestSchema,
   autopilotRequestFloor,
   autopilotStageFloor,
+  autopilotStepConnection,
   parse,
   type AutopilotUsageCheck,
   SETTING_FOR_STOP,
@@ -658,6 +659,9 @@ export class AutopilotRunner {
     ];
     const connections: AutopilotUsageCheck['connections'] = [];
     for (const id of ids) {
+      const need = autopilotRequestFloor(c, id);
+      // Review 1 N-2: a start at selection makes no model request; nothing to show.
+      if (need === 0) continue;
       const d = await this.store.planConnectionDetail(ctx, ws, id);
       const conn = d.connection;
       const perRun = conn.settings.caps.responses.max_requests_per_run;
@@ -669,7 +673,6 @@ export class AutopilotRunner {
       const dailyLeft =
         room?.daily_left ?? Math.max(0, cap - d.usage.last_24h_requests);
       const perRunLeft = Math.max(0, perRun - used);
-      const need = autopilotRequestFloor(c, id);
       const blockers = connectionRefusals(conn).map((x) =>
         cutText(x.text, 600),
       );
@@ -681,14 +684,24 @@ export class AutopilotRunner {
             : dailyLeft < need
               ? ('daily' as const)
               : ('fits' as const);
-      const upTo = Math.min(c.limits.max_calls, perRunLeft);
+      // Review 1 N-2: a connection only the web search uses takes its 2 requests (more only if
+      // the settings let it gather evidence); the main route may use up to the call limit.
+      const main =
+        c.resource_setup.kind === 'subscription' &&
+        c.resource_setup.connection_id.toLowerCase() === id;
+      const upTo = Math.min(main ? c.limits.max_calls : need, perRunLeft);
+      // Review 1 L-4: only a whole process on its main connection is refused at the start
+      // (#fitsRunCap); anywhere else a short per-run cap stops it part way.
+      const refusedAtStart = main && !c.start;
       const s = (n: number) => (n === 1 ? '' : 's');
-      const counts = `This autopilot needs at least ${need} request${s(need)} from ${conn.label} (up to ${upTo}); the connection has ${perRunLeft} of its ${perRun} per-run request${s(perRun)} left on this run and ${dailyLeft} of its ${cap} daily request${s(cap)} left today.`;
+      const counts = `This autopilot needs at least ${need} request${s(need)} from ${conn.label} (up to ${upTo}${main ? '' : ' for the web search, more if it gathers evidence'}); the connection has ${perRunLeft} of its ${perRun} per-run request${s(perRun)} left on this run and ${dailyLeft} of its ${cap} daily request${s(cap)} left today.`;
       const line =
         fit === 'fits'
           ? counts
           : fit === 'per_run'
-            ? `${counts} The per-run cap cannot hold it, so the start is refused: raise the cap under Models and connections.`
+            ? refusedAtStart
+              ? `${counts} The per-run cap cannot hold it, so the start is refused: raise the cap under Models and connections.`
+              : `${counts} It will stop when the per-run cap is reached: raise the cap under Models and connections first.`
             : fit === 'daily'
               ? `${counts} It will stop when the daily cap is used up${c.resume_after_limit ? ' and continue by itself once the cap has room again' : '; then add requests or wait, and continue'}.`
               : `${counts} The connection refuses requests now: ${blockers[0]}`;
@@ -751,48 +764,60 @@ export class AutopilotRunner {
         .catch(() => null);
       if (!next) continue;
       // Only once it has continued: the stale "used up" mark is cleared, as Recheck usage does,
-      // and the step's first request is the check. Done before the step is driven.
-      if (conn.quota === 'exhausted')
-        await this.store
-          .resetPlanQuotaObservation(ctx, a.workspace_id, conn.id, conn.version)
-          .catch(() => null);
+      // and the step's first request is the check. Done before the step is driven, from the
+      // connection as it is now (review 1 L-3: a fresh version, and only while still marked).
+      if (conn.quota === 'exhausted') await this.#clearUsedUp(ctx, a, conn.id);
       this.#launch(next.created_by, a.workspace_id, next.id);
+    }
+  }
+
+  /** Clears a connection's "used up" mark as Recheck usage does, if it is still set. */
+  async #clearUsedUp(ctx: CommandContext, a: Autopilot, id: string) {
+    for (let i = 0; i < 2; i++) {
+      const d = await this.store
+        .planConnectionDetail(ctx, a.workspace_id, id)
+        .catch(() => null);
+      if (d?.connection.quota.state !== 'exhausted') return;
+      const done = await this.store
+        .resetPlanQuotaObservation(
+          ctx,
+          a.workspace_id,
+          id,
+          d.connection.version,
+        )
+        .then(
+          () => true,
+          () => false,
+        );
+      if (done) return;
     }
   }
 
   /**
    * The connection the stopped step uses when the limit that stopped `a` may have passed (null
-   * when not): no refusal but the plan's usage limit, and for the daily cap room for the step.
+   * when not). The connection is the one that step sends on (review 1 M-1: a gather search
+   * uses the research connection too). It must refuse for nothing but the plan's usage limit,
+   * and the run's per-run cap and the day's cap must each leave room for the step (review 1
+   * L-3: a usage-limit stop that also hit the per-run cap is not continued for nothing).
    */
   async #limitPassed(
     ctx: CommandContext,
     ws: string,
     a: Autopilot,
-  ): Promise<{ id: string; version: number; quota: string } | null> {
-    const r = a.config.resource_setup;
+  ): Promise<{ id: string; quota: string } | null> {
     const last = a.steps.at(-1);
-    if (r.kind !== 'subscription' || !last) return null;
-    // A stopped search uses the research connection; every other step the main one.
-    const id =
-      last.stage === 'research' && a.config.research
-        ? a.config.research.connection_id
-        : r.connection_id;
+    if (!last) return null;
+    const id = autopilotStepConnection(a.config, last.stage);
+    if (!id) return null;
     const d = await this.store.planConnectionDetail(ctx, ws, id);
     const others = connectionRefusals(d.connection).filter(
       (x) => x.code !== 'quota_exhausted',
     );
     if (others.length) return null;
-    const found = {
-      id: d.connection.id,
-      version: d.connection.version,
-      quota: d.connection.quota.state,
-    };
-    if (last.stop_kind !== 'daily_cap') return found;
+    const need = Math.max(1, autopilotStageFloor(last.stage, a.config));
     const room = await this.store.planRunRoom(ctx, ws, id, a.run_id);
-    return room.daily_left >=
-      Math.max(1, autopilotStageFloor(last.stage, a.config))
-      ? found
-      : null;
+    if (room.per_run - room.used < need || room.daily_left < need) return null;
+    return { id: d.connection.id, quota: d.connection.quota.state };
   }
 
   async retry(ctx: CommandContext, ws: string, id: string, body: unknown) {
