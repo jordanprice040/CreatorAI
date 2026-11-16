@@ -1,4 +1,5 @@
 import { usePageActive, usePoll } from './page-active.js';
+import type { SitesHandoff } from './past-project.js';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   EXPLORATION_TASK_CLASS,
@@ -116,11 +117,14 @@ export function Explore({
   workspace,
   onUse,
   open,
+  sites = null,
 }: {
   session: SessionInfo;
   workspace: Workspace;
   onUse: (pick: ExploredPick) => void;
   open: (view: View, id?: string) => void;
+  /** F9 (ADR-0125): websites copied from a past project's exploration. */
+  sites?: SitesHandoff;
 }) {
   const base = `workspaces/${workspace.id}`;
   // ADR-0087: the server's discovery benchmarks, so a fix can qualify a discovery task.
@@ -169,6 +173,11 @@ export function Explore({
   const [exclusions, setExclusions] = useState('');
   const [only, setOnly] = useState('');
   const [skip, setSkip] = useState('');
+  useEffect(() => {
+    if (!sites) return;
+    if (sites.only !== undefined) setOnly(sites.only);
+    if (sites.skip !== undefined) setSkip(sites.skip);
+  }, [sites?.nonce]);
   const [maxCandidates, setMaxCandidates] = useState(3);
   const [maxClaims, setMaxClaims] = useState(30);
   const [resourceKind, setResourceKind] = useState<'subscription' | 'api'>(
