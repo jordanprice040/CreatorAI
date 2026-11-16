@@ -1,5 +1,13 @@
 # Build status — November 10, 2026
 
+## November 16 update — F9 start a similar project (ADR-0125, no migration)
+
+What now works: Discover › Discover from claims lists past discoveries ("Start from a past project"); "Use its setup" fills the brief, response types and reasons, revision rounds, data class, oversight, plan connection and model, and the exploration's website lists (Explore for me and Search the web). Claims, evidence roles, approvals, decisions, grants and budgets are never copied, and a notice says what was not copied as it was and why. Nothing is saved until Start, which makes a new brief and run.
+
+Checked in the cloud container on a throwaway PostgreSQL 16 database: `pnpm typecheck`, `pnpm format:check`; new `tests/src/past-projects.test.ts` (store: setup only, newest first, exploration websites, one entry per brief, no claim/budget/price-list ids, redacted brief skipped, non-member refused) and `tests/src/web-past-project.test.ts` (form mapping and fallbacks); `workflow-api.test.ts` checks the route. Walk on a throwaway studio (dev-double, ports 5183/4330/4340, `seed-discovery`) at 1440 and 390 px: picker and notice render, fold summaries say "the past project", no axe serious/critical, no sideways scroll, no console errors (`tracking/evidence/f9-past-project/`). Full `pnpm test:db`: see the PR.
+
+Not done: no live run or device walk; the walk's past projects came from fixture discoveries without an exploration, so the website hand-off is covered by tests only.
+
 ## November 15 update — whole-app UX pass and docs refresh (no migration or ADR)
 
 What now works: a walk of all 27 tabs (Standard dark at 1440, 1024, 768 and 390 px; Advanced and the light theme at 1440) on a throwaway studio found no axe, overflow, small-target or console problems, and 13 visual ones, all fixed: boxed sub-section headings no longer sit 24 px low (Autopilot, Discover, Proposals) and their intros read like page intros; buttons and labels in one-line rows share the row's centre line (Files, Search, Activity, Chat); small notes directly in a panel are 12 px again; Overview's Catalog kind column fits "Humility review" and its run rows name their project; Decide's side-by-side cards run the option kind into the title; Discover's start cards keep their text under the title, and its theme note and Hide line up; the Sell tab's heading says Sell; Devices explains pairing in plain words with each command on its own line; Reset fields sits beside the heading at phone width. The audit L-3 docs refresh is done (`docs/CURRENT_STATUS.md`, `docs/CODE_AUDIT_AND_PRODUCT_GUIDE.md`, `README.md`). Evidence, the list and what was left alone: `tracking/evidence/whole-app-ux-pass/`.

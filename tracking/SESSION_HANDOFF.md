@@ -1,5 +1,9 @@
 # Session handoff — November 10, 2026
 
+## November 16 handoff — F9 start a similar project (ADR-0125)
+
+Branch `claude/project-thread-sddjfp` from main b92e12d (after #219), no migration. Contracts `past-projects.ts` (`PastProjectSchema`, `PastProjectsSchema`, `PAST_PROJECTS_MAX`). DB `past-projects.ts` (`pastProjects(c, ws)`), wrapped by `DiscoveryStore.pastProjects`. API: `PAST_PROJECTS_ROUTE` in `index.ts` (GET only). Web: `past-project.ts` (`fillFromPast`, `copiedSettings`, `pastProjectLabel`, `NOT_COPIED`, `SitesHandoff`), `past-project.css`, picker and notice in `submit.tsx` (`startFromPast`, `maxAge` now feeds `max_age_days`), `sites` prop on `Explore` and `WebDiscover`. Tests `past-projects.test.ts`, `web-past-project.test.ts`. Next: independent review.
+
 ## November 15 handoff — whole-app UX pass (Phase 2–3) and audit L-3 docs
 
 Branch `claude/project-thread-qdyhuq` from main f5728aa, no migration or ADR. Web: `style.css` (rules marked "Whole-app UX pass"), `overview.tsx` (`RunOf`, `runNames` in its load), `payments.tsx` (heading Sell), `desktop.tsx` (plain intro, `pre.commands`). Docs: `docs/CURRENT_STATUS.md`, `docs/CODE_AUDIT_AND_PRODUCT_GUIDE.md`, `README.md`. Evidence and the "left alone" list: `tracking/evidence/whole-app-ux-pass/` (with `row-align.mjs`). Next: independent review in a separate thread; then S0, N1–N3, P32 per the notifications plan.

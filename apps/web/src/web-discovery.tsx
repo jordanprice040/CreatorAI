@@ -22,6 +22,7 @@ import {
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
 import { Status, reveal, useLoad } from './ui.js';
+import type { SitesHandoff } from './past-project.js';
 import {
   onWebSearchPrefill,
   type WebSearchPrefill,
@@ -89,9 +90,12 @@ export const webQualified = (d: PlanConnectionDetail, model: string) =>
 export function WebDiscover({
   session,
   workspace,
+  sites = null,
 }: {
   session: SessionInfo;
   workspace: Workspace;
+  /** F9 (ADR-0125): websites a past project's exploration left out. */
+  sites?: SitesHandoff;
 }) {
   const base = `workspaces/${workspace.id}`;
   const owner = workspace.role === 'owner';
@@ -123,6 +127,9 @@ export function WebDiscover({
   const [question, setQuestion] = useState('');
   const [exclusions, setExclusions] = useState('');
   const [skip, setSkip] = useState('');
+  useEffect(() => {
+    if (sites) setSkip(sites.skip);
+  }, [sites?.nonce]);
   const [maxFetches, setMaxFetches] = useState(8);
   const [maxClaims, setMaxClaims] = useState(8);
   const [connectionId, setConnectionId] = useState('');

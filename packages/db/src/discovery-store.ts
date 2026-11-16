@@ -15,6 +15,7 @@ import {
   type ExploreScope,
   type StoredEntity,
   type WorkflowDetail,
+  type PastProject,
 } from '@creator/contracts';
 import {
   DISCOVERY_PROMPT_HASH,
@@ -32,6 +33,7 @@ import {
   explorationContext,
 } from '@creator/domain';
 import { ResearchStore } from './research-store.js';
+import { pastProjects } from './past-projects.js';
 import {
   fail,
   normalize,
@@ -602,6 +604,19 @@ export class DiscoveryStore extends ResearchStore {
         relatedIds: [workflowId, String(wf.run_id)],
       });
       return { brief, created: true };
+    });
+  }
+
+  /**
+   * F9 (ADR-0125): past discovery runs with the setup a new project may start from. Any
+   * member may read it; it holds no claims, decisions or approvals, and writes nothing.
+   */
+  async pastProjects(ctx: CommandContext, ws: string): Promise<PastProject[]> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    return this.tx(async (c) => {
+      await this.role(c, ws, ctx.actorId, false);
+      return pastProjects(c, ws);
     });
   }
 }

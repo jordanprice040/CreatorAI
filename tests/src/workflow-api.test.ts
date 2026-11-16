@@ -89,6 +89,8 @@ test('a workflow started over HTTP survives killed worker and API processes', as
   const ws = (
     await post('workspaces', { name: 'Runs', record_mode: 'fixture' })
   ).body;
+  // F9 (ADR-0125): the past-projects read is wired, and empty before any discovery.
+  assert.deepEqual(await get(`workspaces/${ws.id}/past-projects`), []);
   const pricing = (
     await post(
       `workspaces/${ws.id}/pricing`,

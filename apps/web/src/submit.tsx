@@ -11,6 +11,7 @@ import {
   ClaimEvidenceSchema,
   PlanConnectionSchema,
   PlanConnectionDetailSchema,
+  PastProjectsSchema,
   DISCOVERY_TASK_CLASSES,
   EnvelopeSchema,
   EvidenceRoleSchema,
@@ -29,6 +30,7 @@ import {
   z,
   type ClaimEvidence,
   type EvidenceRole,
+  type PastProject,
   type ResponseType,
   type SessionInfo,
   type Workspace,
@@ -94,6 +96,14 @@ import {
   type RoutineSettings,
 } from './discover-defaults.js';
 import { ViewModeSwitch, useViewMode } from './view-mode.js';
+import {
+  NOT_COPIED,
+  copiedSettings,
+  fillFromPast,
+  pastProjectLabel,
+  type SitesHandoff,
+} from './past-project.js';
+import './past-project.css';
 
 /** This person's saved Discover preset for a workspace; empty when none or unreadable. */
 function readPreset(actor: string, ws: string, fixture: boolean) {
@@ -249,24 +259,37 @@ export function Submit({
   useQualifyOffers(base);
   const ctx = useLoad(async () => {
     let connectionError = '';
-    const [claims, runs, workflows, envelopes, pricing, connections, names] =
-      await Promise.all([
-        api(
-          z.array(StoredEntitySchema),
-          `${base}/entities?kind=claim&status=active`,
-        ),
-        api(z.array(RunControlSchema), `${base}/runs`),
-        api(z.array(WorkflowSchema), `${base}/workflows`),
-        api(z.array(EnvelopeSchema), `${base}/budgets`),
-        api(z.array(PricingSnapshotSchema), `${base}/pricing`),
-        api(z.array(PlanConnectionSchema), `${base}/plan-connections`).catch(
-          (e) => {
-            connectionError = `Could not load connections: ${message(e)}`;
-            return [];
-          },
-        ),
-        runNames(base),
-      ]);
+    const [
+      claims,
+      runs,
+      workflows,
+      envelopes,
+      pricing,
+      connections,
+      names,
+      past,
+    ] = await Promise.all([
+      api(
+        z.array(StoredEntitySchema),
+        `${base}/entities?kind=claim&status=active`,
+      ),
+      api(z.array(RunControlSchema), `${base}/runs`),
+      api(z.array(WorkflowSchema), `${base}/workflows`),
+      api(z.array(EnvelopeSchema), `${base}/budgets`),
+      api(z.array(PricingSnapshotSchema), `${base}/pricing`),
+      api(z.array(PlanConnectionSchema), `${base}/plan-connections`).catch(
+        (e) => {
+          connectionError = `Could not load connections: ${message(e)}`;
+          return [];
+        },
+      ),
+      runNames(base),
+      // F9 (ADR-0125): past projects to start a similar one from; optional, so a failed
+      // read only leaves the picker out.
+      api(PastProjectsSchema, `${base}/past-projects`).catch(
+        () => [] as PastProject[],
+      ),
+    ]);
     const planDetails = await Promise.all(
       connections.map((conn) =>
         api(
@@ -311,6 +334,7 @@ export function Submit({
       planDetails: planDetails.filter((p) => p !== null),
       connectionError,
       ceiling,
+      past,
     };
   }, [workspace.id]);
   // useLoad reads again, quietly, each time this page is shown (coming back from Decisions
@@ -397,6 +421,15 @@ export function Submit({
   const [dataClass, setDataClass] = useState<DataClass>(start.dataClass);
   const [revisions, setRevisions] = useState(start.revisions);
   const [presetNote, setPresetNote] = useState('');
+  // F9 (ADR-0125): a past project the form was filled from, what it set, and its notes.
+  const [maxAge, setMaxAge] = useState(180);
+  const [pastPick, setPastPick] = useState('');
+  const [copiedFrom, setCopiedFrom] = useState<{
+    project: PastProject;
+    settings: Partial<RoutineSettings>;
+    notes: string[];
+  } | null>(null);
+  const [sites, setSites] = useState<SitesHandoff>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [errorFixes, setErrorFixes] = useState<FixAction[]>([]);
@@ -443,6 +476,7 @@ export function Submit({
     );
     setOpenClaims(new Set(picked.map((x) => x.claim_id)));
     setExplored(pick.brief);
+    setCopiedFrom(null);
     setTried(false);
     reveal(sectionRef.current, 'discover');
   }
@@ -603,7 +637,7 @@ export function Submit({
     perspectives,
     excluded: exclusions,
     max_revisions: revisions,
-    max_age_days: 180,
+    max_age_days: maxAge,
     ...(resourceKind === 'subscription'
       ? {
           resource_setup: {
@@ -637,7 +671,10 @@ export function Submit({
   const sourceText = <K extends keyof RoutineSettings>(
     k: K,
     v: RoutineSettings[K],
-  ) => SOURCE_TEXT[sourceOf(k, v, fixture, preset)];
+  ) =>
+    copiedFrom && k in copiedFrom.settings && copiedFrom.settings[k] === v
+      ? 'the past project'
+      : SOURCE_TEXT[sourceOf(k, v, fixture, preset)];
   const existingRun = c?.runs.find((r) => r.run_id === runChoice);
   const accessText = routeText(
     resourceKind,
@@ -943,6 +980,7 @@ export function Submit({
         }).catch(() => undefined);
       setExplored(null);
       setAgainst(new Set());
+      setCopiedFrom(null);
       setStartedId(started.workflow.id);
     } catch (err) {
       setError(message(err));
@@ -956,6 +994,53 @@ export function Submit({
     } finally {
       setBusy(false);
     }
+  }
+  /**
+   * F9 (ADR-0125): fill the form from a past project. The brief, Discover settings, websites
+   * and connection are copied; claims, evidence roles, approvals, decisions and budgets are
+   * not. Nothing is saved or started: Start makes a new brief and run as usual.
+   */
+  function startFromPast(p: PastProject) {
+    const f = fillFromPast(p, {
+      fixture,
+      defaults: start,
+      connections: (c?.planDetails ?? []).map((d) => ({
+        id: d.connection.id,
+        label: d.connection.label,
+        models: verifiedModels(d),
+      })),
+    });
+    setTheme(f.theme);
+    setFieldA(f.fieldA);
+    setFieldB(f.fieldB);
+    setUsers(f.users);
+    setContext(f.context);
+    setProblem(f.problem);
+    setMeasure(f.measure);
+    setData(f.data);
+    setTimeLimit(f.timeLimit);
+    setBudgetLimit(f.budgetLimit);
+    setSeed(f.seed);
+    setConstraints(f.constraints);
+    setExcluded(f.excluded);
+    setRevisions(f.revisions);
+    setMaxAge(f.maxAgeDays);
+    setDataClass(f.dataClass);
+    setNewMode(f.oversight);
+    setResourceKind(f.route);
+    setConnectionId(f.connectionId);
+    setPlanModel(f.model);
+    setRunChoice('new');
+    setEnvelopeId('');
+    setPricingId('');
+    // A new project: nothing attached, no pick's brief reused.
+    setRoles({});
+    setOpenClaims(new Set());
+    setAgainst(new Set());
+    setExplored(null);
+    setTried(false);
+    setSites({ only: f.onlySites, skip: f.skipSites, nonce: Date.now() });
+    setCopiedFrom({ project: p, settings: copiedSettings(f), notes: f.notes });
   }
   const viewer = workspace.role === 'viewer';
   return (
@@ -1033,6 +1118,7 @@ export function Submit({
           workspace={workspace}
           onUse={takePick}
           open={open}
+          sites={sites}
         />
       </div>
       <div id="discover-panel-web" data-panel="web" hidden={panel !== 'web'}>
@@ -1040,6 +1126,7 @@ export function Submit({
           key={`web-${workspace.id}`}
           session={session}
           workspace={workspace}
+          sites={sites}
         />
       </div>
       <div
@@ -1067,6 +1154,65 @@ export function Submit({
           {guided &&
             ' Routine settings use the defaults shown under each fold.'}
         </p>
+        {!viewer && c && c.past.length > 0 && (
+          <div className="past-start">
+            <label htmlFor="b-past">Start from a past project (optional)</label>
+            <div className="past-row">
+              <select
+                id="b-past"
+                value={pastPick}
+                aria-describedby="b-past-note"
+                onChange={(e) => setPastPick(e.target.value)}
+              >
+                <option value="">Choose a past project…</option>
+                {c.past.map((p) => (
+                  <option key={p.workflow_id} value={p.workflow_id}>
+                    {pastProjectLabel(p)}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="secondary"
+                disabled={!c.past.some((p) => p.workflow_id === pastPick)}
+                onClick={() => {
+                  const p = c.past.find((x) => x.workflow_id === pastPick);
+                  if (p) startFromPast(p);
+                }}
+              >
+                Use its setup
+              </button>
+            </div>
+            <p id="b-past-note" className="small">
+              Copies its brief, Discover settings, websites and connection
+              choice into this form. Its claims, decisions and approvals stay
+              with it. Nothing is saved until you start.
+            </p>
+          </div>
+        )}
+        {copiedFrom && (
+          <div className="notice past-copied" role="status">
+            <p>
+              <strong>Filled from a past project:</strong>{' '}
+              {copiedFrom.project.brief.body.theme} (started{' '}
+              {copiedFrom.project.started_at.slice(0, 10)}). Check every field
+              before starting; this starts a new brief and a new run.
+              {(copiedFrom.project.sites.only_hosts.length > 0 ||
+                copiedFrom.project.sites.excluded_hosts.length > 0) &&
+                ' Its website lists are filled in on Explore for me and Search the web.'}
+              {maxAge !== 180 &&
+                ` Passages older than ${maxAge} days count as stale, as they did there.`}
+            </p>
+            {copiedFrom.notes.length > 0 && (
+              <ul>
+                {copiedFrom.notes.map((n) => (
+                  <li key={n}>{n}</li>
+                ))}
+              </ul>
+            )}
+            <p>{NOT_COPIED}</p>
+          </div>
+        )}
         {explored && (
           <p className="notice">
             Filled from an Explore for me pick, with its cited claims attached:
