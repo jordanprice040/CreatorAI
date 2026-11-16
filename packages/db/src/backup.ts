@@ -104,6 +104,9 @@ const COUNTED = [
   'proposal_section_drafts',
   // ADR-0107: model drafts of build specs, edge cases and case explanations.
   'spec_drafts',
+  // ADR-0113: the studio spending manager and the refusal details only that person reads.
+  'studio_spending_manager',
+  'spending_refusals',
 ] as const;
 
 /** Splits the password out so it reaches pg tools by environment, never by argv or logs. */

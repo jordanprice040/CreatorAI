@@ -1114,7 +1114,7 @@ export class ConnectionStore extends AutomationStore {
     const ctx = normalize(ctxIn);
     return this.tx(async (c) => {
       await this.role(c, uuid(ws), ctx.actorId, false);
-      const owner = await this.isCeilingOwner(c, ctx.actorId);
+      const owner = await this.isSpendingManager(c, ctx.actorId);
       return usageSummary(
         c,
         uuid(ws),
