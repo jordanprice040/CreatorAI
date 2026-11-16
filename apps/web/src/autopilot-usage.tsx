@@ -130,7 +130,7 @@ export function AutoResumeStatus({
     ['usage_limit', 'daily_cap'].includes(a.steps.at(-1)?.stop_kind ?? '');
   const text =
     r.state === 'waiting'
-      ? `It continues by itself: it checks the ${a.steps.at(-1)?.stop_kind === 'daily_cap' ? "connection's daily request cap" : "plan's usage limit"} again ${r.next_check_at ? `at ${when(r.next_check_at)}` : 'soon'} (automatic continue ${r.checks + 1} of ${r.max}).`
+      ? `It continues by itself: it checks the ${a.steps.at(-1)?.stop_kind === 'daily_cap' ? "connection's daily request cap" : "plan's usage limit"} again ${r.next_check_at && Date.parse(r.next_check_at) > Date.now() ? `at ${when(r.next_check_at)}` : 'every minute until the connection has room for this step'} (automatic continue ${r.checks + 1} of ${r.max}).`
       : r.state === 'turned_off'
         ? `Continuing by itself after a usage limit was turned off${r.turned_off_at ? ` ${when(r.turned_off_at)}` : ''}.`
         : r.state === 'used_up'
