@@ -4,8 +4,11 @@ import { PageActive } from './page-active.js';
 
 export { usePageActive, useOnShow } from './page-active.js';
 
-/** Views with nothing to reset: Path is read-only, and Chat keeps what was sent. */
-const NO_RESET = new Set(['path', 'chat']);
+/**
+ * Views with nothing to reset: Path is read-only, Chat keeps what was sent, and Overview,
+ * Workers and Devices hold no fields (whole-app UX pass review L-2).
+ */
+const NO_RESET = new Set(['path', 'chat', 'overview', 'operations', 'desktop']);
 
 /**
  * P01 (R06): what Reset also clears on pages whose filters live in the address. Reset returns
