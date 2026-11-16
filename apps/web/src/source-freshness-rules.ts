@@ -25,16 +25,34 @@ export function checkedAgo(iso: string, now: number): string {
 /** What each passage check means beside one cited passage; same_version says nothing. */
 export const PASSAGE_NOTE: Record<PassageCheck, string> = {
   same_version: '',
-  passage_kept: 'quoted passage still there',
-  quote_kept: 'passage edited, quoted words still there',
-  passage_changed: 'quoted passage changed or gone',
+  passage_kept: 'cited passage still there',
+  quote_kept: 'cited passage edited, quoted words still there',
+  passage_changed: 'cited passage changed or gone',
   page_gone: 'page gone or unreadable',
-  cannot_tell: 'source changed; nothing quoted to look for',
+  page_moved: 'page now redirects elsewhere',
+  cannot_tell: 'source changed; the passage could not be compared',
 };
+
+/**
+ * The note beside one cited passage. Review N-2: a page the freshness note already calls
+ * removed or unreadable is not said twice.
+ */
+export function passageNote(
+  check: PassageCheck,
+  freshness: ClaimEvidence['rows'][number]['freshness'],
+): string {
+  if (
+    check === 'page_gone' &&
+    (freshness === 'removed' || freshness === 'inaccessible')
+  )
+    return '';
+  return PASSAGE_NOTE[check];
+}
 /** Checks that flag the claim for the owner's look. */
 export const FLAGGED: ReadonlySet<PassageCheck> = new Set([
   'passage_changed',
   'page_gone',
+  'page_moved',
 ]);
 
 export interface ClaimFreshness {
@@ -45,6 +63,7 @@ export interface ClaimFreshness {
   sources: number;
   changed: number;
   gone: number;
+  moved: number;
 }
 
 /** One claim's freshness over its live rows (not retracted, current claim version). */
@@ -64,6 +83,7 @@ export function claimFreshness(c: ClaimEvidence): ClaimFreshness {
     sources: bySource.size,
     changed: live.filter((r) => r.passage_check === 'passage_changed').length,
     gone: live.filter((r) => r.passage_check === 'page_gone').length,
+    moved: live.filter((r) => r.passage_check === 'page_moved').length,
   };
 }
 
@@ -82,11 +102,13 @@ export function claimFlags(f: ClaimFreshness): string[] {
   if (f.changed)
     out.push(
       f.changed === 1
-        ? 'a quoted passage changed'
-        : `${f.changed} quoted passages changed`,
+        ? 'a cited passage changed'
+        : `${f.changed} cited passages changed`,
     );
   if (f.gone)
     out.push(f.gone === 1 ? 'a page is gone' : `${f.gone} pages gone`);
+  if (f.moved)
+    out.push(f.moved === 1 ? 'a page moved' : `${f.moved} pages moved`);
   return out;
 }
 
@@ -96,17 +118,31 @@ export function recheckSummary(r: SourceRecheckResult): string {
     r.sources.filter((s) => s.outcome === o).length;
   const tried = r.sources.length - count('not_tried');
   if (r.sources.length === 0)
-    return 'No sources to recheck: these claims cite none.';
+    return 'No sources to refetch: these claims cite none.';
   const parts = [
     count('unchanged') && `${count('unchanged')} unchanged`,
     count('changed') && `${count('changed')} changed`,
     count('page_gone') && `${count('page_gone')} gone or unreadable`,
+    count('moved') && `${count('moved')} moved`,
     count('not_checked') && `${count('not_checked')} not checked`,
   ].filter(Boolean);
-  let s = `Rechecked ${tried} source${tried === 1 ? '' : 's'}${parts.length ? `: ${parts.join(', ')}` : ''}.`;
+  let s = `Refetched ${tried} source${tried === 1 ? '' : 's'}${parts.length ? `: ${parts.join(', ')}` : ''}.`;
   if (r.stopped)
     s += ` Stopped early (${count('not_tried')} not tried): ${r.stopped.explanation}`;
   if (r.not_rechecked)
-    s += ` ${r.not_rechecked} more cited source${r.not_rechecked === 1 ? '' : 's'} left for the next recheck.`;
+    s += ` ${r.not_rechecked} more cited source${r.not_rechecked === 1 ? '' : 's'} left for the next refetch.`;
   return s;
 }
+
+/** Review L-4: what one press will fetch, said before it is pressed. */
+export function recheckIntro(sources: number, max: number): string {
+  if (sources <= max)
+    return `Fetches the ${sources} cited source${sources === 1 ? '' : 's'} again`;
+  return `Fetches ${max} of the ${sources} cited sources again (never or longest unchecked first; press again for the rest)`;
+}
+
+/**
+ * Review L-5: how long the page waits. Each fetch may take up to the policy's limit (at most
+ * 60 s), one after another, so the wait covers a full press plus a margin.
+ */
+export const recheckWaitMs = (max: number) => max * 65_000 + 30_000;

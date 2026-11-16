@@ -29,9 +29,11 @@ const base = {
   quote: 'the median wait was 41 days',
   current_hashes: [H('b')],
   current_excerpts: ['The median wait was 38 days in 2025.'],
+  excerpts_complete: true,
+  moved: false,
 };
 
-test('passage check: page gone wins, same version needs no look, then hash, then quote', () => {
+test('passage check: a move wins, then page gone; same version needs no look, then hash, then quote', () => {
   assert.equal(passageCheck({ ...base, latest_state: 'removed' }), 'page_gone');
   assert.equal(
     passageCheck({
@@ -61,16 +63,50 @@ test('passage check: page gone wins, same version needs no look, then hash, then
     'quote_kept',
   );
   assert.equal(passageCheck(base), 'passage_changed');
-  // Hash-only retention: no excerpts, the hash alone decides.
+  // Review L-1: a quote that could not be searched for (hash-only retention, or a cut
+  // excerpt) proves nothing.
   assert.equal(
-    passageCheck({ ...base, current_excerpts: [null] }),
+    passageCheck({
+      ...base,
+      current_excerpts: [null],
+      excerpts_complete: false,
+    }),
+    'cannot_tell',
+  );
+  assert.equal(
+    passageCheck({
+      ...base,
+      cited_passage_hash: null,
+      current_excerpts: ['The median wait was'],
+      excerpts_complete: false,
+    }),
+    'cannot_tell',
+  );
+  // With no quote, a missing passage hash is a change even under hash-only retention.
+  assert.equal(
+    passageCheck({
+      ...base,
+      quote: null,
+      current_excerpts: [null],
+      excerpts_complete: false,
+    }),
     'passage_changed',
+  );
+  // Review M-1: a cited address that now redirects elsewhere wins over everything.
+  assert.equal(
+    passageCheck({ ...base, moved: true, latest_state: 'removed' }),
+    'page_moved',
+  );
+  assert.equal(
+    passageCheck({ ...base, moved: true, source_current_version: 1 }),
+    'page_moved',
   );
   assert.equal(
     passageCheck({
       ...base,
       current_hashes: [H('a')],
       current_excerpts: [null],
+      excerpts_complete: false,
     }),
     'passage_kept',
   );
@@ -99,10 +135,13 @@ test('passage labels skip retracted and superseded rows', () => {
     [],
   );
   assert.deepEqual(passageLabels([row('passage_changed')]), [
-    'a recheck found a cited passage changed or gone',
+    'a newer fetch found a cited passage changed or gone',
   ]);
   assert.deepEqual(passageLabels([row('quote_kept')]), [
-    'a cited source changed but the quoted passage is still there',
+    'a cited source changed but the cited passage is still there',
+  ]);
+  assert.deepEqual(passageLabels([row('page_moved')]), [
+    'a cited page now redirects to a different page',
   ]);
   assert.deepEqual(
     passageLabels([
@@ -137,6 +176,7 @@ type Fresh = {
   sources: number;
   changed: number;
   gone: number;
+  moved: number;
 };
 type Rules = {
   checkedAgo: (iso: string, now: number) => string;
@@ -144,6 +184,9 @@ type Rules = {
   claimFreshnessLine: (f: Fresh, now: number) => string;
   claimFlags: (f: Fresh) => string[];
   recheckSummary: (r: SourceRecheckResult) => string;
+  passageNote: (check: PassageCheck, freshness: string) => string;
+  recheckIntro: (sources: number, max: number) => string;
+  recheckWaitMs: (max: number) => number;
 };
 async function loadRules() {
   const source = await readFile(
@@ -190,6 +233,7 @@ test('web rules: checked times, claim lines, flags and the recheck summary', asy
       row('s1', '2026-11-14T12:00:00Z', 'same_version'),
       row('s2', '2026-11-04T12:00:00Z', 'passage_changed', 'changed'),
       row('s3', '2026-11-15T12:00:00Z', 'page_gone', 'removed'),
+      row('s5', '2026-11-15T12:00:00Z', 'page_moved', 'current'),
       // Retracted support neither dates nor flags the claim.
       row('s4', '2020-01-01T00:00:00Z', 'passage_changed', 'retracted'),
     ]),
@@ -199,9 +243,10 @@ test('web rules: checked times, claim lines, flags and the recheck summary', asy
     {
       oldest: '2026-11-04T12:00:00Z',
       never: 0,
-      sources: 3,
+      sources: 4,
       changed: 1,
       gone: 1,
+      moved: 1,
     },
   );
   assert.equal(
@@ -209,9 +254,24 @@ test('web rules: checked times, claim lines, flags and the recheck summary', asy
     'oldest source checked 12 days ago',
   );
   assert.deepEqual(r.claimFlags(f), [
-    'a quoted passage changed',
+    'a cited passage changed',
     'a page is gone',
+    'a page moved',
   ]);
+  // Review N-2: a page already called removed or unreadable is not said twice.
+  assert.equal(r.passageNote('page_gone', 'removed'), '');
+  assert.equal(
+    r.passageNote('page_gone', 'changed'),
+    'page gone or unreadable',
+  );
+  assert.equal(r.passageNote('same_version', 'current'), '');
+  // Review L-4 and L-5: the button says what one press fetches; the page waits long enough.
+  assert.equal(r.recheckIntro(3, 12), 'Fetches the 3 cited sources again');
+  assert.equal(
+    r.recheckIntro(30, 12),
+    'Fetches 12 of the 30 cited sources again (never or longest unchecked first; press again for the rest)',
+  );
+  assert.ok(r.recheckWaitMs(12) >= 12 * 60_000);
   const one = r.claimFreshness(claim([row('s1', null, 'same_version')]));
   assert.equal(r.claimFreshnessLine(one, now), 'source never checked');
   assert.equal(r.claimFreshnessLine(r.claimFreshness(claim([])), now), '');
@@ -222,6 +282,7 @@ test('web rules: checked times, claim lines, flags and the recheck summary', asy
       src('unchanged'),
       src('changed'),
       src('page_gone'),
+      src('moved'),
       src('not_checked'),
       src('not_tried'),
     ],
@@ -230,13 +291,15 @@ test('web rules: checked times, claim lines, flags and the recheck summary', asy
   } as unknown as SourceRecheckResult;
   assert.equal(
     r.recheckSummary(result),
-    'Rechecked 4 sources: 1 unchanged, 1 changed, 1 gone or unreadable, 1 not checked. Stopped early (1 not tried): Needs your approval. 2 more cited sources left for the next recheck.',
+    'Refetched 5 sources: 1 unchanged, 1 changed, 1 gone or unreadable, 1 moved, 1 not checked. Stopped early (1 not tried): Needs your approval. 2 more cited sources left for the next refetch.',
   );
 });
 
 const REPORT = 'https://health.fixture.test/reports/clinic-access-2025';
 const STAFFING = 'https://health.fixture.test/reports/staffing-brief';
 const WIRE = 'https://wire.fixture.test/stories/clinic-waits';
+// Edited around a quoted sentence on the second fetch, redirected to WIRE on the third.
+const HOURS = 'https://health.fixture.test/reports/clinic-hours';
 
 test('Decide recheck: fetches cited sources, flags changed passages, never edits claims', async (t) => {
   const db = await freshDatabase(t);
@@ -320,6 +383,7 @@ test('Decide recheck: fetches cited sources, flags changed passages, never edits
     report: await fetchPage(REPORT),
     staffing: await fetchPage(STAFFING),
     wire: await fetchPage(WIRE),
+    hours: await fetchPage(HOURS),
   };
   const passage = async (sourceId: string | null, needle: string) => {
     const d = SourceDetailSchema.parse(await call(`${w}/sources/${sourceId}`));
@@ -392,6 +456,12 @@ test('Decide recheck: fetches cited sources, flags changed passages, never edits
     'Clinic managers',
     'staff vacancies were the main cause',
   );
+  const hours = await claim(
+    'Rural clinics open at 8 am.',
+    got.hours.source_id,
+    'open at 8 am',
+    'open at 8 am on weekdays',
+  );
 
   const comparison = async () =>
     ProblemComparisonSchema.parse(
@@ -424,8 +494,9 @@ test('Decide recheck: fetches cited sources, flags changed passages, never edits
   const result = await recheck(runId);
   const outcome = (url: string) =>
     result.sources.find((s) => s.url === url)?.outcome;
-  assert.equal(result.sources.length, 3, 'three distinct cited sources');
+  assert.equal(result.sources.length, 4, 'four distinct cited sources');
   assert.equal(outcome(REPORT), 'changed');
+  assert.equal(outcome(HOURS), 'changed');
   assert.equal(outcome(STAFFING), 'page_gone');
   assert.equal(outcome(WIRE), 'unchanged');
   assert.equal(result.stopped, null);
@@ -438,16 +509,18 @@ test('Decide recheck: fetches cited sources, flags changed passages, never edits
   assert.equal(check(urban), 'passage_kept');
   assert.equal(check(vacant), 'page_gone');
   assert.equal(check(wire), 'same_version');
+  // The sentence around the quote was edited; the quoted words are still there.
+  assert.equal(check(hours), 'quote_kept');
   assert.ok(
     after
       .get(rural)!
-      .labels.includes('a recheck found a cited passage changed or gone'),
+      .labels.includes('a newer fetch found a cited passage changed or gone'),
   );
   assert.ok(
     after
       .get(urban)!
       .labels.includes(
-        'a cited source changed but the quoted passage is still there',
+        'a cited source changed but the cited passage is still there',
       ),
   );
   // Flags only: every claim and support row is the one recorded before the recheck.
@@ -480,11 +553,119 @@ test('Decide recheck: fetches cited sources, flags changed passages, never edits
   assert.ok(held.stopped);
   assert.deepEqual(
     held.sources.slice(1).map((s) => s.outcome),
-    ['not_tried', 'not_tried'],
+    ['not_tried', 'not_tried', 'not_tried'],
   );
-  const filed = await db.pool.query(
-    `select count(*) as n from source_retrievals where run_id = $1`,
-    [bare],
+  const filedFor = async (run: string) =>
+    Number(
+      (
+        await db.pool.query(
+          `select count(*) as n from source_retrievals where run_id = $1`,
+          [run],
+        )
+      ).rows[0].n,
+    );
+  assert.equal(await filedFor(bare), 1);
+
+  // Review M-2: rejecting the fetch of one page refuses only that page. The next press marks
+  // it not checked and goes on to the next source (here: asking for its approval).
+  const rejected = held.sources[0]!;
+  const decision = (await call(`${w}/decisions/${rejected.decision_id}`)) as {
+    coverage: { coverage_hash: string };
+  };
+  await call(`${w}/decisions/${rejected.decision_id}/answer`, {
+    choice: 'reject',
+    option_id: null,
+    rationale: 'Not this page.',
+    coverage_hash: decision.coverage.coverage_hash,
+    standing_expires_at: null,
+    time_spent_ms: null,
+    interruption: null,
+  });
+  const past = await recheck(bare, randomUUID());
+  const refused = past.sources.find((s) => s.source_id === rejected.source_id)!;
+  assert.equal(refused.outcome, 'not_checked');
+  assert.equal(refused.state, 'denied');
+  assert.match(refused.reason_code ?? '', /^already_answered_reject/);
+  const next = past.sources.find((s) => s.state === 'needs_human');
+  assert.ok(next, 'the recheck went past the rejected page');
+  assert.notEqual(next.source_id, rejected.source_id);
+  assert.ok(past.stopped);
+
+  // Review M-1: the cited address now redirects to another approved page. The fetch is
+  // recorded under that page's source, so the cited source is reported moved (not changed),
+  // its check time advances, and its claim is flagged.
+  const moved = await recheck(runId, randomUUID());
+  const hoursResult = moved.sources.find((s) => s.url === HOURS)!;
+  assert.equal(hoursResult.outcome, 'moved');
+  assert.equal(hoursResult.moved_to, WIRE);
+  const afterMove = await rowsOf();
+  const hoursRow = afterMove.get(hours)!.rows[0]!;
+  assert.equal(hoursRow.passage_check, 'page_moved');
+  assert.ok(
+    Date.parse(hoursRow.last_checked_at!) >
+      Date.parse(after.get(hours)!.rows[0]!.last_checked_at!),
   );
-  assert.equal(Number(filed.rows[0].n), 1);
+  assert.ok(
+    afterMove
+      .get(hours)!
+      .labels.includes('a cited page now redirects to a different page'),
+  );
+  // Its claim and support rows are still untouched.
+  assert.deepEqual(
+    afterMove.get(hours)!.rows.map((r) => r.support),
+    before.get(hours)!.rows.map((r) => r.support),
+  );
+
+  // Review L-2: an unknown run is not found; a cancelled run is refused at the first source
+  // and the recheck stops there, with nothing fetched.
+  const refusedWith = async (run: string) => {
+    const res = await fetch(
+      `${root}/${w}/problems/${problem.id}/source-rechecks`,
+      {
+        method: 'POST',
+        headers: { ...auth.write, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ run_id: run, recheck_id: randomUUID() }),
+      },
+    );
+    return res.status;
+  };
+  assert.equal(await refusedWith(randomUUID()), 404);
+  const ended = await newRun(true);
+  await call(`${w}/runs/${ended}/cancel`, { reason: 'Done with this run.' });
+  const endedResult = await recheck(ended, randomUUID());
+  assert.equal(endedResult.sources[0]!.reason_code, 'run_cancelled');
+  assert.equal(endedResult.stopped?.reason_code, 'run_cancelled');
+  assert.ok(
+    endedResult.sources.slice(1).every((s) => s.outcome === 'not_tried'),
+  );
+  assert.equal(await filedFor(ended), 1);
+  const fetchedFor = await db.pool.query(
+    `select count(*) as n from source_retrievals where run_id = $1 and state = 'fetched'`,
+    [ended],
+  );
+  assert.equal(Number(fetchedFor.rows[0].n), 0);
+  // A run from another workspace is not found here either.
+  const other = (await call('workspaces', {
+    name: 'F8 other',
+    record_mode: 'fixture',
+  })) as { id: string };
+  const otherRun = StoredEntitySchema.parse(
+    await call(`workspaces/${other.id}/entities`, {
+      kind: 'run',
+      title: 'Other run',
+      body: {
+        state: 'queued',
+        experiment_condition: 'human_in_loop',
+        discovery_method: 'structured',
+        config_hash: null,
+      },
+    }),
+  );
+  await call(`workspaces/${other.id}/runs`, {
+    run: { id: otherRun.id, version: 1 },
+    autonomy_mode: 'human_in_loop',
+    stage_gates: null,
+    initial_grants: [],
+  });
+  assert.equal(await refusedWith(otherRun.id), 404);
 });

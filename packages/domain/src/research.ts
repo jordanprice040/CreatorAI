@@ -261,12 +261,16 @@ export function rowFreshness(
 
 /**
  * F8 (ADR-0126): what the newest check of a cited source found for the cited passage. Only a
- * flag: the support row and its freshness stay as they are. A removed or unreadable page wins;
- * otherwise an unchanged version needs no look; a changed one is searched for the cited
- * passage (by hash, so hash-only retention works too) and then for the quoted words.
+ * flag: the support row and its freshness stay as they are. A redirect of the cited address to
+ * a different source wins (the cited source got no new version), then a removed or unreadable
+ * page; otherwise an unchanged version needs no look, and a changed one is searched for the
+ * cited passage (by hash, so hash-only retention works too) and then for the quoted words. A
+ * quote is only reported missing when every current excerpt was there to search, whole.
  */
 export function passageCheck(input: {
   latest_state: RetrievalState | null;
+  /** The newest check of the cited address was redirected to a different source. */
+  moved: boolean;
   source_version: number;
   source_current_version: number;
   /** Hash of the cited passage, when the support cites one. */
@@ -276,23 +280,26 @@ export function passageCheck(input: {
   current_hashes: readonly string[];
   /** Stored excerpts of the current version (absent under hash-only retention). */
   current_excerpts: readonly (string | null)[];
+  /** Every current passage has a stored, untruncated excerpt. */
+  excerpts_complete: boolean;
 }): PassageCheck {
+  if (input.moved) return 'page_moved';
   if (input.latest_state === 'removed' || input.latest_state === 'inaccessible')
     return 'page_gone';
   if (input.source_version === input.source_current_version)
     return 'same_version';
-  if (input.cited_passage_hash === null && !input.quote?.trim())
-    return 'cannot_tell';
   if (
     input.cited_passage_hash !== null &&
     input.current_hashes.includes(input.cited_passage_hash)
   )
     return 'passage_kept';
-  if (
-    input.quote &&
-    input.current_excerpts.some((e) => quoteInPassage(e, input.quote!))
-  )
+  const quote = input.quote?.trim() ? input.quote : null;
+  if (quote && input.current_excerpts.some((e) => quoteInPassage(e, quote)))
     return 'quote_kept';
+  // A quote that could not be searched for proves nothing; nor does support with no
+  // passage and no quote.
+  if (quote && !input.excerpts_complete) return 'cannot_tell';
+  if (input.cited_passage_hash === null && !quote) return 'cannot_tell';
   return 'passage_changed';
 }
 
@@ -305,9 +312,11 @@ export function passageLabels(
   );
   const out: string[] = [];
   if (live.some((r) => r.check === 'passage_changed'))
-    out.push('a recheck found a cited passage changed or gone');
+    out.push('a newer fetch found a cited passage changed or gone');
+  if (live.some((r) => r.check === 'page_moved'))
+    out.push('a cited page now redirects to a different page');
   if (live.some((r) => r.check === 'passage_kept' || r.check === 'quote_kept'))
-    out.push('a cited source changed but the quoted passage is still there');
+    out.push('a cited source changed but the cited passage is still there');
   return out;
 }
 

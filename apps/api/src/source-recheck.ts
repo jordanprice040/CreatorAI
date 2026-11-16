@@ -29,19 +29,37 @@ export function recheckOperationId(recheckId: string, sourceId: string) {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-8${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }
 
-function outcomeOf(r: Retrieval): SourceRecheckOutcome {
+/**
+ * What one fetch found for the cited source. A fetch recorded under another source was
+ * redirected there, so it says nothing about the cited source's own versions.
+ */
+function outcomeOf(r: Retrieval, sourceId: string): SourceRecheckOutcome {
+  const reached = ['fetched', 'removed', 'inaccessible'].includes(r.state);
+  if (reached && r.source_id && r.source_id !== sourceId.toLowerCase())
+    return 'moved';
   if (r.state === 'fetched') return r.changed ? 'changed' : 'unchanged';
   if (r.state === 'removed' || r.state === 'inaccessible') return 'page_gone';
   return 'not_checked';
 }
 
 /**
+ * A refusal stops the recheck, because it would refuse every later fetch in this run too (a
+ * cancelled run, the fetch limit, no live fetching). The exception is an answer the owner
+ * already gave for one address (a rejected approval): that source is marked not checked and
+ * the recheck goes on (review M-2). A site that is not approved, or a failed fetch, is not a
+ * refusal and never stops it.
+ */
+const stopsRecheck = (r: Retrieval) =>
+  r.state === 'needs_human' ||
+  (r.state === 'denied' && !r.reason_code.startsWith('already_answered'));
+
+/**
  * Fetches each source the problem's claims cite (least recently checked first, at most
  * SOURCE_RECHECK_MAX) through the source broker, so the run's fetch permission, its fetch
  * limit and the approved-site rules all apply. No model calls and no spending. Claims and
  * their support are never edited: what changed shows as a flag when the claims are read.
- * Stops at the first fetch that needs approval or is refused, so one press never files a
- * request per source.
+ * Stops at the first fetch that needs approval, so one press never files a request per
+ * source, and at a refusal that covers the whole run (see stopsRecheck).
  */
 export async function recheckSources(o: {
   sources: SourceBroker;
@@ -84,6 +102,7 @@ export async function recheckSources(o: {
       out.push({
         ...base,
         outcome: 'not_tried',
+        moved_to: null,
         retrieval_id: null,
         decision_id: null,
         state: null,
@@ -100,14 +119,16 @@ export async function recheckSources(o: {
     });
     out.push({
       ...base,
-      outcome: outcomeOf(r),
+      outcome: outcomeOf(r, sourceId),
+      moved_to:
+        outcomeOf(r, sourceId) === 'moved' ? (r.final_url ?? null) : null,
       retrieval_id: r.id,
       decision_id: r.decision_id,
       state: r.state,
       reason_code: r.reason_code,
       explanation: r.explanation,
     });
-    if (r.state === 'needs_human' || r.state === 'denied')
+    if (stopsRecheck(r))
       stopped = { reason_code: r.reason_code, explanation: r.explanation };
   }
   return {

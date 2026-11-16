@@ -358,8 +358,10 @@ export type Freshness = z.infer<typeof FreshnessSchema>;
  * the current one. `passage_kept`: the source changed but the cited passage is there word for
  * word. `quote_kept`: the passage changed but the quoted words are still in it.
  * `passage_changed`: neither the passage nor the quote is in the current version.
- * `page_gone`: the newest check found the page removed or unreadable. `cannot_tell`: the source
- * changed and the support cites no passage or quote to look for.
+ * `page_gone`: the newest check found the page removed or unreadable. `page_moved`: the newest
+ * check of the cited address was redirected to a different source. `cannot_tell`: the source
+ * changed and there was nothing that could be compared (no cited passage, and no quote or no
+ * whole excerpt to search for it).
  */
 export const PassageCheckSchema = z.enum([
   'same_version',
@@ -367,6 +369,7 @@ export const PassageCheckSchema = z.enum([
   'quote_kept',
   'passage_changed',
   'page_gone',
+  'page_moved',
   'cannot_tell',
 ]);
 export type PassageCheck = z.infer<typeof PassageCheckSchema>;
@@ -469,6 +472,8 @@ export const SourceRecheckOutcomeSchema = z.enum([
   'changed',
   /** The page was removed or could not be read. */
   'page_gone',
+  /** The address now redirects to a different source; the cited source itself has no new version. */
+  'moved',
   /** The fetch was not made or did not finish (refused, blocked, failed, needs approval). */
   'not_checked',
   /** Not attempted: the recheck stopped before this source. */
@@ -487,6 +492,8 @@ export const SourceRecheckResultSchema = z.strictObject({
         url: z.string().max(2000),
         outcome: SourceRecheckOutcomeSchema,
         retrieval_id: id.nullable(),
+        /** Where a `moved` page now leads. */
+        moved_to: z.string().max(2000).nullable(),
         /** The approval request a `needs_human` fetch filed, to approve in place. */
         decision_id: id.nullable(),
         state: RetrievalStateSchema.nullable(),
@@ -497,7 +504,7 @@ export const SourceRecheckResultSchema = z.strictObject({
     .max(SOURCE_RECHECK_MAX),
   /** Cited sources left for a later recheck because of SOURCE_RECHECK_MAX. */
   not_rechecked: counter,
-  /** Why the recheck stopped early (approval needed, fetch limit), when it did. */
+  /** Why the recheck stopped early (approval needed, a run-wide refusal), when it did. */
   stopped: z
     .strictObject({
       reason_code: z.string().max(200),

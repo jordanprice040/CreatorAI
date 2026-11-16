@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
+  SOURCE_RECHECK_MAX,
   SourceRecheckResultSchema,
   type ClaimEvidence,
   type SessionInfo,
@@ -11,18 +12,20 @@ import { InlineApproval } from './inline-approval.js';
 import type { View } from './ui.js';
 import {
   FLAGGED,
-  PASSAGE_NOTE,
   checkedAgo,
   claimFlags,
   claimFreshness,
   claimFreshnessLine,
+  passageNote,
+  recheckIntro,
   recheckSummary,
+  recheckWaitMs,
 } from './source-freshness-rules.js';
 import './source-freshness.css';
 
 // F8 (ADR-0126): source freshness on Decide. When each claim's sources were last checked, a
-// flag when a recheck found a quoted passage changed or a page gone, and a button that
-// rechecks the cited sources (fetches only, under the run's permission and approved sites).
+// flag when a newer fetch found a cited passage changed, a page gone or a page moved, and a
+// button that refetches the cited sources (fetches only, under the run's permission and approved sites).
 
 /** Beside a claim's one-line summary: when its sources were checked, and any flag. */
 export function ClaimFreshnessNote({ c }: { c: ClaimEvidence }) {
@@ -56,7 +59,7 @@ export function PassageFreshness({
 }: {
   row: ClaimEvidence['rows'][number];
 }) {
-  const note = PASSAGE_NOTE[row.passage_check];
+  const note = passageNote(row.passage_check, row.freshness);
   return (
     <>
       {' · '}
@@ -85,7 +88,7 @@ export function PassageFreshness({
 }
 
 /**
- * "Recheck sources": fetches each source this problem's claims cite again, under the chosen
+ * "Refetch sources": fetches each source this problem's claims cite again, under the chosen
  * run. A fetch that needs approval stops the recheck and can be approved here.
  */
 export function RecheckSources({
@@ -112,23 +115,35 @@ export function RecheckSources({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<SourceRecheckResult | null>(null);
+  // Review N-4: a press that got no answer is sent again with the same id, so the studio
+  // replays the fetches it already made instead of fetching again; an answered press ends it.
+  const pending = useRef<{ id: string; run: string } | null>(null);
   async function recheck() {
     setBusy(true);
     setError('');
+    if (pending.current?.run !== runId)
+      pending.current = { id: crypto.randomUUID(), run: runId };
     try {
       const r = await api(
         SourceRecheckResultSchema,
         `workspaces/${workspace.id}/problems/${problemId}/source-rechecks`,
         {
-          body: { run_id: runId, recheck_id: crypto.randomUUID() },
+          body: { run_id: runId, recheck_id: pending.current.id },
           csrf: session.csrf_token,
-          timeoutMs: 300_000,
+          timeoutMs: recheckWaitMs(SOURCE_RECHECK_MAX),
         },
       );
+      pending.current = null;
       setResult(r);
       onDone();
     } catch (e) {
-      setError(message(e));
+      // Review L-5: the studio may still be fetching after the page stops waiting.
+      setError(
+        e instanceof DOMException &&
+          (e.name === 'TimeoutError' || e.name === 'AbortError')
+          ? 'The page stopped waiting, but the refetch may still be running. Press Refresh in a minute to see what it found, or press Refetch sources to pick it up where it is.'
+          : message(e),
+      );
     } finally {
       setBusy(false);
     }
@@ -145,19 +160,19 @@ export function RecheckSources({
           disabled={busy || !runId || sources === 0}
           onClick={() => void recheck()}
         >
-          {busy ? 'Rechecking…' : 'Recheck sources'}
+          {busy ? 'Refetching…' : 'Refetch sources'}
         </button>{' '}
         <span className="muted">
           {!runId
-            ? 'Choose an active run below first: a recheck uses its permission to fetch pages.'
+            ? 'Choose an active run below first: a refetch uses its permission to fetch pages.'
             : sources === 0
               ? 'These claims cite no sources.'
-              : `Fetches the ${sources} cited source${sources === 1 ? '' : 's'} again under ${runName}, from approved sites only. No model requests; claims are flagged, never changed.`}
+              : `${recheckIntro(sources, SOURCE_RECHECK_MAX)} under ${runName}, from approved sites only. No model requests; claims are flagged, never changed or re-assessed.`}
         </span>
       </p>
       {busy && (
         <p className="small muted" role="status">
-          Fetching each page in turn; this can take a minute.
+          Fetching each page in turn; this can take a few minutes.
         </p>
       )}
       {error && <p className="error">{error}</p>}
@@ -186,10 +201,21 @@ export function RecheckSources({
                       ? 'changed; a new version was recorded'
                       : s.outcome === 'page_gone'
                         ? 'removed or unreadable'
-                        : (s.explanation ?? 'not checked')}
+                        : s.outcome === 'moved'
+                          ? `now redirects to ${s.moved_to ?? 'another page'}; the cited source has no new version`
+                          : (s.explanation ?? 'not checked')}
                   </li>
                 ))}
             </ul>
+          )}
+          {result.sources.some(
+            (s) => s.outcome === 'changed' || s.outcome === 'moved',
+          ) && (
+            <p className="small muted">
+              Claims marked “needs recheck” still need re-assessing against the
+              new versions: refetching records what the pages say now, it does
+              not re-assess any claim.
+            </p>
           )}
           {waiting && (
             <InlineApproval
@@ -200,10 +226,10 @@ export function RecheckSources({
               csrf={session.csrf_token}
               owner={workspace.role === 'owner'}
               actorId={session.actor_id}
-              approveLabel="Approve this fetch once and recheck again"
+              approveLabel="Approve this fetch once and refetch again"
               onApproved={() => recheck()}
-              againLabel="I approved it: recheck again"
-              retryLabel="Recheck again"
+              againLabel="I approved it: refetch again"
+              retryLabel="Refetch again"
               openApprovals={() => open('decisions', waiting.decision_id!)}
             />
           )}

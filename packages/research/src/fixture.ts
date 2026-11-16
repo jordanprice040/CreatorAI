@@ -113,6 +113,23 @@ export const FIXTURE_CORPUS: Record<string, FixtureResponse[]> = {
       ),
     },
   ],
+  // F8 (ADR-0126): a page edited around a quoted sentence, then moved to another approved page.
+  'https://health.fixture.test/reports/clinic-hours': [
+    {
+      status: 200,
+      content_type: 'text/plain; charset=utf-8',
+      body: 'Clinic hours note (synthetic fixture).\n\nMost rural clinics open at 8 am on weekdays.\n\nEvening hours are rare.',
+    },
+    {
+      status: 200,
+      content_type: 'text/plain; charset=utf-8',
+      body: 'Clinic hours note (synthetic fixture).\n\nMost rural clinics open at 8 am on weekdays, and a few at 7 am.\n\nEvening hours are rare.',
+    },
+    {
+      status: 301,
+      location: 'https://wire.fixture.test/stories/clinic-waits',
+    },
+  ],
   // Inaccessible and removed pages.
   'https://journal.fixture.test/articles/paywalled-study': [
     {
