@@ -15,6 +15,7 @@ import { Catalog } from './catalog.js';
 import { FileDrop } from './file-drop.js';
 import { Oversight, SignIn, api, message, useSession } from './oversight.js';
 import { Budgets } from './budgets.js';
+import { RunCompare } from './run-compare.js';
 import { Workflows } from './workflows.js';
 import { Evidence } from './evidence.js';
 import { Scoring } from './selection.js';
@@ -785,6 +786,16 @@ function App() {
             workspace={workspace}
             open={open}
             focus={pageRoute.id}
+          />
+        );
+      case 'runcompare':
+        return (
+          <RunCompare
+            key={workspace.id}
+            workspace={workspace}
+            focus={pageRoute.id}
+            onFocus={focus}
+            open={open}
           />
         );
       case 'files':

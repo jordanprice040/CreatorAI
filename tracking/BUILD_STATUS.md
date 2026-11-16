@@ -1,5 +1,11 @@
 # Build status — November 10, 2026
 
+## November 15 update — compare two runs side by side (F7; ADR-0120, no migration)
+
+What now works: Autopilot › Compare runs puts two autopilots of a workspace in columns: result, route and models, problem, evidence, options and scores, every stop for a person, the choice and who made it, proposal, builds, requests, money and time, with rows that differ marked. It is labelled "A comparison of two runs, not a study result." and lists cautions when the two are not like for like. Read only, from the records, with the caller's own workspace access (`GET /api/workspaces/:ws/run-comparison?a=&b=`). New files: `packages/contracts/src/run-compare.ts`, `apps/api/src/run-compare.ts`, `apps/web/src/run-compare.tsx`, `run-compare-rules.ts`, `run-compare.css`; a section in `pages.ts`, a view case in `main.tsx` and `next-rules.ts`. Tests: `tests/src/run-compare.test.ts` (cautions, table rows and pair rules, two fixture autopilots compared before and after a Continue that chooses and saves a proposal, refusals for the same id, a bad id, another workspace and a stranger, a viewer's read, and the HTTP route). Not covered: two decisions no autopilot made; no live run.
+
+Checked in the cloud container on a throwaway PostgreSQL 16 database: `pnpm typecheck` and `pnpm format:check` pass; full `pnpm test:db` at 4dad0d3: 1368 tests, 1334 pass, 29 skipped, the 5 known PowerShell-wrapper failures. Browser walk `tracking/evidence/run-compare/walk.mjs`: 12/12. Review 1 (8 Lows, 6 nits) fixed (ADR-0120 amendment); after the fixes `run-compare`, `selection`, `selection-domain`, `autopilot`, `web-pages` and `web-next-step` tests: 109/109 pass, and the walk again 12/12.
+
 ## November 15 update — the frozen extra-large build benchmark p14-xl-v1 (ADR-0114, no migration)
 
 What now works: `config/recipe-benchmarks/p14-xl-v1` is written and frozen. It is a stock and order simulator CLI, a package of 11 named modules (the reference is 13 Python files, about 600 lines). It has 25 studio cases (11 held out), 37 extended held-out cases (E29 to E37 added after review 1) and a package structure rule. The studio loads it with its own limits: 20 requests, 3 repair rounds, a 2-hour attempt and an input floor of 120,000 characters. Qualify building offers it beside the v5 benchmarks. A pass lifts no label (ADR-0112 is unchanged).

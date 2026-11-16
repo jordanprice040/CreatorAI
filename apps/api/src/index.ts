@@ -135,6 +135,7 @@ import { RecipeQualificationRunner } from './recipe-qualification.js';
 import { contextRoutes } from './context.js';
 import { searchRoutes } from './search.js';
 import { STUDY_EFFORT_ROUTE, studyEffortRoutes } from './study-effort.js';
+import { RUN_COMPARE_ROUTE, runCompareRoutes } from './run-compare.js';
 import {
   FILES_ROUTE,
   SERVER_REQUEST_MS,
@@ -794,7 +795,8 @@ export function createApi(
       GATE_RULE_ROUTE.exec(url.pathname) ??
       GATE_CHECKLIST_ROUTE.exec(url.pathname) ??
       GATE_CONFIRM_ROUTE.exec(url.pathname) ??
-      STUDY_EFFORT_ROUTE.exec(url.pathname);
+      STUDY_EFFORT_ROUTE.exec(url.pathname) ??
+      RUN_COMPARE_ROUTE.exec(url.pathname);
     if (!match) return false;
     if (!store)
       throw new ContractError(
@@ -1356,6 +1358,13 @@ export function createApi(
         body: () => readJson(req),
         send,
       }))
+    )
+      return true;
+    // ADR-0120 (F7): two autopilots side by side, read only.
+    if (
+      ws &&
+      RUN_COMPARE_ROUTE.test(url.pathname) &&
+      (await runCompareRoutes({ store, ctx, ws, method, url, send }))
     )
       return true;
     if (
@@ -2988,6 +2997,12 @@ import {
   portfolioRoutes,
 } from './portfolio.js';
 export { visitorKey } from './desktop.js';
+export {
+  RUN_COMPARE_ROUTE,
+  compareRuns,
+  comparisonSide,
+  type RunCompareStore,
+} from './run-compare.js';
 export { createPreviewServer } from './artifacts.js';
 export { WebDiscoveryRunner, stepId, answerJson } from './web-discovery.js';
 export {
