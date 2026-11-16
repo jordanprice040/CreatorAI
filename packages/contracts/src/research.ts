@@ -352,6 +352,24 @@ export const FreshnessSchema = z.enum([
   'retracted',
 ]);
 export type Freshness = z.infer<typeof FreshnessSchema>;
+/**
+ * F8 (ADR-0126): what the newest check of a cited source found for the cited passage. A flag
+ * only; it never edits the claim or its support. `same_version`: the cited version is still
+ * the current one. `passage_kept`: the source changed but the cited passage is there word for
+ * word. `quote_kept`: the passage changed but the quoted words are still in it.
+ * `passage_changed`: neither the passage nor the quote is in the current version.
+ * `page_gone`: the newest check found the page removed or unreadable. `cannot_tell`: the source
+ * changed and the support cites no passage or quote to look for.
+ */
+export const PassageCheckSchema = z.enum([
+  'same_version',
+  'passage_kept',
+  'quote_kept',
+  'passage_changed',
+  'page_gone',
+  'cannot_tell',
+]);
+export type PassageCheck = z.infer<typeof PassageCheckSchema>;
 export const EvidenceStatusSchema = z.enum([
   'supported',
   'contested',
@@ -387,6 +405,9 @@ export const ClaimEvidenceSchema = z.strictObject({
         source_title: z.string().max(500),
         source_url: z.string().max(2000),
         source_current_version: version,
+        /** F8: when the source was last checked (fetched, or found removed or unreadable). */
+        last_checked_at: timestamp.nullable(),
+        passage_check: PassageCheckSchema,
       }),
     )
     .max(500),
@@ -428,3 +449,60 @@ export const SourceBrokerStatusSchema = z.strictObject({
   policy_hash: hash.nullable(),
   note: z.string(),
 });
+
+/** F8 (ADR-0126): most sources one recheck fetches; the least recently checked go first. */
+export const SOURCE_RECHECK_MAX = 12;
+/**
+ * F8: recheck the sources cited by one problem's claims, under the named run's fetch
+ * permissions and the approved-site rules. Fetches only; no model calls. `recheck_id` makes a
+ * retried request replay each fetch instead of fetching again.
+ */
+export const SourceRecheckRequestSchema = z.strictObject({
+  run_id: id,
+  recheck_id: id,
+});
+export type SourceRecheckRequest = z.infer<typeof SourceRecheckRequestSchema>;
+export const SourceRecheckOutcomeSchema = z.enum([
+  /** Fetched; the content is the same as the current version. */
+  'unchanged',
+  /** Fetched; the content changed, so the source has a new version. */
+  'changed',
+  /** The page was removed or could not be read. */
+  'page_gone',
+  /** The fetch was not made or did not finish (refused, blocked, failed, needs approval). */
+  'not_checked',
+  /** Not attempted: the recheck stopped before this source. */
+  'not_tried',
+]);
+export type SourceRecheckOutcome = z.infer<typeof SourceRecheckOutcomeSchema>;
+export const SourceRecheckResultSchema = z.strictObject({
+  recheck_id: id,
+  run_id: id,
+  problem_id: id,
+  sources: z
+    .array(
+      z.strictObject({
+        source_id: id,
+        title: z.string().max(500),
+        url: z.string().max(2000),
+        outcome: SourceRecheckOutcomeSchema,
+        retrieval_id: id.nullable(),
+        /** The approval request a `needs_human` fetch filed, to approve in place. */
+        decision_id: id.nullable(),
+        state: RetrievalStateSchema.nullable(),
+        reason_code: z.string().max(200).nullable(),
+        explanation: z.string().max(1200).nullable(),
+      }),
+    )
+    .max(SOURCE_RECHECK_MAX),
+  /** Cited sources left for a later recheck because of SOURCE_RECHECK_MAX. */
+  not_rechecked: counter,
+  /** Why the recheck stopped early (approval needed, fetch limit), when it did. */
+  stopped: z
+    .strictObject({
+      reason_code: z.string().max(200),
+      explanation: z.string().max(1200),
+    })
+    .nullable(),
+});
+export type SourceRecheckResult = z.infer<typeof SourceRecheckResultSchema>;

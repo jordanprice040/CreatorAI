@@ -1,0 +1,40 @@
+/* F8 (ADR-0126): source freshness on Decide. Own file so style.css stays untouched. */
+.sf-checked {
+  color: var(--text-3);
+}
+.sf-flag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--warn-border);
+  border-radius: 999px;
+  background: var(--warn-bg);
+  color: var(--warn);
+  white-space: nowrap;
+}
+.sf-row-flag {
+  color: var(--warn);
+  font-weight: 600;
+}
+.sf-row-note {
+  color: var(--text-2);
+}
+.sf-recheck {
+  margin: 4px 0 12px;
+}
+.sf-result {
+  margin-top: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-sunken);
+}
+.sf-result > p {
+  margin: 0;
+}
+.sf-list {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}

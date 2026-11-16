@@ -23,6 +23,8 @@ import {
 } from '@creator/contracts';
 import {
   assessClaimEvidence,
+  passageCheck,
+  passageLabels,
   canonicalHash,
   looksLikeInstructions,
   quoteInPassage,
@@ -1187,7 +1189,17 @@ export class ResearchStore extends WorkflowStore {
             and x.finished_at is not null order by x.finished_at desc, x.started_at desc
             limit 1) as latest_state,
          (select max(f.finished_at) from source_retrievals f where f.source_id = cs.source_id
-            and f.state = 'fetched' and f.content_hash = e.body->>'content_hash') as last_fetched_at
+            and f.state = 'fetched' and f.content_hash = e.body->>'content_hash') as last_fetched_at,
+         (select max(k.finished_at) from source_retrievals k where k.source_id = cs.source_id
+            and k.state in ('fetched', 'inaccessible', 'removed')) as last_checked_at,
+         (select cp.passage_hash from source_passages cp where cp.id = cs.passage_id)
+           as cited_passage_hash,
+         case when cs.source_version <> e.version then
+           array(select np.passage_hash from source_passages np where np.source_id = cs.source_id
+             and np.source_version = e.version) end as current_hashes,
+         case when cs.source_version <> e.version and cs.quote is not null then
+           array(select np.excerpt from source_passages np where np.source_id = cs.source_id
+             and np.source_version = e.version) end as current_excerpts
        from claim_support cs
          join entities e on e.id = cs.source_id
          join research_sources rs on rs.source_id = cs.source_id
@@ -1211,6 +1223,26 @@ export class ResearchStore extends WorkflowStore {
         retracted: r.retracted_at !== null,
       })),
     });
+    // F8 (ADR-0126): what the newest check found for each cited passage; a flag only.
+    const checks = rows.map((r: Row) =>
+      passageCheck({
+        latest_state: (r.latest_state ?? null) as RetrievalState | null,
+        source_version: Number(r.source_version),
+        source_current_version: Number(r.source_current_version),
+        cited_passage_hash: r.cited_passage_hash
+          ? String(r.cited_passage_hash)
+          : null,
+        quote: r.quote === null ? null : String(r.quote),
+        current_hashes: ((r.current_hashes ?? []) as string[]).map(String),
+        current_excerpts: (r.current_excerpts ?? []) as (string | null)[],
+      }),
+    );
+    const flagged = passageLabels(
+      checks.map((check, i) => ({
+        check,
+        freshness: assessment.rows[i]!.freshness,
+      })),
+    );
     const body = claim.body as Row | null;
     return {
       claim: {
@@ -1230,8 +1262,11 @@ export class ResearchStore extends WorkflowStore {
           [claim.id],
         )
       ).rowCount
-        ? [AUTOPILOT_QUOTE_CHECK_LABEL, ...assessment.labels].slice(0, 20)
-        : assessment.labels,
+        ? [AUTOPILOT_QUOTE_CHECK_LABEL, ...assessment.labels, ...flagged].slice(
+            0,
+            20,
+          )
+        : [...assessment.labels, ...flagged].slice(0, 20),
       explanation: assessment.explanation,
       independent_origins: assessment.independent_origins,
       contrary_origins: assessment.contrary_origins,
@@ -1244,6 +1279,8 @@ export class ResearchStore extends WorkflowStore {
         source_title: String(r.source_title),
         source_url: String((r.source_body as Row | null)?.url ?? r.url_key),
         source_current_version: Number(r.source_current_version),
+        last_checked_at: r.last_checked_at ? iso(r.last_checked_at) : null,
+        passage_check: checks[i]!,
       })),
     };
   }

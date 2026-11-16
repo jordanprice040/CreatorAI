@@ -134,6 +134,7 @@ import {
 import { RecipeQualificationRunner } from './recipe-qualification.js';
 import { contextRoutes } from './context.js';
 import { searchRoutes } from './search.js';
+import { SOURCE_RECHECK_ROUTE, recheckSources } from './source-recheck.js';
 import {
   FILES_ROUTE,
   SERVER_REQUEST_MS,
@@ -791,7 +792,8 @@ export function createApi(
       TEAM_PROFILE_ROUTE.exec(url.pathname) ??
       GATE_RULE_ROUTE.exec(url.pathname) ??
       GATE_CHECKLIST_ROUTE.exec(url.pathname) ??
-      GATE_CONFIRM_ROUTE.exec(url.pathname);
+      GATE_CONFIRM_ROUTE.exec(url.pathname) ??
+      SOURCE_RECHECK_ROUTE.exec(url.pathname);
     if (!match) return false;
     if (!store)
       throw new ContractError(
@@ -1135,6 +1137,23 @@ export function createApi(
           true,
         );
       throw new ContractError('NOT_FOUND', 'Unknown gate checklist route.');
+    }
+    // F8 (ADR-0126): recheck the sources a problem's claims cite; fetches only.
+    if (ws && item && SOURCE_RECHECK_ROUTE.test(url.pathname)) {
+      if (method === 'POST' && sources)
+        return send(
+          200,
+          await recheckSources({
+            sources,
+            comparison: () => store.comparison(ctx, ws, item),
+            ctx,
+            ws,
+            problemId: item,
+            raw: await readJson(req),
+          }),
+          true,
+        );
+      throw new ContractError('NOT_FOUND', 'Unknown source recheck route.');
     }
     if (ws && item && GATE_CONFIRM_ROUTE.test(url.pathname)) {
       // UX pass P-4: `/batch` confirms several options' gates in one step.
@@ -2957,6 +2976,7 @@ import {
 } from './portfolio.js';
 export { visitorKey } from './desktop.js';
 export { createPreviewServer } from './artifacts.js';
+export { recheckOperationId } from './source-recheck.js';
 export { WebDiscoveryRunner, stepId, answerJson } from './web-discovery.js';
 export {
   AutopilotRunner,

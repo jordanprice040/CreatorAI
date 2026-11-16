@@ -566,6 +566,8 @@ test('a large workspace fits the one-message limit: newest claims first, the res
         source_title: 'Source',
         source_url: `https://www${j}.example.org/${'path/'.repeat(10)}${i}`,
         source_current_version: 1,
+        last_checked_at: null,
+        passage_check: 'same_version' as const,
       })),
     };
   });

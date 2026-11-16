@@ -50,6 +50,11 @@ import { AdvanceAndGates, GateLines } from './gates.js';
 import { WaitingAutopilot } from './autopilot-waiting.js';
 import { InlineApproval } from './inline-approval.js';
 import { LinkClaims } from './link-claims.js';
+import {
+  ClaimFreshnessNote,
+  PassageFreshness,
+  RecheckSources,
+} from './source-freshness.js';
 import { Routine, WhatWillHappen } from './routine.js';
 import { DiscoveryProgress } from './discovery-progress.js';
 import {
@@ -145,6 +150,7 @@ function ClaimCard({
               independent origin{c.independent_origins === 1 ? '' : 's'}
               {c.contrary_origins ? `, ${c.contrary_origins} contrary` : ''}
             </small>
+            <ClaimFreshnessNote c={c} />
           </>
         }
       >
@@ -174,6 +180,7 @@ function ClaimCard({
                   {FRESH_NOTE[r.freshness] ?? words(r.freshness)}
                 </span>
                 {r.counted ? '' : ' · not counted'}
+                <PassageFreshness row={r} />
               </small>
               {r.support.quote && <blockquote>“{r.support.quote}”</blockquote>}
               <button
@@ -201,6 +208,17 @@ function ClaimCard({
       </Fold>
     </li>
   );
+}
+
+/** Distinct sources the claims cite, retracted support left out (what a recheck fetches). */
+function citedSources(claims: ClaimEvidence[]) {
+  return new Set(
+    claims.flatMap((c) =>
+      c.rows
+        .filter((r) => r.freshness !== 'retracted')
+        .map((r) => r.support.source_id),
+    ),
+  ).size;
 }
 
 type Row = {
@@ -698,6 +716,22 @@ export function Compare({
                   title: d.cmp.problem.title,
                 }}
                 onLinked={detail.reload}
+                open={open}
+              />
+            )}
+            {!viewer && d.cmp.claims.length > 0 && (
+              <RecheckSources
+                session={session}
+                workspace={workspace}
+                problemId={d.cmp.problem.id}
+                runId={runId}
+                runName={
+                  chosenRun
+                    ? runLabel(chosenRun, d.names, 48, !standard)
+                    : 'the chosen run'
+                }
+                sources={citedSources(d.cmp.claims.map((c) => c.evidence))}
+                onDone={detail.reload}
                 open={open}
               />
             )}
