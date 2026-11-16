@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
-import { createMaintenance } from './maintenance.js';
-export { createMaintenance } from './maintenance.js';
+import { createMaintenance, failingJobs } from './maintenance.js';
+export { createMaintenance, failingJobs } from './maintenance.js';
 export { createStorage } from './storage.js';
 import {
   createServer,
@@ -47,6 +47,7 @@ import {
   OPERATIONS_ACTOR_ID,
   OpsStore,
   StorageStore,
+  NotificationStore,
   ConnectionStore,
   DEFAULT_FILE_LIMITS,
   FileStore,
@@ -155,6 +156,7 @@ import { createOps } from './ops.js';
 import { localIdentity, supportReportRoutes } from './support-report.js';
 import { PROJECT_REPORT_ROUTE, projectReportRoutes } from './project-report.js';
 import { createStorage } from './storage.js';
+import { createBackups } from './backups.js';
 import {
   runCapabilityCheck,
   studioMachine,
@@ -337,6 +339,7 @@ export function createApi(
   const uploadSlots = new UploadSlots(concurrentUploadsFromEnv(env));
   const codexLauncher = codexLauncherFromEnv(env);
   const ops = pool ? new OpsStore(pool) : null;
+  const notifications = pool ? new NotificationStore(pool) : null;
   // Local product store shared with the owner CLI. Generated code only ever runs in its worker.
   const artifacts =
     deps.artifacts ??
@@ -630,6 +633,18 @@ export function createApi(
     ownerId,
     deployment.mode === 'local' && env.CREATOR_DESKTOP_MANAGED === '1',
   );
+  // ADR-0123 (F1): Settings › Backups and the daily backup, for the studio owner alone.
+  const backups = createBackups({
+    pool,
+    databaseUrl: dbUrl ?? null,
+    productsRoot: artifacts.products.root,
+    defaultFolder: env.CREATOR_BACKUPS_DIR || '.creator/backups',
+    pgBinDir: env.CREATOR_PG_BIN || undefined,
+    local: deployment.mode === 'local',
+    ensureReady,
+    requireSession: (req, mutating) => authn.requireOwner(req, mutating),
+    log: (m) => console.error(m),
+  });
   let storage: 'postgresql' | 'not_configured' | 'unavailable' = pool
     ? 'unavailable'
     : 'not_configured';
@@ -682,6 +697,14 @@ export function createApi(
     // Autopilots a stopped studio left running carry on (each step's start is idempotent).
     autopilot?.watch();
     if (portfolioScheduler === 'on') portfolio?.start();
+    await backups
+      .recover()
+      .catch((e: unknown) =>
+        console.error(
+          `Backup recovery: ${e instanceof Error ? e.message : 'failed'}`,
+        ),
+      );
+    backups.start();
   }
   let ready = init();
   ready.catch(() => undefined);
@@ -696,12 +719,24 @@ export function createApi(
   }
   // Outbox relay: deliveries are idempotent, so a crash between projection and ack is safe.
   let ticks = 0;
+  const startedAt = Date.now();
   const relay = store
     ? setInterval(() => {
         if (storage !== 'postgresql') return;
         void maintenance
           .run('outbox', () => store.drainOutbox())
           .catch(() => undefined);
+        // ADR-0116 (N1): once a minute, expire stale interruptions, apply retention, and name
+        // a background job that has failed for more than ten minutes in the owner's inbox.
+        if (notifications && ticks % 60 === 59) {
+          void maintenance
+            .run('notifications', () => notifications.sweepNotifications())
+            .catch(() => undefined);
+          for (const f of failingJobs(maintenance.snapshot().jobs, startedAt))
+            void notifications
+              .notifyMaintenance(ownerId, f.job, f.code)
+              .catch(() => undefined);
+        }
         if (++ticks % 15 === 0) {
           void maintenance
             .run('broker_recovery', () => store.sweepStale(brokerActor))
@@ -745,6 +780,10 @@ export function createApi(
   const SETTINGS_LIMITS_ROUTE = /^\/api\/settings\/spending-limits$/;
   // ADR-0082 (P19): the signed-in person's own Standard/Advanced choice (no workspace).
   const VIEW_PREFERENCE_ROUTE = /^\/api\/me\/view-mode$/;
+  // ADR-0116 (N1): the signed-in person's own notifications and notification settings.
+  const NOTIFICATIONS_ROUTE =
+    /^\/api\/notifications(?:\/(recent|pending|read-all)|\/([^/]+)\/(claim|read|dismiss))?$/;
+  const NOTIFICATION_PREFERENCES_ROUTE = /^\/api\/notification-preferences$/;
   const USAGE_ROUTE = /^\/api\/workspaces\/([^/]+)\/(usage)$/;
   const EVIDENCE_SITES_ROUTE = /^\/api\/workspaces\/([^/]+)\/(evidence-sites)$/;
   // ADR-0093 (P28): the workspace's own OpenAI API key (status, save or replace, remove).
@@ -786,6 +825,8 @@ export function createApi(
       SETTINGS_SPENDING_ROUTE.exec(url.pathname) ??
       SETTINGS_LIMITS_ROUTE.exec(url.pathname) ??
       VIEW_PREFERENCE_ROUTE.exec(url.pathname) ??
+      NOTIFICATIONS_ROUTE.exec(url.pathname) ??
+      NOTIFICATION_PREFERENCES_ROUTE.exec(url.pathname) ??
       USAGE_ROUTE.exec(url.pathname) ??
       EVIDENCE_SITES_ROUTE.exec(url.pathname) ??
       API_KEY_ROUTE.exec(url.pathname) ??
@@ -1357,6 +1398,72 @@ export function createApi(
           true,
         );
       throw new ContractError('NOT_FOUND', 'Unknown view preference route.');
+    }
+    // ADR-0116 (N1): any signed-in person reads and changes only their own notifications.
+    // Nothing here approves, continues or spends; a claim only decides who shows an alert.
+    const inbox = NOTIFICATIONS_ROUTE.exec(url.pathname);
+    if (inbox && notifications) {
+      const [, list, id, verb] = inbox;
+      if (!list && !id && method === 'GET') {
+        const p = url.searchParams;
+        return send(
+          200,
+          await notifications.notifications(ctx, {
+            cursor: p.get('cursor'),
+            group: p.get('group'),
+            workspace: p.get('workspace'),
+            unread: p.get('unread') === '1',
+          }),
+          false,
+        );
+      }
+      if (list === 'recent' && method === 'GET')
+        return send(200, await notifications.recentNotifications(ctx), false);
+      if (list === 'pending' && method === 'GET')
+        return send(200, await notifications.pendingNotifications(ctx), false);
+      if (list === 'read-all' && method === 'POST') {
+        await readJson(req);
+        return send(200, await notifications.readAllNotifications(ctx), false);
+      }
+      if (id && verb === 'claim' && method === 'POST')
+        return send(
+          200,
+          await notifications.claimNotification(ctx, id, await readJson(req)),
+          false,
+        );
+      if (id && (verb === 'read' || verb === 'dismiss') && method === 'POST') {
+        await readJson(req);
+        return send(
+          200,
+          verb === 'read'
+            ? await notifications.readNotification(ctx, id)
+            : await notifications.dismissNotification(ctx, id),
+          false,
+        );
+      }
+      throw new ContractError('NOT_FOUND', 'Unknown notifications route.');
+    }
+    if (NOTIFICATION_PREFERENCES_ROUTE.test(url.pathname) && notifications) {
+      if (method === 'GET')
+        return send(
+          200,
+          await notifications.notificationPreferences(ctx),
+          false,
+        );
+      // POST like the view choice, so it carries CSRF through the studio's one write path.
+      if (method === 'POST')
+        return send(
+          200,
+          await notifications.setNotificationPreferences(
+            ctx,
+            await readJson(req),
+          ),
+          false,
+        );
+      throw new ContractError(
+        'NOT_FOUND',
+        'Unknown notification preferences route.',
+      );
     }
     // Narrower per-run and per-model limits under that ceiling (ADR-0044); same audience.
     if (SETTINGS_LIMITS_ROUTE.test(url.pathname)) {
@@ -2915,6 +3022,8 @@ export function createApi(
         readJson(req),
       );
       if (storageOut) return respond(res, storageOut.status, storageOut.value);
+      const backupsOut = await backups.route(req, url, () => readJson(req));
+      if (backupsOut) return respond(res, backupsOut.status, backupsOut.value);
       if (url.pathname.startsWith('/api/desktop/')) {
         if (!store)
           throw new ContractError(
@@ -3020,6 +3129,7 @@ export function createApi(
     await recipeQualifications?.stop();
     await autopilot?.close();
     await portfolio?.stop();
+    await backups.close();
     server.closeAllConnections();
     preview.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -3041,6 +3151,8 @@ export function createApi(
     ready: () => ready,
     close,
     ops,
+    /** ADR-0123: the backups service (tests drive its daily check directly). */
+    backups,
     deployment,
     configHash,
     authMode: authn.mode,
@@ -3067,6 +3179,7 @@ export {
 } from './run-compare.js';
 export { createPreviewServer } from './artifacts.js';
 export { recheckOperationId } from './source-recheck.js';
+export { createBackups, inside as insideFolder } from './backups.js';
 export { WebDiscoveryRunner, stepId, answerJson } from './web-discovery.js';
 export {
   AutopilotRunner,

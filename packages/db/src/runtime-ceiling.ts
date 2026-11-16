@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import type { PoolClient } from 'pg';
+import { notifySpendRefusal } from './notifications.js';
 import {
   z,
   parse,
@@ -169,12 +170,13 @@ export async function recordSpendingRefusal(
     explanation: string;
   },
 ) {
+  const id = randomUUID();
   await c.query(
     `insert into spending_refusals
        (id, reservation_id, study_attempt_id, workspace_id, run_id, reason_code, explanation)
      values ($1, $2, $3, $4, $5, $6, $7)`,
     [
-      randomUUID(),
+      id,
       r.reservationId ?? null,
       r.studyAttemptId ?? null,
       r.ws,
@@ -183,6 +185,14 @@ export async function recordSpendingRefusal(
       r.explanation,
     ],
   );
+  // ADR-0116 (N1): the manager is alerted with the details; the starter is told the run waits.
+  await notifySpendRefusal(c, {
+    refusalId: id,
+    ws: r.ws,
+    runId: r.runId,
+    reasonCode: r.reasonCode,
+    explanation: r.explanation,
+  });
 }
 
 /** No narrower limits: only the overall ceiling applies until the owner sets some. */

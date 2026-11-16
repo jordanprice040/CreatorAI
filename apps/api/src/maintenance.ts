@@ -1,5 +1,33 @@
-const JOBS = ['outbox', 'broker_recovery', 'retrieval_recovery'] as const;
+const JOBS = [
+  'outbox',
+  'broker_recovery',
+  'retrieval_recovery',
+  'notifications',
+] as const;
 type Job = (typeof JOBS)[number];
+export const MAINTENANCE_JOBS: readonly Job[] = JOBS;
+/** ADR-0116 (N1): a job failing this long is named in its owner's inbox (Advanced view). */
+export const MAINTENANCE_ALERT_MS = 10 * 60 * 1000;
+
+/** Jobs whose last success is older than `MAINTENANCE_ALERT_MS` and that are failing now. */
+export function failingJobs(
+  jobs: Record<
+    string,
+    {
+      last_success_at: string | null;
+      last_failure_at: string | null;
+      error_code: string | null;
+    }
+  >,
+  since: number,
+  now = Date.now(),
+): { job: string; code: string }[] {
+  return Object.entries(jobs).flatMap(([job, j]) => {
+    if (!j.error_code) return [];
+    const ok = j.last_success_at ? Date.parse(j.last_success_at) : since;
+    return now - ok > MAINTENANCE_ALERT_MS ? [{ job, code: j.error_code }] : [];
+  });
+}
 
 /** Process-local diagnostics; durable jobs and their idempotence stay in the store. */
 export function createMaintenance(
@@ -64,6 +92,7 @@ export function createMaintenance(
         outbox: { ...jobs.outbox },
         broker_recovery: { ...jobs.broker_recovery },
         retrieval_recovery: { ...jobs.retrieval_recovery },
+        notifications: { ...jobs.notifications },
       },
     }),
   };

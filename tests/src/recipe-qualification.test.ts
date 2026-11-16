@@ -25,7 +25,11 @@ import {
   type PlanConnection,
   type RecipeQualificationRecord,
 } from '@creator/contracts';
-import { ConnectionStore, type CommandContext } from '@creator/db';
+import {
+  ConnectionStore,
+  NotificationStore,
+  type CommandContext,
+} from '@creator/db';
 import { MemoryVault, PlanConnectionService } from '@creator/broker';
 import { BUILD_ROLE_PROMPTS, canonicalHash } from '@creator/domain';
 import {
@@ -933,6 +937,14 @@ test('ADR-0105: an attempt admits only its own role requests, within its limit, 
     }),
   );
   assert.equal(s.fake.responseRequests.length, sent + 4);
+  // ADR-0116 (N1) check 12c: a qualification the person stopped themselves sends nothing.
+  await s.store.drainOutbox();
+  assert.deepEqual(
+    (await new NotificationStore(s.db.pool).notifications(owner)).items.filter(
+      (n) => n.subject_kind === 'recipe_qualification',
+    ),
+    [],
+  );
 });
 
 test('ADR-0105: the first failed attempt ends a Python qualification as not qualified', async (t) => {

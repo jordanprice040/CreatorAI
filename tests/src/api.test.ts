@@ -41,6 +41,7 @@ test('real HTTP health/fixture/validation paths enforce shape, scope and bounded
     'outbox',
     'broker_recovery',
     'retrieval_recovery',
+    'notifications',
   ]);
   const response = await post('/api/fixture', {
     goal: 'Synthetic HTTP task',

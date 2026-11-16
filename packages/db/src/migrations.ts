@@ -3909,6 +3909,61 @@ create index spending_refusals_recent on spending_refusals (created_at desc);
 `,
   },
   {
+    // ADR-0116 (N1): durable per-person notifications. A notification only links to the place to
+    // act. `notification_sources` names why each row exists (an audit event id or a hook's stable
+    // key), so a replayed event or a repeated hook changes nothing; distinct sources with the
+    // same dedup key raise `occurrences` without a second interruption. At most one client wins
+    // the interruption: the claim is a conditional update from 'pending'.
+    version: 70,
+    name: 'notifications',
+    sql: `
+create table notification_preferences (
+ actor_id uuid primary key references actors(id),
+ version integer not null check (version >= 1),
+ body jsonb not null check (jsonb_typeof(body) = 'object'),
+ updated_at timestamptz not null default clock_timestamp()
+);
+create table notifications (
+ id uuid primary key,
+ actor_id uuid not null references actors(id),
+ workspace_id uuid references workspaces(id),
+ event_key text not null check (length(event_key) between 1 and 60),
+ severity text not null check (severity in ('needs_you', 'warning', 'info')),
+ mode text not null check (mode in ('interrupt', 'toast_only', 'inbox')),
+ title text not null check (length(title) between 1 and 140),
+ body text not null default '' check (length(body) <= 400),
+ link text not null check (length(link) between 2 and 300 and link like '#/%'),
+ subject_kind text not null check (length(subject_kind) between 1 and 40),
+ subject_id text not null check (length(subject_id) between 1 and 80),
+ dedupe_key text not null check (length(dedupe_key) between 1 and 200),
+ occurrences integer not null default 1 check (occurrences >= 1),
+ interrupt_state text not null check (interrupt_state in ('pending', 'claimed', 'none', 'held_quiet', 'expired')),
+ interrupted_via text check (interrupted_via in ('toast', 'windows', 'digest')),
+ interrupted_at timestamptz,
+ batch_id uuid,
+ first_at timestamptz not null default clock_timestamp(),
+ last_at timestamptz not null default clock_timestamp(),
+ read_at timestamptz,
+ dismissed_at timestamptz,
+ withdrawn_at timestamptz,
+ unique (actor_id, dedupe_key),
+ check ((interrupt_state = 'claimed') = (interrupted_via is not null)),
+ check ((interrupted_via is null) = (interrupted_at is null)),
+ check (batch_id is null or interrupt_state <> 'pending')
+);
+create index notifications_inbox on notifications (actor_id, read_at, last_at desc);
+create index notifications_pending on notifications (actor_id, first_at) where interrupt_state = 'pending';
+create table notification_sources (
+ notification_id uuid not null references notifications(id) on delete cascade,
+ source_key text not null check (length(source_key) between 1 and 200),
+ actor_id uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ primary key (notification_id, source_key),
+ unique (actor_id, source_key)
+);
+`,
+  },
+  {
     // ADR-0122 (F13): the study effort timer. A step starts on the server clock; its browser
     // totals arrive once, with the intervention that ends it. Both rows are append-only, and an
     // unfinished step stays visible. Versions 70-71 are reserved by other milestones.
@@ -3939,6 +3994,57 @@ create table study_effort_measures (
 create index study_effort_measures_attempt on study_effort_measures(attempt_id);
 create trigger study_effort_measures_immutable before update or delete on study_effort_measures
  for each row execute function creator_reject_change();
+`,
+  },
+  {
+    // ADR-0123 (F1): backups in Settings. The owner's backup settings are versioned and
+    // immutable, like the runtime ceiling. Each backup, check and restore is recorded as it
+    // starts and when it ends; one runs at a time, and the daily backup is attempted at most
+    // once per UTC day, whatever restarts happen (both enforced by unique indexes).
+    version: 73,
+    name: 'backups',
+    sql: `
+create table backup_settings (
+ version integer primary key check (version >= 1),
+ daily_enabled boolean not null,
+ keep_daily integer not null check (keep_daily between 1 and 60),
+ folder text not null check (length(folder) between 3 and 1000),
+ actor_id uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp()
+);
+create trigger backup_settings_immutable before update or delete on backup_settings
+ for each row execute function creator_reject_change();
+create table backup_runs (
+ id uuid primary key,
+ trigger text not null check (trigger in ('manual', 'daily', 'check', 'restore')),
+ status text not null default 'running' check (status in ('running', 'succeeded', 'failed', 'interrupted')),
+ backup_name text check (length(backup_name) between 1 and 200),
+ daily_day date,
+ actor_id uuid references actors(id),
+ started_at timestamptz not null default clock_timestamp(),
+ finished_at timestamptz,
+ error text check (length(error) between 1 and 2000),
+ result jsonb,
+ check ((trigger = 'daily') = (daily_day is not null)),
+ check ((trigger = 'daily') = (actor_id is null)),
+ check ((status = 'running') = (finished_at is null))
+);
+create unique index backup_runs_one_running on backup_runs ((true)) where status = 'running';
+create unique index backup_runs_daily_once on backup_runs (daily_day) where trigger = 'daily';
+create index backup_runs_recent on backup_runs (started_at desc);
+create function creator_backup_run_change() returns trigger language plpgsql as $$
+begin
+  if tg_op = 'DELETE' then raise exception 'backup runs are append-only'; end if;
+  if old.status <> 'running' then raise exception 'a finished backup run cannot change'; end if;
+  if new.id <> old.id or new.trigger <> old.trigger or new.daily_day is distinct from old.daily_day
+     or new.actor_id is distinct from old.actor_id or new.started_at <> old.started_at
+     or (new.backup_name is distinct from old.backup_name and old.backup_name is not null) then
+    raise exception 'only a running backup run''s outcome can be recorded';
+  end if;
+  return new;
+end $$;
+create trigger backup_runs_outcome before update or delete on backup_runs
+ for each row execute function creator_backup_run_change();
 `,
   },
   {

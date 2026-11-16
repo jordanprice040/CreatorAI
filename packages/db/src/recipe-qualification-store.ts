@@ -7,6 +7,7 @@ import {
   type RecipeQualificationRecord,
 } from '@creator/contracts';
 import { fail, iso, uuid, type Row } from './store.js';
+import { notifyRecipeQualification } from './notifications.js';
 
 // ADR-0105 (B1): build (recipe) qualification records. The rows and the attempt rules live
 // here; ConnectionStore wraps them with its owner, connection and admission checks.
@@ -146,6 +147,8 @@ async function finishQualification(
        version = version + 1 where id = $1`,
     [id, state, passed, reason.slice(0, 4000)],
   );
+  // ADR-0116 (N1): a passed one goes to the inbox; a failed or unfinished one alerts once.
+  await notifyRecipeQualification(c, id);
 }
 
 /**
