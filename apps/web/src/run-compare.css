@@ -1,0 +1,81 @@
+/* ADR-0120 (F7): Compare two runs. Uses the app's tokens only; style.css is not changed. */
+.run-compare-label {
+  padding: 8px 12px;
+  border: 1px solid var(--warn-border);
+  background: var(--warn-bg);
+  border-radius: 8px;
+}
+.run-compare-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin: 12px 0;
+}
+.run-compare-pick label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 280px;
+  min-width: 0;
+}
+.run-compare-pick select {
+  max-width: 100%;
+}
+.run-compare-cautions ul {
+  margin: 4px 0 8px;
+}
+.run-compare-muted {
+  color: var(--muted);
+}
+/* Fixed columns: a long title in one column must not squeeze the other. */
+table.run-compare-table {
+  table-layout: fixed;
+  width: 100%;
+}
+table.run-compare-table thead th:first-child {
+  width: 26%;
+}
+table.run-compare-table th[scope='row'] {
+  font-weight: 500;
+  color: var(--text-3);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 10px 8px 0;
+  vertical-align: top;
+}
+/* The ranking table keeps its score columns on one line; both columns here wrap. */
+table.ranking.run-compare-table td:nth-child(n) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+table.run-compare-table tr.group-start > * {
+  border-top: 1px solid var(--border-strong);
+}
+table.run-compare-table tr.differs td {
+  color: var(--text);
+}
+.differs-mark {
+  color: var(--accent);
+  font-weight: 600;
+}
+.run-compare-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin: 16px 0;
+}
+.run-compare-side {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.run-compare-side h3 {
+  margin-top: 0;
+  font-size: 15px;
+}
+.run-compare-side h4 {
+  margin: 12px 0 4px;
+  font-size: 13px;
+}

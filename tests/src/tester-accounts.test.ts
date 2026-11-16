@@ -156,6 +156,8 @@ test('tester accounts: own actor, own sample workspace, no owner powers, expiry 
   assert.equal(ta.session!.account, 'tester');
   assert.equal(ta.session!.actor_id, a.actor_id);
   assert.notEqual(ta.session!.actor_id, owner.session!.actor_id);
+  // ADR-0121 review L-5: Monitor › Storage and its cleanup are the owner's, never a tester's.
+  assert.equal((await get('/storage', ta.read!)).status, 403);
   const listed = (await (await get('/workspaces', ta.read!)).json()) as {
     id: string;
     name: string;

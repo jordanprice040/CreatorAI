@@ -15,6 +15,7 @@ import { Catalog } from './catalog.js';
 import { FileDrop } from './file-drop.js';
 import { Oversight, SignIn, api, message, useSession } from './oversight.js';
 import { Budgets } from './budgets.js';
+import { RunCompare } from './run-compare.js';
 import { Workflows } from './workflows.js';
 import { Evidence } from './evidence.js';
 import { Scoring } from './selection.js';
@@ -61,6 +62,7 @@ import { FirstRun } from './first-run.js';
 import { nextStep } from './next-rules.js';
 import { hiddenTabs, routeHash, shownSections } from './pages.js';
 import { Chat } from './chat.js';
+import { CommandPalette, PaletteButton } from './command-palette.js';
 import type { Prefill } from './prefill.js';
 
 // Declared once: visited pages keep their component identity and session-memory drafts.
@@ -69,6 +71,9 @@ const Files = lazy(() =>
 );
 const Operations = lazy(() =>
   import('./operations.js').then((m) => ({ default: m.Operations })),
+);
+const Storage = lazy(() =>
+  import('./storage.js').then((m) => ({ default: m.Storage })),
 );
 const GitHub = lazy(() =>
   import('./github.js').then((m) => ({ default: m.GitHub })),
@@ -723,7 +728,7 @@ function App() {
               ws={workspace.id}
               open={(view) => open(view)}
             />
-            <PathView facts={facts} open={open} />
+            <PathView facts={facts} open={open} ws={workspace.id} />
           </>
         );
       case 'portfolio':
@@ -738,6 +743,8 @@ function App() {
         return <Models key={workspace.id} workspace={workspace} session={s} />;
       case 'operations':
         return <Operations />;
+      case 'storage':
+        return <Storage session={s} />;
       case 'settings':
         return <Settings session={s} workspace={workspace} open={open} />;
       case 'payments':
@@ -785,6 +792,16 @@ function App() {
             workspace={workspace}
             open={open}
             focus={pageRoute.id}
+          />
+        );
+      case 'runcompare':
+        return (
+          <RunCompare
+            key={workspace.id}
+            workspace={workspace}
+            focus={pageRoute.id}
+            onFocus={focus}
+            open={open}
           />
         );
       case 'files':
@@ -1173,6 +1190,7 @@ function App() {
                   </button>
                 </span>
               )}
+              {inStudio && signedIn && <PaletteButton />}
               {inStudio &&
                 signedIn &&
                 workspace?.role === 'owner' &&
@@ -1272,6 +1290,16 @@ function App() {
             csrf={auth.session.csrf_token}
             aside={aside}
             open={(view, id) => open(view, id)}
+          />
+        )}
+        {inStudio && workspace && auth.session && (
+          <CommandPalette
+            key={workspace.id}
+            workspace={workspace}
+            workspaces={workspaces!}
+            open={open}
+            switchWorkspace={(ws) => go({ ws, id: '' })}
+            showNotes={() => aside.show('notes')}
           />
         )}
       </div>
