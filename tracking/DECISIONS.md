@@ -53,6 +53,21 @@ Not covered: comparing two decisions on a problem that no autopilot made (the br
 
 Rejected: a stored comparison record (nothing to preserve that the records do not already hold, and a stored copy could go stale); a winner or score of the comparison (one try each proves nothing, as the label says); putting it under Monitor (the autopilots and their Continue live on the Autopilot page).
 
+## ADR-0119 — Command palette (Ctrl+K) and a keyboard shortcuts sheet (November 15, 2026; no migration)
+
+Feature idea 6 (Jordan, November 15: build all 13 ideas; plan `/mnt/project-files/plans/FEATURE_IDEAS_PLAN_2026-11-15.md`). The studio has about 30 tabs across 7 pages and its only shortcut was Ctrl+. for the side panel. Web only.
+
+- **What it is.** Ctrl+K (Cmd+K on a Mac) opens a palette from anywhere, including a text field; Ctrl+K again or Esc closes it and focus returns where it was. It searches forms (Actions), every tab (Pages), problems (Projects), recent records, matching records and the person's other workspaces. "?" opens a shortcuts sheet, except while typing in a field. Ctrl+. stays with the side panel.
+- **It only moves the person.** Every item opens a page, a form, a record, the notes panel or the shortcuts sheet. Nothing is filled in or submitted; starting work still needs the page's own form and approvals. The component reads with GET only (a test checks it sends no CSRF token, body or method).
+- **Access.** Records come from the workspace's existing search route, which checks membership before it builds any hit, and open through the same destination check as Search. Forms are listed by role: "Start an autopilot" for owners only (ADR-0111), "Start a discovery" and "Fetch a source" for owners and editors, reading items for everyone. Pages are listed whatever the view mode, since Standard's hidden tabs still open by address (ADR-0082). Fixture records are labelled.
+- **Accessibility.** Native modal `<dialog>` (focus stays inside, the page behind is inert), a combobox input with `aria-activedescendant` over a grouped listbox, arrows, Home, End and Enter, a polite result count, and Esc stopped at the dialog so it does not also close the side panel. axe-core found no violations with the palette or sheet open, in both themes and at phone width.
+- **Visible way in (review 1).** A "Go to…" button in the top bar opens the palette, and the search row has a real Close button, so it works by mouse, touch and phone, not only by keyboard. Ctrl+K needs no Shift or Alt; on a Mac only Cmd+K opens it, because Ctrl+K there deletes to the end of a line.
+- **Code.** `apps/web/src/palette-rules.ts` (items, ranking, keys, the shortcut list), `command-palette.tsx`, `palette.css`, and in `main.tsx` the palette mount and the top bar's `PaletteButton`. `style.css` is untouched.
+
+Not covered: no shortcuts beyond these (no "g then x" sequences); no user-defined keys; the palette does not search source passages (Search does, through "Search all records for …").
+
+Rejected: running actions from the palette (it would bypass the forms that show what will happen and ask for approval); a new server search route (the existing one already checks access and labels fixture records).
+
 ## ADR-0113 — One studio spending manager owns the studio-wide ceiling, limits and spend views (November 15, 2026; migration 69)
 
 **Owner decision (Jordan, November 15, 11:22 UTC, notifications plan revision 3, "S0").** Until now `isCeilingOwner` let any signed-in person who owned any workspace read and change the studio-wide runtime ceiling and spending limits (ADR-0043, ADR-0044) and see API spending against the ceiling. Jordan's rule is that owning a workspace must not give access to spending across other workspaces. **Supersedes ADR-0043's and ADR-0044's audience** ("a person who owns a workspace"); everything else in them stands.
