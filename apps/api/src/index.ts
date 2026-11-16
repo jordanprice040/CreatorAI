@@ -146,6 +146,7 @@ import {
   disposition,
 } from './files.js';
 import { createOps } from './ops.js';
+import { localIdentity, supportReportRoutes } from './support-report.js';
 import {
   runCapabilityCheck,
   studioMachine,
@@ -2671,6 +2672,18 @@ export function createApi(
     // ADR-0075: operations status and verification are the owner's, never a tester's.
     requireSession: (req, mutating) => authn.requireOwner(req, mutating),
   });
+  // ADR-0118 (F5): the owner's redacted support report on Monitor > Workers.
+  const supportRoutes = supportReportRoutes({
+    deployment,
+    pool,
+    ops,
+    ensureReady,
+    schemaVersion: () => schemaVersion,
+    readiness: () => opsRoutes.evaluate(),
+    maintenance: () => maintenance.snapshot(),
+    identity: localIdentity(env),
+    requireOwner: (req, mutating) => authn.requireOwner(req, mutating),
+  });
   const server = createServer((req, res) => {
     bodyDeadline(req, res);
     void (async () => {
@@ -2812,6 +2825,8 @@ export function createApi(
         }
         return respond(res, opsOut.status, opsOut.value);
       }
+      const supportOut = await supportRoutes.route(req, url);
+      if (supportOut) return respond(res, supportOut.status, supportOut.value);
       if (url.pathname.startsWith('/api/desktop/')) {
         if (!store)
           throw new ContractError(
@@ -2984,3 +2999,4 @@ export {
   runCapabilityCheck,
   type CapabilityRunner,
 } from './team-checks.js';
+export { supportReportRoutes } from './support-report.js';
