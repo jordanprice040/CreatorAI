@@ -2,6 +2,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { join, relative } from 'node:path';
 import {
+  RECIPE_ATTEMPT_DEADLINE_MS,
   RECIPE_BENCHMARK_INFO,
   RoleAnswerWrappingSchema,
   SpecContentSchema,
@@ -11,6 +12,7 @@ import {
   type SpecContent,
 } from '@creator/contracts';
 import { cliCaseSchema, digest, type CliCase } from './contracts.js';
+import type { PackageStructureRule } from './recipe-structure.js';
 
 /**
  * ADR-0105: the in-app recipe benchmarks. The desktop bundle keeps the repository layout
@@ -42,6 +44,22 @@ const expectationsSchema = z
       data_class: z.literal('synthetic'),
     }),
     pass_bar_per_attempt: z.array(z.string()).min(1),
+    /** ADR-0114: a package structure rule (absent on the v5 benchmarks). */
+    structure: z
+      .strictObject({
+        entry: z.string().regex(/^src\/[a-z_]+\.py$/),
+        package: z.string().regex(/^[a-z_]+$/),
+        package_dir: z.string().regex(/^src\/[a-z_]+$/),
+        modules: z
+          .array(z.string().regex(/^[a-z_]+$/))
+          .min(1)
+          .max(30),
+        rule: z.string().min(1),
+      })
+      .optional(),
+    /** ADR-0114: the input cap floor and the attempt deadline, when the benchmark sets them. */
+    min_input_chars: z.number().int().min(1).optional(),
+    attempt_deadline_ms: z.number().int().min(1).optional(),
     // ADR-0115: absent means one_json_fence, the form the v5 versions ran with.
     answer_wrapping: RoleAnswerWrappingSchema.optional(),
   })
@@ -70,6 +88,8 @@ export interface RecipeBenchmark {
    * carry no acceptance check: `A99` is a label only, and no spec freezes it.
    */
   extended: { id: string; case: CliCase }[];
+  /** ADR-0114: the frozen package structure rule, or null (the ledger keeps its own bar). */
+  structure: PackageStructureRule | null;
 }
 
 /**
@@ -169,6 +189,9 @@ export async function loadRecipeBenchmark(
     caps.max_repairs !== info.caps.max_repairs ||
     caps.max_output_tokens !== info.caps.max_output_tokens ||
     caps.timeout_ms !== info.caps.timeout_ms ||
+    (exp.min_input_chars ?? 0) !== info.min_input_chars ||
+    (exp.attempt_deadline_ms ?? RECIPE_ATTEMPT_DEADLINE_MS) !==
+      info.attempt_deadline_ms ||
     (exp.answer_wrapping ?? 'one_json_fence') !== info.answer_wrapping
   )
     throw new Error(
@@ -198,5 +221,13 @@ export async function loadRecipeBenchmark(
     title: spec.title,
     freeze_sha256: digest(await readFile(join(dir, 'FREEZE.json'))),
     extended,
+    structure: exp.structure
+      ? {
+          entry: exp.structure.entry,
+          package: exp.structure.package,
+          package_dir: exp.structure.package_dir,
+          modules: exp.structure.modules,
+        }
+      : null,
   };
 }

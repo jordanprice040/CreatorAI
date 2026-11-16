@@ -1,0 +1,285 @@
+{
+  "format": "p14-extended-suite/1",
+  "benchmark_id": "p14-xl-v1",
+  "note": "Held out from the studio entirely. Run after the build on the exported package, by the studio in its isolation worker, with the studio case rule (exact output and exit status).",
+  "cases": [
+    {
+      "id": "E1",
+      "args": [],
+      "stdin": "ITEM A 1.5\nITEM B 007\nITEM C 1.\nITEM D .5\nITEM E 12345678\nITEM F +1\nITEM G 1.234\nITEM H 9999999.99\n",
+      "stdout": "item A added\nitem B added\nline 3: bad price\nline 4: bad price\nline 5: bad price\nline 6: bad price\nline 7: bad price\nitem H added\n== report ==\nitem A price 1.50 on_hand 0 reserved 0 value 0.00\nitem B price 7.00 on_hand 0 reserved 0 value 0.00\nitem H price 9999999.99 on_hand 0 reserved 0 value 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E2",
+      "args": [],
+      "stdin": "ITEM A 1\nRECEIVE A 05 1\nRECEIVE A 100001 1\nRECEIVE A 100000 0.01\n",
+      "stdout": "item A added\nline 2: bad quantity\nline 3: bad quantity\nreceived A 100000\n== report ==\nitem A price 1.00 on_hand 100000 reserved 0 value 1000.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E3",
+      "args": [],
+      "stdin": "ITEM a 1\nITEM ABCDEFGHIJKLM 1\nITEM 1A 1\nITEM A-1 1\nITEM ABCDEFGHIJKL 1\nITEM A_1 1\n",
+      "stdout": "line 1: bad sku\nline 2: bad sku\nline 3: bad sku\nitem A-1 added\nitem ABCDEFGHIJKL added\nline 6: bad sku\n== report ==\nitem A-1 price 1.00 on_hand 0 reserved 0 value 0.00\nitem ABCDEFGHIJKL price 1.00 on_hand 0 reserved 0 value 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E4",
+      "args": [],
+      "stdin": "CUSTOMER c 0\nITEM A 1\nRECEIVE A 9 1\nORDER 1a c A 1\nORDER Ab c A 1\nORDER abcdefghijk c A 1\nORDER abcdefghij c A 1\nORDER a-b c A 1\n",
+      "stdout": "customer c added\nitem A added\nreceived A 9\nline 4: bad order id\nline 5: bad order id\nline 6: bad order id\norder abcdefghij reserved\nline 8: bad order id\n== report ==\nitem A price 1.00 on_hand 9 reserved 1 value 9.00\norder abcdefghij c reserved\ncustomer c orders 1 shipped 0 spent 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E5",
+      "args": [],
+      "stdin": "CUSTOMER big_shop 0\nCUSTOMER abcdefghijklmnopq 0\nCUSTOMER abcdefghijklmnop 0\nCUSTOMER shop2 0\nCUSTOMER _x 0\n",
+      "stdout": "customer big_shop added\nline 2: bad customer\ncustomer abcdefghijklmnop added\nline 4: bad customer\nline 5: bad customer\n== report ==\ncustomer abcdefghijklmnop orders 0 shipped 0 spent 0.00\ncustomer big_shop orders 0 shipped 0 spent 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E6",
+      "args": [],
+      "stdin": "CUSTOMER a 0\nCUSTOMER b 50\nCUSTOMER c 00\nCUSTOMER d 51\nCUSTOMER e -1\nCUSTOMER f 7.5\n",
+      "stdout": "customer a added\ncustomer b added\nline 3: bad percent\nline 4: bad percent\nline 5: bad percent\nline 6: bad percent\n== report ==\ncustomer a orders 0 shipped 0 spent 0.00\ncustomer b orders 0 shipped 0 spent 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E7",
+      "args": [],
+      "stdin": "ITEM\tA\t1\r\nRECEIVE  A   3 \t 1\r\n\tCUSTOMER c 0\r\nORDER o c A 2\r\n",
+      "stdout": "item A added\nreceived A 3\ncustomer c added\norder o reserved\n== report ==\nitem A price 1.00 on_hand 3 reserved 2 value 3.00\norder o c reserved\ncustomer c orders 1 shipped 0 spent 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E8",
+      "args": [],
+      "stdin": "ITEM A 1 # first item\n   # indented comment\n#ITEM B 1\nITEM B 2\n",
+      "stdout": "line 1: bad arguments\nitem B added\n== report ==\nitem B price 2.00 on_hand 0 reserved 0 value 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E9",
+      "args": [],
+      "stdin": "item A 1\nItem A 1\nITEM A 1\nship o1\n",
+      "stdout": "line 1: unknown command\nline 2: unknown command\nitem A added\nline 4: unknown command\n== report ==\nitem A price 1.00 on_hand 0 reserved 0 value 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E10",
+      "args": [],
+      "stdin": "CUSTOMER c 0\nITEM A 1\nITEM B 1\nITEM C 1\nITEM D 1\nITEM E 1\nITEM F 1\nORDER o1 c A 1 B 1 C 1 D 1 E 1 F 1\nORDER o1 c A 1 B\nORDER o1 c\nORDER o1 c A 1 B 1 C 1 D 1 E 1\n",
+      "stdout": "customer c added\nitem A added\nitem B added\nitem C added\nitem D added\nitem E added\nitem F added\nline 8: bad arguments\nline 9: bad arguments\nline 10: bad arguments\norder o1 waiting\n== report ==\nitem A price 1.00 on_hand 0 reserved 0 value 0.00\nitem B price 1.00 on_hand 0 reserved 0 value 0.00\nitem C price 1.00 on_hand 0 reserved 0 value 0.00\nitem D price 1.00 on_hand 0 reserved 0 value 0.00\nitem E price 1.00 on_hand 0 reserved 0 value 0.00\nitem F price 1.00 on_hand 0 reserved 0 value 0.00\norder o1 c waiting\ncustomer c orders 1 shipped 0 spent 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E11",
+      "args": [],
+      "stdin": "CUSTOMER h 50\nCUSTOMER q 33\nITEM A 0.01\nITEM B 0.03\nRECEIVE A 5 0\nRECEIVE B 5 0\nORDER o1 h A 1\nORDER o2 q B 1\nORDER o3 q B 4\nSHIP o1\nSHIP o2\nSHIP o3\n",
+      "stdout": "customer h added\ncustomer q added\nitem A added\nitem B added\nreceived A 5\nreceived B 5\norder o1 reserved\norder o2 reserved\norder o3 reserved\norder o1 shipped revenue 0.01 cost 0.00\norder o2 shipped revenue 0.03 cost 0.00\norder o3 shipped revenue 0.09 cost 0.00\n== report ==\nitem A price 0.01 on_hand 4 reserved 0 value 0.00\nitem B price 0.03 on_hand 0 reserved 0 value 0.00\norder o1 h shipped\norder o2 q shipped\norder o3 q shipped\ncustomer h orders 1 shipped 1 spent 0.01\ncustomer q orders 2 shipped 2 spent 0.12\ntotals revenue 0.13 cost 0.00 profit 0.13\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E12",
+      "args": [],
+      "stdin": "CUSTOMER c 20\nITEM A 1\nRECEIVE A 3 2.05\nORDER o c A 3\nSHIP o\n",
+      "stdout": "customer c added\nitem A added\nreceived A 3\norder o reserved\norder o shipped revenue 2.40 cost 6.15\n== report ==\nitem A price 1.00 on_hand 0 reserved 0 value 0.00\norder o c shipped\ncustomer c orders 1 shipped 1 spent 2.40\ntotals revenue 2.40 cost 6.15 profit -3.75\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E13",
+      "args": [],
+      "stdin": "ITEM A 1\nRECEIVE A 4 0\nRECEIVE A 1 0.00\nWRITEOFF A 2\n",
+      "stdout": "item A added\nreceived A 4\nreceived A 1\nwrote off A 2 cost 0.00\n== report ==\nitem A price 1.00 on_hand 3 reserved 0 value 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E14",
+      "args": [],
+      "stdin": "CUSTOMER c 0\nITEM A 1\nRECEIVE A 10 1\nORDER hold c A 10\nORDER w1 c A 4\nORDER w2 c A 7\nORDER w3 c A 6\nCANCEL hold\n",
+      "stdout": "customer c added\nitem A added\nreceived A 10\norder hold reserved\norder w1 waiting\norder w2 waiting\norder w3 waiting\norder hold cancelled\norder w1 reserved\norder w3 reserved\n== report ==\nitem A price 1.00 on_hand 10 reserved 10 value 10.00\norder hold c cancelled\norder w1 c reserved\norder w2 c waiting\norder w3 c reserved\ncustomer c orders 4 shipped 0 spent 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 3
+    },
+    {
+      "id": "E15",
+      "args": [],
+      "stdin": "CUSTOMER c 0\nITEM A 1\nITEM B 1\nORDER w c A 2 B 2\nRECEIVE A 5 1\nRECEIVE B 1 1\nRECEIVE B 1 1\n",
+      "stdout": "customer c added\nitem A added\nitem B added\norder w waiting\nreceived A 5\nreceived B 1\nreceived B 1\norder w reserved\n== report ==\nitem A price 1.00 on_hand 5 reserved 2 value 5.00\nitem B price 1.00 on_hand 2 reserved 2 value 2.00\norder w c reserved\ncustomer c orders 1 shipped 0 spent 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E16",
+      "args": [],
+      "stdin": "CUSTOMER c 0\nITEM A 1\nRECEIVE A 5 1\nORDER o c A 1\nSHIP o\nSHIP o\nCANCEL o\nORDER p c A 1\nCANCEL p\nSHIP p\n",
+      "stdout": "customer c added\nitem A added\nreceived A 5\norder o reserved\norder o shipped revenue 1.00 cost 1.00\nline 6: order not reserved\nline 7: order closed\norder p reserved\norder p cancelled\nline 10: order not reserved\n== report ==\nitem A price 1.00 on_hand 4 reserved 0 value 4.00\norder o c shipped\norder p c cancelled\ncustomer c orders 2 shipped 1 spent 1.00\ntotals revenue 1.00 cost 1.00 profit 0.00\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E17",
+      "args": [],
+      "stdin": "ITEM A 1\nRECEIVE A 2 1\nWRITEOFF B 1\nWRITEOFF A 0\nWRITEOFF a 1\nWRITEOFF A 3\nWRITEOFF A 2\nWRITEOFF A 1\n",
+      "stdout": "item A added\nreceived A 2\nline 3: unknown item\nline 4: bad quantity\nline 5: bad sku\nline 6: not enough stock\nwrote off A 2 cost 2.00\nline 8: not enough stock\n== report ==\nitem A price 1.00 on_hand 0 reserved 0 value 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E18",
+      "args": [],
+      "stdin": "CUSTOMER c 0\nITEM A 1\nORDER o1 c A 1 Z 1\nORDER o1 c A 1\nRECEIVE A 1 1\n",
+      "stdout": "customer c added\nitem A added\nline 3: unknown item\norder o1 waiting\nreceived A 1\norder o1 reserved\n== report ==\nitem A price 1.00 on_hand 1 reserved 1 value 1.00\norder o1 c reserved\ncustomer c orders 1 shipped 0 spent 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E19",
+      "args": [
+        "--format",
+        "json",
+        "--format",
+        "json"
+      ],
+      "stdin": "ITEM A 1\n",
+      "stdout": "invalid input\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E20",
+      "args": [],
+      "stdin": "",
+      "stdout": "== report ==\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E21",
+      "args": [
+        "--quiet",
+        "--format",
+        "json"
+      ],
+      "stdin": "CUSTOMER c 0\nITEM A 1\nRECEIVE A 2 0.5\nORDER o c A 1\nSHIP o\nFOO\n",
+      "stdout": "line 6: unknown command\n{\"cost\": \"0.50\", \"customers\": [{\"name\": \"c\", \"orders\": 1, \"shipped\": 1, \"spent\": \"1.00\"}], \"items\": [{\"on_hand\": 1, \"price\": \"1.00\", \"reserved\": 0, \"sku\": \"A\", \"value\": \"0.50\"}], \"orders\": [{\"customer\": \"c\", \"id\": \"o\", \"revenue\": \"1.00\", \"state\": \"shipped\"}], \"profit\": \"0.50\", \"revenue\": \"1.00\"}\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E22",
+      "args": [],
+      "stdin": "CUSTOMER c 0\nITEM A 1\nRECEIVE A 9 0.1\nORDER o1 c A 1\nPRICE A 1\nPRICE A 2.5\nORDER o2 c A 1\nSHIP o2\nSHIP o1\n",
+      "stdout": "customer c added\nitem A added\nreceived A 9\norder o1 reserved\nitem A price 1.00\nitem A price 2.50\norder o2 reserved\norder o2 shipped revenue 2.50 cost 0.10\norder o1 shipped revenue 1.00 cost 0.10\n== report ==\nitem A price 2.50 on_hand 7 reserved 0 value 0.70\norder o1 c shipped\norder o2 c shipped\ncustomer c orders 2 shipped 2 spent 3.50\ntotals revenue 3.50 cost 0.20 profit 3.30\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E23",
+      "args": [],
+      "stdin": "CUSTOMER c 0\nITEM A 1\nRECEIVE A 10 1\nORDER o1 c A 6\nORDER o2 c A 5\nORDER o3 c A 4\nWRITEOFF A 1\nRECEIVE A 1 1\n",
+      "stdout": "customer c added\nitem A added\nreceived A 10\norder o1 reserved\norder o2 waiting\norder o3 reserved\nline 7: not enough stock\nreceived A 1\n== report ==\nitem A price 1.00 on_hand 11 reserved 10 value 11.00\norder o1 c reserved\norder o2 c waiting\norder o3 c reserved\ncustomer c orders 3 shipped 0 spent 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E24",
+      "args": [],
+      "stdin": "CUSTOMER c 0\nITEM A 1\nORDER o c A 1\nNOPE\n",
+      "stdout": "customer c added\nitem A added\norder o waiting\nline 4: unknown command\n== report ==\nitem A price 1.00 on_hand 0 reserved 0 value 0.00\norder o c waiting\ncustomer c orders 1 shipped 0 spent 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E25",
+      "args": [],
+      "stdin": "CUSTOMER c 0\nITEM A 1\nRECEIVE A 3 1\nRECEIVE A 3 2\nRECEIVE A 3 3\nWRITEOFF A 2\nORDER o c A 5\nSHIP o\n",
+      "stdout": "customer c added\nitem A added\nreceived A 3\nreceived A 3\nreceived A 3\nwrote off A 2 cost 2.00\norder o reserved\norder o shipped revenue 5.00 cost 10.00\n== report ==\nitem A price 1.00 on_hand 2 reserved 0 value 6.00\norder o c shipped\ncustomer c orders 1 shipped 1 spent 5.00\ntotals revenue 5.00 cost 10.00 profit -5.00\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E26",
+      "args": [],
+      "stdin": "CUSTOMER c 0\nITEM A 9999999.99\nRECEIVE A 100000 9999999.99\nORDER o c A 100000\nSHIP o\n",
+      "stdout": "customer c added\nitem A added\nreceived A 100000\norder o reserved\norder o shipped revenue 999999999000.00 cost 999999999000.00\n== report ==\nitem A price 9999999.99 on_hand 0 reserved 0 value 0.00\norder o c shipped\ncustomer c orders 1 shipped 1 spent 999999999000.00\ntotals revenue 999999999000.00 cost 999999999000.00 profit 0.00\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E27",
+      "args": [
+        "--format"
+      ],
+      "stdin": "ITEM A 1\n",
+      "stdout": "invalid input\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E28",
+      "args": [
+        "--quiet",
+        "--format",
+        "text",
+        "--format",
+        "text"
+      ],
+      "stdin": "",
+      "stdout": "invalid input\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E29",
+      "args": [],
+      "stdin": "ITEM A 1\n\n# note\nFOO\n   \r\nITEM A 0\n",
+      "stdout": "item A added\nline 4: unknown command\nline 6: bad price\n== report ==\nitem A price 1.00 on_hand 0 reserved 0 value 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E30",
+      "args": [],
+      "stdin": "CUSTOMER ana 1\nCUSTOMER ana 05\nCUSTOMER Ana 05\n",
+      "stdout": "customer ana added\nline 2: bad percent\nline 3: bad customer\n== report ==\ncustomer ana orders 0 shipped 0 spent 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E31",
+      "args": [],
+      "stdin": "PRICE NUT x\nPRICE nut x\nPRICE NUT 0\n",
+      "stdout": "line 1: bad price\nline 2: bad sku\nline 3: bad price\n== report ==\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E32",
+      "args": [],
+      "stdin": "RECEIVE NUT 0 1\nRECEIVE NUT 1 x\nRECEIVE nut 0 x\n",
+      "stdout": "line 1: bad quantity\nline 2: bad cost\nline 3: bad sku\n== report ==\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E33",
+      "args": [],
+      "stdin": "WRITEOFF NUT 0\nWRITEOFF nut 0\n",
+      "stdout": "line 1: bad quantity\nline 2: bad sku\n== report ==\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E34",
+      "args": [],
+      "stdin": "CANCEL O1\nCANCEL o1\n",
+      "stdout": "line 1: bad order id\nline 2: unknown order\n== report ==\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E35",
+      "args": [],
+      "stdin": "CUSTOMER h 0\nITEM A 1\nORDER p h ZZZ 1 A 0\nORDER p h A 1 ZZZ x\nORDER p X1 A 0\nORDER q h A 1\nORDER q zz A 1\nORDER r zz A 0\n",
+      "stdout": "customer h added\nitem A added\nline 3: unknown item\nline 4: bad quantity\nline 5: bad customer\norder q waiting\nline 7: duplicate order\nline 8: unknown customer\n== report ==\nitem A price 1.00 on_hand 0 reserved 0 value 0.00\norder q h waiting\ncustomer h orders 1 shipped 0 spent 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E36",
+      "args": [],
+      "stdin": "CUSTOMER h 50\nITEM A 0.01\nITEM B 0.01\nRECEIVE A 1 0\nRECEIVE B 1 0\nORDER o h A 1 B 1\nSHIP o\n",
+      "stdout": "customer h added\nitem A added\nitem B added\nreceived A 1\nreceived B 1\norder o reserved\norder o shipped revenue 0.01 cost 0.00\n== report ==\nitem A price 0.01 on_hand 0 reserved 0 value 0.00\nitem B price 0.01 on_hand 0 reserved 0 value 0.00\norder o h shipped\ncustomer h orders 1 shipped 1 spent 0.01\ntotals revenue 0.01 cost 0.00 profit 0.01\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E37",
+      "args": [
+        "--format=json"
+      ],
+      "stdin": "ITEM A 1\n",
+      "stdout": "invalid input\n",
+      "exit_code": 2
+    }
+  ]
+}
