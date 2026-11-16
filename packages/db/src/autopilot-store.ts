@@ -18,6 +18,10 @@ import {
   AutopilotConfigSchema,
   AutopilotControlRequestSchema,
   AutopilotStepSchema,
+  AutoResumeOffRequestSchema,
+  AUTO_RESUME_KINDS,
+  AUTO_RESUME_MAX_CHECKS,
+  autoResumeView,
   ROUTINE_STAGE_ACTIONS,
   routineStopFix,
   StartAutopilotRequestSchema,
@@ -55,31 +59,41 @@ import {
 // two steps always wins and a step that moved on is never written over. Only the workspace owner
 // starts, stops or continues an autopilot; nothing here admits a step (each step's own route does).
 
-export const toAutopilot = (r: Row): Autopilot => ({
-  id: String(r.id),
-  workspace_id: String(r.workspace_id),
-  run_id: String(r.run_id),
-  fixture: Boolean(r.fixture),
-  config: AutopilotConfigSchema.parse(r.config),
-  config_hash: String(r.config_hash),
-  summary: (r.summary as string[]).map(String),
-  policy_version: String(r.policy_version),
-  state: r.state as Autopilot['state'],
-  stage: r.stage as AutopilotStage,
-  outcome: (r.outcome ?? null) as AutopilotOutcome | null,
-  explanation: String(r.explanation),
-  steps: parse(z.array(AutopilotStepSchema), r.steps),
-  calls_reserved: Number(r.calls_reserved),
-  version: Number(r.version),
-  created_by: String(r.created_by),
-  created_at: iso(r.created_at),
-  updated_at: iso(r.updated_at),
-  finished_at: r.finished_at ? iso(r.finished_at) : null,
-  active: false,
-  automation_id: r.automation_id ? String(r.automation_id) : null,
-  routine_policy_id: r.routine_policy_id ? String(r.routine_policy_id) : null,
-  approvals_ended_at: r.approvals_ended_at ? iso(r.approvals_ended_at) : null,
-});
+export const toAutopilot = (r: Row): Autopilot =>
+  withAutoResume(r, {
+    id: String(r.id),
+    workspace_id: String(r.workspace_id),
+    run_id: String(r.run_id),
+    fixture: Boolean(r.fixture),
+    config: AutopilotConfigSchema.parse(r.config),
+    config_hash: String(r.config_hash),
+    summary: (r.summary as string[]).map(String),
+    policy_version: String(r.policy_version),
+    state: r.state as Autopilot['state'],
+    stage: r.stage as AutopilotStage,
+    outcome: (r.outcome ?? null) as AutopilotOutcome | null,
+    explanation: String(r.explanation),
+    steps: parse(z.array(AutopilotStepSchema), r.steps),
+    calls_reserved: Number(r.calls_reserved),
+    version: Number(r.version),
+    created_by: String(r.created_by),
+    created_at: iso(r.created_at),
+    updated_at: iso(r.updated_at),
+    finished_at: r.finished_at ? iso(r.finished_at) : null,
+    active: false,
+    automation_id: r.automation_id ? String(r.automation_id) : null,
+    routine_policy_id: r.routine_policy_id ? String(r.routine_policy_id) : null,
+    approvals_ended_at: r.approvals_ended_at ? iso(r.approvals_ended_at) : null,
+  });
+
+/** ADR-0124 (F2): adds where an opted-in autopilot stands on continuing by itself. */
+function withAutoResume(r: Row, a: Autopilot): Autopilot {
+  const view = autoResumeView(a, {
+    checks: Number(r.resume_checks ?? 0),
+    turned_off_at: r.auto_resume_off_at ? iso(r.auto_resume_off_at) : null,
+  });
+  return view ? { ...a, auto_resume: view } : a;
+}
 
 /** What the runner may change in one guarded step. */
 export interface AutopilotPatch {
@@ -625,6 +639,8 @@ export class AutopilotStore extends WebDiscoveryStore {
       reason: string | null;
       allowed?: string;
       settings_version?: number;
+      /** ADR-0124: the automatic continue's number, when the studio continued it after a limit. */
+      auto_resume?: number;
     },
   ): Promise<Autopilot> {
     if (cur.version !== expected)
@@ -679,6 +695,7 @@ export class AutopilotStore extends WebDiscoveryStore {
         ...(extra.allowed
           ? { allowed: extra.allowed, settings_version: extra.settings_version }
           : {}),
+        ...(extra.auto_resume ? { auto_resume: extra.auto_resume } : {}),
       },
       relatedIds: [next.run_id],
     });
@@ -1086,6 +1103,143 @@ export class AutopilotStore extends WebDiscoveryStore {
         }
       }
       return made;
+    });
+  }
+
+  // ---- ADR-0124 (F2): continuing by itself after a usage limit ---------------------------
+
+  /**
+   * Opted-in autopilots stopped on a limit that may still continue by themselves (the runner
+   * checks each one's view, due time and connection before continuing it). System read.
+   */
+  async autopilotsAwaitingResume(): Promise<Autopilot[]> {
+    // Review 1 L-1: only stops on a limit that passes with time and before the end time, so
+    // autopilots that can never continue do not fill the list and crowd out newer ones.
+    const { rows } = await this.pool.query(
+      `select * from autopilots
+        where state = 'finished' and outcome = 'limit_reached'
+          and (config->>'resume_after_limit') = 'true'
+          and auto_resume_off_at is null and resume_checks < $1
+          and approvals_ended_at is null
+          and (config->'limits'->>'ends_at')::timestamptz > clock_timestamp()
+          and steps->(jsonb_array_length(steps) - 1)->>'stop_kind' = any($2::text[])
+        order by updated_at desc limit 100`,
+      [AUTO_RESUME_MAX_CHECKS, AUTO_RESUME_KINDS],
+    );
+    return (rows as Row[]).map(toAutopilot);
+  }
+
+  /**
+   * The studio continues an opted-in autopilot after a usage limit, as the owner who started it
+   * (recorded as the autopilot's step). Every check Continue makes still applies (end time,
+   * outcome, run active, approvals cover it), plus: the owner still owns the workspace, the
+   * opt-in is on and not turned off, it is waiting on a limit, and it is due. Counts the continue.
+   */
+  async autoResumeAutopilot(
+    ctxIn: CommandContext,
+    wsIn: string,
+    idIn: string,
+    expected: number,
+  ): Promise<Autopilot> {
+    const ctx = normalize(ctxIn);
+    const ws = uuid(wsIn);
+    const id = uuid(idIn);
+    try {
+      return await this.tx(async (c) => {
+        const cur = await this.#read(c, ws, id, true);
+        if (cur.created_by !== ctx.actorId || ctx.autopilot?.id !== id)
+          throw fail(
+            'ACCESS_DENIED',
+            'Only the autopilot itself, for the owner who started it, continues it after a limit.',
+          );
+        await this.requireOwner(
+          c,
+          ws,
+          ctx.actorId,
+          'The person who started this autopilot no longer owns the workspace.',
+        );
+        const view = cur.auto_resume;
+        if (view?.state !== 'waiting')
+          throw fail(
+            'INVALID_TRANSITION',
+            'This autopilot is not waiting to continue by itself after a limit.',
+          );
+        if (view.next_check_at && Date.parse(view.next_check_at) > Date.now())
+          throw fail(
+            'INVALID_TRANSITION',
+            `It checks the limit again at ${view.next_check_at}.`,
+          );
+        const n = view.checks + 1;
+        await c.query(
+          `update autopilots set resume_checks = $3 where workspace_id = $1 and id = $2`,
+          [ws, id, n],
+        );
+        return this.#retryIn(c, ctx, ws, cur, expected, {
+          reason: `Continued by itself after the ${cur.steps.at(-1)?.stop_kind === 'daily_cap' ? "connection's daily request cap had room again" : "plan's usage limit; the connection was checked first"} (${n} of ${view.max}).`,
+          auto_resume: n,
+        });
+      });
+    } catch (e) {
+      if (isPgError(e, '23505', 'autopilots_one_running'))
+        throw fail(
+          'INVALID_TRANSITION',
+          'Another autopilot is running on this run; it waits.',
+        );
+      throw e;
+    }
+  }
+
+  /**
+   * The owner turns off continuing by itself. Always allowed to the owner (it only removes
+   * automation); turning it back on is not offered. Repeating it changes nothing.
+   */
+  async turnOffAutoResume(
+    ctxIn: CommandContext,
+    wsIn: string,
+    idIn: string,
+    raw: unknown,
+  ): Promise<Autopilot> {
+    const ctx = normalize(ctxIn);
+    const ws = uuid(wsIn);
+    const id = uuid(idIn);
+    parse(AutoResumeOffRequestSchema, raw);
+    if (ctx.autopilot)
+      throw fail(
+        'HUMAN_ONLY_DENIED',
+        'An autopilot cannot change its own continuing.',
+      );
+    return this.tx(async (c) => {
+      await this.requireOwner(
+        c,
+        ws,
+        ctx.actorId,
+        'Only the workspace owner can turn this off.',
+      );
+      const cur = await this.#read(c, ws, id, true);
+      if (!cur.config.resume_after_limit)
+        throw fail(
+          'INVALID_TRANSITION',
+          'This autopilot was not set to continue by itself after a limit.',
+        );
+      if (cur.auto_resume?.state === 'turned_off') return cur;
+      const { rows } = await c.query(
+        `update autopilots set auto_resume_off_at = clock_timestamp(), auto_resume_off_by = $3,
+           version = version + 1, updated_at = clock_timestamp()
+         where workspace_id = $1 and id = $2 returning *`,
+        [ws, id, ctx.actorId],
+      );
+      const next = toAutopilot(rows[0] as Row);
+      await this.append(c, ctx, {
+        workspaceId: ws,
+        action: 'autopilot.auto_resume_off',
+        subjectKind: 'autopilot',
+        subjectId: id,
+        subjectVersion: next.version,
+        contentHash: next.config_hash,
+        payload: { checks: next.auto_resume?.checks ?? 0 },
+        relatedIds: [next.run_id],
+      });
+      return next;
     });
   }
 
