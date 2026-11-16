@@ -584,9 +584,24 @@ export const BenchmarkCaseSchema = z.strictObject({
  * markdown code fence (opened by ```json or a bare ```, closed by ``` on its own line) around the
  * whole answer, with nothing but whitespace outside it. Any other surrounding text still fails.
  * A manifest without the field grades the raw answer strictly, as every earlier version did.
+ *
+ * ADR-0115: `invoke_lines_then_json_fence` accepts everything `one_json_fence` does, and also an
+ * answer whose only extra text is a few leading lines that are each wholly an invented tool call
+ * (`<invoke …>…</invoke>` on one line) or a lone `</invoke>`, before that one fence. The route
+ * runs with no tools, so such lines do nothing; they are dropped and counted, never read. Any
+ * other text before, between or after still fails, and raw JSON after them (no fence) fails.
  */
-export const RoleAnswerWrappingSchema = z.literal('one_json_fence');
+export const ROLE_ANSWER_WRAPPINGS = [
+  'one_json_fence',
+  'invoke_lines_then_json_fence',
+] as const;
+export const RoleAnswerWrappingSchema = z.enum(ROLE_ANSWER_WRAPPINGS);
 export type RoleAnswerWrapping = z.infer<typeof RoleAnswerWrappingSchema>;
+/**
+ * ADR-0115 review 1 L-2: what a route benchmark manifest may name. Only `one_json_fence` until a
+ * benchmark that drops tool-call lines also records the dropped count per call, as builds do.
+ */
+export const BenchmarkAnswerWrappingSchema = z.literal('one_json_fence');
 
 // Outside the fence only JSON's own whitespace (space, tab, CR, LF) is allowed, as JSON.parse
 // allows around a raw answer; a BOM or a no-break space is not (review 1 N-1).
@@ -603,32 +618,78 @@ export function unwrapOneJsonFence(text: string): string | null {
   return m ? m[1]! : null;
 }
 
+// ADR-0115: one leading line that is wholly an invented tool call: `<invoke>` or
+// `<invoke name="…">` (attributes without angle brackets), text without angle brackets,
+// `</invoke>`; or a lone `</invoke>`.
+// Spaces and tabs around it only. Nested tags, other tag names and multi-line calls do not match.
+const INVOKE_LINE =
+  /^[ \t]*(?:<invoke(?:[ \t][^<>\r\n]*)?>[^<>\r\n]*<\/invoke>|<\/invoke>)[ \t]*$/;
+/** The most invented tool-call lines one answer may drop (H4's answer had 2). */
+export const MAX_DROPPED_INVOKE_LINES = 8;
+
 /**
- * The text a build-role answer is graded on (ADR-0110): with `one_json_fence`, what is inside
- * the one fence when the answer is wrapped that way; otherwise the answer as it came. The one
- * place the rule is applied, for both the JSON parse and the patch scorer.
+ * ADR-0115: the answer without its leading invented tool-call lines, and how many were dropped,
+ * when the rest is exactly one json fence; null otherwise (no such line, too many, or anything
+ * else before the fence). Blank lines among them are whitespace and are allowed.
+ */
+export function dropLeadingInvokeLines(
+  text: string,
+): { rest: string; dropped: number } | null {
+  const lines = text.split('\n');
+  let dropped = 0;
+  let i = 0;
+  for (; i < lines.length; i++) {
+    const line = lines[i]!.replace(/\r$/, '');
+    if (/^[ \t]*$/.test(line)) continue;
+    if (!INVOKE_LINE.test(line)) break;
+    dropped++;
+  }
+  if (dropped === 0 || dropped > MAX_DROPPED_INVOKE_LINES) return null;
+  const rest = lines.slice(i).join('\n');
+  return unwrapOneJsonFence(rest) === null ? null : { rest, dropped };
+}
+
+/**
+ * The text a build-role answer is graded on (ADR-0110, ADR-0115): with a wrapping mode, what is
+ * inside the one fence when the answer is wrapped that way (after any allowed dropped lines);
+ * otherwise the answer as it came. The one place the rule is applied, for both the JSON parse
+ * and the patch scorer.
  */
 export function roleAnswerText(
   text: string,
   wrapping: RoleAnswerWrapping | null,
-): { text: string; fenced: boolean } {
-  const inner = wrapping === 'one_json_fence' ? unwrapOneJsonFence(text) : null;
-  return inner === null
-    ? { text, fenced: false }
-    : { text: inner, fenced: true };
+): { text: string; fenced: boolean; dropped_invoke_lines: number } {
+  const raw = { text, fenced: false, dropped_invoke_lines: 0 };
+  if (wrapping === null) return raw;
+  const inner = unwrapOneJsonFence(text);
+  if (inner !== null)
+    return { text: inner, fenced: true, dropped_invoke_lines: 0 };
+  if (wrapping !== 'invoke_lines_then_json_fence') return raw;
+  const d = dropLeadingInvokeLines(text);
+  return d === null
+    ? raw
+    : {
+        text: unwrapOneJsonFence(d.rest)!,
+        fenced: true,
+        dropped_invoke_lines: d.dropped,
+      };
 }
 
 /**
- * Parses a build role's answer (ADR-0110). A raw answer is strict JSON; with `one_json_fence`,
- * an answer that is exactly one fence around JSON is parsed from inside the fence. Throws
- * SyntaxError otherwise. `fenced` says which form was accepted, for the record.
+ * Parses a build role's answer (ADR-0110, ADR-0115). A raw answer is strict JSON; with a
+ * wrapping mode, an answer in that form is parsed from inside the fence. Throws SyntaxError
+ * otherwise. `fenced` and `dropped_invoke_lines` say which form was accepted, for the record.
  */
 export function parseRoleAnswer(
   text: string,
   wrapping: RoleAnswerWrapping | null,
-): { json: unknown; fenced: boolean } {
+): { json: unknown; fenced: boolean; dropped_invoke_lines: number } {
   const a = roleAnswerText(text, wrapping);
-  return { json: JSON.parse(a.text) as unknown, fenced: a.fenced };
+  return {
+    json: JSON.parse(a.text) as unknown,
+    fenced: a.fenced,
+    dropped_invoke_lines: a.dropped_invoke_lines,
+  };
 }
 
 export const BenchmarkManifestSchema = z
@@ -638,8 +699,8 @@ export const BenchmarkManifestSchema = z
     fixture: z.boolean(),
     task_class: TaskClassSchema,
     data_class: DataClassSchema,
-    /** ADR-0110: absent means the raw answer must be strict JSON. Build roles only. */
-    answer_wrapping: RoleAnswerWrappingSchema.optional(),
+    /** ADR-0110/0115: absent means the raw answer must be strict JSON. Build roles only. */
+    answer_wrapping: BenchmarkAnswerWrappingSchema.optional(),
     cases: z.array(BenchmarkCaseSchema).min(2).max(200),
     provenance: note,
   })
