@@ -45,6 +45,7 @@ test('ADR-0110: exactly one json or bare fence around the whole answer is accept
   assert.deepEqual(parseRoleAnswer(ANSWER, 'one_json_fence'), {
     json: JSON.parse(ANSWER),
     fenced: false,
+    dropped_invoke_lines: 0,
   });
 });
 

@@ -309,12 +309,14 @@ export type BuildRoles = {
  * scripts/p15-web-benchmark.mjs verify checks v4 is one it publishes; the recipe benchmark test
  * checks v5 against v4. ADR-0112: for Python only the larger benchmark is listed, and it applies
  * only to larger Python builds (see pythonBuildScale); small Python builds need no recipe pass.
+ * ADR-0115: p14-larger-ledgercheck-v6 is v5's task with leading invented tool-call lines
+ * allowed before a role answer's one json fence, as plan-route builds now allow by default.
  */
 export const RECIPE_BENCHMARKS: Readonly<
   Partial<Record<BuildRecipe, readonly string[]>>
 > = {
   'static-web/1': ['p15-small-signup-v4', 'p15-small-signup-v5'],
-  'python-build/1': ['p14-larger-ledgercheck-v5'],
+  'python-build/1': ['p14-larger-ledgercheck-v5', 'p14-larger-ledgercheck-v6'],
 };
 /** A recorded live pass of a recipe's frozen benchmark by one set of roles. */
 export type RecipeQualification = BuildRoles & {
