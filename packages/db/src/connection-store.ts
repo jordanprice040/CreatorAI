@@ -6742,6 +6742,8 @@ export class ConnectionStore extends AutomationStore {
        * Third review L-1: the fewest characters the benchmark's first builder request can be
        * (the builder prompt and the frozen spec). Start refuses a connection whose per-request
        * input cap is below it, so the cap can't refuse a request before the roles wrote anything.
+       * ADR-0114: or a larger floor the benchmark's frozen expectations set (p14-xl-v1: room for
+       * a reviewer request that carries the whole program and its diff).
        */
       min_input_chars: number;
     },
@@ -6781,7 +6783,7 @@ export class ConnectionStore extends AutomationStore {
       const cap = conn.settings.caps.responses.max_input_chars;
       if (cap < bound.min_input_chars)
         problems.push(
-          `This connection's per-request input cap (${cap} characters) is smaller than this benchmark's first builder request (at least ${bound.min_input_chars}). Raise it under Models and connections, then start again.`,
+          `This connection's per-request input cap (${cap} characters) is smaller than this benchmark needs (at least ${bound.min_input_chars}: its first builder request, or the floor its frozen expectations set). Raise it under Models and connections, then start again.`,
         );
       const room = await this.#recipeRoom(c, conn, false);
       if (room.kind === 'stop')
