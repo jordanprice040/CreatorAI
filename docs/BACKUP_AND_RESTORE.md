@@ -77,7 +77,8 @@ the folder is still listed and can be checked or restored; one with another tag 
 made by another studio or an earlier copy of this one (a re-created database or a reinstall
 gets a new tag). Daily backups made before tags existed are never pruned; delete them by hand.
 A product file whose name Windows can't hold (a colon, a trailing dot or space, a device name
-such as `CON`) is refused when the backup is made, naming the file. A restore refuses
+such as `CON`) is refused when the backup is made, naming the file. This applies on every
+platform, Linux and macOS included, so that any backup can be restored on Windows. A restore refuses
 PostgreSQL's own databases (`postgres`, `template0`, `template1`) and any template or closed
 one; an existing database is allowed only if it is empty. If a restore fails at any step,
 including the final verification, the database and folder it created are removed.
