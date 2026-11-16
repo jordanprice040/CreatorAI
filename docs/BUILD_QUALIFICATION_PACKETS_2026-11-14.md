@@ -53,6 +53,8 @@ Jordan's decision H: qualify the Claude route as builder and reviewer.
 
 Update November 15 (ADR-0110): H1 ran and failed `t12-builder-v1` 1 of 3 held out (record `7c054251`) because two answers were wrapped in a code fence. A rerun uses `t12-builder-v3` (builder/2, same cases as `t12-builder-v2`) and `t12-reviewer-v3`, which accept exactly one fence around the answer, and needs Jordan's fresh typed OK. Packet A's builder step is now `t12-builder-v2` or v3 too, since builder/1 no longer admits.
 
+Update November 15 (ADR-0115): H1–H3 qualified on the rerun; H4 failed (record `49fe5782`) on invented `<invoke>` lines before the fence. A later H4 runs on the new frozen `p14-larger-ledgercheck-v6` (same task, cases and pass bars; those leading lines are dropped), 6 typical / 36 at most requests, and needs Jordan's typed OK. The installed app must include ADR-0115 first.
+
 About 20 Claude plan requests typical, at most 68. They count against the Claude subscription's own
 limits; with extra usage off nothing is billed. Only the owner's own signed-in `claude -p` on the
 studio's computer is used; no API key and no other route.
