@@ -327,12 +327,10 @@ export function Submit({
     };
   }, [workspace.id]);
   // F9 (ADR-0125): past projects to start a similar one from. Read on its own (review 1 M-1),
-  // so the form never waits for it; optional, so a failed read only leaves the picker out.
+  // so the form never waits for it. A failed read says so beside the picker (re-review L-1);
+  // the rest of the form works without it.
   const pastLoad = useLoad(
-    () =>
-      api(PastProjectsSchema, `${base}/past-projects`).catch(
-        () => [] as PastProject[],
-      ),
+    () => api(PastProjectsSchema, `${base}/past-projects`),
     [workspace.id],
   );
   const past = pastLoad.data ?? [];
@@ -436,7 +434,11 @@ export function Submit({
   const copiedFrom = copy?.ws === workspace.id ? copy : null;
   const maxAge = copiedFrom?.maxAge ?? 180;
   const sites = copiedFrom?.sites ?? null;
-  useEffect(() => setPastPick(''), [workspace.id]);
+  // Re-review N-1: a copy belongs to the visit it was made on; a workspace switch drops it.
+  useEffect(() => {
+    setPastPick('');
+    setCopy(null);
+  }, [workspace.id]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [errorFixes, setErrorFixes] = useState<FixAction[]>([]);
@@ -1174,6 +1176,20 @@ export function Submit({
           {guided &&
             ' Routine settings use the defaults shown under each fold.'}
         </p>
+        {!viewer && (pastLoad.error || pastLoad.stale) && (
+          <p className="small" role="status">
+            {pastLoad.error
+              ? `Could not load past projects: ${pastLoad.error}`
+              : `Could not refresh past projects; the list may be out of date: ${pastLoad.stale}`}{' '}
+            <button
+              type="button"
+              className="text small"
+              onClick={pastLoad.reload}
+            >
+              Try again
+            </button>
+          </p>
+        )}
         {!viewer && past.length > 0 && (
           <div className="past-start">
             <label htmlFor="b-past">Start from a past project (optional)</label>
