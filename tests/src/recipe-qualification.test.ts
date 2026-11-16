@@ -106,10 +106,13 @@ function reference(id: string) {
   const dir = resolve(
     new URL(`config/recipe-benchmarks/${id}/reference/`, root).pathname,
   );
-  return files(dir).map((f) => ({
-    path: relative(dir, f).split('\\').join('/'),
-    content: readFileSync(f, 'utf8'),
-  }));
+  // Bytecode a local reference run left behind is never part of the solution.
+  return files(dir)
+    .filter((f) => !f.includes('__pycache__'))
+    .map((f) => ({
+      path: relative(dir, f).split('\\').join('/'),
+      content: readFileSync(f, 'utf8'),
+    }));
 }
 
 // ---- The frozen benchmarks ---------------------------------------------------------------
@@ -149,6 +152,9 @@ test('ADR-0105: the freezes name the scorer and the web checker the studio runs'
   const checker = digest(
     readFileSync(path('packages/executor/worker/web_recipe.py')),
   );
+  const structureScorer = digest(
+    readFileSync(path('packages/executor/src/recipe-structure.ts')),
+  );
   for (const id of RECIPE_BENCHMARK_IDS) {
     const f = json(`config/recipe-benchmarks/${id}/FREEZE.json`) as {
       files: Record<string, string>;
@@ -157,6 +163,17 @@ test('ADR-0105: the freezes name the scorer and the web checker the studio runs'
       f.files['scorer:recipe-scoring.ts'],
       scorer,
       `${id}: scorer changed`,
+    );
+    // ADR-0114: a benchmark with a frozen structure rule names the code that checks it too.
+    const rule = (
+      json(`config/recipe-benchmarks/${id}/expectations.json`) as {
+        structure?: unknown;
+      }
+    ).structure;
+    assert.equal(
+      f.files['scorer:recipe-structure.ts'],
+      rule ? structureScorer : undefined,
+      `${id}: structure scorer`,
     );
     if (RECIPE_BENCHMARK_INFO[id].recipe === 'static-web/1')
       assert.equal(
@@ -169,6 +186,11 @@ test('ADR-0105: the freezes name the scorer and the web checker the studio runs'
 
 test('ADR-0105: a v5 copy has the same task, spec, cases and reference as its source', () => {
   for (const id of RECIPE_BENCHMARK_IDS) {
+    // ADR-0114: a benchmark written new copies nothing.
+    if (RECIPE_BENCHMARK_INFO[id].copied_from === null) {
+      assert.equal(SOURCES[id], undefined, id);
+      continue;
+    }
     const base = SOURCES[id]!;
     assert.equal(RECIPE_BENCHMARK_INFO[id].copied_from, base.split('/').at(-1));
     const a = json(`${base}/spec.json`) as { content: unknown };
@@ -529,6 +551,16 @@ async function setup(t: test.TestContext) {
     before: async () => {},
     /** Answer every role request with the ChatGPT plan's refusal of the model. */
     refuseModel: false,
+    /**
+     * ADR-0114: answer each round in parts of at most this many characters of file content
+     * (complete: false until the last), as builder/2 allows; 0 sends one answer.
+     */
+    partChars: 0,
+    /** Every builder packet received, for checks on what the build was given. */
+    builderPackets: [] as {
+      limits?: { deadline: string };
+      round?: { part: number };
+    }[],
     /** ADR-0115: the builder answers as record 49fe5782 did, tool-call lines then one fence. */
     invokePreamble: false,
   };
@@ -551,17 +583,43 @@ async function setup(t: test.TestContext) {
         const p = JSON.parse(input) as {
           candidate: string;
           files: { path: string; hash: string }[];
+          limits?: { deadline: string };
+          round?: {
+            part: number;
+            staged: { path: string; before_hash: string | null }[];
+          };
         };
+        answer.builderPackets.push(p);
+        const all = reference(answer.id);
+        const parts: (typeof all)[] = [];
+        for (const f of all) {
+          const last = parts.at(-1);
+          if (
+            last &&
+            (!answer.partChars ||
+              last.reduce((n, x) => n + x.content.length, 0) +
+                f.content.length <=
+                answer.partChars)
+          )
+            last.push(f);
+          else parts.push([f]);
+        }
+        const part = p.round?.part ?? 1;
+        const hashOf = (path: string) =>
+          p.files.find((x) => x.path === path)?.hash ??
+          p.round?.staged.find((x) => x.path === path)?.before_hash ??
+          null;
         const builder = JSON.stringify({
           summary: 'Reference solution',
           blocker: null,
           submission: {
             expected_commit: p.candidate,
-            changes: reference(answer.id).map((f) => ({
+            changes: (parts[part - 1] ?? []).map((f) => ({
               path: f.path,
-              before_hash: p.files.find((x) => x.path === f.path)?.hash ?? null,
+              before_hash: hashOf(f.path),
               content: f.content,
             })),
+            ...(answer.partChars ? { complete: part >= parts.length } : {}),
           },
         });
         return answer.invokePreamble
@@ -919,6 +977,50 @@ test('ADR-0105: a Python qualification passes its extended cases on the exported
   }
 });
 
+test('ADR-0114: p14-xl-v1 needs a 120,000 input cap, runs in parts with its 2-hour deadline and its own structure rule', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  await s.qualifyRoles();
+  s.answer.id = 'p14-xl-v1';
+  // Its answers may open with stray tool-call lines, as v6's may (Jordan's choice).
+  s.answer.invokePreamble = true;
+  // The reference holds more than the connection's 16,000-character answer cap: three parts.
+  s.answer.partChars = 7000;
+  const floor = RECIPE_BENCHMARK_INFO['p14-xl-v1'].min_input_chars;
+  assert.equal(floor, 120_000);
+  await setInputCap(s, floor - 1);
+  await rejects(
+    'INVALID_TRANSITION',
+    s.start('p14-xl-v1'),
+    /input cap \(119999 characters\) is smaller than this benchmark needs \(at least 120000/,
+  );
+  await setInputCap(s, floor);
+  const before = Date.now();
+  const q = await s.start('p14-xl-v1');
+  const done = await s.run(q.id);
+  assert.deepEqual(s.errors, []);
+  assert.equal(done.state, 'qualified', done.reason ?? '');
+  assert.equal(done.attempts.length, 3);
+  for (const a of done.attempts) {
+    assert.equal(a.request_limit, 20);
+    assert.deepEqual(a.result!.extended, { passed: 37, total: 37, failed: [] });
+    const structure = a.result!.bars.find((b) => b.key === 'structure')!;
+    assert.equal(structure.passed, true);
+    // The frozen package rule ran, not the ledger's bar.
+    assert.match(
+      structure.detail,
+      /src\/stockroom has __init__\.py and all 11 named modules/,
+    );
+  }
+  const parts = s.answer.builderPackets.map((p) => p.round?.part);
+  assert.ok(parts.includes(3), `answered in parts: ${parts.join(',')}`);
+  // Each build was given the benchmark's own deadline, two hours, not the v5 hour.
+  for (const p of s.answer.builderPackets) {
+    const left = Date.parse(p.limits!.deadline) - before;
+    assert.ok(left > 115 * 60_000 && left <= 121 * 60_000, String(left));
+  }
+});
+
 test('ADR-0115: leading invented tool-call lines fail a v5 attempt as they ran, and pass on v6', async (t) => {
   const s = await setup(t);
   if (!s) return;
@@ -988,13 +1090,15 @@ test('ADR-0115: v6 differs from v5 only in its name, notes and answer form', () 
       answer_wrapping: 'x',
     },
   );
+  // Jordan chose (2026-11-15) that p14-xl-v1 accepts the same answer form as v6.
   for (const id of RECIPE_BENCHMARK_IDS)
-    if (id !== 'p14-larger-ledgercheck-v6')
-      assert.equal(
-        RECIPE_BENCHMARK_INFO[id].answer_wrapping,
-        'one_json_fence',
-        id,
-      );
+    assert.equal(
+      RECIPE_BENCHMARK_INFO[id].answer_wrapping,
+      id === 'p14-larger-ledgercheck-v6' || id === 'p14-xl-v1'
+        ? 'invoke_lines_then_json_fence'
+        : 'one_json_fence',
+      id,
+    );
 });
 
 test('ADR-0105: a reviewer that blocks fails the attempt; a lost lease voids it and it is replaced once', async (t) => {
@@ -1291,7 +1395,7 @@ test('third review L-1: Start needs an input cap that fits the first builder req
   await rejects(
     'INVALID_TRANSITION',
     s.start('p15-small-signup-v5'),
-    /per-request input cap \(\d+ characters\) is smaller than this benchmark's first builder request/,
+    /per-request input cap \(\d+ characters\) is smaller than this benchmark needs \(at least \d+: its first builder request/,
   );
   // At the floor, Start is allowed; the real first request is larger, so admission refuses it.
   await setInputCap(s, floor);

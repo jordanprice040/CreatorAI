@@ -40,6 +40,7 @@ import {
   refusalError,
   readTar,
   recipeFreezeProblems,
+  packageStructureBar,
   structureBar,
   type BuildPorts,
   type RecipeBenchmark,
@@ -55,8 +56,11 @@ import {
 export const RECIPE_LEASE_MS = 120_000;
 const RENEW_MS = 30_000;
 const POLL_MS = 15_000;
-/** One attempt's build deadline: a passing attempt takes minutes, so an hour means it is stuck. */
-export const RECIPE_ATTEMPT_DEADLINE_MS = 60 * 60_000;
+/**
+ * One attempt's build deadline: a passing v5 attempt takes minutes, so an hour means it is stuck.
+ * ADR-0114: a benchmark may set its own (`attempt_deadline_ms`; p14-xl-v1 has two hours).
+ */
+export { RECIPE_ATTEMPT_DEADLINE_MS } from '@creator/contracts';
 /**
  * Re-review L-3: how long a role request waits, at most, for another request on its connection
  * (a chat answer, an autopilot step, a model check) to finish. It covers the usual request time
@@ -165,7 +169,10 @@ export async function startRecipeQualification(
     attempts_needed: bench.info.attempts,
     freeze_sha256: bench.freeze_sha256,
     ...currentRolePromptHashes(),
-    min_input_chars: firstBuilderInputFloor(bench),
+    min_input_chars: Math.max(
+      firstBuilderInputFloor(bench),
+      bench.info.min_input_chars,
+    ),
   });
 }
 
@@ -412,7 +419,7 @@ export class RecipeQualificationRunner {
       timeout_ms: info.caps.timeout_ms,
       max_output_tokens: info.caps.max_output_tokens,
       deadline: new Date(
-        Date.now() + (this.deps.deadlineMs ?? RECIPE_ATTEMPT_DEADLINE_MS),
+        Date.now() + (this.deps.deadlineMs ?? info.attempt_deadline_ms),
       ).toISOString(),
       cases,
       plan_roles: target,
@@ -610,15 +617,19 @@ export class RecipeQualificationRunner {
             : `All ${extended.total} extended cases passed.`,
         });
       }
-      if (info.scale === 'larger')
+      if (info.scale === 'larger') {
+        const packaged = files.map((f) => ({
+          path: f.path,
+          content: f.content.toString('utf8'),
+        }));
+        // ADR-0114: a benchmark with a frozen structure rule is checked by it; the ledger keeps
+        // its own bar.
         bars.push(
-          structureBar(
-            files.map((f) => ({
-              path: f.path,
-              content: f.content.toString('utf8'),
-            })),
-          ),
+          bench.structure
+            ? packageStructureBar(packaged, bench.structure)
+            : structureBar(packaged),
         );
+      }
     }
     const ok = barsPassed(bars);
     return {
