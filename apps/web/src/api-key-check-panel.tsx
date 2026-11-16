@@ -283,7 +283,7 @@ export function ApiKeyCheck({
                 ? 'fixture workspaces never use a real key.'
                 : 'no key yet, so this workspace never uses this route.'}{' '}
         A key is not permission to spend: every call still needs a grant, a
-        funded budget and room under your overall ceiling.
+        funded budget and room under the studio's overall ceiling.
       </p>
       {keys?.note && <p className="small">{keys.note}</p>}
       {owner && !fixture && keys && (
@@ -472,7 +472,7 @@ export function ApiKeyCheck({
             model grant for this one check and a{' '}
             {money(CHECK_BUDGET_NANO, false)} run budget lent by your newest
             funded budget. The usual cost is a fraction of a cent, charged to
-            your OpenAI account and counted inside your overall ceiling.
+            your OpenAI account and counted inside the studio's overall ceiling.
             Afterwards the unspent amount goes back, the grant is revoked and
             the run is closed.
           </p>
