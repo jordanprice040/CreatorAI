@@ -22,6 +22,8 @@ import {
   type SpecBody,
   taskRecipe,
   parseRoleAnswer,
+  RoleAnswerWrappingSchema,
+  type RoleAnswerWrapping,
 } from '@creator/contracts';
 import {
   checked,
@@ -78,7 +80,14 @@ export const buildPlanSchema = z.strictObject({
   plan_roles: z
     .strictObject({ connection_id: id, model_id: z.string().min(1).max(120) })
     .optional(),
+  // ADR-0115: how a plan-route role answer may be wrapped. Absent means the plan route's
+  // default, `invoke_lines_then_json_fence`; a frozen recipe benchmark names its own (v5:
+  // `one_json_fence`, as it ran). Ignored on the broker route, which uses JSON output mode.
+  answer_wrapping: RoleAnswerWrappingSchema.optional(),
 });
+/** ADR-0115: the plan route's answer form when a build plan names none. */
+export const PLAN_ROUTE_ANSWER_WRAPPING: RoleAnswerWrapping =
+  'invoke_lines_then_json_fence';
 export type BuildPlan = z.infer<typeof buildPlanSchema>;
 /** The builder/1 answer: one part, whole files. Frozen study builds keep it (ADR-0109). */
 export const builderSchema = z.strictObject({
@@ -594,12 +603,21 @@ export class BuildSupervisor {
           await active();
           if (r.status !== 'succeeded' || r.text === null)
             throw new Error(`Role stopped: ${r.status} ${r.reason_code}`);
-          // ADR-0110: one code fence around the whole answer is accepted, nothing else; the
-          // raw text stays in the plan request, and the unwrap is recorded beside the call.
-          const answer = parseRoleAnswer(r.text, 'one_json_fence');
+          // ADR-0110: one code fence around the whole answer is accepted; ADR-0115: by default
+          // also a few leading invented tool-call lines before it, nothing else. The raw text
+          // stays in the plan request, and the form is recorded beside the call.
+          const wrapping = plan.answer_wrapping ?? PLAN_ROUTE_ANSWER_WRAPPING;
+          const answer = parseRoleAnswer(r.text, wrapping);
           if (answer.fenced)
+            // The form the answer took, and the mode in force (review 1 N-3).
             await jsonWrite(join(dir, `call-${calls}-answer-form.json`), {
-              wrapping: 'one_json_fence',
+              wrapping: answer.dropped_invoke_lines
+                ? 'invoke_lines_then_json_fence'
+                : 'one_json_fence',
+              ...(answer.dropped_invoke_lines
+                ? { dropped_invoke_lines: answer.dropped_invoke_lines }
+                : {}),
+              mode: wrapping,
             });
           return answer.json;
         }

@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { join, relative } from 'node:path';
 import {
   RECIPE_BENCHMARK_INFO,
+  RoleAnswerWrappingSchema,
   SpecContentSchema,
   z,
   type RecipeBenchmarkId,
@@ -41,6 +42,8 @@ const expectationsSchema = z
       data_class: z.literal('synthetic'),
     }),
     pass_bar_per_attempt: z.array(z.string()).min(1),
+    // ADR-0115: absent means one_json_fence, the form the v5 versions ran with.
+    answer_wrapping: RoleAnswerWrappingSchema.optional(),
   })
   .passthrough();
 const extendedSchema = z.object({
@@ -165,7 +168,8 @@ export async function loadRecipeBenchmark(
     caps.max_calls !== info.caps.max_calls ||
     caps.max_repairs !== info.caps.max_repairs ||
     caps.max_output_tokens !== info.caps.max_output_tokens ||
-    caps.timeout_ms !== info.caps.timeout_ms
+    caps.timeout_ms !== info.caps.timeout_ms ||
+    (exp.answer_wrapping ?? 'one_json_fence') !== info.answer_wrapping
   )
     throw new Error(
       `${id}: expectations differ from the studio's benchmark list`,
