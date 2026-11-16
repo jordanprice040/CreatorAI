@@ -1409,6 +1409,11 @@ export class Store {
   async deliver(eventId: string): Promise<boolean> {
     eventId = uuid(eventId);
     return this.tx(async (c) => {
+      // Lock the outbox row before the consumers claim their inbox rows: the same order as
+      // drainOutbox, so a deliver racing a drain waits instead of deadlocking (ADR-0116).
+      await c.query('select 1 from outbox where event_id = $1 for update', [
+        eventId,
+      ]);
       const applied = await this.project(c, eventId);
       await c.query(
         'update outbox set attempts = attempts + 1, delivered_at = coalesce(delivered_at, now()) where event_id = $1',

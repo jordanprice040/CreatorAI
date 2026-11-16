@@ -47,6 +47,9 @@ export interface NotifyInput {
 
 export type NotifyResult = { id: string; created: boolean } | null;
 
+/** Subjects whose newer row withdraws an older unclaimed interruption for the same person. */
+const SUPERSEDING = new Set(['autopilot', 'decision']);
+
 const cut = (s: string, n: number) =>
   s.length <= n ? s : `${s.slice(0, n - 1).trimEnd()}…`;
 
@@ -135,6 +138,15 @@ export async function notify(
      values ($1, $2, $3)`,
     [row.id, n.sourceKey, n.actorId],
   );
+  // A newer stop or request of the same subject replaces an older one that was never shown:
+  // only the newest may still pop up (plan §7, "stopped again").
+  if (row.created && SUPERSEDING.has(n.subjectKind))
+    await c.query(
+      `update notifications set interrupt_state = 'none'
+        where actor_id = $1 and subject_kind = $2 and subject_id = $3 and id <> $4
+          and interrupt_state = 'pending'`,
+      [n.actorId, n.subjectKind, n.subjectId, row.id],
+    );
   return { id: String(row.id), created: row.created === true };
 }
 
@@ -225,25 +237,57 @@ export function autopilotEventKey(
   return 'autopilot.needs_you';
 }
 
+/** Who last paused the workflow a stopped step was waiting on (its `workflow.control` record). */
+async function pauser(
+  c: PoolClient,
+  ws: string,
+  step: Row | undefined,
+): Promise<string | null> {
+  const child = step?.child as Row | null | undefined;
+  if (!child || child.kind !== 'workflow' || typeof child.id !== 'string')
+    return null;
+  const { rows } = await c.query<{ actor_id: string }>(
+    `select actor_id from audit_events
+      where workspace_id = $1 and action = 'workflow.control' and subject_kind = 'workflow'
+        and subject_id = $2 and payload->>'control' = 'pause'
+      order by sequence desc limit 1`,
+    [ws, child.id],
+  );
+  return rows[0] ? String(rows[0].actor_id) : null;
+}
+
 async function onAutopilotFinished(c: PoolClient, e: Row) {
   const ws = String(e.workspace_id);
   const id = String(e.subject_id);
   const version = Number(e.subject_version);
   const { rows } = await c.query(
-    'select created_by, steps, explanation, outcome from autopilots where workspace_id = $1 and id = $2',
+    `select created_by, steps, explanation, outcome, state, version
+       from autopilots where workspace_id = $1 and id = $2`,
     [ws, id],
   );
   const a = rows[0] as Row | undefined;
   if (!a) return;
   const payload = (e.payload ?? {}) as Row;
   const outcome = String(payload.outcome ?? a.outcome ?? '');
+  // Describe the stop this event recorded, not the row as it is now: a drain that runs after
+  // the autopilot was continued would otherwise report the newer state. A run continued since
+  // (running again at a later version) needs nobody, so its old stop is not sent.
+  const current = Number(a.version) === version;
+  if (!current && a.state === 'running' && outcome !== 'cancelled') return;
   const steps = Array.isArray(a.steps) ? (a.steps as Row[]) : [];
-  const stop = (steps.at(-1)?.stop_kind ?? 'other') as AutopilotStopKind;
+  const count = Number(payload.steps);
+  const step =
+    Number.isInteger(count) && count >= 1 && count <= steps.length
+      ? steps[count - 1]
+      : steps.at(-1);
+  const stop = (step?.stop_kind ?? 'other') as AutopilotStopKind;
   const key = autopilotEventKey(outcome, stop);
   const starter = await memberPerson(c, ws, a.created_by);
   const to = link('#/autopilot/run', { ws, id });
   const dedupe = `autopilot:${id}:v${version}`;
-  const explanation = String(a.explanation ?? '');
+  const explanation = String(
+    (current ? a.explanation : step?.note) ?? a.explanation ?? '',
+  );
   const base = {
     workspaceId: ws,
     link: to,
@@ -307,7 +351,10 @@ async function onAutopilotFinished(c: PoolClient, e: Row) {
   // Blocked: whoever can resolve it (a workspace owner) gets the actionable alert; a starter
   // who cannot is told the run waits. One alert when they are the same person.
   const owners = await policyOwners(c, ws);
-  for (const owner of owners)
+  // A pause is someone's own action: whoever paused the step's workflow is not told about it.
+  const pausedBy = stop === 'paused' ? await pauser(c, ws, step) : null;
+  for (const owner of owners) {
+    if (owner === pausedBy) continue;
     await notify(c, {
       ...base,
       actorId: owner,
@@ -315,6 +362,7 @@ async function onAutopilotFinished(c: PoolClient, e: Row) {
       title: `${await again(owner)}: ${AUTOPILOT_STOP_PHRASE[stop]}`,
       body: explanation,
     });
+  }
   if (starter && !owners.includes(starter))
     await notify(c, {
       ...base,
@@ -483,6 +531,26 @@ export async function consumeNotifications(c: PoolClient, e: Row) {
     [NOTIFICATIONS_CONSUMER, e.id],
   );
   if (!claim.rowCount) return;
+  // A malformed event (bad input to a notification) must not stall the whole outbox: its
+  // notifications are rolled back and skipped, the claim stays, and history and every other
+  // consumer go on (review L-4). An outage or a lock error still fails the batch for a retry.
+  await c.query('savepoint notifications_consumer');
+  try {
+    await handle(c, e);
+  } catch (err) {
+    const code = String((err as { code?: unknown }).code ?? '');
+    if (
+      !(err instanceof ContractError) &&
+      !code.startsWith('22') &&
+      !code.startsWith('23')
+    )
+      throw err;
+    await c.query('rollback to savepoint notifications_consumer');
+  }
+  await c.query('release savepoint notifications_consumer');
+}
+
+async function handle(c: PoolClient, e: Row) {
   switch (e.action) {
     case 'autopilot.finished':
       return onAutopilotFinished(c, e);
@@ -675,9 +743,10 @@ export async function notifyRecipeQualification(c: PoolClient, id: string) {
 }
 
 /**
- * A qualification queue ended. Failures send one summary ("2 of 5 qualifications failed"); a
- * queue that finished cleanly goes to the inbox. A cancelled queue was the person's own action,
- * so it sends nothing (its audit action is not consumed).
+ * A qualification queue ended. Failures send one summary ("1 of 3 qualifications failed; 2 were
+ * not started"); a queue that finished cleanly, or stopped with nothing failed, goes to the
+ * inbox. A cancelled queue was the person's own action, so it sends nothing (its audit action
+ * is not consumed).
  */
 async function notifyQueueEnd(
   c: PoolClient,
@@ -694,6 +763,13 @@ async function notifyQueueEnd(
   const failed = rows.filter((r) => r.state === 'failed').length;
   const stopped = rows.filter((r) => r.state === 'stopped').length;
   const qualified = rows.filter((r) => r.state === 'qualified').length;
+  // A queue stops at its first failure, so the rest were never tried (review L-3).
+  const unstarted = rows.filter(
+    (r) => r.state === 'cancelled' || r.state === 'waiting',
+  ).length;
+  const notStarted = unstarted
+    ? `; ${unstarted} ${unstarted === 1 ? 'was' : 'were'} not started`
+    : '';
   const base = {
     actorId: to,
     workspaceId: q.workspace_id,
@@ -707,18 +783,23 @@ async function notifyQueueEnd(
       ...base,
       eventKey: 'qualification.failures',
       title: stopped
-        ? `${failed + stopped} of ${total} qualifications failed or did not finish`
-        : `${failed} of ${total} qualifications failed`,
+        ? `${failed + stopped} of ${total} qualifications failed or did not finish${notStarted}`
+        : `${failed} of ${total} qualifications failed${notStarted}`,
       body: `${qualified} qualified.`,
       dedupeKey: `qualfail:${q.id}`,
     });
-  else if (state === 'done')
+  else
     await notify(c, {
       ...base,
       eventKey: 'qualification.queue_done',
-      title: `Qualification queue completed: ${qualified} of ${total} qualified`,
+      title:
+        state === 'done'
+          ? `Qualification queue completed: ${qualified} of ${total} qualified`
+          : `Qualification queue stopped: ${qualified} of ${total} qualified${notStarted}`,
       body: '',
       dedupeKey: `queue:${q.id}`,
+      // A stop with nothing failed is news, not an interruption.
+      ...(state === 'done' ? {} : { interrupt: false }),
     });
 }
 

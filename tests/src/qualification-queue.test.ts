@@ -297,7 +297,7 @@ test('ADR-0088: a failed qualification stops the queue and nothing after it star
   assert.deepEqual(
     told.map((n) => [n.title, n.batch_id, n.interrupt_state]).sort(),
     [
-      ['1 of 3 qualifications failed', null, 'pending'],
+      ['1 of 3 qualifications failed; 2 were not started', null, 'pending'],
       ['Qualification failed: summarization on m', queued.id, 'none'],
     ].sort(),
   );

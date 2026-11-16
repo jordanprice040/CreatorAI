@@ -99,6 +99,7 @@ async function setup(t: test.TestContext) {
     by: CommandContext,
     stop: string,
     outcome = 'needs_person',
+    steps: Record<string, unknown>[] = [{ stop_kind: stop }],
   ) => {
     const id = randomUUID();
     await db.pool.query(
@@ -112,7 +113,7 @@ async function setup(t: test.TestContext) {
         await run(owner, ws.id),
         'a'.repeat(64),
         outcome,
-        JSON.stringify([{ stop_kind: stop }]),
+        JSON.stringify(steps),
         by.actorId,
       ],
     );
@@ -123,6 +124,7 @@ async function setup(t: test.TestContext) {
     version: number,
     outcome = 'needs_person',
     ctx: CommandContext = { ...owner, autopilot: { id } },
+    extra: Record<string, unknown> = {},
   ) =>
     store.emit(ctx, {
       workspaceId: ws.id,
@@ -130,7 +132,7 @@ async function setup(t: test.TestContext) {
       subjectKind: 'autopilot',
       subjectId: id,
       subjectVersion: version,
-      payload: { outcome },
+      payload: { outcome, ...extra },
     });
   const all = async (ctx: CommandContext) =>
     (await inbox.notifications(ctx)).items;
@@ -249,9 +251,106 @@ test('N1 check 5: an autopilot continued and stopped again gets a new row and on
     items.map((n) => [n.title, n.interrupt_state]),
     [
       ['Autopilot stopped again: needs your choice', 'pending'],
-      ['Autopilot stopped: needs your choice', 'pending'],
+      // Review L-2: the older stop, never shown, can no longer pop up after the newer one.
+      ['Autopilot stopped: needs your choice', 'none'],
     ],
   );
+});
+
+test('N1 review L-1: a late drain reports the stop the event recorded, and nothing once the run was continued', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  // Stopped on a tie at version 2 (one step), continued and stopped differently at version 4.
+  const id = await s.autopilot(owner, 'tie', 'needs_person', [
+    { stop_kind: 'tie', note: 'Two options tied at the first stop.' },
+    { stop_kind: 'failed_step', note: 'A later step failed.' },
+  ]);
+  await s.rows(`update autopilots set version = 4 where id = $1`, [id]);
+  await s.finished(id, 2, 'needs_person', undefined, { steps: 1 });
+  // Another one continued and running again: its old stop needs nobody.
+  const running = await s.autopilot(owner, 'tie');
+  await s.rows(
+    `update autopilots set version = 3, state = 'running', outcome = null, finished_at = null
+      where id = $1`,
+    [running],
+  );
+  await s.finished(running, 2, 'needs_person', undefined, { steps: 1 });
+  await s.store.drainOutbox();
+  const items = await s.all(owner);
+  assert.deepEqual(
+    items.map((n) => [n.subject_id, n.event_key, n.title, n.body]),
+    [
+      [
+        id,
+        'autopilot.needs_you',
+        'Autopilot stopped: a tie needs your choice',
+        'Two options tied at the first stop.',
+      ],
+    ],
+  );
+});
+
+test('N1 review M-1: the owner who paused a run is not alerted by its stop; another owner is', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  await s.store.addMember(owner, s.ws.id, second.actorId, 'owner');
+  const workflow = randomUUID();
+  await s.store.emit(owner, {
+    workspaceId: s.ws.id,
+    action: 'workflow.control',
+    subjectKind: 'workflow',
+    subjectId: workflow,
+    subjectVersion: 2,
+    payload: { control: 'pause', reason: 'Checking something.' },
+  });
+  // The member's run: the pausing owner hears nothing, the other owner is alerted and the
+  // member is told it waits.
+  const id = await s.autopilot(member, 'paused', 'needs_person', [
+    { stop_kind: 'paused', child: { kind: 'workflow', id: workflow } },
+  ]);
+  await s.finished(id, 2, 'needs_person', { ...member, autopilot: { id } });
+  await s.store.drainOutbox();
+  assert.deepEqual(await s.all(owner), []);
+  assert.deepEqual(
+    (await s.all(second)).map((n) => [n.event_key, n.title]),
+    [['autopilot.needs_you', 'Autopilot stopped: paused']],
+  );
+  assert.deepEqual(
+    (await s.all(member)).map((n) => n.event_key),
+    ['autopilot.waiting'],
+  );
+});
+
+test('N1 review L-4: a malformed event is skipped without stalling the outbox', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  // An artifact id that no in-app link may carry: notify refuses it.
+  const bad = await s.store.emit(owner, {
+    workspaceId: s.ws.id,
+    action: 'artifact.registered',
+    subjectKind: 'artifact',
+    subjectId: randomUUID(),
+    subjectVersion: 1,
+    payload: { artifact_id: 'not a valid id' },
+  });
+  const id = await s.autopilot(owner, 'tie');
+  await s.finished(id, 2);
+  await s.store.drainOutbox();
+  assert.deepEqual(
+    (await s.all(owner)).map((n) => n.subject_id),
+    [id],
+  );
+  const [state] = await s.rows(
+    `select (select delivered_at from outbox where event_id = $1) is not null as delivered,
+            exists (select 1 from consumer_inbox where consumer = 'notifications' and event_id = $1) as claimed,
+            exists (select 1 from history_projection where event_id = $1) as history`,
+    [bad],
+  );
+  assert.deepEqual(state, { delivered: true, claimed: true, history: true });
+  const [left] = await s.rows(
+    'select count(*)::int as n from outbox where delivered_at is null',
+  );
+  assert.equal(left!.n, 0);
 });
 
 test('N1 check 6 and 7: one claim wins a race; inbox-only rows and toast-only rows on Windows are never claimed', async (t) => {
