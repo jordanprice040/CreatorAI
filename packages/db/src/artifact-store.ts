@@ -74,7 +74,7 @@ function previewUntil(r: Row): number | null {
 /** Longest an Until-stopped preview may stay 'starting' before it counts as ended. */
 export const PREVIEW_START_SECONDS = 300;
 /** SQL twin of previewUntil for counting live leases. */
-const LIVE_PREVIEW_SQL = `state in ('starting','ready') and (
+export const LIVE_PREVIEW_SQL = `state in ('starting','ready') and (
   (lifetime = 'timed' and expires_at > clock_timestamp())
   or (lifetime = 'until_stopped' and state = 'starting'
       and created_at + make_interval(secs => ${PREVIEW_START_SECONDS}) > clock_timestamp())

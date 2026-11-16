@@ -12,6 +12,7 @@ export { studioMachine, type StudioHost } from './team-store.js';
 export * from './catalog-store.js';
 export * from './proposal-store.js';
 export * from './runbook-store.js';
+export * from './project-report-store.js';
 
 export * from './study-store.js';
 export * from './study-build-store.js';
@@ -24,6 +25,7 @@ export * from './search-store.js';
 export * from './desktop-store.js';
 export * from './desktop-job-store.js';
 export * from './ops-store.js';
+export * from './storage-store.js';
 export * from './payment-store.js';
 export * from './marketing-store.js';
 export * from './portfolio-store.js';
@@ -46,3 +48,4 @@ export type {
   RecipeRoom,
 } from './recipe-qualification-store.js';
 export * from './studio-lock.js';
+export * from './support-report-store.js';

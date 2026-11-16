@@ -241,6 +241,9 @@ export class ProductSupervisor {
         this.worktree(productId, t.id),
       ),
     ]) {
+      // ADR-0121: a task checkout removed by storage cleanup has nothing to hide; its
+      // commits are on its branch.
+      if (tree !== repo && !(await present(tree))) continue;
       await safeTree(tree);
       await clean(tree).catch(() => {
         throw new Error(
@@ -606,6 +609,16 @@ export class ProductSupervisor {
   async taskHead(productId: string, taskId: string): Promise<string> {
     await this.task(productId, taskId);
     const tree = this.worktree(productId, taskId);
+    // ADR-0121: after storage cleanup removed the checkout, its branch holds the same commit.
+    if (!(await present(tree)))
+      return checked(
+        sha,
+        await git(this.repo(productId), [
+          'rev-parse',
+          '--verify',
+          `refs/heads/task/${checked(id, taskId)}^{commit}`,
+        ]),
+      );
     await safeTree(tree);
     return checked(sha, await head(tree));
   }
@@ -622,6 +635,11 @@ export class ProductSupervisor {
     );
   }
 }
+const present = (path: string) =>
+  stat(path).then(
+    () => true,
+    () => false,
+  );
 import { createHash } from 'node:crypto';
 function digestGitBlob(bytes: Buffer): string {
   return createHash('sha1')

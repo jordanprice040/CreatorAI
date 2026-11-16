@@ -3908,6 +3908,39 @@ create trigger spending_refusals_immutable before update or delete on spending_r
 create index spending_refusals_recent on spending_refusals (created_at desc);
 `,
   },
+  {
+    // ADR-0122 (F13): the study effort timer. A step starts on the server clock; its browser
+    // totals arrive once, with the intervention that ends it. Both rows are append-only, and an
+    // unfinished step stays visible. Versions 70-71 are reserved by other milestones.
+    version: 72,
+    name: 'study_effort_timer',
+    sql: `
+create table study_effort_steps (
+ id uuid primary key, study_id uuid not null references studies(id),
+ attempt_id uuid not null references study_attempts(id), actor_id uuid not null references actors(id),
+ step text not null check (step = 'intervention'),
+ started_at timestamptz not null default clock_timestamp()
+);
+create index study_effort_steps_attempt on study_effort_steps(attempt_id, started_at);
+create trigger study_effort_steps_immutable before update or delete on study_effort_steps
+ for each row execute function creator_reject_change();
+create table study_effort_measures (
+ step_id uuid primary key references study_effort_steps(id),
+ attempt_id uuid not null references study_attempts(id),
+ event_id uuid not null unique references study_events(id),
+ timer_version text not null,
+ active_ms bigint not null check (active_ms >= 0),
+ wait_ms bigint not null check (wait_ms >= 0),
+ idle_ms bigint not null check (idle_ms >= 0),
+ away_ms bigint not null check (away_ms >= 0),
+ wall_ms bigint not null check (wall_ms >= 0),
+ recorded_at timestamptz not null default clock_timestamp()
+);
+create index study_effort_measures_attempt on study_effort_measures(attempt_id);
+create trigger study_effort_measures_immutable before update or delete on study_effort_measures
+ for each row execute function creator_reject_change();
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {
