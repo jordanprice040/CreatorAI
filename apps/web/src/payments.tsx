@@ -186,7 +186,7 @@ export function Payments({
 
   return (
     <section className="panel" aria-labelledby="pay-title">
-      <h2 id="pay-title">Payments</h2>
+      <h2 id="pay-title">Sell</h2>
       <p>
         Sell a verified release through a payment processor and see what came
         in. Access is granted only after the server reads the payment from the

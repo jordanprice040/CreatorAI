@@ -555,10 +555,19 @@ p {
   line-height: 1.6;
 }
 .small,
-.empty small {
+.empty small,
+.panel > p.small {
   font-size: 12px;
   line-height: 1.55;
   color: var(--text-3);
+}
+/* Whole-app UX pass: a sub-section's opening paragraph reads like the page's own intro, not
+   larger and brighter than it (Explore for me, Start an autopilot, How much is automated). */
+:is(.explore, .discovery-progress) > p:not([class]) {
+  max-width: 78ch;
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 1.6;
 }
 .summary {
   font-size: 16px !important;
@@ -634,7 +643,8 @@ mark {
   min-height: 34px;
 }
 /* A tab without fields (Path) has no Reset button, so it keeps no room for one. */
-.no-reset .draft-content > .panel:first-child > h2:first-child {
+.no-reset .draft-content > .panel:first-child > h2:first-child,
+.no-reset .draft-content > .panel:first-child > .decision-head:first-child {
   padding-right: 0;
   min-height: 0;
 }
@@ -646,13 +656,16 @@ mark {
     top: 18px;
     right: 16px;
   }
-  .draft-content > .panel:first-child {
-    padding-top: 68px;
-  }
+  /* Whole-app UX pass: Reset fields stays beside the heading on a phone too, instead of
+     taking a line of its own above it. */
   .draft-content > .panel:first-child > h2:first-child,
   .draft-content > .panel:first-child > .decision-head:first-child {
-    padding-right: 0;
+    padding-right: 96px;
     min-height: 0;
+  }
+  .no-reset .draft-content > .panel:first-child > h2:first-child,
+  .no-reset .draft-content > .panel:first-child > .decision-head:first-child {
+    padding-right: 0;
   }
 }
 .panel + .panel {
@@ -661,6 +674,15 @@ mark {
 .panel > h2:first-child,
 .panel > .decision-head:first-child h2,
 .panel h2:first-child {
+  margin-top: 0;
+}
+/* Whole-app UX pass: a boxed sub-section's heading starts at the box's own padding, not 24 px
+   below it (Working or waiting, Start an autopilot, Discoveries, Explore for me, Why this
+   response). */
+:is(.explore, .discovery-progress) > h3:first-child {
+  margin-top: 12px;
+}
+.panel > h3:first-child {
   margin-top: 0;
 }
 .workspace {
@@ -1851,6 +1873,15 @@ form > .secondary {
 .inline-form > button.secondary,
 .wsbar form > .secondary {
   margin-top: 0;
+}
+/* Whole-app UX pass: labels and buttons in a one-line row sit on its centre line (Files, Search,
+   Activity and Chat's step row had them 6–10 px low from the stacked-form margins). */
+.searchbar > :is(.primary, .secondary, label),
+.files-bar > .primary,
+.files-bar form > .secondary,
+.chat-step > label {
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 /* ---------- Test-mode checkout (Payments) ---------- */
@@ -3390,6 +3421,8 @@ table.usage-options th[scope='row'] {
 }
 .start-choice {
   display: grid;
+  /* Whole-app UX pass: a card with a shorter text keeps it under its title, not centred. */
+  align-content: start;
   gap: 4px;
   text-align: left;
   padding: 12px 14px;
@@ -3413,6 +3446,10 @@ table.usage-options th[scope='row'] {
   text-align: right;
   margin: -4px 0 8px;
   color: var(--muted);
+}
+/* Whole-app UX pass: the right edge of the cards above, not of a 78ch text column. */
+.panel > p.choices-more {
+  max-width: none;
 }
 .choices-more span {
   display: block;
@@ -3856,6 +3893,20 @@ details.fold > summary:hover .fold-title {
 details.fold > summary .kind {
   margin-right: 6px;
 }
+/* Whole-app UX pass: on Decide's side-by-side cards the option kind runs into its title
+   instead of holding a 96 px column the title then wraps under. */
+.compare-grid details.fold > summary .kind {
+  min-width: 0;
+}
+/* Overview's Catalog: the kind column fits "Humility review" with a gap. */
+.records-grid .rows .kind {
+  min-width: 132px;
+}
+/* A text action beside small buttons (Discoveries: Hide) matches their size. */
+.actions > button.text {
+  font-size: 13px;
+  margin-top: 0;
+}
 details.fold > summary h3.fold-title {
   display: inline;
   font-size: inherit;
@@ -4275,6 +4326,20 @@ button.money:hover {
 .output-label {
   font-size: 12px;
   color: var(--text-3);
+}
+/* Devices: the pairing commands as their own copyable lines. */
+.panel > pre.commands {
+  margin: 0 0 12px;
+  max-width: 720px;
+}
+pre.commands code {
+  background: none;
+  border: 0;
+  padding: 0;
+}
+pre.commands var {
+  font-style: italic;
+  color: var(--accent);
 }
 .output pre,
 pre.commands {
