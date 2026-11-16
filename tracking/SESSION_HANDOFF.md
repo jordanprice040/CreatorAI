@@ -1,5 +1,9 @@
 # Session handoff — November 10, 2026
 
+## November 16 handoff — #220 to #225 combined
+
+Branch `claude/project-thread-j619wu` = main 701ded8 + PR heads #220 bad632b, #221 015f2b9, #222 63ec3d9, #223 2b03a7d, #224 7fceb32, #225 a993d3b. Merging it marks all six merged. Conflict resolution only (see BUILD_STATUS). Next free migration 73 (reserved for F1), next ADRs per the feature plan.
+
 ## November 15 handoff — compare two runs (F7, ADR-0120)
 
 Branch `claude/project-thread-xvr9sj` from main f5728aa, no migration (F7 had none reserved). Contracts `run-compare.ts`: `RUN_COMPARISON_LABEL`, `RunComparisonRequestSchema`, `RunComparisonSideSchema`, `RunComparisonSchema`, `comparisonCautions`. API `run-compare.ts`: `RUN_COMPARE_ROUTE`, `comparisonSide`, `compareRuns(store, ctx, ws, {a, b})` over a `RunCompareStore` pick of `ConnectionStore` reads, `runCompareRoutes`; wired into `records()` in `index.ts` beside the other module routes, and exported. Web: `pages.ts` adds view `runcompare` (slug `compare`) to the Autopilot page; `main.tsx` renders `RunCompare`; `next-rules.ts` `StepView` gets `runcompare` (pipeline line). `run-compare-rules.ts`: `compareRows`, `duration`, `outcomeText`, `pairFrom`, `defaultPair`. Address `#/autopilot/compare?ws=…&id=<a>,<b>`. Review 1 (`/mnt/project-files/reviews/PR222_RUN_COMPARE_REVIEW_2026-11-15.md`, 8 Lows, 6 nits) fixed: `SelectionStore.getSelection(ctx, ws, id)` is new; `stageName`/`stopKindName` in the rules; see the ADR-0120 amendment. Next: re-review.
