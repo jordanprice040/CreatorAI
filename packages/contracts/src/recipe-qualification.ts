@@ -21,6 +21,7 @@ export const RECIPE_BENCHMARK_IDS = [
   'p14-small-wordtally-v5',
   'p14-larger-ledgercheck-v5',
   'p14-larger-ledgercheck-v6',
+  'p14-xl-v1',
 ] as const;
 export const RecipeBenchmarkIdSchema = z.enum(RECIPE_BENCHMARK_IDS);
 export type RecipeBenchmarkId = z.infer<typeof RecipeBenchmarkIdSchema>;
@@ -38,20 +39,29 @@ export interface RecipeBenchmarkInfo {
   scale: 'small' | 'larger';
   /** What the person reads on Qualify. */
   label: string;
-  /** The November 6 version whose task this one copies. */
-  copied_from: string;
+  /** The November 6 version whose task this one copies; null for a task written new (ADR-0114). */
+  copied_from: string | null;
   attempts: number;
   caps: RecipeBenchmarkCaps;
   /** Plan requests a passing attempt usually takes (one builder and one reviewer request). */
   typical_requests: number;
   /** Extended cases run on the exported package after the build (0 for the web benchmark). */
   extended_cases: number;
+  /** How long one attempt's build may run before it stops (the build plan's deadline). */
+  attempt_deadline_ms: number;
+  /**
+   * ADR-0114: the smallest per-request input cap Start accepts beyond the first builder request
+   * (`firstBuilderInputFloor`); 0 when that request is the only floor.
+   */
+  min_input_chars: number;
   /**
    * How the attempt's plan-route role answers may be wrapped (ADR-0115), equal to the frozen
    * expectations (absent there means `one_json_fence`, as the v5 versions ran).
    */
   answer_wrapping: RoleAnswerWrapping;
 }
+/** ADR-0105: one attempt's build stops after an hour (the v5 benchmarks). */
+export const RECIPE_ATTEMPT_DEADLINE_MS = 60 * 60_000;
 export const RECIPE_BENCHMARK_INFO: Readonly<
   Record<RecipeBenchmarkId, RecipeBenchmarkInfo>
 > = {
@@ -70,6 +80,8 @@ export const RECIPE_BENCHMARK_INFO: Readonly<
     },
     typical_requests: 2,
     extended_cases: 0,
+    attempt_deadline_ms: RECIPE_ATTEMPT_DEADLINE_MS,
+    min_input_chars: 0,
     answer_wrapping: 'one_json_fence',
   },
   'p14-small-wordtally-v5': {
@@ -87,6 +99,8 @@ export const RECIPE_BENCHMARK_INFO: Readonly<
     },
     typical_requests: 2,
     extended_cases: 8,
+    attempt_deadline_ms: RECIPE_ATTEMPT_DEADLINE_MS,
+    min_input_chars: 0,
     answer_wrapping: 'one_json_fence',
   },
   'p14-larger-ledgercheck-v5': {
@@ -105,6 +119,8 @@ export const RECIPE_BENCHMARK_INFO: Readonly<
     },
     typical_requests: 2,
     extended_cases: 21,
+    attempt_deadline_ms: RECIPE_ATTEMPT_DEADLINE_MS,
+    min_input_chars: 0,
     answer_wrapping: 'one_json_fence',
   },
   // ADR-0115: the same task as v5, with leading invented tool-call lines allowed before the one
@@ -126,6 +142,30 @@ export const RECIPE_BENCHMARK_INFO: Readonly<
     },
     typical_requests: 2,
     extended_cases: 21,
+    attempt_deadline_ms: RECIPE_ATTEMPT_DEADLINE_MS,
+    min_input_chars: 0,
+    answer_wrapping: 'invoke_lines_then_json_fence',
+  },
+  // ADR-0114: the extra-large benchmark B4 (ADR-0109) named, a new task rather than a copy. It
+  // measures builder/2 answering a round in parts, at the owner caps of ADR-0109.
+  'p14-xl-v1': {
+    id: 'p14-xl-v1',
+    recipe: 'python-build/1',
+    scale: 'larger',
+    label:
+      'Python program, extra large: a stock and order simulator (13 files, 62 checks and a structure check; stray tool-call lines allowed)',
+    copied_from: null,
+    attempts: 3,
+    caps: {
+      max_repairs: 3,
+      max_calls: 20,
+      max_output_tokens: 16000,
+      timeout_ms: 120000,
+    },
+    typical_requests: 4,
+    extended_cases: 37,
+    attempt_deadline_ms: 2 * 60 * 60_000,
+    min_input_chars: 120_000,
     answer_wrapping: 'invoke_lines_then_json_fence',
   },
 };
@@ -147,7 +187,7 @@ export const RecipeBenchmarkOffersSchema = z.strictObject({
       recipe: BuildRecipeSchema,
       scale: z.enum(['small', 'larger']),
       label: z.string(),
-      copied_from: z.string(),
+      copied_from: z.string().nullable(),
       attempts: z.number().int().min(1),
       caps: z.strictObject({
         max_repairs: z.number().int().min(0),
@@ -157,6 +197,8 @@ export const RecipeBenchmarkOffersSchema = z.strictObject({
       }),
       typical_requests: z.number().int().min(0),
       extended_cases: z.number().int().min(0),
+      attempt_deadline_ms: z.number().int().min(1),
+      min_input_chars: z.number().int().min(0),
       /** ADR-0115: the answer form the attempts' role answers may take. */
       answer_wrapping: RoleAnswerWrappingSchema,
       /** recipeQualificationMaxRequests: the most one qualification can use. */

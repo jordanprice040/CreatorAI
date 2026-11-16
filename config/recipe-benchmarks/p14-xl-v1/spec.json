@@ -1,0 +1,482 @@
+{
+  "format": "p14-benchmark-spec/1",
+  "benchmark_id": "p14-xl-v1",
+  "scale": "larger",
+  "title": "Stockroom order and stock simulator CLI (P14 extra-large benchmark)",
+  "content": {
+    "audience": "Synthetic benchmark operator measuring the studio's build path at an extra-large, many-module scale",
+    "problem_statement": "Measure whether the bounded builder, answering a round in several parts, and the independent reviewer can deliver a many-module Python standard-library CLI (a package of 11 modules with an internal API) that runs a stock and order script read from stdin: customers with discounts, items, stock lots costed first in first out, orders that are reserved or wait, allocation, shipping, cancelling and write-offs, then a text or JSON report. Judged by 25 frozen exact-output cases with held-out ones, a separate extended held-out suite and a structure check. Synthetic benchmark, not a customer product.",
+    "user_flows": [
+      {
+        "key": "F1",
+        "name": "Catalog and stock",
+        "steps": [
+          "Pipe a script of ITEM and RECEIVE lines",
+          "Read each response and the report's item lines"
+        ]
+      },
+      {
+        "key": "F2",
+        "name": "Orders and allocation",
+        "steps": [
+          "Define a customer and items",
+          "Place orders",
+          "Read reserved or waiting",
+          "Receive stock and read which waiting orders become reserved",
+          "Check exit status 3 when an order still waits"
+        ]
+      },
+      {
+        "key": "F3",
+        "name": "Shipping",
+        "steps": [
+          "Ship a reserved order",
+          "Read its revenue and first-in-first-out cost",
+          "Read the report's totals line"
+        ]
+      },
+      {
+        "key": "F4",
+        "name": "Cancelling",
+        "steps": [
+          "Cancel a reserved or waiting order",
+          "Read which waiting orders become reserved"
+        ]
+      },
+      {
+        "key": "F5",
+        "name": "Write-offs",
+        "steps": [
+          "Write off available units",
+          "Read the cost removed and the item's value"
+        ]
+      },
+      {
+        "key": "F6",
+        "name": "Prices and discounts",
+        "steps": [
+          "Change a price between orders",
+          "Ship orders of a customer with a discount",
+          "Read each revenue"
+        ]
+      },
+      {
+        "key": "F7",
+        "name": "JSON report",
+        "steps": [
+          "Run with --format json",
+          "Parse the last line as JSON"
+        ]
+      },
+      {
+        "key": "F8",
+        "name": "Script errors",
+        "steps": [
+          "Pipe a script with bad lines",
+          "Read every line number and reason",
+          "Check that later lines still run and exit status 1"
+        ]
+      },
+      {
+        "key": "F9",
+        "name": "Quiet mode",
+        "steps": [
+          "Run with --quiet",
+          "Read only error lines and the report"
+        ]
+      },
+      {
+        "key": "F10",
+        "name": "Invalid arguments",
+        "steps": [
+          "Run with an argument the CLI does not accept",
+          "Read invalid input and exit status 2"
+        ]
+      }
+    ],
+    "scope": [
+      "Python 3.8+ standard library only. Entry point src/main.py plus a package src/stockroom with __init__.py and these modules, each with a top-level function: money.py, fields.py, script.py, catalog.py, customers.py, lots.py, orders.py, commands.py, report_text.py, report_json.py and cli.py",
+      "Each of those modules is imported by main.py or by another module of the package, and main.py imports from stockroom. Each module keeps to its name: money, field rules, script lines, the catalog, customers, stock lots, orders, the commands, the two reports and the arguments",
+      "Runtime rule: QA runs python3 -I src/main.py from the product root, so src is not on the import path. main.py must insert its own directory into sys.path before importing stockroom",
+      "Arguments: --format text or json (at most once, default text) and --quiet (at most once), in any order. Any other argument, --format without text or json after it, or a repeated flag prints exactly: invalid input, then newline, and exits 2, before reading stdin",
+      "stdin is a script split into lines on newline; one trailing carriage return per line is removed. Lines are numbered from 1, counting every line. Each line is split into tokens with Python's str.split(). A line with no tokens, or whose first token starts with #, is skipped",
+      "The first token is the command, matched exactly: CUSTOMER, ITEM, PRICE, RECEIVE, ORDER, SHIP, CANCEL or WRITEOFF; anything else gives the reason unknown command. A wrong number of arguments gives bad arguments, checked before any other reason of that command",
+      "A command that fails a check changes nothing and prints line N: reason in place of its response, and the script goes on. A command reports only the first reason that applies, in the order its rule lists them. Responses and error lines are printed in script order",
+      "Fields: sku is 1 to 12 of A-Z, 0-9 or hyphen, starting with A-Z. Order id is 1 to 10 of a-z or 0-9, starting with a-z. Customer is 1 to 16 of a-z or underscore, starting with a-z. Quantity is digits with no leading zero, 1 to 100000. Percent is 0, or digits with no leading zero up to 50",
+      "Money fields (price, cost) are 1 to 7 digits with an optional . and 1 or 2 digits, no sign, kept in integer cents; a zero price is a bad price, a cost may be zero. Money is printed as optional minus sign, whole part, dot, two digits (for example -0.05, 3.10, 1200.00)",
+      "CUSTOMER name percent: reasons bad customer, bad percent, duplicate customer; response customer NAME added. ITEM sku price: reasons bad sku, bad price, duplicate item; response item SKU added. PRICE sku price: reasons bad sku, bad price, unknown item; response item SKU price P",
+      "RECEIVE sku quantity cost adds a lot of that many units at that unit cost, after the item's older lots. Reasons bad sku, bad quantity, bad cost, unknown item. Response: received SKU Q, then allocation",
+      "ORDER id customer, then 1 to 5 pairs of sku quantity (else bad arguments). Reasons bad order id, duplicate order, bad customer, unknown customer, then pair by pair from the left: bad sku, bad quantity, unknown item, repeated item (a sku already earlier in this order)",
+      "A new order records each line's current price and its customer's percent. It is reserved when every line's quantity is at most the item's available units (on hand less all reserved units), else it waits. Response: order ID reserved, or order ID waiting",
+      "Allocation, after RECEIVE and after CANCEL: waiting orders are tried in the order they were placed, and each one whose every line fits the available units at that moment is reserved and prints order ID reserved. Later orders are still tried when an earlier one still waits",
+      "SHIP id: reasons bad order id, unknown order, order not reserved. Its units leave stock from each item's oldest lots first and its reservation ends. Response: order ID shipped revenue R cost C, where C is the summed cost of the lot units taken",
+      "An order's revenue is the sum of quantity times recorded price, less the discount: that sum times the recorded percent, divided by 100 and rounded down to a whole cent. CANCEL id: reasons bad order id, unknown order, order closed (shipped or cancelled); response order ID cancelled, then allocation",
+      "WRITEOFF sku quantity removes units from the item's oldest lots first. Reasons bad sku, bad quantity, unknown item, not enough stock (quantity above the available units). Response: wrote off SKU Q cost C. With --quiet no response or allocation line prints; error lines still do",
+      "After the script the text report prints == report ==, then per item in ascending sku: item SKU price P on_hand N reserved N value V (V is the summed cost of the units left in its lots), then per order in placement order: order ID CUSTOMER STATE (reserved, waiting, shipped or cancelled)",
+      "then per customer in ascending name: customer NAME orders N shipped S spent R (orders placed, orders shipped and their summed revenue), then totals revenue R cost C profit P over shipped orders, profit being revenue less cost. --format json prints the report as stockroom-report/1 instead",
+      "Exit 1 when any line printed an error, else 3 when an order still waits after the script, else 0. No files, network, environment variables or third-party packages"
+    ],
+    "non_goals": [
+      "Reading or writing files",
+      "Persistence between runs",
+      "Currencies, tax or shipping charges",
+      "Returns of shipped orders",
+      "Web UI",
+      "Public release",
+      "Third-party packages"
+    ],
+    "data_contracts": [
+      {
+        "name": "stockroom/1",
+        "description": "Synthetic command script on stdin, one command per line; responses, error lines and the report on stdout",
+        "data_class": "synthetic"
+      },
+      {
+        "name": "stockroom-report/1",
+        "description": "One line: json.dumps(report, sort_keys=True). report is {customers: [{name, orders, shipped, spent}], items: [{sku, price, on_hand, reserved, value}], orders: [{id, customer, state, revenue}], revenue, cost, profit}, in the text report's orders",
+        "data_class": "synthetic"
+      },
+      {
+        "name": "stockroom-report/1 values",
+        "description": "Money values (spent, price, value, revenue, cost, profit) are strings in the money format; orders, shipped, on_hand and reserved are integers; an order's revenue is null unless it was shipped. The == report == line is not printed",
+        "data_class": "synthetic"
+      }
+    ],
+    "acceptance_checks": [
+      {
+        "key": "A1",
+        "flow": "F1",
+        "statement": "ITEM and RECEIVE build the catalog and stock; the report lists every item in sku order with price, units on hand, units reserved and the cost of units left",
+        "measure": "Exact stdout and exit code 0",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [],
+            "stdin": "ITEM WIDGET 2.50\nITEM BOLT 0.25\nRECEIVE WIDGET 10 1.20\nRECEIVE BOLT 100 0.05\n",
+            "stdout": "item WIDGET added\nitem BOLT added\nreceived WIDGET 10\nreceived BOLT 100\n== report ==\nitem BOLT price 0.25 on_hand 100 reserved 0 value 5.00\nitem WIDGET price 2.50 on_hand 10 reserved 0 value 12.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "# stock\r\nITEM GEAR-2 4\r\n\r\nRECEIVE GEAR-2 3 1.5\r\n   \r\nRECEIVE GEAR-2 2 1.75\r\nITEM CAP 9.99\r\n",
+            "stdout": "item GEAR-2 added\nreceived GEAR-2 3\nreceived GEAR-2 2\nitem CAP added\n== report ==\nitem CAP price 9.99 on_hand 0 reserved 0 value 0.00\nitem GEAR-2 price 4.00 on_hand 5 reserved 0 value 8.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+            "exit_code": 0,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A2",
+        "flow": "F2",
+        "statement": "ORDER reserves an order when every line fits the available units, else it waits; RECEIVE and CANCEL then reserve waiting orders in placement order; exit 3 while one waits",
+        "measure": "Exact stdout and exit code 0, or 3 when an order still waits",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [],
+            "stdin": "CUSTOMER ana 0\nITEM BOLT 0.25\nITEM NUT 0.10\nRECEIVE BOLT 100 0.05\nRECEIVE NUT 50 0.02\nORDER o1 ana BOLT 60\nORDER o2 ana BOLT 60 NUT 10\nRECEIVE BOLT 30 0.06\n",
+            "stdout": "customer ana added\nitem BOLT added\nitem NUT added\nreceived BOLT 100\nreceived NUT 50\norder o1 reserved\norder o2 waiting\nreceived BOLT 30\norder o2 reserved\n== report ==\nitem BOLT price 0.25 on_hand 130 reserved 120 value 6.80\nitem NUT price 0.10 on_hand 50 reserved 10 value 1.00\norder o1 ana reserved\norder o2 ana reserved\ncustomer ana orders 2 shipped 0 spent 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "CUSTOMER ana 0\nITEM BOLT 0.25\nITEM NUT 0.10\nRECEIVE BOLT 100 0.05\nRECEIVE NUT 50 0.02\nORDER o1 ana NUT 80\n",
+            "stdout": "customer ana added\nitem BOLT added\nitem NUT added\nreceived BOLT 100\nreceived NUT 50\norder o1 waiting\n== report ==\nitem BOLT price 0.25 on_hand 100 reserved 0 value 5.00\nitem NUT price 0.10 on_hand 50 reserved 0 value 1.00\norder o1 ana waiting\ncustomer ana orders 1 shipped 0 spent 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+            "exit_code": 3,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "CUSTOMER ana 0\nITEM BOLT 0.25\nITEM NUT 0.10\nRECEIVE BOLT 100 0.05\nRECEIVE NUT 50 0.02\nORDER hold ana BOLT 80\nORDER big ana BOLT 150\nORDER small ana BOLT 30\nRECEIVE BOLT 15 0.07\n",
+            "stdout": "customer ana added\nitem BOLT added\nitem NUT added\nreceived BOLT 100\nreceived NUT 50\norder hold reserved\norder big waiting\norder small waiting\nreceived BOLT 15\norder small reserved\n== report ==\nitem BOLT price 0.25 on_hand 115 reserved 110 value 6.05\nitem NUT price 0.10 on_hand 50 reserved 0 value 1.00\norder hold ana reserved\norder big ana waiting\norder small ana reserved\ncustomer ana orders 3 shipped 0 spent 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+            "exit_code": 3,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A3",
+        "flow": "F3",
+        "statement": "SHIP takes a reserved order's units from each item's oldest lots first and prints its revenue and the cost of the units taken",
+        "measure": "Exact stdout and exit code 0",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [],
+            "stdin": "CUSTOMER bo 0\nITEM LAMP 30\nRECEIVE LAMP 2 10\nRECEIVE LAMP 5 12.50\nORDER a1 bo LAMP 4\nSHIP a1\n",
+            "stdout": "customer bo added\nitem LAMP added\nreceived LAMP 2\nreceived LAMP 5\norder a1 reserved\norder a1 shipped revenue 120.00 cost 45.00\n== report ==\nitem LAMP price 30.00 on_hand 3 reserved 0 value 37.50\norder a1 bo shipped\ncustomer bo orders 1 shipped 1 spent 120.00\ntotals revenue 120.00 cost 45.00 profit 75.00\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "CUSTOMER bo 0\nITEM LAMP 30\nITEM BULB 2.25\nRECEIVE BULB 10 0.40\nRECEIVE LAMP 3 10\nRECEIVE BULB 10 0.55\nRECEIVE LAMP 4 11\nORDER a1 bo BULB 12 LAMP 5\nSHIP a1\nORDER a2 bo BULB 1\n",
+            "stdout": "customer bo added\nitem LAMP added\nitem BULB added\nreceived BULB 10\nreceived LAMP 3\nreceived BULB 10\nreceived LAMP 4\norder a1 reserved\norder a1 shipped revenue 177.00 cost 57.10\norder a2 reserved\n== report ==\nitem BULB price 2.25 on_hand 8 reserved 1 value 4.40\nitem LAMP price 30.00 on_hand 2 reserved 0 value 22.00\norder a1 bo shipped\norder a2 bo reserved\ncustomer bo orders 2 shipped 1 spent 177.00\ntotals revenue 177.00 cost 57.10 profit 119.90\n",
+            "exit_code": 0,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A4",
+        "flow": "F4",
+        "statement": "CANCEL ends a reserved or waiting order, releases its units and reserves waiting orders that now fit",
+        "measure": "Exact stdout and exit code 0, or 1 after an error line",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [],
+            "stdin": "CUSTOMER ana 0\nITEM BOLT 0.25\nITEM NUT 0.10\nRECEIVE BOLT 100 0.05\nRECEIVE NUT 50 0.02\nORDER o1 ana BOLT 80\nORDER o2 ana BOLT 50\nCANCEL o1\n",
+            "stdout": "customer ana added\nitem BOLT added\nitem NUT added\nreceived BOLT 100\nreceived NUT 50\norder o1 reserved\norder o2 waiting\norder o1 cancelled\norder o2 reserved\n== report ==\nitem BOLT price 0.25 on_hand 100 reserved 50 value 5.00\nitem NUT price 0.10 on_hand 50 reserved 0 value 1.00\norder o1 ana cancelled\norder o2 ana reserved\ncustomer ana orders 2 shipped 0 spent 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "CUSTOMER ana 0\nITEM BOLT 0.25\nITEM NUT 0.10\nRECEIVE BOLT 100 0.05\nRECEIVE NUT 50 0.02\nORDER o1 ana NUT 60\nCANCEL o1\nCANCEL o1\nORDER o2 ana NUT 5\nSHIP o2\nCANCEL o2\n",
+            "stdout": "customer ana added\nitem BOLT added\nitem NUT added\nreceived BOLT 100\nreceived NUT 50\norder o1 waiting\norder o1 cancelled\nline 8: order closed\norder o2 reserved\norder o2 shipped revenue 0.50 cost 0.10\nline 11: order closed\n== report ==\nitem BOLT price 0.25 on_hand 100 reserved 0 value 5.00\nitem NUT price 0.10 on_hand 45 reserved 0 value 0.90\norder o1 ana cancelled\norder o2 ana shipped\ncustomer ana orders 2 shipped 1 spent 0.50\ntotals revenue 0.50 cost 0.10 profit 0.40\n",
+            "exit_code": 1,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A5",
+        "flow": "F5",
+        "statement": "WRITEOFF removes available units from the oldest lots first and prints their cost; it may not touch reserved units",
+        "measure": "Exact stdout and exit code 0, or 1 after an error line",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [],
+            "stdin": "ITEM TAPE 3\nRECEIVE TAPE 4 1\nRECEIVE TAPE 6 1.10\nWRITEOFF TAPE 5\n",
+            "stdout": "item TAPE added\nreceived TAPE 4\nreceived TAPE 6\nwrote off TAPE 5 cost 5.10\n== report ==\nitem TAPE price 3.00 on_hand 5 reserved 0 value 5.50\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "CUSTOMER cy 0\nITEM TAPE 3\nRECEIVE TAPE 4 1\nRECEIVE TAPE 6 1.10\nORDER t1 cy TAPE 7\nWRITEOFF TAPE 4\nWRITEOFF TAPE 3\nSHIP t1\n",
+            "stdout": "customer cy added\nitem TAPE added\nreceived TAPE 4\nreceived TAPE 6\norder t1 reserved\nline 6: not enough stock\nwrote off TAPE 3 cost 3.00\norder t1 shipped revenue 21.00 cost 7.60\n== report ==\nitem TAPE price 3.00 on_hand 0 reserved 0 value 0.00\norder t1 cy shipped\ncustomer cy orders 1 shipped 1 spent 21.00\ntotals revenue 21.00 cost 7.60 profit 13.40\n",
+            "exit_code": 1,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A6",
+        "flow": "F6",
+        "statement": "An order keeps the prices and the customer discount it was placed with; PRICE changes later orders only; the discount is rounded down to a cent",
+        "measure": "Exact stdout and exit code 0",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [],
+            "stdin": "CUSTOMER dee 10\nITEM PEN 2\nRECEIVE PEN 20 0.50\nORDER p1 dee PEN 5\nPRICE PEN 3\nORDER p2 dee PEN 5\nSHIP p1\nSHIP p2\n",
+            "stdout": "customer dee added\nitem PEN added\nreceived PEN 20\norder p1 reserved\nitem PEN price 3.00\norder p2 reserved\norder p1 shipped revenue 9.00 cost 2.50\norder p2 shipped revenue 13.50 cost 2.50\n== report ==\nitem PEN price 3.00 on_hand 10 reserved 0 value 5.00\norder p1 dee shipped\norder p2 dee shipped\ncustomer dee orders 2 shipped 2 spent 22.50\ntotals revenue 22.50 cost 5.00 profit 17.50\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "CUSTOMER eve 15\nCUSTOMER fay 50\nITEM INK 9.99\nITEM NIB 0.03\nRECEIVE INK 5 4\nRECEIVE NIB 5 0.01\nORDER i1 eve INK 1\nORDER i2 fay NIB 1\nSHIP i1\nSHIP i2\n",
+            "stdout": "customer eve added\ncustomer fay added\nitem INK added\nitem NIB added\nreceived INK 5\nreceived NIB 5\norder i1 reserved\norder i2 reserved\norder i1 shipped revenue 8.50 cost 4.00\norder i2 shipped revenue 0.02 cost 0.01\n== report ==\nitem INK price 9.99 on_hand 4 reserved 0 value 16.00\nitem NIB price 0.03 on_hand 4 reserved 0 value 0.04\norder i1 eve shipped\norder i2 fay shipped\ncustomer eve orders 1 shipped 1 spent 8.50\ncustomer fay orders 1 shipped 1 spent 0.02\ntotals revenue 8.52 cost 4.01 profit 4.51\n",
+            "exit_code": 0,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A7",
+        "flow": "F7",
+        "statement": "--format json prints the report as one JSON line in place of the text report",
+        "measure": "Exact stdout and exit code 0",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [
+              "--format",
+              "json"
+            ],
+            "stdin": "CUSTOMER ana 5\nITEM BOLT 0.25\nRECEIVE BOLT 10 0.05\n",
+            "stdout": "customer ana added\nitem BOLT added\nreceived BOLT 10\n{\"cost\": \"0.00\", \"customers\": [{\"name\": \"ana\", \"orders\": 0, \"shipped\": 0, \"spent\": \"0.00\"}], \"items\": [{\"on_hand\": 10, \"price\": \"0.25\", \"reserved\": 0, \"sku\": \"BOLT\", \"value\": \"0.50\"}], \"orders\": [], \"profit\": \"0.00\", \"revenue\": \"0.00\"}\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": [
+              "--format",
+              "json"
+            ],
+            "stdin": "CUSTOMER ana 5\nCUSTOMER zed 0\nITEM BOLT 0.25\nITEM NUT 0.10\nRECEIVE BOLT 10 0.05\nORDER o1 zed BOLT 4\nORDER o2 ana NUT 1\nSHIP o1\nRECEIVE NUT 3 0.02\n",
+            "stdout": "customer ana added\ncustomer zed added\nitem BOLT added\nitem NUT added\nreceived BOLT 10\norder o1 reserved\norder o2 waiting\norder o1 shipped revenue 1.00 cost 0.20\nreceived NUT 3\norder o2 reserved\n{\"cost\": \"0.20\", \"customers\": [{\"name\": \"ana\", \"orders\": 1, \"shipped\": 0, \"spent\": \"0.00\"}, {\"name\": \"zed\", \"orders\": 1, \"shipped\": 1, \"spent\": \"1.00\"}], \"items\": [{\"on_hand\": 6, \"price\": \"0.25\", \"reserved\": 0, \"sku\": \"BOLT\", \"value\": \"0.30\"}, {\"on_hand\": 3, \"price\": \"0.10\", \"reserved\": 1, \"sku\": \"NUT\", \"value\": \"0.06\"}], \"orders\": [{\"customer\": \"zed\", \"id\": \"o1\", \"revenue\": \"1.00\", \"state\": \"shipped\"}, {\"customer\": \"ana\", \"id\": \"o2\", \"revenue\": null, \"state\": \"reserved\"}], \"profit\": \"0.80\", \"revenue\": \"1.00\"}\n",
+            "exit_code": 0,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A8",
+        "flow": "F8",
+        "statement": "A command that fails a check prints line N: reason for the first reason that applies, changes nothing, and the script goes on; exit 1",
+        "measure": "Exact stdout and exit code 1",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [],
+            "stdin": "ITEM BOLT 0.25\nSELL BOLT 1\nITEM BOLT\nRECEIVE BOLT 5 0.05 extra\nRECEIVE BOLT 5 0.05\n",
+            "stdout": "item BOLT added\nline 2: unknown command\nline 3: bad arguments\nline 4: bad arguments\nreceived BOLT 5\n== report ==\nitem BOLT price 0.25 on_hand 5 reserved 0 value 0.25\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+            "exit_code": 1,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "ITEM bolt 1\nITEM BOLT 0\nITEM BOLT 0.25\nITEM BOLT 0.30\nPRICE NUT 1\nRECEIVE BOLT 0 1\nRECEIVE BOLT 3 -1\nRECEIVE NUT 3 1\n",
+            "stdout": "line 1: bad sku\nline 2: bad price\nitem BOLT added\nline 4: duplicate item\nline 5: unknown item\nline 6: bad quantity\nline 7: bad cost\nline 8: unknown item\n== report ==\nitem BOLT price 0.25 on_hand 0 reserved 0 value 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+            "exit_code": 1,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "CUSTOMER ana 0\nITEM BOLT 0.25\nORDER 9x ana BOLT 1\nORDER o1 ana BOLT 1\nORDER o1 bob NUT 1\nORDER o2 Bob BOLT 1\nORDER o2 bob BOLT 1\nORDER o2 ana NUT 0 BOLT x\nORDER o2 ana BOLT 1 NUT 2\nORDER o2 ana BOLT 1 BOLT 2\nORDER o2 ana BOLT\n",
+            "stdout": "customer ana added\nitem BOLT added\nline 3: bad order id\norder o1 waiting\nline 5: duplicate order\nline 6: bad customer\nline 7: unknown customer\nline 8: bad quantity\nline 9: unknown item\nline 10: repeated item\nline 11: bad arguments\n== report ==\nitem BOLT price 0.25 on_hand 0 reserved 0 value 0.00\norder o1 ana waiting\ncustomer ana orders 1 shipped 0 spent 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+            "exit_code": 1,
+            "held_out": true
+          },
+          {
+            "args": [],
+            "stdin": "CUSTOMER ana 0\nITEM BOLT 0.25\nORDER o1 ana BOLT 1\nSHIP o2\nSHIP O1\nSHIP o1\nCANCEL o3\n",
+            "stdout": "customer ana added\nitem BOLT added\norder o1 waiting\nline 4: unknown order\nline 5: bad order id\nline 6: order not reserved\nline 7: unknown order\n== report ==\nitem BOLT price 0.25 on_hand 0 reserved 0 value 0.00\norder o1 ana waiting\ncustomer ana orders 1 shipped 0 spent 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+            "exit_code": 1,
+            "held_out": true
+          },
+          {
+            "args": [],
+            "stdin": "CUSTOMER Ana 1\nCUSTOMER ana 51\nCUSTOMER ana 05\nCUSTOMER ana 20\nCUSTOMER ana 30\n",
+            "stdout": "line 1: bad customer\nline 2: bad percent\nline 3: bad percent\ncustomer ana added\nline 5: duplicate customer\n== report ==\ncustomer ana orders 0 shipped 0 spent 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+            "exit_code": 1,
+            "held_out": false
+          }
+        ]
+      },
+      {
+        "key": "A9",
+        "flow": "F9",
+        "statement": "--quiet prints no responses or allocation lines; error lines and the report still print",
+        "measure": "Exact stdout and exit code",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [
+              "--quiet"
+            ],
+            "stdin": "CUSTOMER ana 0\nITEM BOLT 0.25\nITEM NUT 0.10\nRECEIVE BOLT 100 0.05\nRECEIVE NUT 50 0.02\nORDER o1 ana BOLT 120\nPRICE BOLT x\nRECEIVE BOLT 20 0.05\n",
+            "stdout": "line 7: bad price\n== report ==\nitem BOLT price 0.25 on_hand 120 reserved 120 value 6.00\nitem NUT price 0.10 on_hand 50 reserved 0 value 1.00\norder o1 ana reserved\ncustomer ana orders 1 shipped 0 spent 0.00\ntotals revenue 0.00 cost 0.00 profit 0.00\n",
+            "exit_code": 1,
+            "held_out": false
+          },
+          {
+            "args": [
+              "--format",
+              "json",
+              "--quiet"
+            ],
+            "stdin": "CUSTOMER ana 0\nITEM BOLT 0.25\nITEM NUT 0.10\nRECEIVE BOLT 100 0.05\nRECEIVE NUT 50 0.02\nORDER o1 ana BOLT 120\n",
+            "stdout": "{\"cost\": \"0.00\", \"customers\": [{\"name\": \"ana\", \"orders\": 1, \"shipped\": 0, \"spent\": \"0.00\"}], \"items\": [{\"on_hand\": 100, \"price\": \"0.25\", \"reserved\": 0, \"sku\": \"BOLT\", \"value\": \"5.00\"}, {\"on_hand\": 50, \"price\": \"0.10\", \"reserved\": 0, \"sku\": \"NUT\", \"value\": \"1.00\"}], \"orders\": [{\"customer\": \"ana\", \"id\": \"o1\", \"revenue\": null, \"state\": \"waiting\"}], \"profit\": \"0.00\", \"revenue\": \"0.00\"}\n",
+            "exit_code": 3,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A10",
+        "flow": "F10",
+        "statement": "Invalid arguments print invalid input and exit 2 before reading stdin",
+        "measure": "Exact stdout and exit code 2",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [
+              "--verbose"
+            ],
+            "stdin": "CUSTOMER ana 0\nITEM BOLT 0.25\nITEM NUT 0.10\nRECEIVE BOLT 100 0.05\nRECEIVE NUT 50 0.02\n",
+            "stdout": "invalid input\n",
+            "exit_code": 2,
+            "held_out": false
+          },
+          {
+            "args": [
+              "--format",
+              "xml"
+            ],
+            "stdin": "CUSTOMER ana 0\nITEM BOLT 0.25\nITEM NUT 0.10\nRECEIVE BOLT 100 0.05\nRECEIVE NUT 50 0.02\n",
+            "stdout": "invalid input\n",
+            "exit_code": 2,
+            "held_out": false
+          },
+          {
+            "args": [
+              "--quiet",
+              "--quiet"
+            ],
+            "stdin": "CUSTOMER ana 0\nITEM BOLT 0.25\nITEM NUT 0.10\nRECEIVE BOLT 100 0.05\nRECEIVE NUT 50 0.02\n",
+            "stdout": "invalid input\n",
+            "exit_code": 2,
+            "held_out": true
+          }
+        ]
+      }
+    ],
+    "risks": [
+      {
+        "risk": "One builder answer cannot hold the whole program within the connection's answer cap",
+        "mitigation": "builder/2 answers a round in parts that are applied together; the benchmark measures that path"
+      },
+      {
+        "risk": "The builder imports sibling modules without fixing sys.path under python3 -I",
+        "mitigation": "The runtime rule is part of the frozen scope; QA would fail every case otherwise"
+      },
+      {
+        "risk": "A reviewer request for the whole program exceeds a small per-request input cap",
+        "mitigation": "Start refuses a connection whose input cap is below the benchmark's recorded floor"
+      },
+      {
+        "risk": "Held-out cases leak to the builder",
+        "mitigation": "The studio hides held-out cases; the repository copy is never sent to runtime roles"
+      }
+    ],
+    "maintenance": {
+      "owner": "Jordan (benchmark owner)",
+      "obligations": [
+        "Keep this frozen version unchanged; changes need a new benchmark version"
+      ],
+      "review_interval": "On recipe, role prompt, route or model change"
+    },
+    "tasks": [
+      {
+        "key": "T1",
+        "title": "Implement the stockroom simulator package",
+        "role": "builder",
+        "file_scope": [
+          "src"
+        ],
+        "depends_on": [],
+        "acceptance": [
+          "A1",
+          "A2",
+          "A3",
+          "A4",
+          "A5",
+          "A6",
+          "A7",
+          "A8",
+          "A9",
+          "A10"
+        ],
+        "deliverable": "src/main.py and the src/stockroom package that pass every acceptance check"
+      }
+    ]
+  }
+}

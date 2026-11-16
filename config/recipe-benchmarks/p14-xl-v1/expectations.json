@@ -1,0 +1,286 @@
+{
+  "format": "recipe-benchmark-expectations/1",
+  "benchmark_id": "p14-xl-v1",
+  "scale": "larger",
+  "recipe": "python-build/1",
+  "declared_scale": "Entry point plus a package of 11 named modules with an internal API (13 Python files in the reference, about 600 lines and 18,000 characters; a build of that size will likely, but need not, answer in more than one part at the plan route's default answer cap of 16,000 characters), one builder task, 10 automated checks with 25 studio cases (11 held out), plus 37 extended held-out cases and a structure check run after the build",
+  "authored": "Written new on 2026-11-15 for ADR-0114 (B4 of the build capability plan, ADR-0109), before any run. Not a copy of an earlier version. The expected outputs were produced by the reference solution and checked by hand against the spec. Cases E29 to E37 were added before any run, after review 1 of PR #217 found spec rules no case checked; a test runs the reference against every case and each known failure against the cases that catch it",
+  "build_plan_caps": {
+    "max_repairs": 3,
+    "max_calls": 20,
+    "max_output_tokens": 16000,
+    "timeout_ms": 120000,
+    "data_class": "synthetic"
+  },
+  "expected_requests": {
+    "typical": 4,
+    "maximum": 20,
+    "note": "A round answered in several parts uses one builder request per part and one reviewer request; parts and repair rounds are measured, not required"
+  },
+  "expected_cost_usd": "0.00 on a plan-backed route (plan_roles). Any metered route is out of this packet",
+  "attempts": 3,
+  "one_build_per_attempt": "Each attempt is its own product and build in the studio qualification harness, from this spec.json content exactly (no catalog run, selection or spec is created)",
+  "qualified_at_declared_scale_when": "All 3 attempts meet every pass bar. Fewer is recorded as k of 3 and is not qualified; nothing is re-run to replace a failure",
+  "invalid_attempt_when": "An infrastructure fault outside the roles stops the attempt before a verdict: a role request that got no answer (network, provider, rate or usage limit, sign-in, token or timeout), a request the studio refused for a reason the roles' work did not cause (an earlier request with an unknown outcome, another request still running past a 4-minute wait, the daily cap, a lost sign-in, a connection setting changed during the run), a worker that did not finish a case, or a studio restart. It is recorded with its cause, and each attempt may be replaced at most once. A role answer the role itself caused to end without the contract (output too long or incomplete, out of turns, a model other than the one asked for, or a refusal to serve the model asked for, on any route) is a failed attempt, not an infrastructure fault; so is a request refused because the roles' own output made its input larger than the per-request input cap recorded at Start, or because the attempt used its request limit. An input-cap refusal of an attempt's first request (the roles wrote nothing yet), or after the cap was lowered since Start, is an infrastructure fault",
+  "pass_bar_per_attempt": [
+    "Studio build reaches verified_candidate: QA passes every frozen studio case, held-out ones included, in the isolation worker, and the reviewer approves with no findings (the studio's own rule)",
+    "Requests used are at most the plan's max_calls (20)",
+    "The exported package is verified by the studio: every frozen case re-run on the extracted archive in the isolation worker",
+    "All 37 extended cases pass on the exported package, run by the studio in the isolation worker with the studio case rule (exact output and exit status)",
+    "Structure check passes (studio check, packages/executor/src/recipe-structure.ts, the rule under structure below)"
+  ],
+  "structure": {
+    "entry": "src/main.py",
+    "package": "stockroom",
+    "package_dir": "src/stockroom",
+    "modules": [
+      "money",
+      "fields",
+      "script",
+      "catalog",
+      "customers",
+      "lots",
+      "orders",
+      "commands",
+      "report_text",
+      "report_json",
+      "cli"
+    ],
+    "rule": "src/stockroom has __init__.py and each named module; each named module can be read as Python and has a top-level def statement; src/main.py imports from stockroom; each named module is imported by src/main.py or by another .py file of src/stockroom (from stockroom.m import, from .m import, from . import m, from stockroom import m, or import stockroom.m). Text in strings and comments is not code. A checked file that cannot be read as Python (a string or bracket left open, a bracket closed that was never opened, a backslash continuation on the last line) fails the bar; other syntax errors are left to the frozen cases"
+  },
+  "min_input_chars": 120000,
+  "min_input_chars_note": "Start refuses a connection whose per-request input cap is below 120,000 characters (or below the first builder request, if that is larger). A reviewer request carries the task packet, every file and the diff from the template, so a program this size needs roughly three times its own length; a smaller cap would fail attempts on the cap rather than on the roles' work. The owner raises the cap per ADR-0062 before starting",
+  "attempt_deadline_ms": 7200000,
+  "attempt_deadline_note": "Each attempt's build stops after two hours (the v5 benchmarks have one): up to 20 requests at 120 s, a wait of up to 4 minutes for a busy connection before a request, and up to 4 rounds of 25 cases",
+  "answer_wrapping": "invoke_lines_then_json_fence",
+  "answer_wrapping_note": "Each plan-route role answer (builder and reviewer) may be exactly one ```json or bare ``` code fence around the whole answer, optionally preceded by at most 8 lines that are each wholly a one-line <invoke ...>...</invoke> or a lone </invoke> (blank lines among them allowed), as p14-larger-ledgercheck-v6 allows (ADR-0115). Those lines are dropped unread and counted beside the call; any other text before, between or after fails the answer. Jordan chose this form on November 15, 2026, before any run of this benchmark.",
+  "measure_and_record": [
+    "requests used, builder parts per round and repair rounds used",
+    "wall time from start to verdict",
+    "reviewer verdict and the build reason",
+    "package manifest SHA-256 and archive SHA-256",
+    "extended case results"
+  ],
+  "known_failure_cases": [
+    {
+      "id": "no-sys-path",
+      "description": "import stockroom without adding src to sys.path (python3 -I): every case fails",
+      "caught_by": [
+        "A1.1"
+      ]
+    },
+    {
+      "id": "newest-lot-first",
+      "description": "Units taken from the newest lot first",
+      "caught_by": [
+        "A3.1"
+      ]
+    },
+    {
+      "id": "average-cost",
+      "description": "Shipping cost at the average lot cost instead of first in first out",
+      "caught_by": [
+        "A3.1"
+      ]
+    },
+    {
+      "id": "allocation-stops-at-waiting",
+      "description": "Allocation stops at the first waiting order that does not fit",
+      "caught_by": [
+        "A2.3"
+      ]
+    },
+    {
+      "id": "no-allocation-after-cancel",
+      "description": "CANCEL does not reserve waiting orders that now fit",
+      "caught_by": [
+        "A4.1"
+      ]
+    },
+    {
+      "id": "current-price-at-ship",
+      "description": "Revenue at the price when shipped, not when ordered",
+      "caught_by": [
+        "A6.1"
+      ]
+    },
+    {
+      "id": "discount-rounded",
+      "description": "Discount rounded to the nearest cent instead of down",
+      "caught_by": [
+        "A6.2"
+      ]
+    },
+    {
+      "id": "writeoff-ignores-reservations",
+      "description": "WRITEOFF may remove reserved units",
+      "caught_by": [
+        "A5.2"
+      ]
+    },
+    {
+      "id": "ship-keeps-reservation",
+      "description": "Shipping does not end the order's reservation",
+      "caught_by": [
+        "A3.2"
+      ]
+    },
+    {
+      "id": "order-reason-order",
+      "description": "ORDER checks unknown item before bad quantity",
+      "caught_by": [
+        "A8.3"
+      ]
+    },
+    {
+      "id": "stop-at-first-error",
+      "description": "The script stops at the first error line",
+      "caught_by": [
+        "A8.1"
+      ]
+    },
+    {
+      "id": "no-report-after-errors",
+      "description": "No report when a line printed an error",
+      "caught_by": [
+        "A8.1"
+      ]
+    },
+    {
+      "id": "quiet-hides-errors",
+      "description": "--quiet also hides error lines",
+      "caught_by": [
+        "A9.1"
+      ]
+    },
+    {
+      "id": "waiting-exit-wins",
+      "description": "Exit 3 for a waiting order even when a line printed an error",
+      "caught_by": [
+        "E24"
+      ]
+    },
+    {
+      "id": "leading-zero-quantity",
+      "description": "A quantity with a leading zero accepted",
+      "caught_by": [
+        "E2"
+      ]
+    },
+    {
+      "id": "split-on-space",
+      "description": "Tokens split on single spaces only (tabs and runs of spaces)",
+      "caught_by": [
+        "E7"
+      ]
+    },
+    {
+      "id": "hash-anywhere",
+      "description": "Text after # anywhere on a line dropped as a comment",
+      "caught_by": [
+        "E8"
+      ]
+    },
+    {
+      "id": "json-unsorted",
+      "description": "JSON keys not sorted",
+      "caught_by": [
+        "A7.1"
+      ]
+    },
+    {
+      "id": "failed-order-kept",
+      "description": "A refused ORDER still records its id",
+      "caught_by": [
+        "E18"
+      ]
+    },
+    {
+      "id": "commands-any-case",
+      "description": "Commands matched without regard to case",
+      "caught_by": [
+        "E9"
+      ]
+    },
+    {
+      "id": "six-pairs",
+      "description": "ORDER accepts more than 5 pairs",
+      "caught_by": [
+        "E10"
+      ]
+    },
+    {
+      "id": "zero-price",
+      "description": "A zero price accepted",
+      "caught_by": [
+        "A8.2"
+      ]
+    },
+    {
+      "id": "count-nonblank",
+      "description": "Line numbers count only lines that hold a command",
+      "caught_by": [
+        "E29"
+      ]
+    },
+    {
+      "id": "customer-duplicate-first",
+      "description": "CUSTOMER checks duplicate customer before bad percent",
+      "caught_by": [
+        "E30"
+      ]
+    },
+    {
+      "id": "price-unknown-first",
+      "description": "PRICE checks unknown item before bad price",
+      "caught_by": [
+        "E31"
+      ]
+    },
+    {
+      "id": "receive-unknown-first",
+      "description": "RECEIVE checks unknown item before bad quantity or bad cost",
+      "caught_by": [
+        "E32"
+      ]
+    },
+    {
+      "id": "writeoff-unknown-first",
+      "description": "WRITEOFF checks unknown item before bad quantity",
+      "caught_by": [
+        "E33"
+      ]
+    },
+    {
+      "id": "cancel-id-unchecked",
+      "description": "CANCEL looks up an order without checking the order id rule",
+      "caught_by": [
+        "E34"
+      ]
+    },
+    {
+      "id": "pairs-format-first",
+      "description": "ORDER checks every pair's format before any item, or the pairs before the customer",
+      "caught_by": [
+        "E35"
+      ]
+    },
+    {
+      "id": "discount-per-line",
+      "description": "Discount rounded down on each line instead of once on the order",
+      "caught_by": [
+        "E36"
+      ]
+    },
+    {
+      "id": "format-equals",
+      "description": "--format=json accepted",
+      "caught_by": [
+        "E37"
+      ]
+    }
+  ],
+  "before_each_attempt": "The studio checks the connection before starting an attempt or a replacement: a lost sign-in or another connection refusal, a connection that no longer allows both build roles or synthetic data, a per-request input cap lowered since Start, an earlier request with an unknown outcome, a request running past its time limit, or a daily cap without room for 2 requests stops the qualification (state stopped, not a failure) without starting it; another request still running makes it wait. During an attempt, a role request waits up to 4 minutes for another request on the connection to finish",
+  "start_requires": "Start records the connection's per-request input cap and refuses a cap below the larger of the benchmark's first builder request (the builder prompt plus the frozen spec content) and min_input_chars",
+  "labels": "A qualified record on this benchmark lifts no label today: ADR-0112 lifts the larger Python label only with p14-larger-ledgercheck-v5 (RECIPE_BENCHMARKS). Whether a pass here should also count is the owner's decision after a run"
+}
