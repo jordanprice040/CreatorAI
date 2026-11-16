@@ -1,4 +1,4 @@
-import { createHash, createHmac } from 'node:crypto';
+import { createHmac } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import {
   createServer,
@@ -7,12 +7,14 @@ import {
   type Server,
   type ServerResponse,
 } from 'node:http';
-import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, stat } from 'node:fs/promises';
 import { extname, isAbsolute, join, resolve, sep } from 'node:path';
 import { promisify } from 'node:util';
 import pg from 'pg';
 import { ContractError, z, parse } from '@creator/contracts';
 import {
+  backupFolderName,
+  checkBackup,
   createBackup,
   databaseUrl,
   migrate,
@@ -94,9 +96,6 @@ export function sourceFetchEnv(
 }
 export type StudioEvent = Record<string, unknown> & { event: string };
 type Emit = (e: StudioEvent) => void;
-
-const sha256 = (b: Buffer | string) =>
-  createHash('sha256').update(b).digest('hex');
 
 /** Proof that a listener belongs to this launch: HMAC over a fresh nonce and its port. */
 export function ownershipMac(secret: string, port: number, nonce: string) {
@@ -219,16 +218,6 @@ export function webHandler(root: string, api: RequestListener, port: number) {
   };
 }
 
-/** Splits the password out so pg tools get it by environment, never argv. */
-function pgTarget(raw: string) {
-  const u = new URL(raw);
-  const password = decodeURIComponent(u.password);
-  u.password = '';
-  return {
-    dbname: u.toString(),
-    env: { ...process.env, ...(password ? { PGPASSWORD: password } : {}) },
-  };
-}
 const latest = () => migrations.at(-1)!.version;
 
 export type DatabaseState = {
@@ -353,55 +342,54 @@ export async function ensureDatabase(raw: string): Promise<boolean> {
 const run = promisify(execFile);
 const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
 
-/** Before any migration: a custom-format dump, its hash, and a readable table of contents. */
+/**
+ * ADR-0123 (F1): before any migration, the full T17 backup (database snapshot plus product
+ * store, hashed manifest) at the schema the database is at now, re-hashed and its dump listed
+ * by pg_restore. It shows in Settings › Backups; only the app version that made it restores it.
+ */
 async function preMigrationBackup(input: StudioInput, from: number) {
-  const dir = join(input.backups_dir, `pre-migrate-v${from}-${stamp()}`);
-  await mkdir(dir, { recursive: true });
-  const dump = join(dir, 'database.dump');
-  const target = pgTarget(input.database_url);
-  const bin = (n: string) => (input.pg_bin ? join(input.pg_bin, n) : n);
+  await mkdir(input.backups_dir, { recursive: true });
+  const dir = join(
+    input.backups_dir,
+    backupFolderName('pre-upgrade', new Date(), from),
+  );
+  const pgBinDir = input.pg_bin ?? undefined;
   try {
-    await run(
-      bin('pg_dump'),
-      [
-        '--format=custom',
-        '--no-owner',
-        '--no-privileges',
-        `--file=${dump}`,
-        `--dbname=${target.dbname}`,
-      ],
-      { env: target.env, maxBuffer: 16 * 1024 * 1024 },
-    );
-    await run(bin('pg_restore'), ['--list', dump], {
+    const manifest = await createBackup({
+      databaseUrl: input.database_url,
+      productsRoot: input.products_root,
+      outDir: dir,
+      pgBinDir,
+      schema: 'known',
+    });
+    await checkBackup(dir, { schema: from });
+    const bin = (n: string) => (input.pg_bin ? join(input.pg_bin, n) : n);
+    await run(bin('pg_restore'), ['--list', join(dir, 'database.dump')], {
       maxBuffer: 64 * 1024 * 1024,
     });
+    return {
+      dir,
+      format: manifest.format,
+      created_at: manifest.created_at,
+      schema_from: from,
+      schema_to: latest(),
+      database: manifest.database,
+      product_files: manifest.products.length,
+    };
   } catch (e) {
     const err = e as { code?: string; stderr?: string };
+    if (e instanceof ContractError)
+      throw new ContractError(
+        e.code,
+        `Pre-upgrade backup failed: ${e.message}`,
+      );
     throw new ContractError(
       'STORAGE_UNAVAILABLE',
       err.code === 'ENOENT'
         ? 'PostgreSQL tools (pg_dump, pg_restore) were not found; set the PostgreSQL folder in setup.'
-        : `Pre-migration backup failed: ${String(err.stderr ?? '').trim() || 'no output'}`,
+        : `Pre-upgrade backup failed: ${String(err.stderr ?? '').trim() || 'no output'}`,
     );
   }
-  const bytes = await readFile(dump);
-  const manifest = {
-    format: 'creator-premigration/1',
-    created_at: new Date().toISOString(),
-    schema_from: from,
-    schema_to: latest(),
-    database: {
-      file: 'database.dump',
-      sha256: sha256(bytes),
-      bytes: bytes.length,
-    },
-  };
-  await writeFile(
-    join(dir, 'backup-manifest.json'),
-    JSON.stringify(manifest, null, 2) + '\n',
-    { flag: 'wx' },
-  );
-  return { dir, ...manifest };
 }
 
 async function withPool<T>(raw: string, f: (p: pg.Pool) => Promise<T>) {
@@ -609,6 +597,9 @@ export async function serveStudio(
   const env: Record<string, string> = {
     CREATOR_DATABASE_URL: input.database_url,
     CREATOR_PRODUCTS_ROOT: input.products_root,
+    // ADR-0123: Settings › Backups starts in the setup's backups folder, with its pg tools.
+    CREATOR_BACKUPS_DIR: input.backups_dir,
+    ...(input.pg_bin ? { CREATOR_PG_BIN: input.pg_bin } : {}),
     CREATOR_AUTH_MODE: 'dev_local',
     CREATOR_DEV_LOGIN_CODE: input.login_code,
     CREATOR_DESKTOP_MANAGED: '1',

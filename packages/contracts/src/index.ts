@@ -67,3 +67,4 @@ export * from './autopilot-settings.js';
 export * from './automation.js';
 export * from './api-keys.js';
 export * from './recipe-qualification.js';
+export * from './backups.js';

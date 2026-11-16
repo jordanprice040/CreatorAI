@@ -1,5 +1,9 @@
 # Build status — November 10, 2026
 
+## November 16 update — F1: backups and restore in Settings (ADR-0123, migration 73)
+
+Settings › Backups (studio owner only): Back up now, the daily backup while the app runs (on, keep 7), a hash Check of any backup, and Restore into a new database and folder, each a recorded background job (one at a time). Same T17 code and manifest as `pnpm backup create`. The installed app's upgrade now takes the full backup (database and product files) first. Checked in the cloud: typecheck, format, new `backups.test.ts` (2 tests against PostgreSQL 16 with pg_dump 16), `web-backups-text.test.ts`, the studio upgrade and adoption tests, and the page in Chromium on a throwaway database (backup, restore, phone width). Not yet: the desktop app on Jordan's PC (needs a build including this), switching the desktop app to a restored copy (F4).
+
 ## November 15 update — S0: one studio spending manager (ADR-0113, migration 69)
 
 What now works: the studio-wide ceiling, spending limits and the usage indicator's API cost are readable and changeable only by the studio spending manager, not by every workspace owner. On upgrade the manager is whoever made the latest ceiling or limit change, else the human owner of the oldest workspace (Jordan, on his studios); on a new studio it is the first person to create a workspace. A person whose run the ceiling or a limit refuses sees the reason code and "Your run is waiting on the studio spending limit…" with no amounts; the amounts go to a record only the manager reads, listed under Settings → Spending limits with the workspace name. A final study attempt refused by the ceiling or per-run limit records no studio-wide amounts either. Settings shows the manager "Spending manager: you" and anyone else one plain line instead of the spending panels. Notifications (N1–N3) are not built.

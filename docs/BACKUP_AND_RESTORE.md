@@ -55,12 +55,38 @@ catalogued artifact has its `manifest.json` and `source.tar` with the recorded h
 non-zero and names the artifact and the problem when something is missing or changed. Restore
 runs the same check and also requires at least the backed-up row counts.
 
+## In the app: Settings › Backups (ADR-0123)
+
+The studio owner (the person recorded as studio spending manager) can do the same from
+**Settings › Backups**, with no PowerShell or environment variables:
+
+- **Back up now** writes the same backup as `pnpm backup create`, named `manual-<time>`, into
+  the backups folder (the installed app's own `backups` folder by default; a development
+  studio uses `CREATOR_BACKUPS_DIR`, default `.creator/backups`, and `CREATOR_PG_BIN`).
+- **Daily backup**: on by default while the app runs, at most once per UTC day across
+  restarts, keeping the newest 7 (`daily-<time>`). Only daily backups are ever removed.
+- **Check** re-hashes every file of a backup against its manifest.
+- **Restore…** restores into a new database on the same server and a new folder, after the
+  same hash checks and with the same verification as `pnpm backup restore`. The studio in
+  use is not changed. To use the copy, start a studio with `CREATOR_DATABASE_URL` and
+  `CREATOR_PRODUCTS_ROOT` pointing at it; the desktop app cannot switch to it yet.
+
+Every backup, check and restore is recorded with its outcome, one at a time. ChatGPT and
+Claude sign-ins are stored outside the database and products folder, so they are not in a
+backup; sign in again after a restore.
+
+**Before an upgrade** the installed app now takes this full backup (database and product
+files) at the schema it is at, in `pre-upgrade-v<from>-<time>`, re-hashes it and lists the
+dump, before migrating. Only the app version that made it can restore it. Older upgrade
+backups (`pre-migrate-…`, database only) are listed too; restore those by hand with
+`pg_restore`.
+
 ## What this does not cover
 
 - Taking a backup while work is running is safe for the database (pg_dump reads one
   snapshot), but product files are copied after the dump, so a package written in between
   appears in `products/` without a catalogue row. Stop workers first for a clean pair.
-- No schedule, retention, encryption or off-machine copy. The backup holds everything the
+- No encryption or off-machine copy (the daily backup and its retention are in Settings). The backup holds everything the
   database holds (session and ticket hashes, private records, audit history); keep it as
   private as the database itself.
 - Restoring into an older or newer code version is refused; restore with the matching commit.

@@ -17,6 +17,7 @@ import { join, resolve } from 'node:path';
 import pg from 'pg';
 import {
   STUDIO_LOCK_KEY,
+  listBackups,
   migrationChecksum,
   migrations,
   takeStudioLock,
@@ -530,15 +531,24 @@ test('upgrade takes a verified backup first, then migrates under the lock', asyn
   const up = studio('migrate', base);
   const r = (await up.next('result', 120000)).result as {
     applied: number[];
-    backup: { dir: string; database: { sha256: string } };
+    backup: { dir: string; schema_from: number; database: { sha256: string } };
   };
   assert.equal(await up.exit, 0, up.log());
   assert.deepEqual(r.applied, [migrations.at(-1)!.version]);
+  // ADR-0123: the full T17 backup (database and products) at the schema before the upgrade,
+  // in a pre-upgrade folder that Settings › Backups lists.
   const manifest = JSON.parse(
     await readFile(join(r.backup.dir, 'backup-manifest.json'), 'utf8'),
-  ) as { schema_from: number };
-  assert.equal(manifest.schema_from, migrations.at(-2)!.version);
+  ) as { format: string; schema_version: number; database: { sha256: string } };
+  assert.equal(manifest.format, 'creator-backup/1');
+  assert.equal(manifest.schema_version, migrations.at(-2)!.version);
+  assert.equal(r.backup.schema_from, migrations.at(-2)!.version);
+  assert.equal(manifest.database.sha256, r.backup.database.sha256);
+  assert.match(r.backup.dir, /pre-upgrade-v\d+-/);
   assert.ok((await readdir(r.backup.dir)).includes('database.dump'));
+  const listed = await listBackups(join(dir, 'backups'));
+  assert.equal(listed.backups[0]!.kind, 'pre_upgrade');
+  assert.equal(listed.backups[0]!.restorable, false);
 });
 
 test('adoption copies a studio through a verified backup and leaves the source untouched', async (t) => {
