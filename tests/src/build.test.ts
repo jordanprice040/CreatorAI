@@ -706,7 +706,8 @@ test('ADR-0110: a plan role answer in one code fence is accepted and recorded; e
       JSON.parse(
         await readFile(join(dir, `call-${n}-answer-form.json`), 'utf8'),
       ),
-      { wrapping: 'one_json_fence' },
+      // Review 1 N-3: the mode in force is recorded too (the plan route's default).
+      { wrapping: 'one_json_fence', mode: 'invoke_lines_then_json_fence' },
     );
   // A builder that talks around its fence is not a role answer; nothing is applied.
   const chatty = await go((j) => `Sure! Here it is:\n\`\`\`json\n${j}\n\`\`\``);
@@ -728,6 +729,94 @@ test('ADR-0110: a plan role answer in one code fence is accepted and recorded; e
     /ENOENT/,
   );
   for (const x of [fenced, chatty, raw])
+    assert.equal(x.s.requests.length, 0, 'no dollar broker call');
+});
+
+test('ADR-0115: leading invented tool-call lines are dropped by default and recorded; a plan naming one_json_fence stops on them', async (t) => {
+  const H4 = (j: string) =>
+    `\n<invoke name="note">na</invoke>\n</invoke>\n\`\`\`json\n${j}\n\`\`\``;
+  const go = async (
+    wrap: (json: string) => string,
+    answer_wrapping?: BuildPlan['answer_wrapping'],
+  ) => {
+    const s = await setup(t);
+    const plan: BuildPlan = {
+      ...s.plan,
+      plan_roles: { connection_id: randomUUID(), model_id: 'fixture-plan' },
+      ...(answer_wrapping ? { answer_wrapping } : {}),
+    };
+    const roles: string[] = [];
+    const result = await s.builds.run(
+      s.product.id,
+      s.task.id,
+      s.product.initial_commit,
+      plan,
+      {
+        ...s.ports,
+        planRolesReady: async () => [],
+        planRole: async (target, request) => {
+          roles.push(target.role);
+          const answer = buildFixtureAnswer([
+            { role: 'system', text: BUILD_ROLE_PROMPTS[target.role] },
+            { role: 'user', text: request.input },
+          ]);
+          return {
+            request_id: randomUUID(),
+            status: 'succeeded',
+            reason_code: 'ok',
+            text: answer === null ? null : wrap(answer),
+            fixture: true,
+          };
+        },
+      },
+    );
+    const form = (n: number) =>
+      readFile(
+        join(
+          s.products.dir(s.product.id),
+          'builds',
+          result.id,
+          `call-${n}-answer-form.json`,
+        ),
+        'utf8',
+      ).then((x) => JSON.parse(x) as unknown);
+    return { result, roles, s, form };
+  };
+  // The default (no answer_wrapping in the plan): both roles answered as H4 did, and went on.
+  const tolerant = await go(H4);
+  assert.deepEqual(tolerant.roles, ['builder', 'reviewer']);
+  for (const n of [1, 2])
+    assert.deepEqual(await tolerant.form(n), {
+      wrapping: 'invoke_lines_then_json_fence',
+      dropped_invoke_lines: 2,
+      mode: 'invoke_lines_then_json_fence',
+    });
+  // A plain fence is still recorded as one fence.
+  const fenced = await go((j) => `\`\`\`json\n${j}\n\`\`\``);
+  assert.deepEqual(await fenced.form(1), {
+    wrapping: 'one_json_fence',
+    mode: 'invoke_lines_then_json_fence',
+  });
+  // A one-fence answer under a one-fence plan records that mode.
+  const fencedStrict = await go(
+    (j) => `\`\`\`json\n${j}\n\`\`\``,
+    'one_json_fence',
+  );
+  assert.deepEqual(await fencedStrict.form(1), {
+    wrapping: 'one_json_fence',
+    mode: 'one_json_fence',
+  });
+  // A plan frozen on one fence (the v5 recipe benchmarks) stops on the same answer.
+  const strict = await go(H4, 'one_json_fence');
+  assert.deepEqual(strict.roles, ['builder']);
+  assert.equal(strict.result.state, 'checkpoint');
+  assert.match(strict.result.reason, /JSON/);
+  assert.equal(strict.result.commit, strict.s.product.initial_commit);
+  // Prose with the lines still stops the build by default.
+  const chatty = await go((j) => `Sure.\n${H4(j)}`);
+  assert.deepEqual(chatty.roles, ['builder']);
+  assert.equal(chatty.result.state, 'checkpoint');
+  for (const x of [tolerant, fenced, fencedStrict, strict, chatty])
     assert.equal(x.s.requests.length, 0, 'no dollar broker call');
 });
 

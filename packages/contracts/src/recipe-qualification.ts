@@ -1,4 +1,8 @@
 import { z, id, hash, timestamp } from './primitives.js';
+import {
+  RoleAnswerWrappingSchema,
+  type RoleAnswerWrapping,
+} from './routing.js';
 import { BuildRecipeSchema, type RecipeQualification } from './web-recipe.js';
 
 /**
@@ -16,6 +20,7 @@ export const RECIPE_BENCHMARK_IDS = [
   'p15-small-signup-v5',
   'p14-small-wordtally-v5',
   'p14-larger-ledgercheck-v5',
+  'p14-larger-ledgercheck-v6',
 ] as const;
 export const RecipeBenchmarkIdSchema = z.enum(RECIPE_BENCHMARK_IDS);
 export type RecipeBenchmarkId = z.infer<typeof RecipeBenchmarkIdSchema>;
@@ -41,6 +46,11 @@ export interface RecipeBenchmarkInfo {
   typical_requests: number;
   /** Extended cases run on the exported package after the build (0 for the web benchmark). */
   extended_cases: number;
+  /**
+   * How the attempt's plan-route role answers may be wrapped (ADR-0115), equal to the frozen
+   * expectations (absent there means `one_json_fence`, as the v5 versions ran).
+   */
+  answer_wrapping: RoleAnswerWrapping;
 }
 export const RECIPE_BENCHMARK_INFO: Readonly<
   Record<RecipeBenchmarkId, RecipeBenchmarkInfo>
@@ -60,6 +70,7 @@ export const RECIPE_BENCHMARK_INFO: Readonly<
     },
     typical_requests: 2,
     extended_cases: 0,
+    answer_wrapping: 'one_json_fence',
   },
   'p14-small-wordtally-v5': {
     id: 'p14-small-wordtally-v5',
@@ -76,6 +87,7 @@ export const RECIPE_BENCHMARK_INFO: Readonly<
     },
     typical_requests: 2,
     extended_cases: 8,
+    answer_wrapping: 'one_json_fence',
   },
   'p14-larger-ledgercheck-v5': {
     id: 'p14-larger-ledgercheck-v5',
@@ -93,6 +105,28 @@ export const RECIPE_BENCHMARK_INFO: Readonly<
     },
     typical_requests: 2,
     extended_cases: 21,
+    answer_wrapping: 'one_json_fence',
+  },
+  // ADR-0115: the same task as v5, with leading invented tool-call lines allowed before the one
+  // json fence of a role answer. Made after record 49fe5782 failed on such lines; a pass here is
+  // not independent of that failure.
+  'p14-larger-ledgercheck-v6': {
+    id: 'p14-larger-ledgercheck-v6',
+    recipe: 'python-build/1',
+    scale: 'larger',
+    label:
+      'Python program, larger: a spending checker (5 files, 31 checks and a structure check; stray tool-call lines allowed)',
+    copied_from: 'p14-larger-ledgercheck-v5',
+    attempts: 3,
+    caps: {
+      max_repairs: 2,
+      max_calls: 6,
+      max_output_tokens: 12000,
+      timeout_ms: 120000,
+    },
+    typical_requests: 2,
+    extended_cases: 21,
+    answer_wrapping: 'invoke_lines_then_json_fence',
   },
 };
 
@@ -123,6 +157,8 @@ export const RecipeBenchmarkOffersSchema = z.strictObject({
       }),
       typical_requests: z.number().int().min(0),
       extended_cases: z.number().int().min(0),
+      /** ADR-0115: the answer form the attempts' role answers may take. */
+      answer_wrapping: RoleAnswerWrappingSchema,
       /** recipeQualificationMaxRequests: the most one qualification can use. */
       max_requests: z.number().int().min(0),
       /** Why the frozen files may not run now; empty when they may. */
