@@ -394,6 +394,36 @@ export const SpendLimitsViewSchema = z.strictObject({
       }),
     )
     .max(10),
+  /**
+   * ADR-0113: the latest refusals by the ceiling or a limit (paid calls and final study
+   * attempts), with the amounts the starter's record leaves out. Only the studio spending manager reads this view.
+   */
+  recent_refusals: z
+    .array(
+      z.strictObject({
+        id,
+        /** Exactly one of these: a refused paid call, or a refused final study attempt. */
+        reservation_id: id.nullable(),
+        study_attempt_id: id.nullable(),
+        workspace_id: id,
+        workspace_name: z.string().min(1).max(500),
+        run_id: id,
+        /** Null for a study attempt, which is refused before any call is planned. */
+        provider: ProviderSchema.nullable(),
+        model_id: z.string().min(1).max(500).nullable(),
+        reason_code: z.enum([
+          'runtime_ceiling',
+          'runtime_unknown_cost',
+          'runtime_run_limit',
+          'runtime_model_limit',
+          /** A final study attempt that does not fit the shared T15 study ledger. */
+          'study_t15_ledger',
+        ]),
+        explanation: z.string().min(1).max(2000),
+        created_at: timestamp,
+      }),
+    )
+    .max(20),
   history: z.array(SpendLimitChangeSchema).max(50),
 });
 export type SpendLimitsView = z.infer<typeof SpendLimitsViewSchema>;
