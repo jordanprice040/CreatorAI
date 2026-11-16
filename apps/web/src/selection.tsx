@@ -1,3 +1,4 @@
+import { Term } from './term.js';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useViewMode } from './view-mode.js';
 import { InlineApproval } from './inline-approval.js';
@@ -250,7 +251,9 @@ function FreezeSpec({
   }
   return (
     <form className="freeze" onSubmit={(e) => void freeze(e)}>
-      <h4>Freeze v{spec.spec.version}</h4>
+      <h4>
+        <Term term="freeze">Freeze</Term> v{spec.spec.version}
+      </h4>
       <p className="small">
         A frozen version fixes the tasks and acceptance checks a build is held
         to. Later edits make a new version and show which tasks changed.

@@ -1,3 +1,4 @@
+import { Term } from './term.js';
 import { useEffect, useState } from 'react';
 import {
   ConfirmGatesResultSchema,
@@ -142,7 +143,9 @@ export function GateLines({
         return (
           <section key={d.gate} className="gate-line">
             <p className="small">
-              <strong>{GATE[d.gate]}:</strong>{' '}
+              <strong>
+                <Term term="gate">{GATE[d.gate]}</Term>:
+              </strong>{' '}
               <span
                 className={`gate-${d.state === 'confirmed' || d.state === 'auto_cleared' ? 'clear' : d.state}`}
               >
@@ -365,9 +368,15 @@ export function AdvanceAndGates({
             <li key={c.alternative.id}>
               <strong>{clip(c.alternative.title, 100)}</strong>{' '}
               <span className={`outlook outlook-${o.state}`}>
-                {o.state === 'after_gates' && !gatesConfirmableNow(c)
-                  ? 'Can advance once its ethics and access gates are resolved (see the option below)'
-                  : OUTLOOK_WORD[o.state]}
+                {o.state === 'after_gates' && !gatesConfirmableNow(c) ? (
+                  <>
+                    Can advance once its ethics and access{' '}
+                    <Term term="gate">gates</Term> are resolved (see the option
+                    below)
+                  </>
+                ) : (
+                  OUTLOOK_WORD[o.state]
+                )}
               </span>
               {o.choices.length > 0 && <small> · {choices(o.choices)}</small>}
               {o.blocks.length > 0 && (

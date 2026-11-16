@@ -1,3 +1,4 @@
+import { Term } from './term.js';
 import { useViewMode } from './view-mode.js';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import {
@@ -174,7 +175,8 @@ export function HumilityForm({
       aria-labelledby="hf-h"
     >
       <h3 id="hf-h">
-        Humility review of {clip(subject.label, 80)} v{subject.version}
+        <Term term="humility_review">Humility review</Term> of{' '}
+        {clip(subject.label, 80)} v{subject.version}
       </h3>
       <p className="small">
         Before building, compare custom software honestly with the other ways to

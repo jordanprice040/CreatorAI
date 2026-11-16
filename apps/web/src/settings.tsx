@@ -1,3 +1,4 @@
+import { Term, TermList } from './term.js';
 import { ViewModeSwitch } from './view-mode.js';
 import { Money } from './money.js';
 import { useEffect, useState, type FormEvent } from 'react';
@@ -131,18 +132,24 @@ export function Settings({
     <section className="panel" aria-labelledby="settings-title">
       <h2 id="settings-title">Settings</h2>
       <h3>Studio view</h3>
-      <p className="small">
+      <p>
         Your own choice, saved for you on this studio so it follows you to other
         browsers and the desktop app. Standard folds routine settings behind
         their defaults (shown in each fold&apos;s summary) and lists the
         everyday tabs; Launch, Workers and Study still open from links. Advanced
         opens every setting and lists every tab. Both send the same requests,
-        and the server checks them the same way.
+        and the server checks them the same way. In Standard, the studio&apos;s
+        own words have a dotted underline: hover, tab to or tap one for a short
+        definition.
       </p>
       <ViewModeSwitch />
+      <details className="term-glossary">
+        <summary>Words the studio uses</summary>
+        <TermList />
+      </details>
       <h3>Overall spending ceiling</h3>
       {notManager ? (
-        <p className="small">
+        <p>
           Studio-wide spending is handled by the studio spending manager. Owning
           a workspace does not include it.
         </p>
@@ -150,8 +157,9 @@ export function Settings({
         c && (
           <p>
             The most Creator Agent may spend on real model and tool calls,
-            across every workspace. Each call reserves its maximum cost first
-            and is refused if it would pass this ceiling. Fixture workspaces use
+            across every workspace. Each call{' '}
+            <Term term="reservation">reserves</Term> its maximum cost first and
+            is refused if it would pass this ceiling. Fixture workspaces use
             simulated units and are not counted. Only the studio spending
             manager, you, can change it here; agents can&apos;t.
           </p>

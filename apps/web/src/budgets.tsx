@@ -1,3 +1,4 @@
+import { Term } from './term.js';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Routine } from './routine.js';
 import { useViewMode } from './view-mode.js';
@@ -360,10 +361,11 @@ export function Budgets({
     <section className="panel records" aria-labelledby="budget-title">
       <h2 id="budget-title">Budgets and pricing</h2>
       <p>
-        Every model or tool call reserves its maximum possible cost before it is
-        sent and is charged from the provider's reported usage afterwards. A
-        call that could exceed a budget is not sent. Unknown outcomes stay held
-        until reconciled; they are never treated as free.
+        Every model or tool call <Term term="reservation">reserves</Term> its
+        maximum possible cost before it is sent and is charged from the
+        provider's reported usage afterwards. A call that could exceed a budget
+        is not sent. <Term term="unknown_outcome">Unknown outcomes</Term> stay
+        held until reconciled; they are never treated as free.
       </p>
       {status && <p className="small">{status}</p>}
       <div className="connection">

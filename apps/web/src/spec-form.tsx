@@ -1,3 +1,4 @@
+import { Term } from './term.js';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import {
   BROWSER_STEP_HELP,
@@ -711,13 +712,16 @@ export function SpecForm({
       </fieldset>
 
       <fieldset>
-        <legend>Acceptance checks</legend>
+        <legend>
+          <Term term="acceptance_check">Acceptance checks</Term>
+        </legend>
         <p className="small">
           The studio builds a task only when every check it delivers is an
           automated test with frozen cases (a command-line program) or every
           check is a browser check with frozen browser cases (a static web
-          page), and at least one case is held out: QA runs it, but neither the
-          builder nor the reviewer sees it.
+          page), and at least one case is{' '}
+          <Term term="held_out_case">held out</Term>: QA runs it, but neither
+          the builder nor the reviewer sees it.
         </p>
         {pickKept && (
           <p className="small notice" role="note">

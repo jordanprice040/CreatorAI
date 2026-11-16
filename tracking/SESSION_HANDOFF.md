@@ -1,5 +1,9 @@
 # Session handoff — November 10, 2026
 
+## November 16 handoff — F12 term help
+
+Branch `claude/project-thread-iu4ohg` from main b92e12d (after #219), no migration or ADR. Web: `terms.ts` (pure: `TERMS`, `TERM_KEYS`, `nextTip` open/close rules), `term.tsx` (`Term`, Standard view only; `TermList`), `term.css` (no `style.css` edits). `<Term term="…">` at first appearances in `evidence.tsx` (passage, claim), `gates.tsx` (gate, twice), `humility.tsx`, `selection.tsx` (freeze), `spec-form.tsx` (acceptance check, held-out case), `qualify.tsx` (qualification, held-out case), `routine-policy.tsx`, `budgets.tsx` and `workflows.tsx` (reservation, unknown outcome), `settings.tsx` (reservation; glossary fold; intros now body text). A new term goes in `terms.ts` and must be used by a page (`term-help.test.ts` checks both ways). Not wrapped: words inside buttons or labels (a button can't hold a button). Next: independent review in a separate thread.
+
 ## November 15 handoff — whole-app UX pass (Phase 2–3) and audit L-3 docs
 
 Branch `claude/project-thread-qdyhuq` from main f5728aa, no migration or ADR. Web: `style.css` (rules marked "Whole-app UX pass"), `overview.tsx` (`RunOf`, `runNames` in its load), `payments.tsx` (heading Sell), `desktop.tsx` (plain intro, `pre.commands`). Docs: `docs/CURRENT_STATUS.md`, `docs/CODE_AUDIT_AND_PRODUCT_GUIDE.md`, `README.md`. Evidence and the "left alone" list: `tracking/evidence/whole-app-ux-pass/` (with `row-align.mjs`). Next: independent review in a separate thread; then S0, N1–N3, P32 per the notifications plan.

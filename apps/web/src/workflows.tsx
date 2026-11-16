@@ -1,3 +1,4 @@
+import { Term } from './term.js';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useViewMode } from './view-mode.js';
 import { Money } from './money.js';
@@ -457,9 +458,9 @@ export function Workflows({
                 <p className="small">
                   {detail.usage.attempts} calls · charged{' '}
                   <Money nano={detail.usage.incurred} fixture={wf.fixture} /> ·
-                  in flight{' '}
-                  <Money nano={detail.usage.reserved} fixture={wf.fixture} /> ·
-                  unknown (held){' '}
+                  <Term term="reservation">in flight</Term>{' '}
+                  <Money nano={detail.usage.reserved} fixture={wf.fixture} /> ·{' '}
+                  <Term term="unknown_outcome">unknown (held)</Term>{' '}
                   <Money nano={detail.usage.unknown} fixture={wf.fixture} />
                 </p>
               )}

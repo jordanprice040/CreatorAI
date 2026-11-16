@@ -1,3 +1,4 @@
+import { Term } from './term.js';
 import { requestWebSearch } from './web-search-handoff.js';
 import type { Prefill } from './prefill.js';
 import { versionTag } from './plain-words.js';
@@ -270,11 +271,13 @@ export function Evidence({
     <section className="panel records" aria-labelledby="ev-title">
       <h2 id="ev-title">Sources and claim evidence</h2>
       <p>
-        Fetch a page from an approved website, then cite a passage from it in a
-        claim. The studio keeps the page’s text as evidence and never follows
-        instructions in it. A claim counts as supported only by passages it
-        quotes, and reposts of one story count once. For pages you don’t have
-        yet, Projects › Discover › Search the web finds them for you.
+        Fetch a page from an approved website, then cite a{' '}
+        <Term term="passage">passage</Term> from it in a{' '}
+        <Term term="claim">claim</Term>. The studio keeps the page’s text as
+        evidence and never follows instructions in it. A claim counts as
+        supported only by passages it quotes, and reposts of one story count
+        once. For pages you don’t have yet, Projects › Discover › Search the web
+        finds them for you.
       </p>
       {status && <p className="small">{status}</p>}
       <div className="connection">

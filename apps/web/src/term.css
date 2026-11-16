@@ -1,0 +1,71 @@
+/* F12 term help: a dotted underline on a studio term and its short definition. Tokens only,
+   so both themes follow; the definition sets its own type so a heading's size doesn't leak. */
+.term-wrap {
+  position: relative;
+  display: inline;
+}
+.term {
+  display: inline;
+  padding: 0;
+  margin: 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  text-decoration: underline dotted;
+  text-decoration-color: var(--text-3);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  cursor: help;
+}
+.term:hover,
+.term[aria-expanded='true'] {
+  text-decoration-color: var(--accent);
+}
+.term-tip {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 30;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 32px));
+  padding: 8px 10px;
+  background: var(--surface-raised);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1.5;
+  letter-spacing: normal;
+  text-align: left;
+  text-transform: none;
+  white-space: normal;
+}
+.term-tip[hidden] {
+  display: none;
+}
+.term-tip strong {
+  font-weight: 600;
+}
+.term-list {
+  max-width: 78ch;
+  margin: 8px 0 0;
+}
+.term-list > div {
+  display: block;
+}
+.term-list dt {
+  font-weight: 600;
+  color: var(--text);
+}
+.term-list dd {
+  margin: 2px 0 0;
+  text-align: left;
+  color: var(--text-2);
+  line-height: 1.55;
+}

@@ -1,3 +1,4 @@
+import { Term } from './term.js';
 import { useState } from 'react';
 import { Money } from './money.js';
 import { useViewMode } from './view-mode.js';
@@ -637,7 +638,9 @@ export function RoutinePolicies({
   return (
     <>
       <div className="fold-head">
-        <h3>Routine approvals</h3>
+        <h3>
+          <Term term="routine_approval">Routine approvals</Term>
+        </h3>
         <FoldAll
           ids={policies.map((v) => v.policy.id)}
           folds={policyFolds}
