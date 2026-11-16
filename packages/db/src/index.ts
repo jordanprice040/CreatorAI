@@ -12,6 +12,7 @@ export { studioMachine, type StudioHost } from './team-store.js';
 export * from './catalog-store.js';
 export * from './proposal-store.js';
 export * from './runbook-store.js';
+export * from './project-report-store.js';
 
 export * from './study-store.js';
 export * from './study-build-store.js';

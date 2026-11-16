@@ -315,7 +315,7 @@ export interface ActionRunbookInput {
 
 // ---- Shared sections ---------------------------------------------------------------------
 
-const DISPOSITION_WORDS: Record<string, string> = {
+export const DISPOSITION_WORDS: Record<string, string> = {
   select_for_build: 'selected for a build',
   proceed_to_validation: 'to be validated before any build',
   recommend_alternative: 'recommended instead of building software',

@@ -149,6 +149,8 @@ import {
 } from './files.js';
 import { createOps } from './ops.js';
 import { localIdentity, supportReportRoutes } from './support-report.js';
+
+import { PROJECT_REPORT_ROUTE, projectReportRoutes } from './project-report.js';
 import {
   runCapabilityCheck,
   studioMachine,
@@ -790,6 +792,7 @@ export function createApi(
       MODEL_CHOICE_ROUTE.exec(url.pathname) ??
       NOTES_ROUTE.exec(url.pathname) ??
       FILES_ROUTE.exec(url.pathname) ??
+      PROJECT_REPORT_ROUTE.exec(url.pathname) ??
       ACTIVITY_NOW_ROUTE.exec(url.pathname) ??
       TEAM_PROFILE_ROUTE.exec(url.pathname) ??
       GATE_RULE_ROUTE.exec(url.pathname) ??
@@ -926,6 +929,10 @@ export function createApi(
       }))
     )
       return true;
+
+    // ADR-0117 (F3): the project report, a Markdown download built from the records.
+    if (ws && PROJECT_REPORT_ROUTE.test(url.pathname))
+      return projectReportRoutes({ store, ctx, ws, method, res });
     // The usage indicator (runbook step 9): read-only plan and API usage for one workspace.
     if (ws && USAGE_ROUTE.test(url.pathname)) {
       if (method === 'GET')
