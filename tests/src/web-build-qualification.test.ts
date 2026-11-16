@@ -64,6 +64,7 @@ const offer: Offer = {
   },
   typical_requests: 2,
   extended_cases: 0,
+  answer_wrapping: 'one_json_fence',
   max_requests: 24,
   freeze_problems: [],
 };

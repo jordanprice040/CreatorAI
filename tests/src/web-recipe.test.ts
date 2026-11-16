@@ -821,6 +821,28 @@ test('ADR-0112: a Python build is larger past one Python file or 10 cases, and o
     unqualifiedTrial('python-build/1', roles, [pass], 'larger'),
     false,
   );
+  // ADR-0115 (review 1 N-1): a v6 pass lifts the label the same way, on the build's own roles.
+  const v6 = { ...pass, benchmark_id: 'p14-larger-ledgercheck-v6' };
+  assert.equal(
+    unqualifiedTrial('python-build/1', roles, [v6], 'larger'),
+    false,
+  );
+  for (const other of [
+    { connection_id: 'b' },
+    { model_id: 'n' },
+    { builder_prompt_sha256: 'b2' },
+    { reviewer_prompt_sha256: 'r3' },
+  ])
+    assert.equal(
+      unqualifiedTrial(
+        'python-build/1',
+        roles,
+        [{ ...v6, ...other }],
+        'larger',
+      ),
+      true,
+      JSON.stringify(other),
+    );
   for (const other of [
     { benchmark_id: 'p14-small-wordtally-v5' },
     { benchmark_id: 'p14-larger-ledgercheck-v4' },
