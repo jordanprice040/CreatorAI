@@ -1,6 +1,7 @@
 import { OpsStatusSchema, type OpsStatus } from '@creator/contracts';
 import { api, when } from './oversight.js';
 import { Status, useLoad } from './ui.js';
+import { SupportReportPanel } from './support-report.js';
 
 const VERIFICATION: Record<OpsStatus['readiness']['verification'], string> = {
   verified: 'Verified: an owner recorded a passing check of this exact build.',
@@ -130,6 +131,7 @@ export function Operations() {
           </button>
         </>
       )}
+      <SupportReportPanel />
     </section>
   );
 }

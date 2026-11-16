@@ -19,9 +19,12 @@ const STATE_TEXT = {
 export function PathView({
   facts,
   open,
+  ws,
 }: {
   facts: StudioFacts | null;
   open: (view: View) => void;
+  /** The workspace whose report the download button fetches. */
+  ws?: string;
 }) {
   if (!facts)
     return (
@@ -84,6 +87,43 @@ export function PathView({
           </li>
         ))}
       </ol>
+      {ws && <ProjectReportDownload ws={ws} fixture={facts.fixture} />}
     </section>
+  );
+}
+
+/**
+ * ADR-0117 (F3): one Markdown file of the whole project, built by the server from its records
+ * (no model call): problem, claims with quotes and where they are in their sources, options
+ * including rejected ones and dissent, people's decisions, frozen specs, builds and QA,
+ * requests and money, and limitations. A plain download link, so it works without scripts.
+ */
+export function ProjectReportDownload({
+  ws,
+  fixture,
+}: {
+  ws: string;
+  fixture: boolean;
+}) {
+  return (
+    <div className="path-report">
+      <h3>Project report</h3>
+      <p className="small">
+        A Markdown file of everything recorded so far: the problem and who it
+        affects, claims with their quotes and sources, the options compared
+        (rejected ones too), people's decisions, frozen specs, build and QA
+        results, requests and money, and the limitations. It is made from the
+        records alone; no model writes it.
+        {fixture &&
+          ' This is a fixture workspace, so the report is labelled as synthetic data.'}
+      </p>
+      <a
+        className="button secondary"
+        href={`/api/workspaces/${encodeURIComponent(ws)}/project-report`}
+        download
+      >
+        Download project report
+      </a>
+    </div>
   );
 }
