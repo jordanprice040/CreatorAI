@@ -43,6 +43,12 @@ import { Empty, Status, reveal, useLoad } from './ui.js';
 import { usePoll } from './page-active.js';
 import { useEndTime } from './end-time.js';
 import { AllowAndContinue } from './autopilot-next.js';
+import {
+  AutoResumeStatus,
+  ResumeChoice,
+  UsageCheckNote,
+  useUsageCheck,
+} from './autopilot-usage.js';
 import { useAutopilotSettings } from './autopilot-settings.js';
 import { heldClaimsSetting } from './autopilot-held.js';
 import { routeHash, type View } from './pages.js';
@@ -189,6 +195,8 @@ export function Autopilot({
   const [exclusions, setExclusions] = useState('');
   const [roles, setRoles] = useState<EvidenceRole[]>(['problem']);
   const [maxCalls, setMaxCalls] = useState(60);
+  // ADR-0124 (F2): continue by itself after a usage limit (plan connections only; off by default).
+  const [resume, setResume] = useState(false);
   const [hours, setHours] = useState(4);
   const [money, setMoney] = useState(5);
   const [confirmed, setConfirmed] = useState(false);
@@ -252,6 +260,7 @@ export function Autopilot({
     },
     evidence_roles: roles,
     limits: { max_calls: maxCalls, ends_at: endsAt },
+    ...(resume && route?.kind === 'plan' ? { resume_after_limit: true } : {}),
   });
   const config: AutopilotConfig | null = draft.success ? draft.data : null;
   // Final UX pass K-2: the explorer reads only claims with a passage, so say before the start
@@ -290,6 +299,14 @@ export function Autopilot({
     route?.kind === 'plan'
       ? (plan?.connection.settings.caps.responses.max_requests_per_run ?? null)
       : null;
+  // ADR-0124 (F2): requests needed beside what the plan connection has left (new run: none used).
+  const usage = useUsageCheck(
+    base,
+    session,
+    config,
+    owner && route?.kind === 'plan',
+    c?.autopilots.length,
+  );
   const moneyNano =
     route?.kind === 'api'
       ? String(BigInt(Math.round(money * 100)) * 10_000_000n)
@@ -510,6 +527,13 @@ export function Autopilot({
         {!owner && now && a.state === 'finished' && (
           <p className="small">The workspace owner can continue it.</p>
         )}
+        <AutoResumeStatus
+          a={a}
+          base={base}
+          session={session}
+          owner={owner}
+          onDone={() => ctx.refresh()}
+        />
         <AllowAndContinue
           a={a}
           base={base}
@@ -865,6 +889,7 @@ export function Autopilot({
                         )}
                       </p>
                     )}
+                    <UsageCheckNote {...usage} />
                     <p>
                       <strong>Routine approvals for its new run</strong>
                     </p>
@@ -874,6 +899,9 @@ export function Autopilot({
                       ))}
                     </ul>
                   </div>
+                )}
+                {route?.kind === 'plan' && (
+                  <ResumeChoice checked={resume} onChange={setResume} />
                 )}
                 <label className="check">
                   <input

@@ -3941,6 +3941,24 @@ create trigger study_effort_measures_immutable before update or delete on study_
  for each row execute function creator_reject_change();
 `,
   },
+  {
+    // ADR-0124 (F2): an autopilot that opted in (its config's resume_after_limit) continues by
+    // itself after a usage limit. These record how many automatic continues it made (bounded)
+    // and when the owner turned that off; turning it on again is not offered (start a new one).
+    // Numbers 70, 71 and 73 are reserved for other milestones (N1, F10, F1).
+    version: 74,
+    name: 'autopilot_auto_resume',
+    sql: `
+alter table autopilots add column resume_checks integer not null default 0;
+-- 8 is AUTO_RESUME_MAX_CHECKS (contracts autopilot.ts).
+alter table autopilots add constraint autopilots_resume_checks_check
+ check (resume_checks between 0 and 8);
+alter table autopilots add column auto_resume_off_at timestamptz;
+alter table autopilots add column auto_resume_off_by uuid references actors(id);
+alter table autopilots add constraint autopilots_auto_resume_off_check
+ check ((auto_resume_off_at is null) = (auto_resume_off_by is null));
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {
