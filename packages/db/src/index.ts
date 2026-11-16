@@ -58,5 +58,6 @@ export {
   dollarsExact,
   notify,
   notifySpendThresholds,
+  skippedNotificationEvents,
   type NotifyInput,
 } from './notifications.js';

@@ -26,6 +26,12 @@ type Row = Record<string, unknown>;
 
 export const NOTIFICATIONS_CONSUMER = 'notifications';
 
+let skippedEvents = 0;
+/** Events whose notifications this process skipped as malformed (review L-4 and R-2). */
+export function skippedNotificationEvents(): number {
+  return skippedEvents;
+}
+
 export interface NotifyInput {
   actorId: string;
   workspaceId: string | null;
@@ -546,6 +552,13 @@ export async function consumeNotifications(c: PoolClient, e: Row) {
     )
       throw err;
     await c.query('rollback to savepoint notifications_consumer');
+    // Never silent: a skipped event is counted and named in the log (ids and codes only).
+    skippedEvents += 1;
+    console.warn(
+      `notifications: skipped event ${String(e.id)} (${String(e.action)}): ${
+        err instanceof ContractError ? err.code : `database error ${code}`
+      }`,
+    );
   }
   await c.query('release savepoint notifications_consumer');
 }

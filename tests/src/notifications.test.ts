@@ -15,6 +15,7 @@ import {
   NotificationStore,
   notify,
   notifySpendThresholds,
+  skippedNotificationEvents,
   type CommandContext,
   type NotifyInput,
 } from '@creator/db';
@@ -335,11 +336,19 @@ test('N1 review L-4: a malformed event is skipped without stalling the outbox', 
   });
   const id = await s.autopilot(owner, 'tie');
   await s.finished(id, 2);
+  const skipped = skippedNotificationEvents();
+  const warned: string[] = [];
+  t.mock.method(console, 'warn', (line: string) => warned.push(line));
   await s.store.drainOutbox();
   assert.deepEqual(
     (await s.all(owner)).map((n) => n.subject_id),
     [id],
   );
+  // Review R-2: the skip is counted and logged with the event, not dropped silently.
+  assert.equal(skippedNotificationEvents(), skipped + 1);
+  assert.deepEqual(warned, [
+    `notifications: skipped event ${bad} (artifact.registered): INVALID_CONTRACT`,
+  ]);
   const [state] = await s.rows(
     `select (select delivered_at from outbox where event_id = $1) is not null as delivered,
             exists (select 1 from consumer_inbox where consumer = 'notifications' and event_id = $1) as claimed,

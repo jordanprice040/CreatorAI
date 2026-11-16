@@ -332,6 +332,36 @@ test('ADR-0116 check 12c: a standalone qualification that fails alerts once, tit
   );
 });
 
+test('ADR-0116 review L-3: a queue the studio stops before any task starts is one inbox row', async (t) => {
+  const s = await setup(t, {
+    responses: [{ kind: 'text', text: 'ok' }, GOOD],
+  });
+  if (!s) return;
+  const q = await s.queue(['summarization', 'specification']);
+  const holder = randomUUID();
+  assert.ok(await s.store.leaseQualificationQueue(holder, 60_000));
+  await s.store.abandonQualificationQueue(q.id, holder, 'test stop');
+  const after = await s.detailQueue();
+  assert.equal(after.state, 'stopped');
+  assert.deepEqual(
+    after.items.map((i) => i.state),
+    ['cancelled', 'cancelled'],
+  );
+  await s.store.drainOutbox();
+  const told = (await new NotificationStore(s.db.pool).notifications(owner))
+    .items;
+  assert.deepEqual(
+    told.map((n) => [n.event_key, n.title, n.interrupt_state]),
+    [
+      [
+        'qualification.queue_done',
+        'Qualification queue stopped: 0 of 2 qualified; 2 were not started',
+        'none',
+      ],
+    ],
+  );
+});
+
 test('ADR-0088: cancelling mid-queue lets the running task finish and starts nothing else', async (t) => {
   let release = () => {};
   const held = new Promise<void>((r) => (release = r));
