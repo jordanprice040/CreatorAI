@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ADR-0105: in-app recipe benchmarks (config/recipe-benchmarks, the v5 copies of the November 6
-// benchmarks). The studio loads and checks them itself (packages/executor/src/recipe-benchmarks.ts).
+// benchmarks, and ADR-0114's p14-xl-v1, written new). The studio loads and checks them itself (packages/executor/src/recipe-benchmarks.ts).
 //
 //   node scripts/recipe-benchmarks.mjs freeze <benchmark-id>   (once; refuses to overwrite)
 //
@@ -45,6 +45,13 @@ export function freezeFiles(id) {
   out['scorer:recipe-scoring.ts'] = sha(
     readFileSync(join(ROOT, 'packages/executor/src/recipe-scoring.ts')),
   );
+  // ADR-0114: a benchmark with a frozen structure rule also names the code that checks it.
+  if (
+    JSON.parse(readFileSync(join(base, 'expectations.json'), 'utf8')).structure
+  )
+    out['scorer:recipe-structure.ts'] = sha(
+      readFileSync(join(ROOT, 'packages/executor/src/recipe-structure.ts')),
+    );
   return out;
 }
 
