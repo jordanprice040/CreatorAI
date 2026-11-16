@@ -66,6 +66,8 @@ function claimEvidence(n: number, statementLength = 120): ClaimEvidence {
       source_title: `Source ${n}`,
       source_url: `https://example.org/source-${n}`,
       source_current_version: 1,
+      last_checked_at: null,
+      passage_check: 'same_version' as const,
     })),
   };
 }

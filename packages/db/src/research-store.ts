@@ -20,9 +20,12 @@ import {
   type SourceSummary,
   type StoredEntity,
   AUTOPILOT_QUOTE_CHECK_LABEL,
+  SOURCE_MAX_PASSAGES,
 } from '@creator/contracts';
 import {
   assessClaimEvidence,
+  passageCheck,
+  passageLabels,
   canonicalHash,
   looksLikeInstructions,
   quoteInPassage,
@@ -1187,10 +1190,32 @@ export class ResearchStore extends WorkflowStore {
             and x.finished_at is not null order by x.finished_at desc, x.started_at desc
             limit 1) as latest_state,
          (select max(f.finished_at) from source_retrievals f where f.source_id = cs.source_id
-            and f.state = 'fetched' and f.content_hash = e.body->>'content_hash') as last_fetched_at
+            and f.state = 'fetched' and f.content_hash = e.body->>'content_hash') as last_fetched_at,
+         nc.finished_at as last_checked_at,
+         (nc.source_id is not null and nc.source_id <> cs.source_id) as moved,
+         (select cp.passage_hash from source_passages cp where cp.id = cs.passage_id)
+           as cited_passage_hash,
+         case when cs.source_version <> e.version then
+           array(select np.passage_hash from source_passages np where np.source_id = cs.source_id
+             and np.source_version = e.version) end as current_hashes,
+         case when cs.source_version <> e.version and cs.quote is not null then
+           array(select np.excerpt from source_passages np where np.source_id = cs.source_id
+             and np.source_version = e.version) end as current_excerpts,
+         not exists (select 1 from source_passages xp where xp.source_id = cs.source_id
+             and xp.source_version = e.version
+             and (xp.excerpt is null or xp.excerpt_truncated)) as excerpts_complete,
+         (select count(*) from source_passages cp2 where cp2.source_id = cs.source_id
+             and cp2.source_version = e.version) as current_passages
        from claim_support cs
          join entities e on e.id = cs.source_id
          join research_sources rs on rs.source_id = cs.source_id
+         -- F8: the newest check that reached the page, by the cited address or by the source
+         -- (a cited address that now redirects is recorded under the target's source).
+         left join lateral (select k.finished_at, k.source_id from source_retrievals k
+           where k.workspace_id = cs.workspace_id
+             and (k.url_key = rs.url_key or k.source_id = cs.source_id)
+             and k.state in ('fetched', 'inaccessible', 'removed')
+           order by k.finished_at desc, k.started_at desc limit 1) nc on true
        where cs.workspace_id = $1 and cs.claim_id = $2
        order by cs.created_at`,
       [ws, claimId],
@@ -1211,6 +1236,29 @@ export class ResearchStore extends WorkflowStore {
         retracted: r.retracted_at !== null,
       })),
     });
+    // F8 (ADR-0126): what the newest check found for each cited passage; a flag only.
+    const checks = rows.map((r: Row) =>
+      passageCheck({
+        latest_state: (r.latest_state ?? null) as RetrievalState | null,
+        moved: Boolean(r.moved),
+        source_version: Number(r.source_version),
+        source_current_version: Number(r.source_current_version),
+        cited_passage_hash: r.cited_passage_hash
+          ? String(r.cited_passage_hash)
+          : null,
+        quote: r.quote === null ? null : String(r.quote),
+        current_hashes: ((r.current_hashes ?? []) as string[]).map(String),
+        current_excerpts: (r.current_excerpts ?? []) as (string | null)[],
+        excerpts_complete: Boolean(r.excerpts_complete),
+        passages_complete: Number(r.current_passages) < SOURCE_MAX_PASSAGES,
+      }),
+    );
+    const flagged = passageLabels(
+      checks.map((check, i) => ({
+        check,
+        freshness: assessment.rows[i]!.freshness,
+      })),
+    );
     const body = claim.body as Row | null;
     return {
       claim: {
@@ -1230,8 +1278,11 @@ export class ResearchStore extends WorkflowStore {
           [claim.id],
         )
       ).rowCount
-        ? [AUTOPILOT_QUOTE_CHECK_LABEL, ...assessment.labels].slice(0, 20)
-        : assessment.labels,
+        ? [AUTOPILOT_QUOTE_CHECK_LABEL, ...assessment.labels, ...flagged].slice(
+            0,
+            20,
+          )
+        : [...assessment.labels, ...flagged].slice(0, 20),
       explanation: assessment.explanation,
       independent_origins: assessment.independent_origins,
       contrary_origins: assessment.contrary_origins,
@@ -1244,6 +1295,8 @@ export class ResearchStore extends WorkflowStore {
         source_title: String(r.source_title),
         source_url: String((r.source_body as Row | null)?.url ?? r.url_key),
         source_current_version: Number(r.source_current_version),
+        last_checked_at: r.last_checked_at ? iso(r.last_checked_at) : null,
+        passage_check: checks[i]!,
       })),
     };
   }
