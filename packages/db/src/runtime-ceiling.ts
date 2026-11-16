@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import type { PoolClient } from 'pg';
 import {
@@ -146,6 +147,42 @@ export function ceilingRefusal(
       explanation: `The owner's overall runtime ceiling has ${left < 0n ? 0n : left} nano-USD left; this needs ${amount}.`,
     };
   return null;
+}
+
+/**
+ * ADR-0113 (S0): what a refused run's starter reads. Studio-wide amounts (what is left under the
+ * ceiling or a limit, unknown-cost counts) go to `spending_refusals`, which only the studio
+ * spending manager reads, so the workspace-visible reservation never carries them.
+ */
+export const SPENDING_WAIT_EXPLANATION =
+  'Your run is waiting on the studio spending limit. The amounts are in Settings → Spending limits, for the studio spending manager.';
+
+/** Records a refusal's full explanation where only the studio spending manager reads it. */
+export async function recordSpendingRefusal(
+  c: PoolClient,
+  r: {
+    reservationId?: string;
+    studyAttemptId?: string;
+    ws: string;
+    runId: string;
+    reasonCode: string;
+    explanation: string;
+  },
+) {
+  await c.query(
+    `insert into spending_refusals
+       (id, reservation_id, study_attempt_id, workspace_id, run_id, reason_code, explanation)
+     values ($1, $2, $3, $4, $5, $6, $7)`,
+    [
+      randomUUID(),
+      r.reservationId ?? null,
+      r.studyAttemptId ?? null,
+      r.ws,
+      r.runId,
+      r.reasonCode,
+      r.explanation,
+    ],
+  );
 }
 
 /** No narrower limits: only the overall ceiling applies until the owner sets some. */
