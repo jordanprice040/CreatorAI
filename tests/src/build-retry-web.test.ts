@@ -172,7 +172,8 @@ test('Build after approval: start, approve, start again reaches Package and Try,
       const b = (await entry(p.id)).builds.find(
         (x: any) => x.id === started.body.build_id,
       );
-      if (b && b.state !== 'running') return b;
+      if (b && b.state !== 'running')
+        return { ...b, start_note: started.body.note };
       if (Date.now() > end) throw new Error('Timed out waiting for the build');
       await sleep(200);
     }
@@ -207,6 +208,7 @@ test('Build after approval: start, approve, start again reaches Package and Try,
     const asked = await startBuild(p);
     assert.equal(asked.state, 'checkpoint', JSON.stringify(asked));
     assert.match(asked.reason, /Build admission waiting_human; decision /);
+    assert.equal(asked.start_note, undefined);
     await approve(asked.reason);
     const built = await startBuild(p);
     assert.equal(built.state, 'verified_candidate', JSON.stringify(built));
@@ -239,5 +241,24 @@ test('Build after approval: start, approve, start again reaches Package and Try,
     assert.equal(resumed.state, 'verified_candidate', JSON.stringify(resumed));
     assert.equal(resumed.commit, blocked.commit);
     await packageAndTry(p, resumed.id);
+  }
+
+  // 3. ADR-0121 review N-7: a half-removed task workspace (Git's admin folder for it is gone)
+  // is moved aside before the build starts, and the start's answer says so in one line.
+  {
+    const p = await product();
+    await rm(join(products.repo(p.id), '.git', 'worktrees', p.task), {
+      recursive: true,
+      force: true,
+    });
+    const started = await startBuild(p);
+    assert.match(
+      started.start_note ?? '',
+      /^A half-removed workspace was moved to .*worktrees-removed.* first;/,
+    );
+    const head = await promisify(execFile)('git', ['rev-parse', 'HEAD'], {
+      cwd: products.worktree(p.id, p.task),
+    });
+    assert.match(head.stdout, /^[0-9a-f]{40}/);
   }
 });

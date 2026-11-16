@@ -1432,6 +1432,32 @@ export class SelectionStore extends TeamStore {
     });
   }
 
+  /**
+   * ADR-0120 (review L-4): one selection by id, with whether it is still the latest for its
+   * problem, for readers that know the id (an autopilot's step) and must not page past 50.
+   */
+  async getSelection(
+    ctx: CommandContext,
+    ws: string,
+    selectionId: string,
+  ): Promise<Selection> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    selectionId = uuid(selectionId);
+    return this.tx(async (c) => {
+      await this.role(c, ws, ctx.actorId, false);
+      const { rows } = await c.query(
+        `select s.*, (select l.id from selections l where l.workspace_id = s.workspace_id
+             and l.problem_id = s.problem_id order by l.created_at desc, l.id desc limit 1) as latest
+           from selections s where s.workspace_id = $1 and s.id = $2`,
+        [ws, selectionId],
+      );
+      const r = rows[0] as Row | undefined;
+      if (!r) throw fail('NOT_FOUND', 'Selection not found.');
+      return toSelection(r, r.latest === r.id);
+    });
+  }
+
   /** The selection, whether it is still the latest for its problem, and its build choice. */
   private async selectionFor(
     c: PoolClient,

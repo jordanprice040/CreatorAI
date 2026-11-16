@@ -1,0 +1,58 @@
+/* ADR-0121 (F10): Monitor > Storage. Per-feature styles; the shared stylesheet is untouched. */
+.storage-scroll {
+  overflow-x: auto;
+}
+.storage-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.storage-table th,
+.storage-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.storage-table td {
+  white-space: nowrap;
+}
+.storage-table td .small {
+  white-space: normal;
+}
+.storage-table thead th {
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.storage-table .badge {
+  margin-left: 6px;
+}
+.storage-days {
+  display: inline-flex;
+  width: auto;
+  white-space: nowrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.storage-list li,
+.storage-kept li {
+  overflow-wrap: anywhere;
+}
+.storage-confirm {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-top: 8px;
+}
+.storage-kept {
+  margin-top: 12px;
+}
+.storage-days select {
+  width: auto;
+}
+/* Review L-7: a long absolute folder path wraps instead of widening the page. */
+.storage-aside code {
+  overflow-wrap: anywhere;
+}
