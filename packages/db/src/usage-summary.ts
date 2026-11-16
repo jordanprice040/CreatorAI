@@ -189,6 +189,6 @@ export async function usageSummary(
     api_cost,
     api_cost_hidden_reason: canSeeCost
       ? null
-      : 'Only a person who owns a workspace can see API spending against the ceiling.',
+      : 'Only the studio spending manager can see API spending against the ceiling.',
   });
 }

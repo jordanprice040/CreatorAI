@@ -1,8 +1,8 @@
-# Current implementation and verification — November 15, 2026
+# Current implementation and verification — November 16, 2026
 
 Creator Agent is an implemented local web/Windows evidence and product studio. This page
-describes main `f5728aa` (PR #211, November 15); it does not describe a freshly installed
-release. Database schema: **68**. Runtime baseline: Node **22.23.4+ within 22.x**, or
+describes main `8a92da1` (PR #218, November 16) with the whole-app UX pass; it does not
+describe a freshly installed release. Database schema: **69**. Runtime baseline: Node **22.23.4+ within 22.x**, or
 **24.22.2+ within 24.x**; pnpm **11.25.0**. The installed app on Jordan's PC was upgraded on
 November 15 to `fdc7ce0` (schema 68: main with the PR #212 Windows build fix).
 
@@ -43,22 +43,24 @@ November 6) is in the repository history.
 - **Files.** Workspace files with inert viewers for PDF, Word, Excel, PowerPoint, ZIP and
   code (ADR-0106).
 - **Money.** Exact-money reservations before every paid call, the $20 overall runtime ceiling,
-  per-run and per-model limits, and reconciliation of unknown outcomes.
+  per-run and per-model limits, and reconciliation of unknown outcomes. One studio spending
+  manager owns the studio-wide ceiling, limits and spend views; owning a workspace grants
+  none of it (ADR-0113).
 
 ## Capability and evidence matrix
 
-| Area                           | Implemented in source                                                                                                | Verification and remaining boundary                                                                                                                        |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Local studio                   | React UI, API/CLI, PostgreSQL records, Windows desktop/service, protected sign-in, Standard and Advanced views       | Contract checks and fixture browser walks; the installed app runs on Jordan's PC; fresh native installation acceptance is separate                         |
-| Connections and chat           | ChatGPT plan, Claude Code, OpenAI API key, daily caps and extra requests, Chat answers                               | Dated live qualifications apply only to their recorded connection, model and role prompt                                                                   |
-| Budgets and permissions        | Exact-money reservations, runtime/run/model ceilings, scoped grants, routine approvals, pause/cancel, reconciliation | Database and concurrency checks; owner limits stay authoritative                                                                                           |
-| Discovery and evidence         | Theme drafts, Explore for me, Search the web with checked quotes, automatic assessments, gate checklist              | Live discovery and web search ran on the dev studio at $0 on the plan connection; reused qualification is not an independent exploration benchmark         |
-| Autopilot                      | Durable bounded runs, automation levels, opt-in fallbacks, its own page                                              | Fixture walks and three live reruns on the dev studio, each with Jordan's typed OK                                                                         |
-| Build and delivery             | Frozen and model-drafted specs, isolated Python CLI and static web builds, builder/2, review, QA, packages, Try      | GPT-6 Astra qualified as builder on the installed app; the Claude route is qualified for small builds only; larger builds carry a trial label until a pass |
-| Search and operations          | Catalog, lineage, semantic and audit search, backups, health and recovery                                            | Implementation and contract evidence; health is configuration, not live verification                                                                       |
-| GitHub                         | Scoped private-repository/branch/PR/check adapters and UI                                                            | No live repository verification or change; the GitHub App (P32) comes after the UX pass                                                                    |
-| Hosted, commerce and marketing | Deployment/OIDC, test-mode payment/entitlement/funding and campaign adapters with fixture paths                      | Not activated; live payments and hosting are separate owner decisions after the app work                                                                   |
-| Studies and thesis             | Frozen-condition machinery, exports and reproducible analysis                                                        | Final participants, independent ratings, empirical conclusions and committee acceptance remain incomplete                                                  |
+| Area                           | Implemented in source                                                                                                                             | Verification and remaining boundary                                                                                                                        |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Local studio                   | React UI, API/CLI, PostgreSQL records, Windows desktop/service, protected sign-in, Standard and Advanced views                                    | Contract checks and fixture browser walks; the installed app runs on Jordan's PC; fresh native installation acceptance is separate                         |
+| Connections and chat           | ChatGPT plan, Claude Code, OpenAI API key, daily caps and extra requests, Chat answers                                                            | Dated live qualifications apply only to their recorded connection, model and role prompt                                                                   |
+| Budgets and permissions        | Exact-money reservations, runtime/run/model ceilings, one studio spending manager, scoped grants, routine approvals, pause/cancel, reconciliation | Database and concurrency checks; owner limits stay authoritative                                                                                           |
+| Discovery and evidence         | Theme drafts, Explore for me, Search the web with checked quotes, automatic assessments, gate checklist                                           | Live discovery and web search ran on the dev studio at $0 on the plan connection; reused qualification is not an independent exploration benchmark         |
+| Autopilot                      | Durable bounded runs, automation levels, opt-in fallbacks, its own page                                                                           | Fixture walks and three live reruns on the dev studio, each with Jordan's typed OK                                                                         |
+| Build and delivery             | Frozen and model-drafted specs, isolated Python CLI and static web builds, builder/2, review, QA, packages, Try                                   | GPT-6 Astra qualified as builder on the installed app; the Claude route is qualified for small builds only; larger builds carry a trial label until a pass |
+| Search and operations          | Catalog, lineage, semantic and audit search, backups, health and recovery                                                                         | Implementation and contract evidence; health is configuration, not live verification                                                                       |
+| GitHub                         | Scoped private-repository/branch/PR/check adapters and UI                                                                                         | No live repository verification or change; the GitHub App (P32) comes after the UX pass                                                                    |
+| Hosted, commerce and marketing | Deployment/OIDC, test-mode payment/entitlement/funding and campaign adapters with fixture paths                                                   | Not activated; live payments and hosting are separate owner decisions after the app work                                                                   |
+| Studies and thesis             | Frozen-condition machinery, exports and reproducible analysis                                                                                     | Final participants, independent ratings, empirical conclusions and committee acceptance remain incomplete                                                  |
 
 ## Start and verify
 
@@ -69,10 +71,10 @@ establish database or real-isolation acceptance. In the cloud container five Pow
 tests fail because PowerShell is not installed there. Frozen helper replay is a separate
 `pnpm test:historical-upgrade` gate requiring its original candidate/package.
 
-Next (November 16): after this UX pass, the open PRs for the studio spending manager (S0) and the
-larger benchmark freeze (the Claude groundwork, ADR-0115, merged as #216), then the notifications inbox, toasts and Windows
-notifications (N1–N3), then the GitHub App (P32). See [build status](../tracking/BUILD_STATUS.md).
-Do not automatically begin additions, a pilot, installation or release.
+Next (November 16): after this UX pass (the studio spending manager, ADR-0113, merged as #218, and
+the Claude groundwork, ADR-0115, as #216), the open larger benchmark freeze, then the notifications
+inbox, toasts and Windows notifications (N1–N3), then the GitHub App (P32). See
+[build status](../tracking/BUILD_STATUS.md). Do not automatically begin additions, a pilot, installation or release.
 
 ## Historical status
 
