@@ -1,0 +1,24 @@
+{
+  "format": "recipe-benchmark-freeze/1",
+  "benchmark_id": "p14-xl-v1",
+  "files": {
+    "expectations.json": "81d71e064f95268f70ebd44898dde616bfd1efd8606bcc13f93bf9603abbcb6b",
+    "extended-cases.json": "2639559658f51a7677de494dd23335739c3f6bf3086101c3fbad9f9b4f637676",
+    "reference/src/main.py": "1928c2189348cde0d9f4325a9872c79a1cd618b7ff02e4927df04092e80094f3",
+    "reference/src/stockroom/__init__.py": "1721464210afd5193cd83eb453115271f1ef3f565febe811cf230932db8bddae",
+    "reference/src/stockroom/catalog.py": "0ab002460751580d29d50446350ed6e1613774b90984278f97b8ca8862fc2e42",
+    "reference/src/stockroom/cli.py": "e01861d15e198ba2194e3f7dd982da93d1277b6aa80861a60aa71aff130f06b3",
+    "reference/src/stockroom/commands.py": "336adb26ed45f33fa5a7c0eb9fbad16e48fe376eed7bfa739235213104a815c9",
+    "reference/src/stockroom/customers.py": "83a031760efe88a81a890b28624ef3cf215aba4c401df5ee4935f37bf8c6a414",
+    "reference/src/stockroom/fields.py": "67ca1fa6c913c52caed11bbb96360dbe6478f734806014716dfc92e172636051",
+    "reference/src/stockroom/lots.py": "0e907780efae061b65b40839ecf12610f1dd8473d22e8a7ddfa117b5aaf5636a",
+    "reference/src/stockroom/money.py": "f0f6ff423c8f950db367a22e266fc84aaac6cbf7201ae208699f5fcf584d8fb4",
+    "reference/src/stockroom/orders.py": "1c8848241aaceb947a1a8c240da3121cd5da6d9aa4f52298b2d5421c38a830a6",
+    "reference/src/stockroom/report_json.py": "865f56178182cc58ce1c92308bfac2be37a186de80379200bc0eb0f0d8e7a507",
+    "reference/src/stockroom/report_text.py": "534b94eb09c824473524ae72765374707ce0713870b89c24502c8e9b25100140",
+    "reference/src/stockroom/script.py": "ab97fe3d9be37ed178250ec5aeb6d63f46de11aea0ff4a318fcfa690a87bd6b0",
+    "spec.json": "254e7bc62d06b82068c39d686b273af638ff2b8ee3771f018f6ac8554e08136f",
+    "scorer:recipe-scoring.ts": "2ea55f832b7b8ae7422f87191a48568393572fba51548d08b5ff00bbbc2fbd28",
+    "scorer:recipe-structure.ts": "ce27c67a46ebdc9234295dd1e80303b4ac0ea20b8dde5b320d24777113899d31"
+  }
+}
