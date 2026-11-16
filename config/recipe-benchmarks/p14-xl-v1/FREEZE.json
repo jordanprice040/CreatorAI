@@ -2,7 +2,7 @@
   "format": "recipe-benchmark-freeze/1",
   "benchmark_id": "p14-xl-v1",
   "files": {
-    "expectations.json": "2d226fda385fd3ff75f696d172b8a6c48f29650551151a720ab5e9e286701cb6",
+    "expectations.json": "81d71e064f95268f70ebd44898dde616bfd1efd8606bcc13f93bf9603abbcb6b",
     "extended-cases.json": "2639559658f51a7677de494dd23335739c3f6bf3086101c3fbad9f9b4f637676",
     "reference/src/main.py": "1928c2189348cde0d9f4325a9872c79a1cd618b7ff02e4927df04092e80094f3",
     "reference/src/stockroom/__init__.py": "1721464210afd5193cd83eb453115271f1ef3f565febe811cf230932db8bddae",

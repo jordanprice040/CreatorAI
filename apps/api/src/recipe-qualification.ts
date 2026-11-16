@@ -423,6 +423,8 @@ export class RecipeQualificationRunner {
       ).toISOString(),
       cases,
       plan_roles: target,
+      // ADR-0115: the frozen benchmark's own answer form (v5 one fence only, as it ran).
+      answer_wrapping: info.answer_wrapping,
     };
     // Role requests this attempt has sent, so an input-cap refusal of the first is told apart.
     let sentRoles = 0;

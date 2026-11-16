@@ -65,6 +65,7 @@ const expectations = json('expectations.json') as {
   known_failure_cases: { id: string; caught_by: string[] }[];
   min_input_chars: number;
   attempt_deadline_ms: number;
+  answer_wrapping: string;
 };
 
 /** Every case by its label: A1.1 is check A1's first studio case, E3 an extended case. */
@@ -348,6 +349,9 @@ test('ADR-0114: p14-xl-v1 is frozen, intact and loads with the studio limits it 
   assert.equal(info.min_input_chars, expectations.min_input_chars);
   assert.ok(firstBuilderInputFloor(b) < info.min_input_chars);
   assert.equal(info.attempt_deadline_ms, expectations.attempt_deadline_ms);
+  // Jordan's choice: stray tool-call lines before the fence are dropped, as on ledger v6.
+  assert.equal(info.answer_wrapping, 'invoke_lines_then_json_fence');
+  assert.equal(expectations.answer_wrapping, info.answer_wrapping);
   const { rule: _, ...rule } = expectations.structure;
   assert.deepEqual(b.structure, rule);
 });
@@ -491,9 +495,10 @@ test('ADR-0114: the structure rule passes the reference and fails what it should
     );
 });
 
-test('ADR-0114: a pass on p14-xl-v1 lifts no label (ADR-0112 lists only the ledger benchmark)', () => {
+test('ADR-0114: a pass on p14-xl-v1 lifts no label (ADR-0112 lists only the ledger benchmarks)', () => {
   assert.deepEqual(RECIPE_BENCHMARKS['python-build/1'], [
     'p14-larger-ledgercheck-v5',
+    'p14-larger-ledgercheck-v6',
   ]);
   const roles = {
     connection_id: 'c',

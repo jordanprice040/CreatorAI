@@ -4,6 +4,7 @@ import { join, relative } from 'node:path';
 import {
   RECIPE_ATTEMPT_DEADLINE_MS,
   RECIPE_BENCHMARK_INFO,
+  RoleAnswerWrappingSchema,
   SpecContentSchema,
   z,
   type RecipeBenchmarkId,
@@ -59,6 +60,8 @@ const expectationsSchema = z
     /** ADR-0114: the input cap floor and the attempt deadline, when the benchmark sets them. */
     min_input_chars: z.number().int().min(1).optional(),
     attempt_deadline_ms: z.number().int().min(1).optional(),
+    // ADR-0115: absent means one_json_fence, the form the v5 versions ran with.
+    answer_wrapping: RoleAnswerWrappingSchema.optional(),
   })
   .passthrough();
 const extendedSchema = z.object({
@@ -188,7 +191,8 @@ export async function loadRecipeBenchmark(
     caps.timeout_ms !== info.caps.timeout_ms ||
     (exp.min_input_chars ?? 0) !== info.min_input_chars ||
     (exp.attempt_deadline_ms ?? RECIPE_ATTEMPT_DEADLINE_MS) !==
-      info.attempt_deadline_ms
+      info.attempt_deadline_ms ||
+    (exp.answer_wrapping ?? 'one_json_fence') !== info.answer_wrapping
   )
     throw new Error(
       `${id}: expectations differ from the studio's benchmark list`,

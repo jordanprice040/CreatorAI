@@ -66,6 +66,7 @@ const offer: Offer = {
   extended_cases: 0,
   attempt_deadline_ms: 3600000,
   min_input_chars: 0,
+  answer_wrapping: 'one_json_fence',
   max_requests: 24,
   freeze_problems: [],
 };

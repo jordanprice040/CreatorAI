@@ -52,6 +52,8 @@
   "min_input_chars_note": "Start refuses a connection whose per-request input cap is below 120,000 characters (or below the first builder request, if that is larger). A reviewer request carries the task packet, every file and the diff from the template, so a program this size needs roughly three times its own length; a smaller cap would fail attempts on the cap rather than on the roles' work. The owner raises the cap per ADR-0062 before starting",
   "attempt_deadline_ms": 7200000,
   "attempt_deadline_note": "Each attempt's build stops after two hours (the v5 benchmarks have one): up to 20 requests at 120 s, a wait of up to 4 minutes for a busy connection before a request, and up to 4 rounds of 25 cases",
+  "answer_wrapping": "invoke_lines_then_json_fence",
+  "answer_wrapping_note": "Each plan-route role answer (builder and reviewer) may be exactly one ```json or bare ``` code fence around the whole answer, optionally preceded by at most 8 lines that are each wholly a one-line <invoke ...>...</invoke> or a lone </invoke> (blank lines among them allowed), as p14-larger-ledgercheck-v6 allows (ADR-0115). Those lines are dropped unread and counted beside the call; any other text before, between or after fails the answer. Jordan chose this form on November 15, 2026, before any run of this benchmark.",
   "measure_and_record": [
     "requests used, builder parts per round and repair rounds used",
     "wall time from start to verdict",

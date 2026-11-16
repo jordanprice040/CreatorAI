@@ -67,6 +67,9 @@ const SOURCES: Record<string, string> = {
   'p14-small-wordtally-v5': 'config/repo-benchmarks/p14-small-wordtally-v2',
   'p14-larger-ledgercheck-v5':
     'config/repo-benchmarks/v4/p14-larger-ledgercheck-v4',
+  // ADR-0115: v6 copies v5 and changes only the answer form.
+  'p14-larger-ledgercheck-v6':
+    'config/recipe-benchmarks/p14-larger-ledgercheck-v5',
 };
 const rejects = (code: ErrorCode, p: Promise<unknown>, detail?: RegExp) =>
   assert.rejects(p, (e: unknown) => {
@@ -472,6 +475,7 @@ test('ADR-0112: the small Python build limits are the small benchmark’s own, a
   assert.equal(larger.cases, SMALL_PYTHON_BUILD.cases);
   assert.deepEqual(RECIPE_BENCHMARKS['python-build/1'], [
     'p14-larger-ledgercheck-v5',
+    'p14-larger-ledgercheck-v6',
   ]);
 });
 
@@ -557,6 +561,8 @@ async function setup(t: test.TestContext) {
       limits?: { deadline: string };
       round?: { part: number };
     }[],
+    /** ADR-0115: the builder answers as record 49fe5782 did, tool-call lines then one fence. */
+    invokePreamble: false,
   };
   const fake = await fakePlan({
     beforeResponse: () => answer.before(),
@@ -603,7 +609,7 @@ async function setup(t: test.TestContext) {
           p.files.find((x) => x.path === path)?.hash ??
           p.round?.staged.find((x) => x.path === path)?.before_hash ??
           null;
-        return JSON.stringify({
+        const builder = JSON.stringify({
           summary: 'Reference solution',
           blocker: null,
           submission: {
@@ -616,6 +622,9 @@ async function setup(t: test.TestContext) {
             ...(answer.partChars ? { complete: part >= parts.length } : {}),
           },
         });
+        return answer.invokePreamble
+          ? `\n<invoke name="note">na</invoke>\n</invoke>\n\`\`\`json\n${builder}\n\`\`\``
+          : builder;
       }
       if (body.instructions === BUILD_ROLE_PROMPTS.reviewer) {
         const p = JSON.parse(input) as Record<string, string>;
@@ -973,6 +982,8 @@ test('ADR-0114: p14-xl-v1 needs a 120,000 input cap, runs in parts with its 2-ho
   if (!s) return;
   await s.qualifyRoles();
   s.answer.id = 'p14-xl-v1';
+  // Its answers may open with stray tool-call lines, as v6's may (Jordan's choice).
+  s.answer.invokePreamble = true;
   // The reference holds more than the connection's 16,000-character answer cap: three parts.
   s.answer.partChars = 7000;
   const floor = RECIPE_BENCHMARK_INFO['p14-xl-v1'].min_input_chars;
@@ -1008,6 +1019,86 @@ test('ADR-0114: p14-xl-v1 needs a 120,000 input cap, runs in parts with its 2-ho
     const left = Date.parse(p.limits!.deadline) - before;
     assert.ok(left > 115 * 60_000 && left <= 121 * 60_000, String(left));
   }
+});
+
+test('ADR-0115: leading invented tool-call lines fail a v5 attempt as they ran, and pass on v6', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  await s.qualifyRoles();
+  s.answer.invokePreamble = true;
+  s.answer.id = 'p14-larger-ledgercheck-v5';
+  const v5 = await s.run((await s.start('p14-larger-ledgercheck-v5')).id);
+  assert.deepEqual(s.errors, []);
+  assert.equal(v5.state, 'not_qualified', v5.reason ?? '');
+  assert.equal(v5.attempts.length, 1);
+  assert.equal(v5.attempts[0]!.state, 'failed');
+  assert.match(v5.reason!, /SyntaxError: Unexpected token '<'/);
+
+  s.answer.id = 'p14-larger-ledgercheck-v6';
+  const v6 = await s.run((await s.start('p14-larger-ledgercheck-v6')).id);
+  assert.deepEqual(s.errors, []);
+  assert.equal(v6.state, 'qualified', v6.reason ?? '');
+  assert.equal(v6.attempts.length, 3);
+  for (const a of v6.attempts)
+    assert.deepEqual(
+      a.result!.bars.map((b) => [b.key, b.passed]),
+      [
+        ['build_verified', true],
+        ['requests_within_cap', true],
+        ['package_verified', true],
+        ['extended_cases', true],
+        ['structure', true],
+      ],
+    );
+});
+
+test('ADR-0115: v6 differs from v5 only in its name, notes and answer form', () => {
+  const v5 = json(
+    'config/recipe-benchmarks/p14-larger-ledgercheck-v5/expectations.json',
+  );
+  const v6 = json(
+    'config/recipe-benchmarks/p14-larger-ledgercheck-v6/expectations.json',
+  );
+  assert.equal(v6.answer_wrapping, 'invoke_lines_then_json_fence');
+  assert.equal(v5.answer_wrapping, undefined);
+  const strip = (e: Record<string, unknown>) => {
+    const {
+      benchmark_id: _a,
+      copied_from: _b,
+      copy_note: _c,
+      recut_note: _d,
+      answer_wrapping: _e,
+      answer_wrapping_note: _f,
+      ...rest
+    } = e;
+    return rest;
+  };
+  assert.deepEqual(strip(v6), strip(v5));
+  assert.deepEqual(
+    {
+      ...RECIPE_BENCHMARK_INFO['p14-larger-ledgercheck-v6'],
+      id: 'x',
+      label: 'x',
+      copied_from: 'x',
+      answer_wrapping: 'x',
+    },
+    {
+      ...RECIPE_BENCHMARK_INFO['p14-larger-ledgercheck-v5'],
+      id: 'x',
+      label: 'x',
+      copied_from: 'x',
+      answer_wrapping: 'x',
+    },
+  );
+  // Jordan chose (2026-11-15) that p14-xl-v1 accepts the same answer form as v6.
+  for (const id of RECIPE_BENCHMARK_IDS)
+    assert.equal(
+      RECIPE_BENCHMARK_INFO[id].answer_wrapping,
+      id === 'p14-larger-ledgercheck-v6' || id === 'p14-xl-v1'
+        ? 'invoke_lines_then_json_fence'
+        : 'one_json_fence',
+      id,
+    );
 });
 
 test('ADR-0105: a reviewer that blocks fails the attempt; a lost lease voids it and it is replaced once', async (t) => {
