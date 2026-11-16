@@ -31,11 +31,21 @@ export function Settings({
   workspace: Workspace;
   open: (view: View, id?: string) => void;
 }) {
+  // ADR-0113: only the studio spending manager may read studio-wide spending; anyone else
+  // gets one plain line instead of an error with a Retry that can never succeed.
   const data = useLoad(
-    () => api(RuntimeCeilingSchema, 'settings/spending'),
+    () =>
+      api(RuntimeCeilingSchema, 'settings/spending').catch((e: unknown) => {
+        if (e instanceof ApiError && e.code === 'ACCESS_DENIED')
+          return 'not_manager' as const;
+        throw e;
+      }),
     [],
   );
-  const c = data.data;
+  const notManager = data.data === 'not_manager';
+  // Re-review N-2: until the server says whether this person is the manager, show neither the
+  // manager's wording nor the limits panel (whose own request would only be refused).
+  const c = data.data === 'not_manager' ? null : data.data;
   /**
    * What the person reviewed. While the confirm step is open, reloads pause and the request
    * names this version, so a change elsewhere is a conflict, never a silent new baseline.
@@ -131,166 +141,185 @@ export function Settings({
       </p>
       <ViewModeSwitch />
       <h3>Overall spending ceiling</h3>
-      <p>
-        The most Creator Agent may spend on real model and tool calls, across
-        every workspace. Each call reserves its maximum cost first and is
-        refused if it would pass this ceiling. Fixture workspaces use simulated
-        units and are not counted. Only you can change it here; agents
-        can&apos;t.
-      </p>
-      <Status
-        loading={data.loading && !c}
-        error={data.error}
-        stale={data.stale}
-        retry={data.reload}
-      >
-        {c && (
-          <>
-            <dl className="facts ceiling">
-              <dt>Ceiling</dt>
-              <dd>
-                <strong>{money(c.ceiling_nano_usd, false)}</strong>{' '}
-                <small>
-                  {c.source === 'config'
-                    ? 'the reviewed starting value'
-                    : `version ${c.version}, set ${when(c.history[0]!.created_at)}`}
-                </small>
-              </dd>
-              <dt>Counted since</dt>
-              <dd>{when(c.counted_since)}</dd>
-              <dt>Used or held</dt>
-              <dd>
-                <Money nano={c.exposure_nano_usd} fixture={false} />{' '}
-                <small>settled cost plus calls in flight or unknown</small>
-              </dd>
-              <dt>Left</dt>
-              <dd>
-                <Money
-                  nano={(left < 0n ? 0n : left).toString()}
-                  fixture={false}
-                  down
-                />
-              </dd>
-            </dl>
-            {c.unknown_calls > 0 && (
-              <p className="notice">
-                {c.unknown_calls} paid call(s) have an unknown cost. No new paid
-                call is sent until they are reconciled under{' '}
-                <button className="text" onClick={() => open('budgets')}>
-                  Budgets
-                </button>
-                , whatever the ceiling.
-              </p>
-            )}
-
-            <form className="ceiling-form" onSubmit={review}>
-              <label htmlFor="ceiling-amount">New ceiling (US dollars)</label>
-              <input
-                id="ceiling-amount"
-                inputMode="decimal"
-                placeholder={money(c.ceiling_nano_usd, false).slice(1)}
-                value={amount}
-                disabled={reviewing}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-              {amount.trim() && next === null && (
-                <p className="error">
-                  Enter an amount like 50 or 12.50, with no more than nine
-                  decimal places.
+      {notManager ? (
+        <p className="small">
+          Studio-wide spending is handled by the studio spending manager. Owning
+          a workspace does not include it.
+        </p>
+      ) : (
+        c && (
+          <p>
+            The most Creator Agent may spend on real model and tool calls,
+            across every workspace. Each call reserves its maximum cost first
+            and is refused if it would pass this ceiling. Fixture workspaces use
+            simulated units and are not counted. Only the studio spending
+            manager, you, can change it here; agents can&apos;t.
+          </p>
+        )
+      )}
+      {!notManager && (
+        <Status
+          loading={data.loading && !c}
+          error={data.error}
+          stale={data.stale}
+          retry={data.reload}
+        >
+          {c && (
+            <>
+              <dl className="facts ceiling">
+                <dt>Ceiling</dt>
+                <dd>
+                  <strong>{money(c.ceiling_nano_usd, false)}</strong>{' '}
+                  <small>
+                    {c.source === 'config'
+                      ? 'the reviewed starting value'
+                      : `version ${c.version}, set ${when(c.history[0]!.created_at)}`}
+                  </small>
+                </dd>
+                <dt>Spending manager</dt>
+                <dd>
+                  you{' '}
+                  <small>
+                    only you can see and change studio-wide spending; owning a
+                    workspace does not grant it
+                  </small>
+                </dd>
+                <dt>Counted since</dt>
+                <dd>{when(c.counted_since)}</dd>
+                <dt>Used or held</dt>
+                <dd>
+                  <Money nano={c.exposure_nano_usd} fixture={false} />{' '}
+                  <small>settled cost plus calls in flight or unknown</small>
+                </dd>
+                <dt>Left</dt>
+                <dd>
+                  <Money
+                    nano={(left < 0n ? 0n : left).toString()}
+                    fixture={false}
+                    down
+                  />
+                </dd>
+              </dl>
+              {c.unknown_calls > 0 && (
+                <p className="notice">
+                  {c.unknown_calls} paid call(s) have an unknown cost. No new
+                  paid call is sent until they are reconciled under{' '}
+                  <button className="text" onClick={() => open('budgets')}>
+                    Budgets
+                  </button>
+                  , whatever the ceiling.
                 </p>
               )}
-              {same && <p className="small">That is the current ceiling.</p>}
-              <label htmlFor="ceiling-reason">Why</label>
-              <textarea
-                id="ceiling-reason"
-                rows={2}
-                maxLength={1200}
-                value={reason}
-                disabled={reviewing}
-                onChange={(e) => setReason(e.target.value)}
-              />
-              {!reviewing ? (
-                <div className="actions">
-                  <button
-                    className="secondary strong"
-                    type="submit"
-                    disabled={next === null || !!same || !reason.trim()}
-                  >
-                    Review change
-                  </button>
-                </div>
-              ) : (
-                <div className="notice" role="group" aria-label="Confirm">
-                  <p>
-                    {raising ? 'Raise' : 'Lower'} the overall ceiling from{' '}
-                    <strong>{money(snap!.ceiling, false)}</strong> to{' '}
-                    <strong>{money(next!, false)}</strong>?{' '}
-                    {raising
-                      ? 'This allows more real money to be spent on paid calls.'
-                      : BigInt(next!) < BigInt(snap!.exposure)
-                        ? 'That is below what is already used or held, so no new paid call will be sent until you raise it again.'
-                        : 'New paid calls stop once this amount is reached.'}{' '}
-                    The change and your reason are recorded.
-                  </p>
-                  <div className="actions">
-                    <button
-                      className="secondary"
-                      type="button"
-                      disabled={busy}
-                      onClick={() => setSnap(null)}
-                    >
-                      Back
-                    </button>
-                    <button
-                      className="primary"
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void confirm()}
-                    >
-                      {busy
-                        ? 'Saving…'
-                        : raising
-                          ? 'Raise the ceiling'
-                          : 'Lower the ceiling'}
-                    </button>
-                  </div>
-                </div>
-              )}
-              <div aria-live="polite">
-                {notice && <p className="notice ok">{notice}</p>}
-                {error && (
-                  <p className="error" role="alert">
-                    {error}
+
+              <form className="ceiling-form" onSubmit={review}>
+                <label htmlFor="ceiling-amount">New ceiling (US dollars)</label>
+                <input
+                  id="ceiling-amount"
+                  inputMode="decimal"
+                  placeholder={money(c.ceiling_nano_usd, false).slice(1)}
+                  value={amount}
+                  disabled={reviewing}
+                  onChange={(e) => setAmount(e.target.value)}
+                />
+                {amount.trim() && next === null && (
+                  <p className="error">
+                    Enter an amount like 50 or 12.50, with no more than nine
+                    decimal places.
                   </p>
                 )}
-              </div>
-            </form>
+                {same && <p className="small">That is the current ceiling.</p>}
+                <label htmlFor="ceiling-reason">Why</label>
+                <textarea
+                  id="ceiling-reason"
+                  rows={2}
+                  maxLength={1200}
+                  value={reason}
+                  disabled={reviewing}
+                  onChange={(e) => setReason(e.target.value)}
+                />
+                {!reviewing ? (
+                  <div className="actions">
+                    <button
+                      className="secondary strong"
+                      type="submit"
+                      disabled={next === null || !!same || !reason.trim()}
+                    >
+                      Review change
+                    </button>
+                  </div>
+                ) : (
+                  <div className="notice" role="group" aria-label="Confirm">
+                    <p>
+                      {raising ? 'Raise' : 'Lower'} the overall ceiling from{' '}
+                      <strong>{money(snap!.ceiling, false)}</strong> to{' '}
+                      <strong>{money(next!, false)}</strong>?{' '}
+                      {raising
+                        ? 'This allows more real money to be spent on paid calls.'
+                        : BigInt(next!) < BigInt(snap!.exposure)
+                          ? 'That is below what is already used or held, so no new paid call will be sent until you raise it again.'
+                          : 'New paid calls stop once this amount is reached.'}{' '}
+                      The change and your reason are recorded.
+                    </p>
+                    <div className="actions">
+                      <button
+                        className="secondary"
+                        type="button"
+                        disabled={busy}
+                        onClick={() => setSnap(null)}
+                      >
+                        Back
+                      </button>
+                      <button
+                        className="primary"
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void confirm()}
+                      >
+                        {busy
+                          ? 'Saving…'
+                          : raising
+                            ? 'Raise the ceiling'
+                            : 'Lower the ceiling'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <div aria-live="polite">
+                  {notice && <p className="notice ok">{notice}</p>}
+                  {error && (
+                    <p className="error" role="alert">
+                      {error}
+                    </p>
+                  )}
+                </div>
+              </form>
 
-            <h4>Changes</h4>
-            {c.history.length === 0 ? (
-              <p className="small">
-                No changes yet. The ceiling is the reviewed starting value of{' '}
-                {money(c.configured_nano_usd, false)}.
-              </p>
-            ) : (
-              <ol className="rows">
-                {c.history.map((h) => (
-                  <li key={h.version}>
-                    v{h.version} · {money(h.previous_nano_usd, false)} →{' '}
-                    <strong>{money(h.ceiling_nano_usd, false)}</strong>
-                    <small>
-                      {' '}
-                      · {when(h.created_at)} · {h.reason}
-                    </small>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </>
-        )}
-      </Status>
+              <h4>Changes</h4>
+              {c.history.length === 0 ? (
+                <p className="small">
+                  No changes yet. The ceiling is the reviewed starting value of{' '}
+                  {money(c.configured_nano_usd, false)}.
+                </p>
+              ) : (
+                <ol className="rows">
+                  {c.history.map((h) => (
+                    <li key={h.version}>
+                      v{h.version} · {money(h.previous_nano_usd, false)} →{' '}
+                      <strong>{money(h.ceiling_nano_usd, false)}</strong>
+                      <small>
+                        {' '}
+                        · {when(h.created_at)} · {h.reason}
+                      </small>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </>
+          )}
+        </Status>
+      )}
 
-      <SpendingLimits session={session} />
+      {c && <SpendingLimits session={session} />}
 
       <EvidenceSites
         key={workspace.id}
