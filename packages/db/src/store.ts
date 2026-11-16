@@ -254,7 +254,7 @@ function summarize(action: string, kind: string, version: unknown, p: Row) {
     case 'deployment.environment_claimed':
       return `Claimed this database for the ${String(p.environment)} environment`;
     case 'workspace.created':
-      return `Created ${String(p.record_mode)} workspace`;
+      return `Created ${String(p.record_mode)} workspace${p.spending_manager_assigned === true ? ' and became the studio spending manager' : ''}`;
     case 'member.added':
       return `Added ${String(p.role)} member`;
     case 'member.removed':
@@ -612,6 +612,16 @@ export class Store {
         `insert into workspace_members (workspace_id, actor_id, role) values ($1, $2, 'owner')`,
         [wsId, ctx.actorId],
       );
+      // ADR-0113 (S0): on a studio with no spending manager yet, the first person to create a
+      // workspace becomes it, in this transaction. The single-row key makes a concurrent
+      // second creator a no-op, and later creators never gain it.
+      const manager = await c.query(
+        `insert into studio_spending_manager (actor_id, source)
+         select a.id, 'first_workspace' from actors a where a.id = $1 and a.kind = 'human'
+         on conflict do nothing returning actor_id`,
+        [ctx.actorId],
+      );
+      // The assignment is recorded in the same audited event that created the workspace.
       await this.append(c, ctx, {
         workspaceId: wsId,
         action: 'workspace.created',
@@ -619,7 +629,10 @@ export class Store {
         subjectId: wsId,
         subjectVersion: null,
         contentHash: null,
-        payload: { record_mode: req.record_mode },
+        payload: {
+          record_mode: req.record_mode,
+          ...(manager.rowCount ? { spending_manager_assigned: true } : {}),
+        },
       });
       return {
         id: wsId,
