@@ -117,12 +117,19 @@ export function RecheckSources({
   const [result, setResult] = useState<SourceRecheckResult | null>(null);
   // Review N-4: a press that got no answer is sent again with the same id, so the studio
   // replays the fetches it already made instead of fetching again; an answered press ends it.
-  const pending = useRef<{ id: string; run: string } | null>(null);
+  // Re-review N-1: the id belongs to one problem and one run.
+  const pending = useRef<{ id: string; run: string; problem: string } | null>(
+    null,
+  );
   async function recheck() {
     setBusy(true);
     setError('');
-    if (pending.current?.run !== runId)
-      pending.current = { id: crypto.randomUUID(), run: runId };
+    if (pending.current?.run !== runId || pending.current.problem !== problemId)
+      pending.current = {
+        id: crypto.randomUUID(),
+        run: runId,
+        problem: problemId,
+      };
     try {
       const r = await api(
         SourceRecheckResultSchema,

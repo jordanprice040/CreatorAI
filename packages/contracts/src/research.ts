@@ -453,6 +453,11 @@ export const SourceBrokerStatusSchema = z.strictObject({
   note: z.string(),
 });
 
+/**
+ * Most passages the studio keeps per source version (fixture and live policies). A version
+ * holding this many may have had more paragraphs, so a missing passage proves nothing there.
+ */
+export const SOURCE_MAX_PASSAGES = 200;
 /** F8 (ADR-0126): most sources one recheck fetches; the least recently checked go first. */
 export const SOURCE_RECHECK_MAX = 12;
 /**

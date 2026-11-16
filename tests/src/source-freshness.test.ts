@@ -30,6 +30,7 @@ const base = {
   current_hashes: [H('b')],
   current_excerpts: ['The median wait was 38 days in 2025.'],
   excerpts_complete: true,
+  passages_complete: true,
   moved: false,
 };
 
@@ -81,6 +82,24 @@ test('passage check: a move wins, then page gone; same version needs no look, th
       excerpts_complete: false,
     }),
     'cannot_tell',
+  );
+  // Re-review L-1: a page past the passage limit may hold the passage or quote further on.
+  assert.equal(
+    passageCheck({ ...base, passages_complete: false }),
+    'cannot_tell',
+  );
+  assert.equal(
+    passageCheck({ ...base, quote: null, passages_complete: false }),
+    'cannot_tell',
+  );
+  // What was kept still counts.
+  assert.equal(
+    passageCheck({
+      ...base,
+      current_hashes: [H('a')],
+      passages_complete: false,
+    }),
+    'passage_kept',
   );
   // With no quote, a missing passage hash is a change even under hash-only retention.
   assert.equal(

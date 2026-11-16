@@ -721,6 +721,7 @@ export function Compare({
             )}
             {!viewer && d.cmp.claims.length > 0 && (
               <RecheckSources
+                key={d.cmp.problem.id}
                 session={session}
                 workspace={workspace}
                 problemId={d.cmp.problem.id}

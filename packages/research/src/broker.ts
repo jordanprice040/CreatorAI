@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import {
+  SOURCE_MAX_PASSAGES,
   ContractError,
   SOURCE_POLICY_VERSION,
   SourceFetchRequestSchema,
@@ -443,7 +444,7 @@ const LIVE_LIMITS = {
   max_bytes: 2_000_000,
   timeout_ms: 15_000,
   max_redirects: 3,
-  max_passages: 200,
+  max_passages: SOURCE_MAX_PASSAGES,
   max_excerpt_chars: 1000,
   max_fetches_per_run: 100,
 } as const;

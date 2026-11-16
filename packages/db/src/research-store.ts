@@ -20,6 +20,7 @@ import {
   type SourceSummary,
   type StoredEntity,
   AUTOPILOT_QUOTE_CHECK_LABEL,
+  SOURCE_MAX_PASSAGES,
 } from '@creator/contracts';
 import {
   assessClaimEvidence,
@@ -1202,7 +1203,9 @@ export class ResearchStore extends WorkflowStore {
              and np.source_version = e.version) end as current_excerpts,
          not exists (select 1 from source_passages xp where xp.source_id = cs.source_id
              and xp.source_version = e.version
-             and (xp.excerpt is null or xp.excerpt_truncated)) as excerpts_complete
+             and (xp.excerpt is null or xp.excerpt_truncated)) as excerpts_complete,
+         (select count(*) from source_passages cp2 where cp2.source_id = cs.source_id
+             and cp2.source_version = e.version) as current_passages
        from claim_support cs
          join entities e on e.id = cs.source_id
          join research_sources rs on rs.source_id = cs.source_id
@@ -1247,6 +1250,7 @@ export class ResearchStore extends WorkflowStore {
         current_hashes: ((r.current_hashes ?? []) as string[]).map(String),
         current_excerpts: (r.current_excerpts ?? []) as (string | null)[],
         excerpts_complete: Boolean(r.excerpts_complete),
+        passages_complete: Number(r.current_passages) < SOURCE_MAX_PASSAGES,
       }),
     );
     const flagged = passageLabels(

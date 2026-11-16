@@ -1,5 +1,9 @@
 import { setTimeout as sleep } from 'node:timers/promises';
-import { SOURCE_POLICY_VERSION, type SourcePolicy } from '@creator/contracts';
+import {
+  SOURCE_MAX_PASSAGES,
+  SOURCE_POLICY_VERSION,
+  type SourcePolicy,
+} from '@creator/contracts';
 import { DISCOVERY_PAGES, isBlockedAddress } from '@creator/domain';
 import type { HopOutcome, HopRequest, SourceAdapter } from './adapters.js';
 
@@ -259,7 +263,7 @@ export const FIXTURE_SOURCE_POLICY: SourcePolicy = {
   timeout_ms: 2_000,
   max_redirects: 3,
   content_types: ['text/html', 'application/xhtml+xml', 'text/plain'],
-  max_passages: 200,
+  max_passages: SOURCE_MAX_PASSAGES,
   max_excerpt_chars: 1000,
   max_fetches_per_run: 100,
 };

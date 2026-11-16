@@ -282,6 +282,11 @@ export function passageCheck(input: {
   current_excerpts: readonly (string | null)[];
   /** Every current passage has a stored, untruncated excerpt. */
   excerpts_complete: boolean;
+  /**
+   * The current version kept every paragraph of the page (fewer than the passage limit).
+   * Re-review L-1: past that limit a missing passage or quote proves nothing.
+   */
+  passages_complete: boolean;
 }): PassageCheck {
   if (input.moved) return 'page_moved';
   if (input.latest_state === 'removed' || input.latest_state === 'inaccessible')
@@ -296,8 +301,9 @@ export function passageCheck(input: {
   const quote = input.quote?.trim() ? input.quote : null;
   if (quote && input.current_excerpts.some((e) => quoteInPassage(e, quote)))
     return 'quote_kept';
-  // A quote that could not be searched for proves nothing; nor does support with no
-  // passage and no quote.
+  // A quote that could not be searched for proves nothing; nor does a page whose later
+  // paragraphs were not kept, nor support with no passage and no quote.
+  if (!input.passages_complete) return 'cannot_tell';
   if (quote && !input.excerpts_complete) return 'cannot_tell';
   if (input.cited_passage_hash === null && !quote) return 'cannot_tell';
   return 'passage_changed';
