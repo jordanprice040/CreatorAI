@@ -13,13 +13,14 @@ import { usdToNano } from './amounts.js';
 import { SpendingLimits } from './spending-limits.js';
 import { EvidenceSites } from './evidence-sites.js';
 import { TeamProfilePanel } from './team-profile.js';
+import { Backups } from './backups.js';
 import { Status, useLoad, type View } from './ui.js';
 import { Term, TermList } from './term.js';
 
 /**
  * Settings: the owner's overall ceiling on real spending (ADR-0043), the narrower per-run
  * and per-model limits under it (ADR-0044), the workspace's evidence websites (ADR-0056),
- * plus pointers to the
+ * backups and restore (ADR-0123), plus pointers to the
  * other places preferences live. Changing the ceiling is a deliberate, recorded act by the
  * signed-in person; agents and workers have no route to it.
  */
@@ -340,6 +341,8 @@ export function Settings({
         session={session}
         workspace={workspace}
       />
+
+      <Backups session={session} />
 
       <h3>Elsewhere</h3>
       <ul className="rows">

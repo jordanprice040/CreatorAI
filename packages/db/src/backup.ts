@@ -7,12 +7,17 @@ import {
   mkdir,
   readFile,
   readdir,
+  rm,
   writeFile,
 } from 'node:fs/promises';
 import { dirname, join, relative, sep } from 'node:path';
 import pg from 'pg';
-import { ContractError } from '@creator/contracts';
-import { assertSchemaCurrent } from './migrate.js';
+import {
+  ContractError,
+  type BackupEntry,
+  type BackupKind,
+} from '@creator/contracts';
+import { assertSchemaCurrent, assertSchemaKnown } from './migrate.js';
 import { migrations } from './migrations.js';
 import { Store } from './store.js';
 
@@ -107,6 +112,9 @@ const COUNTED = [
   // ADR-0113: the studio spending manager and the refusal details only that person reads.
   'studio_spending_manager',
   'spending_refusals',
+  // ADR-0123: backup settings and the record of each backup, check and restore.
+  'backup_settings',
+  'backup_runs',
 ] as const;
 
 /** Splits the password out so it reaches pg tools by environment, never by argv or logs. */
@@ -252,12 +260,37 @@ function safeRelative(path: string) {
     );
   return join(...parts);
 }
+/** Review N-2: names Windows would turn into a device or an alternate data stream. */
+const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i;
+function restorablePath(path: string, making = false) {
+  const rel = safeRelative(path);
+  if (
+    path
+      .split('/')
+      .some(
+        (p) => p.includes(':') || WINDOWS_RESERVED.test(p) || /[ .]$/.test(p),
+      )
+  )
+    throw new ContractError(
+      'INVALID_CONTRACT',
+      making
+        ? `The product file ${path} has a name Windows can't hold (a colon, a trailing dot or space, or a device name such as CON). Rename it, then back up again.`
+        : `Path in backup manifest can't be restored safely on Windows: ${path}`,
+    );
+  return rel;
+}
 
 export async function createBackup(o: {
   databaseUrl: string;
   productsRoot: string;
   outDir: string;
   pgBinDir?: string | undefined;
+  /**
+   * ADR-0123: `known` accepts an older schema this code knows unchanged, for the backup taken
+   * before an upgrade. The manifest then records that older version, so only the matching app
+   * version restores it. Default `current`.
+   */
+  schema?: 'current' | 'known';
 }): Promise<BackupManifest> {
   if (await exists(o.outDir))
     throw new ContractError(
@@ -269,7 +302,10 @@ export async function createBackup(o: {
   pool.on('error', () => undefined);
   const snap = await pool.connect();
   try {
-    const schema = await assertSchemaCurrent(pool);
+    const schema =
+      o.schema === 'known'
+        ? await assertSchemaKnown(pool)
+        : await assertSchemaCurrent(pool);
     await mkdir(join(o.outDir, 'products'), { recursive: true });
     const target = pgTarget(o.databaseUrl);
     const dump = join(o.outDir, 'database.dump');
@@ -298,7 +334,9 @@ export async function createBackup(o: {
     for (const file of await files(o.productsRoot)) {
       const rel = relative(o.productsRoot, file).split(sep).join('/');
       const bytes = await readFile(file);
-      const to = join(o.outDir, 'products', safeRelative(rel));
+      // Re-review L-1: a name Windows can't hold is refused here, naming the file, rather
+      // than making a backup that fails its own check.
+      const to = join(o.outDir, 'products', restorablePath(rel, true));
       await mkdir(dirname(to), { recursive: true });
       await writeFile(to, bytes, { flag: 'wx' });
       products.push({ path: rel, sha256: sha256(bytes), bytes: bytes.length });
@@ -330,14 +368,20 @@ export async function createBackup(o: {
   }
 }
 
-/** Re-reads every backed-up file and refuses the backup if any hash or size differs. */
-export async function checkBackup(dir: string): Promise<BackupManifest> {
+/**
+ * Re-reads every backed-up file and refuses the backup if any hash or size differs. The schema
+ * must be this code's, unless `schema` names the version expected (a pre-upgrade backup).
+ */
+export async function checkBackup(
+  dir: string,
+  o: { schema?: number } = {},
+): Promise<BackupManifest> {
   const manifest = JSON.parse(
     await readFile(join(dir, 'backup-manifest.json'), 'utf8'),
   ) as BackupManifest;
   if (manifest.format !== BACKUP_FORMAT)
     throw new ContractError('INVALID_CONTRACT', 'Not a Creator Agent backup.');
-  const latest = migrations.at(-1)!.version;
+  const latest = o.schema ?? migrations.at(-1)!.version;
   if (manifest.schema_version !== latest)
     throw new ContractError(
       'INVALID_CONFIG',
@@ -351,7 +395,7 @@ export async function checkBackup(dir: string): Promise<BackupManifest> {
     );
   const listed = new Set<string>();
   for (const f of manifest.products) {
-    const bytes = await readFile(join(dir, 'products', safeRelative(f.path)));
+    const bytes = await readFile(join(dir, 'products', restorablePath(f.path)));
     if (sha256(bytes) !== f.sha256 || bytes.length !== f.bytes)
       throw new ContractError(
         'EVIDENCE_MISMATCH',
@@ -413,10 +457,26 @@ export async function restoreBackup(o: {
     ],
     target.env,
   );
+  // Review N-3: what was restored is hashed again, so a file swapped after the first check
+  // is caught.
+  if (
+    sha256(await readFile(join(o.backupDir, 'database.dump'))) !==
+    manifest.database.sha256
+  )
+    throw new ContractError(
+      'EVIDENCE_MISMATCH',
+      'database.dump changed while it was being restored.',
+    );
   for (const f of manifest.products) {
     const to = join(o.productsRoot, safeRelative(f.path));
     await mkdir(dirname(to), { recursive: true });
     await copyFile(join(o.backupDir, 'products', safeRelative(f.path)), to);
+    const copied = await readFile(to);
+    if (sha256(copied) !== f.sha256 || copied.length !== f.bytes)
+      throw new ContractError(
+        'EVIDENCE_MISMATCH',
+        `products/${f.path} changed while it was being restored.`,
+      );
   }
   const check = await verifyRestore(o.databaseUrl, o.productsRoot);
   // Snapshot backups (X06) must match exactly; older ones counted after the dump (at least).
@@ -507,4 +567,177 @@ export async function verifyRestore(
   } finally {
     await pool.end();
   }
+}
+
+// ---- ADR-0123 (F1): the backups folder as Settings lists it --------------------------------
+
+const PREMIGRATION_FORMAT = 'creator-premigration/1';
+/** Folders the app writes into while working; never listed and never restored. */
+export const PARTIAL_SUFFIX = '.partial';
+
+/** The kind of a backup, from the folder name the app gave it. */
+export function backupKind(name: string): BackupKind {
+  if (name.startsWith('manual-')) return 'manual';
+  if (name.startsWith('daily-')) return 'daily';
+  if (name.startsWith('pre-upgrade-') || name.startsWith('pre-migrate-'))
+    return 'pre_upgrade';
+  if (name.startsWith('adopt-')) return 'adopt';
+  return 'other';
+}
+/**
+ * A folder name for a new backup: kind, a sortable UTC time and the studio's tag (review L-5),
+ * so studios sharing a folder never prune, sweep or list each other's backups.
+ */
+export function backupFolderName(
+  kind: 'manual' | 'daily' | 'pre-upgrade',
+  at: Date,
+  tag: string,
+  schemaFrom?: number,
+) {
+  const stamp = at.toISOString().replace(/[:.]/g, '-');
+  return kind === 'pre-upgrade'
+    ? `pre-upgrade-v${schemaFrom}-${stamp}-s${tag}`
+    : `${kind}-${stamp}-s${tag}`;
+}
+/** The studio tag in a folder name the app made, or null (CLI, adopt, older backups). */
+export function backupTag(name: string): string | null {
+  return /-s([0-9a-f]{8})(?:\.partial)?$/.exec(name)?.[1] ?? null;
+}
+/**
+ * A short, stable tag for the studio a database holds: its name and object id on its server.
+ * A restored copy lives in another database, so it gets its own tag.
+ */
+export async function studioTag(q: Queryable): Promise<string> {
+  const { rows } = await q.query<{ k: string }>(
+    `select current_database() || ':' || oid::text as k from pg_database where datname = current_database()`,
+  );
+  return sha256(rows[0]!.k).slice(0, 8);
+}
+
+const nonNegative = (n: unknown) =>
+  typeof n === 'number' && Number.isSafeInteger(n) && n >= 0;
+
+/**
+ * Reads each folder's manifest without re-hashing (that is `checkBackup`'s job): finished
+ * backups newest first. Folders without a readable manifest, links and partial folders are
+ * left out. A missing folder is a problem to show, not an error.
+ */
+export async function listBackups(
+  dir: string,
+  tag?: string,
+): Promise<{
+  backups: BackupEntry[];
+  problem: string | null;
+  /** Backups made by another studio, or an earlier copy of this one (listed, never pruned). */
+  other_studio: number;
+}> {
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    return {
+      backups: [],
+      problem:
+        code === 'ENOENT'
+          ? 'The backups folder does not exist yet. It is created with the first backup.'
+          : `The backups folder can't be read (${code ?? 'error'}).`,
+      other_studio: 0,
+    };
+  }
+  const latest = migrations.at(-1)!.version;
+  const out: BackupEntry[] = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.name.endsWith(PARTIAL_SUFFIX)) continue;
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/.test(entry.name)) continue;
+    // Re-review M-1: every backup is listed, checkable and restorable; the tag only marks
+    // one made by another studio (or an earlier copy of this one) and keeps it from pruning.
+    const owner = backupTag(entry.name);
+    const foreign = !!(tag && owner && owner !== tag);
+    let m: Record<string, unknown>;
+    try {
+      m = JSON.parse(
+        await readFile(join(dir, entry.name, 'backup-manifest.json'), 'utf8'),
+      ) as Record<string, unknown>;
+    } catch {
+      continue;
+    }
+    const db = m.database as { bytes?: unknown } | undefined;
+    const created = typeof m.created_at === 'string' ? m.created_at : '';
+    if (!db || !nonNegative(db.bytes) || Number.isNaN(Date.parse(created)))
+      continue;
+    if (m.format === BACKUP_FORMAT) {
+      const products = Array.isArray(m.products)
+        ? (m.products as { bytes?: unknown }[])
+        : [];
+      const schema = m.schema_version;
+      if (!nonNegative(schema)) continue;
+      const bytes = products.reduce(
+        (sum, p) => sum + (nonNegative(p.bytes) ? (p.bytes as number) : 0),
+        db.bytes as number,
+      );
+      const same = schema === latest;
+      out.push({
+        name: entry.name,
+        kind: backupKind(entry.name),
+        format: BACKUP_FORMAT,
+        created_at: new Date(created).toISOString(),
+        schema_version: schema as number,
+        bytes,
+        product_files: products.length,
+        restorable: same,
+        other_studio: foreign,
+        restore_note: same
+          ? null
+          : `Made at schema ${schema as number}; this app is at ${latest}. Restore it with the app version that made it.`,
+      });
+    } else if (m.format === PREMIGRATION_FORMAT && nonNegative(m.schema_from)) {
+      out.push({
+        name: entry.name,
+        kind: 'pre_upgrade',
+        format: PREMIGRATION_FORMAT,
+        created_at: new Date(created).toISOString(),
+        schema_version: m.schema_from as number,
+        bytes: db.bytes as number,
+        product_files: 0,
+        restorable: false,
+        other_studio: foreign,
+        restore_note:
+          'An older upgrade backup of the database only (no product files). Restore it by hand with pg_restore; see docs/BACKUP_AND_RESTORE.md.',
+      });
+    }
+  }
+  out.sort(
+    (a, b) =>
+      b.created_at.localeCompare(a.created_at) || b.name.localeCompare(a.name),
+  );
+  return {
+    backups: out,
+    problem: null,
+    other_studio: out.filter((b) => b.other_studio).length,
+  };
+}
+
+/**
+ * Keeps the newest `keep` daily backups and deletes older ones. Only folders this studio's
+ * daily job made (`daily-…-s<tag>` with a full manifest) are ever removed; manual, upgrade and other backups
+ * are the owner's to delete.
+ */
+export async function pruneDailyBackups(
+  dir: string,
+  keep: number,
+  tag: string,
+): Promise<string[]> {
+  const { backups } = await listBackups(dir, tag);
+  const old = backups
+    .filter(
+      (b) =>
+        b.kind === 'daily' &&
+        b.format === BACKUP_FORMAT &&
+        backupTag(b.name) === tag,
+    )
+    .slice(keep);
+  for (const b of old)
+    await rm(join(dir, b.name), { recursive: true, force: true });
+  return old.map((b) => b.name);
 }
