@@ -1,4 +1,3 @@
-import { Term } from './term.js';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import {
   BROWSER_STEP_HELP,
@@ -52,6 +51,7 @@ import {
   useDraftAsk,
   useSpecDrafts,
 } from './spec-drafts.js';
+import { Term } from './term.js';
 
 const METHODS: { value: Method; label: string }[] = [
   { value: 'automated_test', label: 'Automated test (cases below)' },

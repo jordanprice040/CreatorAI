@@ -7,7 +7,7 @@ export const TERMS = {
   claim: {
     label: 'Claim',
     definition:
-      'A statement about the problem or the market that the studio may rely on. It counts as supported only by passages it quotes from fetched pages, and a claim with no passage stays unsupported.',
+      'A statement about a problem, the people it affects, or the tools and data around it, that the studio may rely on. It counts as supported only by passages it quotes from fetched pages, and a claim with no passage stays unsupported.',
   },
   passage: {
     label: 'Passage',
@@ -17,12 +17,12 @@ export const TERMS = {
   gate: {
     label: 'Gate',
     definition:
-      'A check an option must clear before it can advance: ethics (should this be built at all) and access (can your team get and run what it needs). Who may clear a gate is set in Settings › Team profile.',
+      'A check an option must clear before it can advance: ethics (should this be built at all) and access (can your team get and run what it needs). You confirm a gate; Settings › Team profile sets whether one can also clear on its own.',
   },
   humility_review: {
     label: 'Humility review',
     definition:
-      'Before building, an honest comparison of custom software with an existing tool, a change of process, human judgment, a mix, or not doing it. Only a review that recommends building lets that exact version be built.',
+      'Before building, an honest comparison of custom software with an existing tool, a process change, human judgment, a mix, or not doing it. Only a review that recommends building, finds software viable and cites evidence admits a build.',
   },
   freeze: {
     label: 'Freeze',
@@ -32,12 +32,12 @@ export const TERMS = {
   acceptance_check: {
     label: 'Acceptance check',
     definition:
-      'A test that decides whether a built task is done: an automated test with fixed cases, or a browser check of a web page. Some of its cases are held out.',
+      'A test that decides whether a built task is done: an automated test with fixed cases, or a browser check of a web page. At least one of its cases is held out.',
   },
   held_out_case: {
     label: 'Held-out case',
     definition:
-      'A test case kept back from whatever is being tested: the builder, reviewer or model never sees it, and only the final check runs it. Passing shows the work holds up on cases it was never shown.',
+      'A test case kept back while the work is made or tuned: the builder and reviewer never see it, and only the final check runs it. Passing shows the work holds up on cases it was never shown.',
   },
   qualification: {
     label: 'Qualification',
@@ -97,4 +97,23 @@ export function nextTip(s: TipState, e: TipEvent): TipState {
     case 'escape':
       return TIP_CLOSED;
   }
+}
+
+/** The page's side gutter at phone width; a definition keeps this far from the window edge. */
+export const GUTTER = 16;
+
+/**
+ * How far left (0 or negative, in px) to move a definition that starts at the term's left
+ * edge, so it ends `GUTTER` px inside the window (`room` is the window width less the gutter)
+ * without starting left of the gutter either.
+ */
+export function tipShift(
+  termLeft: number,
+  width: number,
+  room: number,
+): number {
+  const over = termLeft + width - room;
+  if (over <= 0) return 0;
+  const by = Math.min(over, termLeft - GUTTER);
+  return by > 0 ? -by : 0;
 }

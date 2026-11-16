@@ -323,10 +323,24 @@ async function loadButtons() {
   const web = createRequire(
     new URL('../../apps/web/src/fix-buttons.tsx', import.meta.url),
   );
+  // F12 term help: a page's terms render as the plain word, as the Advanced view shows them,
+  // so no page here pulls in the view-mode context (PR #228 review N-7).
+  const termStub = {
+    Term: ({ children }: { children: unknown }) => children,
+  };
   const compile = async (
     file: string,
-    stubs: Record<string, unknown>,
+    pageStubs: Record<string, unknown>,
+    seen: ReadonlySet<string> = new Set(),
   ): Promise<Record<string, unknown>> => {
+    // Two siblings that import each other would recurse until the heap runs out; fail clearly.
+    if (seen.has(file))
+      throw new Error(`${file} imports itself through its siblings: stub one`);
+    const path = new Set(seen).add(file);
+    const stubs: Record<string, unknown> = {
+      './term.js': termStub,
+      ...pageStubs,
+    };
     const code = ts.transpileModule(
       await readFile(`apps/web/src/${file}`, 'utf8'),
       {
@@ -346,7 +360,7 @@ async function loadButtons() {
         siblings.set(name, await loadWeb(`${m[1]}.ts`));
       // A .tsx sibling is compiled the same way, with no stubs (third review N-3).
       else if (existsSync(`apps/web/src/${m[1]}.tsx`))
-        siblings.set(name, await compile(`${m[1]}.tsx`, {}));
+        siblings.set(name, await compile(`${m[1]}.tsx`, {}, path));
     }
     const exports = {} as Record<string, unknown>;
     new Function('require', 'exports', code)(
@@ -377,8 +391,6 @@ async function loadButtons() {
   const qualify = await compile('qualify.tsx', {
     './oversight.js': oversight,
     './allow-tasks.js': { AllowTasks: () => null },
-    // F12 term help: the word itself, as the Advanced view shows it.
-    './term.js': { Term: ({ children }: { children: unknown }) => children },
   });
   const mod = await compile('fix-buttons.tsx', {
     './oversight.js': oversight,

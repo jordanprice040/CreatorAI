@@ -1,4 +1,3 @@
-import { Term } from './term.js';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useViewMode } from './view-mode.js';
 import { InlineApproval } from './inline-approval.js';
@@ -30,6 +29,7 @@ import {
 import { useOnShow } from './page-active.js';
 import { newestFirst } from './versions.js';
 import { Fold, FoldAll, useFolds, type Folds } from './fold.js';
+import { Term } from './term.js';
 
 const GATE_LABEL: Record<string, string> = {
   clear: 'clear',

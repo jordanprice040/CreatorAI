@@ -1,4 +1,3 @@
-import { Term } from './term.js';
 import { useState } from 'react';
 import { Money } from './money.js';
 import { useViewMode } from './view-mode.js';
@@ -19,6 +18,7 @@ import { endAfter } from './end-time.js';
 import { api, message, when, words } from './oversight.js';
 import { Fold, FoldAll, useFolds, type Folds } from './fold.js';
 import { firstNeeding } from './fold-state.js';
+import { Term } from './term.js';
 
 // ADR-0079 (P10): "Approve routine steps for me". The form only gathers the owner's choices
 // and shows the summary the studio writes from them. The server writes the same summary

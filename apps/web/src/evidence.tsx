@@ -1,4 +1,3 @@
-import { Term } from './term.js';
 import { requestWebSearch } from './web-search-handoff.js';
 import type { Prefill } from './prefill.js';
 import { versionTag } from './plain-words.js';
@@ -35,6 +34,7 @@ import { REASON_MAX } from './owner-actions.js';
 import { ReasonForm } from './reason-form.js';
 import { Routine, WhatWillHappen } from './routine.js';
 import { ClaimLinks } from './link-claims.js';
+import { Term } from './term.js';
 
 type Passage = SourceDetail['passages'][number];
 const squash = (s: string) => s.replace(/\s+/g, ' ').trim();

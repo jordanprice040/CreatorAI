@@ -1,4 +1,3 @@
-import { Term } from './term.js';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Routine } from './routine.js';
 import { useViewMode } from './view-mode.js';
@@ -37,6 +36,7 @@ import { RecordCharge } from './charge.js';
 import { money } from './amounts.js';
 import { Money } from './money.js';
 import { actionLabel, codeLabel } from './plain-words.js';
+import { Term } from './term.js';
 
 /** Exact amounts; kept here for the pages that already import it from Budgets. */
 export { money };

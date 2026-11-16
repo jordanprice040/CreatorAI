@@ -1,4 +1,3 @@
-import { Term, TermList } from './term.js';
 import { ViewModeSwitch } from './view-mode.js';
 import { Money } from './money.js';
 import { useEffect, useState, type FormEvent } from 'react';
@@ -15,6 +14,7 @@ import { SpendingLimits } from './spending-limits.js';
 import { EvidenceSites } from './evidence-sites.js';
 import { TeamProfilePanel } from './team-profile.js';
 import { Status, useLoad, type View } from './ui.js';
+import { Term, TermList } from './term.js';
 
 /**
  * Settings: the owner's overall ceiling on real spending (ADR-0043), the narrower per-run
@@ -139,8 +139,8 @@ export function Settings({
         everyday tabs; Launch, Workers and Study still open from links. Advanced
         opens every setting and lists every tab. Both send the same requests,
         and the server checks them the same way. In Standard, the studio&apos;s
-        own words have a dotted underline: hover, tab to or tap one for a short
-        definition.
+        own words, such as claim or gate, have a dashed underline: hover over,
+        tab to or tap one for a short definition.
       </p>
       <ViewModeSwitch />
       <details className="term-glossary">

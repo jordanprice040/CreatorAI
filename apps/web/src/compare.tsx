@@ -67,6 +67,7 @@ import {
   needsReview,
   rowReasons,
 } from './carry-decisions.js';
+import { Term } from './term.js';
 
 /** What still needs the owner's look, in words, for the line above Record. */
 function pendingReviews(
@@ -571,9 +572,10 @@ export function Compare({
       <h2 id="cmp-title">Compare and decide</h2>
       <p>
         Read each option against the same evidence before choosing. Scores are
-        prioritization aids from reviewers’ ratings, not measured impact; gates
-        (ethics and access, humility review) are separate and no score clears
-        them.
+        prioritization aids from reviewers’ ratings, not measured impact;{' '}
+        <Term term="gate">gates</Term> (ethics and access,{' '}
+        <Term term="humility_review">humility review</Term>) are separate and no
+        score clears them.
       </p>
       <div className="filters">
         <label htmlFor="cmp-problem" className="inline">

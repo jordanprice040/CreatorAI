@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import ts from 'typescript';
 
 // F12 term help: the studio's own words carry one short definition each, shown on hover,
@@ -13,20 +14,35 @@ type Terms = {
   TERM_KEYS: string[];
   TIP_CLOSED: TipState;
   nextTip: (s: TipState, e: TipEvent) => TipState;
+  GUTTER: number;
+  tipShift: (termLeft: number, width: number, room: number) => number;
 };
 
-async function load(): Promise<Terms> {
-  const source = await readFile('apps/web/src/terms.ts', 'utf8');
-  const code = ts.transpileModule(source, {
-    compilerOptions: {
-      module: ts.ModuleKind.CommonJS,
-      target: ts.ScriptTarget.ES2022,
+const web = createRequire(
+  new URL('../../apps/web/src/term.tsx', import.meta.url),
+);
+
+/** A web module compiled for Node; `stubs` stand in for its sibling imports. */
+async function compile<T>(file: string, stubs: Record<string, unknown> = {}) {
+  const code = ts.transpileModule(
+    await readFile(`apps/web/src/${file}`, 'utf8'),
+    {
+      compilerOptions: {
+        module: ts.ModuleKind.CommonJS,
+        jsx: ts.JsxEmit.ReactJSX,
+        target: ts.ScriptTarget.ES2022,
+      },
     },
-  }).outputText;
-  const exports = {} as Terms;
-  new Function('exports', code)(exports);
+  ).outputText;
+  const exports = {} as T;
+  new Function('require', 'exports', code)(
+    (n: string) => (n in stubs ? stubs[n] : web(n)),
+    exports,
+  );
   return exports;
 }
+
+const load = () => compile<Terms>('terms.ts');
 
 const run = (t: Terms, events: TipEvent[]) =>
   events.reduce((s, e) => t.nextTip(s, e), t.TIP_CLOSED);
@@ -97,7 +113,8 @@ test('every definition is short, plain and unique to its term', async () => {
     assert.ok(k in t.TERMS, k);
 });
 
-test('every term is explained on at least one page, and pages name only known terms', async () => {
+test('every glossary word is explained on at least one page', async () => {
+  // Which words a page may name is already typed (TermKey); this catches a word nobody uses.
   const t = await load();
   const dir = 'apps/web/src';
   const used = new Set<string>();
@@ -107,12 +124,55 @@ test('every term is explained on at least one page, and pages name only known te
     for (const m of src.matchAll(/<Term term="([a-z_]+)"/g)) used.add(m[1]!);
   }
   assert.deepEqual(
-    [...used].filter((k) => !(k in t.TERMS)),
-    [],
-  );
-  assert.deepEqual(
     t.TERM_KEYS.filter((k) => !used.has(k)),
     [],
     'a glossary word no page explains',
   );
+});
+
+test('a definition near the window edge moves left but not past the gutter', async () => {
+  const { tipShift, GUTTER } = await load();
+  const room = 390 - GUTTER; // a 390 px phone
+  assert.equal(tipShift(20, 320, room), 0); // fits as it is
+  assert.equal(tipShift(207, 320, room), -(207 + 320 - room)); // ends at the gutter
+  assert.equal(tipShift(300, 400, room), -(300 - GUTTER)); // starts at the gutter at most
+  assert.equal(tipShift(10, 500, room), 0); // already at the edge: no move right
+});
+
+test('Standard renders a described button; Advanced renders the plain word', async () => {
+  const t = await load();
+  const server = web('react-dom/server') as {
+    renderToStaticMarkup: (e: unknown) => string;
+  };
+  const { createElement } = web('react') as {
+    createElement: (c: unknown, p: unknown, ...k: unknown[]) => unknown;
+  };
+  const render = async (standard: boolean) => {
+    const mod = await compile<{ Term: unknown }>('term.tsx', {
+      './view-mode.js': { useViewMode: () => ({ standard }) },
+      './terms.js': t,
+      './term.css': {},
+    });
+    return server.renderToStaticMarkup(
+      createElement(mod.Term, { term: 'claim' }, 'claims'),
+    );
+  };
+  assert.equal(await render(false), 'claims');
+  const html = await render(true);
+  const described = /aria-describedby="([^"]+)"/.exec(html)?.[1];
+  assert.ok(described, html);
+  // The description is the definition alone, so a reader doesn't say the word twice.
+  assert.ok(
+    html.includes(
+      `<span id="${described}">${t.TERMS.claim!.definition}</span>`,
+    ),
+  );
+  assert.match(html, /<strong aria-hidden="true">Claim:<\/strong>/);
+  assert.match(
+    html,
+    /<button type="button" class="term"[^>]*>claims<\/button>/,
+  );
+  // A tooltip trigger, not a disclosure: no expanded or collapsed state is announced.
+  assert.doesNotMatch(html, /aria-expanded|aria-controls/);
+  assert.match(html, /role="tooltip"[^>]*hidden=""/);
 });

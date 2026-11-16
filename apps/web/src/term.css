@@ -13,14 +13,15 @@
   font: inherit;
   color: inherit;
   text-align: inherit;
-  text-decoration: underline dotted;
+  /* Dashed and lower than a rounded amount's dotted underline (P-9), so the two read apart. */
+  text-decoration: underline dashed;
   text-decoration-color: var(--text-3);
   text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
+  text-underline-offset: 4px;
   cursor: help;
 }
 .term:hover,
-.term[aria-expanded='true'] {
+.term[data-open] {
   text-decoration-color: var(--accent);
 }
 .term-tip {
@@ -45,6 +46,16 @@
   text-align: left;
   text-transform: none;
   white-space: normal;
+}
+/* The gap between term and definition counts as part of both, so the pointer can move onto
+   the definition without it closing (WCAG 1.4.13). */
+.term-tip::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -8px;
+  height: 8px;
 }
 .term-tip[hidden] {
   display: none;

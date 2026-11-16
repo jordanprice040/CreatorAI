@@ -1,4 +1,3 @@
-import { Term } from './term.js';
 import { useViewMode } from './view-mode.js';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import {
@@ -26,6 +25,7 @@ import {
   type HumilityDraft,
 } from './humility-fields.js';
 import { Routine, WhatWillHappen } from './routine.js';
+import { Term } from './term.js';
 
 const ETHICS: { value: EthicalStatus; label: string }[] = [
   { value: 'none_identified', label: 'None identified' },

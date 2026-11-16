@@ -1,4 +1,3 @@
-import { Term } from './term.js';
 import { useEffect, useState } from 'react';
 import {
   DiscoveryBenchmarksSchema,
@@ -28,6 +27,7 @@ import {
   type Admits,
 } from './qualification-role.js';
 import { api, words } from './oversight.js';
+import { Term } from './term.js';
 
 /**
  * The frozen benchmarks this app can start a plan qualification with (audit item 4, piece 4).
