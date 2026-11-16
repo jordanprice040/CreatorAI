@@ -6,6 +6,13 @@ What now works: a walk of all 27 tabs (Standard dark at 1440, 1024, 768 and 390 
 
 Checked in the cloud container on a throwaway PostgreSQL 16 database: `pnpm typecheck` and `pnpm format:check` pass; `ux-sweep.mjs` after the change (162 shots) is clean; the border sweep still finds 0 touching boxes in both views with folds open; `row-align.mjs` finds no misaligned row. Full `pnpm test:db`: 1364 tests, 1330 pass, 29 skipped, the 5 known PowerShell-wrapper failures; `pnpm test:dev-safety` 19 pass, 3 skipped.
 
+## November 15 update — stray tool-call lines before a role's json fence (ADR-0115, no migration)
+
+- **What works.** Plan-route builds now accept a builder or reviewer answer that starts with up to 8 invented one-line `<invoke …>…</invoke>` or `</invoke>` lines before its one json fence, as claude-sonnet-5-5's H4 answer did (record `49fe5782`). The lines are dropped and counted in `call-N-answer-form.json`; anything else around the fence still fails.
+- **Frozen benchmarks unchanged.** v5 recipe benchmarks still grade one fence only (their attempts' plans say so). New frozen `p14-larger-ledgercheck-v6` (same task, cases and pass bars as v5) allows the lines, and a pass on it lifts the larger Python build label (ADR-0112).
+- **Checks run (cloud):** typecheck; format; new tests in `role-answer-invoke.test.ts`, `build.test.ts` (default drops and records the form and mode; a plan naming `one_json_fence` stops), `recipe-qualification.test.ts` (H4 form fails v5, qualifies v6; v6 equals v5 but for its answer form), `web-recipe.test.ts` (a v6 pass lifts the larger label only on its own roles). `pnpm test:db` at 6504bb4 (PostgreSQL 16): 1,371 tests, 1,337 pass, 29 skipped, 5 fail, the known PowerShell-wrapper tests (422, 440, 802, 806, 896); `pnpm test:dev-safety` 19 pass, 0 fail. Review 1 fixes rerun: see the handoff.
+- **Not done:** no live run. Requalifying Claude on v6 needs Jordan's typed OK.
+
 ## November 15 update — autopilot fixes from the third live rerun (no migration or ADR)
 
 These fix the findings in `/mnt/project-files/reviews/LIVE_AUTOPILOT_RERUN_205_2026-11-15.md` (autopilot e8b36bd9 on main 42dce84).

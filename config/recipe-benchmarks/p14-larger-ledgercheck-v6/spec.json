@@ -1,0 +1,282 @@
+{
+  "format": "p14-benchmark-spec/1",
+  "benchmark_id": "p14-larger-ledgercheck-v6",
+  "scale": "larger",
+  "title": "Ledger cap checker CLI (P14 larger benchmark)",
+  "content": {
+    "audience": "Synthetic benchmark operator measuring the studio's build path at a larger, multi-module scale",
+    "problem_statement": "Measure whether the bounded builder and independent reviewer can deliver a multi-module Python standard-library CLI with an internal module API (parser, rules engine, report writer) that validates a spending ledger read from stdin and reports category totals against caps, judged by frozen exact-output cases with held-out edge cases and a separate extended held-out suite. Larger here means more interacting requirements and modules, not line count. Synthetic benchmark, not a customer product.",
+    "user_flows": [
+      {
+        "key": "F1",
+        "name": "Category totals",
+        "steps": [
+          "Pipe a ledger into the CLI with no arguments",
+          "Read each category total and the grand total"
+        ]
+      },
+      {
+        "key": "F2",
+        "name": "Caps",
+        "steps": [
+          "Run with one or more --cap name=amount",
+          "Read ok or over per capped category",
+          "Check exit status 4 when any is over"
+        ]
+      },
+      {
+        "key": "F3",
+        "name": "JSON report",
+        "steps": [
+          "Run with --format json",
+          "Parse the single JSON line"
+        ]
+      },
+      {
+        "key": "F4",
+        "name": "Month filter",
+        "steps": [
+          "Run with --month YYYY-MM",
+          "Read totals for that month only"
+        ]
+      },
+      {
+        "key": "F5",
+        "name": "Invalid rows",
+        "steps": [
+          "Pipe a ledger with bad rows",
+          "Read every bad line number and reason",
+          "Check exit status 1"
+        ]
+      },
+      {
+        "key": "F6",
+        "name": "Invalid arguments",
+        "steps": [
+          "Run with an argument the CLI does not accept",
+          "Read invalid input and exit status 2"
+        ]
+      }
+    ],
+    "scope": [
+      "Python 3.8+ standard library only. Entry point src/main.py plus a package src/ledger with at least three modules: parse.py (row parsing and validation), rules.py (totals and caps) and report.py (text and JSON output). main.py only parses arguments and wires the modules together",
+      "Runtime rule: QA runs python3 -I src/main.py from the product root, so src is not on the import path. main.py must insert its own directory into sys.path before importing ledger",
+      "stdin is a ledger split into lines on newline; one trailing carriage return per line is removed. Lines are numbered from 1, counting every line. A line that is empty or only whitespace, or that starts with #, is skipped",
+      "Every other line has exactly three comma-separated fields date,category,amount with no trimming. date is a real calendar date YYYY-MM-DD. category is 1 to 20 of a-z, 0-9 or underscore. amount matches -?digits with an optional . and 1 or 2 digits",
+      "A row's reason is the first that applies in this order: bad field count, bad date, bad category, bad amount. All lines are validated even when --month is given",
+      "If any row is invalid, print one line per invalid row in line order as: line N: reason, print nothing else and exit 1",
+      "Otherwise total each category in integer cents. Money is printed as optional minus sign, whole part, dot, two digits (for example -0.05, 3.10, 1200.00); zero is 0.00",
+      "Text report: one line per category in ascending category order, then a final line total T where T is the sum of the printed category totals. An uncapped category line is: name total. A capped one is: name total / cap status, where status is over when total is greater than cap, else ok",
+      "--cap name=amount (repeatable, at most 5, each name once) caps a category. name follows the category rule; amount uses the amount rule without a minus sign. A capped category with no rows is still listed with total 0.00",
+      "--month YYYY-MM (a real month, at most once) keeps only rows whose date is in that month before totalling",
+      "--format text or json (at most once, default text). JSON is json.dumps(report, sort_keys=True) plus newline, where report is {categories: [{name, total, cap, status}], total}; money values are strings in the money format, and cap and status are null when uncapped",
+      "Any other argument, a flag without its value, or an invalid or repeated value prints exactly: invalid input, then newline, and exits 2, before reading rows",
+      "Exit 4 when the report has at least one over category, else exit 0. No files, network, environment variables or third-party packages"
+    ],
+    "non_goals": [
+      "Currencies or exchange rates",
+      "Reading files",
+      "Persistence between runs",
+      "Web UI",
+      "Public release",
+      "Third-party packages"
+    ],
+    "data_contracts": [
+      {
+        "name": "ledgercheck/1",
+        "description": "Synthetic CSV-like ledger lines on stdin; text or one JSON line on stdout",
+        "data_class": "synthetic"
+      }
+    ],
+    "acceptance_checks": [
+      {
+        "key": "A1",
+        "flow": "F1",
+        "statement": "With no arguments print each category total in category order, then the grand total",
+        "measure": "Exact stdout and exit code 0",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [],
+            "stdin": "2026-10-01,food,12.50\n2026-10-03,rent,1200\n2026-10-05,food,40\n2026-10-09,misc,3.1\n",
+            "stdout": "food 52.50\nmisc 3.10\nrent 1200.00\ntotal 1255.60\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "# october\n2026-10-01,books,20.00\n\n2026-10-02,books,-25.5\n2026-10-02,coffee,0.05\n",
+            "stdout": "books -5.50\ncoffee 0.05\ntotal -5.45\n",
+            "exit_code": 0,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A2",
+        "flow": "F2",
+        "statement": "--cap marks each capped category ok or over and exits 4 when any is over",
+        "measure": "Exact stdout and exit code 4 when over, else 0",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [
+              "--cap",
+              "food=50",
+              "--cap",
+              "rent=1500"
+            ],
+            "stdin": "2026-10-01,food,12.50\n2026-10-03,rent,1200\n2026-10-05,food,40\n2026-10-09,misc,3.1\n",
+            "stdout": "food 52.50 / 50.00 over\nmisc 3.10\nrent 1200.00 / 1500.00 ok\ntotal 1255.60\n",
+            "exit_code": 4,
+            "held_out": false
+          },
+          {
+            "args": [
+              "--cap",
+              "travel=100.5",
+              "--cap",
+              "food=10"
+            ],
+            "stdin": "2026-10-01,food,10\n",
+            "stdout": "food 10.00 / 10.00 ok\ntravel 0.00 / 100.50 ok\ntotal 10.00\n",
+            "exit_code": 0,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A3",
+        "flow": "F3",
+        "statement": "--format json prints the same report as one JSON line",
+        "measure": "Exact stdout and exit code 0",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [
+              "--format",
+              "json"
+            ],
+            "stdin": "2026-10-01,food,12.50\n2026-10-09,misc,3.1\n",
+            "stdout": "{\"categories\": [{\"cap\": null, \"name\": \"food\", \"status\": null, \"total\": \"12.50\"}, {\"cap\": null, \"name\": \"misc\", \"status\": null, \"total\": \"3.10\"}], \"total\": \"15.60\"}\n",
+            "exit_code": 0,
+            "held_out": false
+          }
+        ]
+      },
+      {
+        "key": "A4",
+        "flow": "F4",
+        "statement": "--month YYYY-MM totals only rows dated in that month",
+        "measure": "Exact stdout and exit code 0",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [
+              "--month",
+              "2028-02"
+            ],
+            "stdin": "2028-02-29,food,5\n2028-03-01,food,7\n2028-02-01,rent,100\n",
+            "stdout": "food 5.00\nrent 100.00\ntotal 105.00\n",
+            "exit_code": 0,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A5",
+        "flow": "F5",
+        "statement": "Invalid rows are all reported by line number and reason, with exit 1 and no report",
+        "measure": "Exact stdout and exit code 1",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [],
+            "stdin": "2026-10-01,food,12.5\n2026-10-02,food,abc\n",
+            "stdout": "line 2: bad amount\n",
+            "exit_code": 1,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "2026-02-30,food,1\n2026-10-01,Food,1\n2026-10-01,food\n2026-10-01,food,1.234\n2026-10-01,food,2\n",
+            "stdout": "line 1: bad date\nline 2: bad category\nline 3: bad field count\nline 4: bad amount\n",
+            "exit_code": 1,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A6",
+        "flow": "F6",
+        "statement": "Invalid arguments print invalid input and exit 2",
+        "measure": "Exact stdout and exit code 2",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [
+              "--verbose"
+            ],
+            "stdin": "2026-10-01,food,12.50\n2026-10-03,rent,1200\n2026-10-05,food,40\n2026-10-09,misc,3.1\n",
+            "stdout": "invalid input\n",
+            "exit_code": 2,
+            "held_out": false
+          },
+          {
+            "args": [
+              "--cap",
+              "food=5",
+              "--cap",
+              "food=6"
+            ],
+            "stdin": "2026-10-01,food,12.50\n2026-10-03,rent,1200\n2026-10-05,food,40\n2026-10-09,misc,3.1\n",
+            "stdout": "invalid input\n",
+            "exit_code": 2,
+            "held_out": true
+          }
+        ]
+      }
+    ],
+    "risks": [
+      {
+        "risk": "The 10-case build limit cannot hold the whole larger suite",
+        "mitigation": "A separate frozen extended held-out suite is scored after the build on the exported package"
+      },
+      {
+        "risk": "The builder imports sibling modules without fixing sys.path under python3 -I",
+        "mitigation": "The runtime rule is part of the frozen scope; QA would fail every case otherwise"
+      },
+      {
+        "risk": "Held-out cases leak to the builder",
+        "mitigation": "The studio hides held-out cases; the repository copy is never sent to runtime roles"
+      }
+    ],
+    "maintenance": {
+      "owner": "Jordan (benchmark owner)",
+      "obligations": [
+        "Keep this frozen version unchanged; changes need a new benchmark version"
+      ],
+      "review_interval": "On recipe, role prompt, route or model change"
+    },
+    "tasks": [
+      {
+        "key": "T1",
+        "title": "Implement the multi-module ledger cap checker",
+        "role": "builder",
+        "file_scope": [
+          "src"
+        ],
+        "depends_on": [],
+        "acceptance": [
+          "A1",
+          "A2",
+          "A3",
+          "A4",
+          "A5",
+          "A6"
+        ],
+        "deliverable": "src/main.py and the src/ledger package that pass every acceptance check"
+      }
+    ]
+  }
+}
