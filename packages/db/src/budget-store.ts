@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { portfolioEnvelopeGate } from './portfolio-gates.js';
+import { isSpendingManagerIn } from './spending-manager.js';
+import { notifySpendThresholds } from './notifications.js';
 import {
   ceilingRefusal,
   currentCeiling,
@@ -330,6 +332,13 @@ export class BudgetStore extends OversightStore {
 
   // ---- Owner's runtime ceiling (Settings, ADR-0043) ----------------------------------------
 
+  /** ADR-0116 (N1): records each spend threshold the current exposure has reached. */
+  protected async spendWarnings(c: PoolClient, lock: boolean) {
+    const e = await runtimeExposure(c, this.spending, null, { lock });
+    const v = await currentCeiling(c, this.spending);
+    await notifySpendThresholds(c, { ...e, version: v.version });
+  }
+
   /**
    * ADR-0113 (S0): the studio-wide ceiling, limits and spend views belong to one studio
    * spending manager, recorded in `studio_spending_manager`. Owning or creating a workspace
@@ -337,13 +346,7 @@ export class BudgetStore extends OversightStore {
    * tester accounts never qualify, even if the row names them.
    */
   protected async isSpendingManager(c: PoolClient, actorId: string) {
-    const { rows } = await c.query<{ ok: boolean }>(
-      `select exists(select 1 from studio_spending_manager s join actors a on a.id = s.actor_id
-          where s.actor_id = $1 and a.kind = 'human'
-            and not exists(select 1 from tester_accounts t where t.actor_id = a.id)) as ok`,
-      [actorId],
-    );
-    return rows[0]?.ok === true;
+    return isSpendingManagerIn(c, actorId);
   }
   private async requireSpendingManager(c: PoolClient, actorId: string) {
     if (!(await this.isSpendingManager(c, actorId)))
@@ -1512,6 +1515,8 @@ export class BudgetStore extends OversightStore {
         reserved: amount,
         result: null,
       });
+      // ADR-0116 (N1): spend warnings to the studio spending manager, under the ceiling lock.
+      if (!fixture) await this.spendWarnings(c, true);
       return { kind: 'reserved', reservation, pricing };
     });
   }
@@ -1660,6 +1665,11 @@ export class BudgetStore extends OversightStore {
         delta,
         reservationId,
       );
+      // ADR-0116 (N1): only a charge above what was reserved can raise exposure here. This
+      // transaction already holds the audit lock, so it reads without the ceiling lock (which
+      // must come first); a threshold missed by a race is recorded by the next dispatch.
+      if (r.fixture !== true && incurred !== null && incurred > reserved)
+        await this.spendWarnings(c, false);
       return { reservation: await reread(), changed: true };
     });
   }

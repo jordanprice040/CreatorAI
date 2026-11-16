@@ -9,6 +9,7 @@ import {
 } from '@creator/contracts';
 import {
   ConnectionStore,
+  NotificationStore,
   offeredDiscoveryBenchmarks,
   type CommandContext,
 } from '@creator/db';
@@ -244,6 +245,24 @@ test('ADR-0088: a queue runs its tasks in order, each started once, and finishes
   );
   assert.equal(events.rows.length, 3);
   assert.ok(events.rows.every((e) => e.body.queue_id === q.id));
+  // ADR-0116 (N1): each pass is an inbox row in the queue's batch, and the finished queue one
+  // more; nothing interrupts.
+  await s.store.drainOutbox();
+  const told = (await new NotificationStore(s.db.pool).notifications(owner))
+    .items;
+  assert.deepEqual(
+    told.map((n) => [n.event_key, n.batch_id, n.interrupt_state]).sort(),
+    [
+      ['qualification.passed', q.id, 'none'],
+      ['qualification.passed', q.id, 'none'],
+      ['qualification.passed', q.id, 'none'],
+      ['qualification.queue_done', null, 'none'],
+    ],
+  );
+  assert.equal(
+    told.find((n) => n.event_key === 'qualification.queue_done')!.title,
+    'Qualification queue completed: 3 of 3 qualified',
+  );
 });
 
 test('ADR-0088: a failed qualification stops the queue and nothing after it starts', async (t) => {
@@ -252,7 +271,7 @@ test('ADR-0088: a failed qualification stops the queue and nothing after it star
     responses: [{ kind: 'text', text: 'ok' }, BAD],
   });
   if (!s) return;
-  await s.queue(['summarization', 'specification', 'scoring']);
+  const queued = await s.queue(['summarization', 'specification', 'scoring']);
   const r = s.runner();
   await r.sweep();
   await r.idle();
@@ -270,6 +289,77 @@ test('ADR-0088: a failed qualification stops the queue and nothing after it star
   await r.sweep();
   await r.idle();
   assert.equal(s.sent(), CASES);
+  // ADR-0116 (N1) check 12b: one summary interrupts; the failed attempt is an inbox row in the
+  // batch with no pop-up of its own.
+  await s.store.drainOutbox();
+  const told = (await new NotificationStore(s.db.pool).notifications(owner))
+    .items;
+  assert.deepEqual(
+    told.map((n) => [n.title, n.batch_id, n.interrupt_state]).sort(),
+    [
+      ['1 of 3 qualifications failed; 2 were not started', null, 'pending'],
+      ['Qualification failed: summarization on m', queued.id, 'none'],
+    ].sort(),
+  );
+});
+
+test('ADR-0116 check 12c: a standalone qualification that fails alerts once, titled for itself', async (t) => {
+  const s = await setup(t, {
+    responses: [{ kind: 'text', text: 'ok' }, BAD],
+  });
+  if (!s) return;
+  const qual = await s.store.startPlanQualification(owner, s.ws.id, s.conn.id, {
+    expected_version: (await s.current()).version,
+    model_id: 'm',
+    manifest: bench('summarization'),
+    min_held_out_cases: 8,
+    floor: { numerator: 1, denominator: 1 },
+  });
+  await s.service.runQualification(owner, s.ws.id, qual.id);
+  await s.store.drainOutbox();
+  const told = (await new NotificationStore(s.db.pool).notifications(owner))
+    .items;
+  assert.deepEqual(
+    told.map((n) => [n.event_key, n.title, n.batch_id, n.interrupt_state]),
+    [
+      [
+        'qualification.failures',
+        'Qualification failed: summarization on m',
+        null,
+        'pending',
+      ],
+    ],
+  );
+});
+
+test('ADR-0116 review L-3: a queue the studio stops before any task starts is one inbox row', async (t) => {
+  const s = await setup(t, {
+    responses: [{ kind: 'text', text: 'ok' }, GOOD],
+  });
+  if (!s) return;
+  const q = await s.queue(['summarization', 'specification']);
+  const holder = randomUUID();
+  assert.ok(await s.store.leaseQualificationQueue(holder, 60_000));
+  await s.store.abandonQualificationQueue(q.id, holder, 'test stop');
+  const after = await s.detailQueue();
+  assert.equal(after.state, 'stopped');
+  assert.deepEqual(
+    after.items.map((i) => i.state),
+    ['cancelled', 'cancelled'],
+  );
+  await s.store.drainOutbox();
+  const told = (await new NotificationStore(s.db.pool).notifications(owner))
+    .items;
+  assert.deepEqual(
+    told.map((n) => [n.event_key, n.title, n.interrupt_state]),
+    [
+      [
+        'qualification.queue_done',
+        'Qualification queue stopped: 0 of 2 qualified; 2 were not started',
+        'none',
+      ],
+    ],
+  );
 });
 
 test('ADR-0088: cancelling mid-queue lets the running task finish and starts nothing else', async (t) => {

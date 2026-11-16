@@ -208,6 +208,7 @@ import {
   toChatActionFill,
 } from './chat-action-store.js';
 import { toRun } from './oversight-store.js';
+import { notifyConnectionBlocked } from './notifications.js';
 import {
   activityNow,
   PLAN_REQUEST_STALE_AFTER,
@@ -5154,6 +5155,23 @@ export class ConnectionStore extends AutomationStore {
           `update plan_connections set ${updates.join(', ')}, updated_at = clock_timestamp() where id = $1`,
           values,
         );
+      // ADR-0116 (N1): the connection refused this request for its own reason; whoever can
+      // restore it is told (once a day per kind). Settling this request again changes nothing.
+      const before = conn.rows[0] as Row;
+      const blocked =
+        observed.sign_in_invalid && currentCredential
+          ? ('sign_in' as const)
+          : quota === 'exhausted' &&
+              (before.quota as { state?: string } | null)?.state !== 'exhausted'
+            ? ('usage_limit' as const)
+            : null;
+      if (blocked && s.state !== 'completed')
+        await notifyConnectionBlocked(c, {
+          connectionId: String(r.connection_id),
+          ws: String(before.workspace_id),
+          requestId: String(r.id),
+          kind: blocked,
+        });
       if (r.purpose === 'verification') {
         const verified = s.state === 'completed';
         if (sameLogin && (verified || observed.model_refused))

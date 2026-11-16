@@ -57,6 +57,11 @@ pnpm db:migrate
 pnpm dev
 ```
 
+Settings › Backups (ADR-0123) needs `pg_dump` and `pg_restore` at least as new as
+the server: set `CREATOR_PG_BIN` to their folder when they are not on `PATH` (for
+example `$env:CREATOR_PG_BIN = 'C:\pgsql18\pgsql\bin'`), or the daily backup fails.
+`CREATOR_BACKUPS_DIR` sets the starting backups folder (default `.creator/backups`).
+
 Replace placeholder credentials and database. The application does not load
 .env.docker automatically. Keep passwords and session files out of Git.
 Migrations check the stored schema against code. Without a database, record routes

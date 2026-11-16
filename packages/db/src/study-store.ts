@@ -368,6 +368,9 @@ export class StudyStore extends ProjectReportStore {
       'insert into study_budget_holds(attempt_id,ledger,cap_nano,ledger_cap_nano) values($1,$2,$3,$4)',
       [a.id, ledger, cap.toString(), total.toString()],
     );
+    // A final hold raises runtime exposure, so it may cross a spend threshold (ADR-0116 N-1).
+    // lockBudget already holds the runtime ceiling for a final record.
+    if (!input.synthetic) await this.spendWarnings(c, false);
     // A held final attempt's event leaves out the shared ledger's exposure too (ADR-0113).
     const { exposure_before_nano_usd: _shared, ...finalHeld } = detail;
     await this.event(
