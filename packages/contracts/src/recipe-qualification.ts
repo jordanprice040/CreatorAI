@@ -153,7 +153,7 @@ export const RECIPE_BENCHMARK_INFO: Readonly<
     recipe: 'python-build/1',
     scale: 'larger',
     label:
-      'Python program, extra large: a stock and order simulator (13 files, 62 checks and a structure check)',
+      'Python program, extra large: a stock and order simulator (13 files, 62 checks and a structure check; stray tool-call lines allowed)',
     copied_from: null,
     attempts: 3,
     caps: {

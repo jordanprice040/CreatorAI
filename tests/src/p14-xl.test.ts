@@ -352,6 +352,12 @@ test('ADR-0114: p14-xl-v1 is frozen, intact and loads with the studio limits it 
   // Jordan's choice: stray tool-call lines before the fence are dropped, as on ledger v6.
   assert.equal(info.answer_wrapping, 'invoke_lines_then_json_fence');
   assert.equal(expectations.answer_wrapping, info.answer_wrapping);
+  // Re-review L-1: Qualify shows the relaxed answer form only through the label, as for v6.
+  for (const id of ['p14-xl-v1', 'p14-larger-ledgercheck-v6'] as const)
+    assert.match(
+      RECIPE_BENCHMARK_INFO[id].label,
+      /; stray tool-call lines allowed\)$/,
+    );
   const { rule: _, ...rule } = expectations.structure;
   assert.deepEqual(b.structure, rule);
 });
