@@ -5,8 +5,12 @@ import {
   AssignStudySchema,
   StudyArtifactSchema,
   StudyTestSchema,
-  StudyInterventionSchema,
+  StudyInterventionRequestSchema,
   FinishStudyAttemptSchema,
+  STUDY_EFFORT_CLOCK_SLACK_MS,
+  STUDY_EFFORT_TIMER_VERSION,
+  type StudyEffort,
+  type StudyEffortStep,
   OVERSIGHT_POLICY_VERSION,
   parse,
   z,
@@ -40,7 +44,7 @@ import {
   implementationTaskContext,
   taskHashes,
 } from '@creator/domain';
-import { RunbookStore } from './runbook-store.js';
+import { ProjectReportStore } from './project-report-store.js';
 import {
   ceilingRefusal,
   currentSpendLimits,
@@ -68,7 +72,7 @@ export function readEvaluationConfig(
   return evaluationConfig(JSON.parse(readFileSync(path, 'utf8')));
 }
 
-export class StudyStore extends RunbookStore {
+export class StudyStore extends ProjectReportStore {
   /** The reviewed evaluation configuration; record and budget gates read it, never callers. */
   evaluation: EvaluationConfig = readEvaluationConfig();
   protected async study(c: PoolClient, ws: string, studyId: string) {
@@ -845,7 +849,7 @@ export class StudyStore extends RunbookStore {
         : action === 'tests'
           ? StudyTestSchema
           : action === 'interventions'
-            ? StudyInterventionSchema
+            ? StudyInterventionRequestSchema
             : action === 'finish'
               ? FinishStudyAttemptSchema
               : action === 'deviations'
@@ -861,13 +865,15 @@ export class StudyStore extends RunbookStore {
                       'discovery',
                     ]),
                   });
-    const req = parse(
+    const { effort, ...req } = parse(
       schema as z.ZodType<Record<string, unknown>>,
       raw,
-    ) as Record<string, unknown>;
+    ) as Record<string, unknown> & { effort?: StudyEffort };
     // Return denials after commit so the denial event is durable.
     return this.tx(async (c) => {
       const a = await this.lockAttemptForWrite(c, ctx, ws, attemptId);
+      // Review M-2 (#221): only the assigned person's own time is measured, never the owner's.
+      if (effort) notParticipant(a, ctx);
       if (action === 'helpers')
         return {
           allowed: false,
@@ -960,8 +966,129 @@ export class StudyStore extends RunbookStore {
           passed,
         };
       }
-      return this.event(c, ctx, a.study_id, attemptId, action, req);
+      const saved = await this.event(
+        c,
+        ctx,
+        a.study_id,
+        attemptId,
+        action,
+        req,
+      );
+      if (effort) await this.#recordEffort(c, ctx, attemptId, saved.id, effort);
+      return saved;
     });
+  }
+  /**
+   * ADR-0122 (F13): starts timing one intervention step on the server clock. Only an assigned
+   * attempt in the assisted condition records interventions, so only it is timed.
+   */
+  async startEffortStep(
+    ctx: CommandContext,
+    ws: string,
+    attemptId: string,
+  ): Promise<StudyEffortStep> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    attemptId = uuid(attemptId);
+    return this.tx(async (c) => {
+      const a = await this.lockAttemptForWrite(c, ctx, ws, attemptId);
+      notParticipant(a, ctx);
+      if (a.condition !== 'human_in_loop')
+        throw fail(
+          'INVALID_TRANSITION',
+          'Only the assisted condition records interventions, so only it times intervention steps.',
+        );
+      if (a.state !== 'assigned')
+        throw fail(
+          'INVALID_TRANSITION',
+          'This attempt is terminal; no further steps are timed.',
+        );
+      const cap = ((await this.study(c, ws, a.study_id)).manifest as StudyInput)
+        .packet.time_cap_seconds;
+      if (Date.now() - Date.parse(a.created_at) > cap * 1000)
+        throw fail(
+          'EXPIRED',
+          'The assignment time cap has elapsed; no further steps are timed.',
+        );
+      const r = await c.query(
+        "insert into study_effort_steps(id,study_id,attempt_id,actor_id,step) values($1,$2,$3,$4,'intervention') returning *",
+        [randomUUID(), a.study_id, attemptId, ctx.actorId],
+      );
+      return effortStep(r.rows[0]!, a.synthetic, null);
+    });
+  }
+  /** Every timed step of one attempt, finished or not, oldest first. */
+  async effortSteps(
+    ctx: CommandContext,
+    ws: string,
+    attemptId: string,
+  ): Promise<StudyEffortStep[]> {
+    ctx = normalize(ctx);
+    return this.tx(async (c) => {
+      const a = await this.accessAttempt(c, ctx, uuid(ws), uuid(attemptId));
+      return this.#effortRows(c, a.id, a.synthetic);
+    });
+  }
+  async #effortRows(c: PoolClient, attemptId: string, synthetic: boolean) {
+    const r = await c.query(
+      `select s.*, m.event_id, m.timer_version, m.active_ms, m.wait_ms, m.idle_ms,
+              m.away_ms, m.wall_ms,
+              m.recorded_at
+         from study_effort_steps s left join study_effort_measures m on m.step_id = s.id
+        where s.attempt_id = $1 order by s.started_at, s.id`,
+      [attemptId],
+    );
+    return r.rows.map((row) =>
+      effortStep(row, synthetic, row.event_id ? row : null),
+    );
+  }
+  /**
+   * Binds the browser totals to the intervention that ends the step. The step must be this
+   * attempt's, started by this person and not yet measured, and the totals cannot exceed the
+   * step's own time on the server clock (plus request latency).
+   */
+  async #recordEffort(
+    c: PoolClient,
+    ctx: CommandContext,
+    attemptId: string,
+    eventId: string,
+    effort: StudyEffort,
+  ) {
+    const step = await c.query(
+      `select s.actor_id, m.step_id as measured,
+              floor(extract(epoch from (clock_timestamp() - s.started_at)) * 1000)::bigint as wall_ms
+         from study_effort_steps s left join study_effort_measures m on m.step_id = s.id
+        where s.id = $1 and s.attempt_id = $2 for update of s`,
+      [effort.step_id, attemptId],
+    );
+    const row = step.rows[0];
+    if (!row || String(row.actor_id).toLowerCase() !== ctx.actorId)
+      throw fail(
+        'NOT_FOUND',
+        'The timed step does not belong to this attempt and person; start a new step.',
+      );
+    if (row.measured)
+      throw fail(
+        'INVALID_TRANSITION',
+        'This step’s time is already recorded; start a new step.',
+      );
+    const wallMs = Number(row.wall_ms);
+    const refusal = effortOverrun(effort, wallMs);
+    if (refusal) throw fail('INVALID_CONTRACT', refusal);
+    await c.query(
+      'insert into study_effort_measures(step_id,attempt_id,event_id,timer_version,active_ms,wait_ms,idle_ms,away_ms,wall_ms) values($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+      [
+        effort.step_id,
+        attemptId,
+        eventId,
+        effort.timer_version,
+        effort.active_ms,
+        effort.wait_ms,
+        effort.idle_ms,
+        effort.away_ms,
+        wallMs,
+      ],
+    );
   }
   async graderMaterial(
     ctx: CommandContext,
@@ -1096,6 +1223,10 @@ export class StudyStore extends RunbookStore {
         const interventions = humanEvents.rows.filter(
           (e) => e.kind === 'interventions',
         );
+        const effort = await this.#effortRows(c, a.id, a.synthetic);
+        const timed = effort.flatMap((e) => (e.measured ? [e.measured] : []));
+        const seconds = (k: 'active_ms' | 'wait_ms' | 'idle_ms' | 'away_ms') =>
+          timed.reduce((n, m) => n + m[k], 0) / 1000;
         const rs = reservations.rows;
         const sum = (predicate: (r: Row) => boolean, column: string) =>
           rs
@@ -1111,6 +1242,22 @@ export class StudyStore extends RunbookStore {
             content_redacted: true,
           },
           execution: execution.rows,
+          // ADR-0122: measured by the Study page's browser timer, beside (never replacing) the
+          // participant's own reported minutes. Synthetic studies time the operator testing the
+          // workflow, so their timing is never participant data.
+          measured_effort: {
+            source: STUDY_EFFORT_TIMER_VERSION,
+            subject: synthetic
+              ? 'synthetic_operator_not_participant'
+              : 'assigned_participant',
+            timed_steps: timed.length,
+            unfinished_steps: effort.length - timed.length,
+            intervention_active_seconds: seconds('active_ms'),
+            intervention_wait_seconds: seconds('wait_ms'),
+            intervention_idle_seconds: seconds('idle_ms'),
+            intervention_away_seconds: seconds('away_ms'),
+            steps: effort,
+          },
           measurements: {
             active_ai_seconds: 0,
             active_ai_source: synthetic
@@ -1218,7 +1365,7 @@ export class StudyStore extends RunbookStore {
           synthetic
             ? 'Synthetic only; no participants recruited.'
             : 'Final record; no analysis has been run on it.',
-          'Human timing is reported, not observed.',
+          'Reported human timing is the participant’s own report. Measured step timing (study-effort-timer/1) comes from the Study page in the browser, covers only intervention steps timed there, and is checked only against the studio clock.',
           'Text checks run in the studio; code runs only in the isolated product worker.',
         ],
       };
@@ -1599,6 +1746,58 @@ export class StudyStore extends RunbookStore {
       });
     });
   }
+}
+
+/**
+ * The timer measures the assigned person only: the workspace owner may act on a participant's
+ * attempt, but their time is not the participant's, so they cannot time its steps.
+ */
+function notParticipant(a: StudyAttempt, ctx: CommandContext) {
+  if (a.participant_actor_id.toLowerCase() !== ctx.actorId)
+    throw fail(
+      'ACCESS_DENIED',
+      'Only the person assigned to this attempt can time its steps.',
+    );
+}
+
+/** Null when the measured totals fit inside the step's server time, else the reason. */
+export function effortOverrun(
+  effort: Pick<StudyEffort, 'active_ms' | 'wait_ms' | 'idle_ms' | 'away_ms'>,
+  wallMs: number,
+): string | null {
+  const measured =
+    effort.active_ms + effort.wait_ms + effort.idle_ms + effort.away_ms;
+  return measured > wallMs + STUDY_EFFORT_CLOCK_SLACK_MS
+    ? `The measured time (${measured} ms) is longer than the step lasted on the studio clock (${wallMs} ms).`
+    : null;
+}
+
+function effortStep(
+  s: Row,
+  synthetic: boolean,
+  m: Row | null,
+): StudyEffortStep {
+  return {
+    id: String(s.id),
+    attempt_id: String(s.attempt_id),
+    step: 'intervention',
+    synthetic,
+    started_at: iso(s.started_at),
+    measured: m
+      ? {
+          event_id: String(m.event_id),
+          timer_version: String(
+            m.timer_version,
+          ) as typeof STUDY_EFFORT_TIMER_VERSION,
+          active_ms: Number(m.active_ms),
+          wait_ms: Number(m.wait_ms),
+          idle_ms: Number(m.idle_ms),
+          away_ms: Number(m.away_ms),
+          wall_ms: Number(m.wall_ms),
+          recorded_at: iso(m.recorded_at),
+        }
+      : null,
+  };
 }
 
 export function budgetRefusal(

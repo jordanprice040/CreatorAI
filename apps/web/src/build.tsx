@@ -140,7 +140,12 @@ const ProductEntrySchema = z.object({
 });
 type ProductEntry = z.infer<typeof ProductEntrySchema>;
 type Build = z.infer<typeof BuildSchema>;
-const Started = z.object({ build_id: z.string(), state: z.literal('running') });
+const Started = z.object({
+  build_id: z.string(),
+  state: z.literal('running'),
+  /** ADR-0121 review N-7: what the studio did first, such as moving a leftover aside. */
+  note: z.string().optional(),
+});
 
 const STATE_LABEL: Record<Build['state'], string> = {
   running: 'running',
@@ -1189,7 +1194,13 @@ function Product({
                       );
                       return r;
                     },
-                    'Build started. This page updates while it runs.',
+                    (r) =>
+                      [
+                        'Build started. This page updates while it runs.',
+                        (r as z.infer<typeof Started>).note,
+                      ]
+                        .filter(Boolean)
+                        .join(' '),
                     p.id,
                   )
                 }

@@ -25,13 +25,15 @@ export type StepView =
   | 'gallery'
   | 'desktop'
   | 'operations'
+  | 'storage'
   | 'marketing'
   | 'portfolio'
   | 'models'
   | 'settings'
   | 'github'
   | 'payments'
-  | 'autopilot';
+  | 'autopilot'
+  | 'runcompare';
 
 export type BuildState =
   'none' | 'running' | 'verified' | 'checkpoint' | 'failed' | 'interrupted';
@@ -601,7 +603,9 @@ export function nextStep(view: StepView, f: StudioFacts): Step {
     case 'activity':
     case 'desktop':
     case 'operations':
+    case 'storage':
     case 'settings':
+    case 'runcompare':
       return pipelineStep(f);
   }
 }

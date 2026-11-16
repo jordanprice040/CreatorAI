@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { createMaintenance } from './maintenance.js';
 export { createMaintenance } from './maintenance.js';
+export { createStorage } from './storage.js';
 import {
   createServer,
   type IncomingMessage,
@@ -45,6 +46,7 @@ import { readFileSync } from 'node:fs';
 import {
   OPERATIONS_ACTOR_ID,
   OpsStore,
+  StorageStore,
   ConnectionStore,
   DEFAULT_FILE_LIMITS,
   FileStore,
@@ -134,6 +136,8 @@ import {
 import { RecipeQualificationRunner } from './recipe-qualification.js';
 import { contextRoutes } from './context.js';
 import { searchRoutes } from './search.js';
+import { STUDY_EFFORT_ROUTE, studyEffortRoutes } from './study-effort.js';
+import { RUN_COMPARE_ROUTE, runCompareRoutes } from './run-compare.js';
 import {
   FILES_ROUTE,
   SERVER_REQUEST_MS,
@@ -146,6 +150,9 @@ import {
   disposition,
 } from './files.js';
 import { createOps } from './ops.js';
+import { localIdentity, supportReportRoutes } from './support-report.js';
+import { PROJECT_REPORT_ROUTE, projectReportRoutes } from './project-report.js';
+import { createStorage } from './storage.js';
 import {
   runCapabilityCheck,
   studioMachine,
@@ -790,11 +797,14 @@ export function createApi(
       MODEL_CHOICE_ROUTE.exec(url.pathname) ??
       NOTES_ROUTE.exec(url.pathname) ??
       FILES_ROUTE.exec(url.pathname) ??
+      PROJECT_REPORT_ROUTE.exec(url.pathname) ??
       ACTIVITY_NOW_ROUTE.exec(url.pathname) ??
       TEAM_PROFILE_ROUTE.exec(url.pathname) ??
       GATE_RULE_ROUTE.exec(url.pathname) ??
       GATE_CHECKLIST_ROUTE.exec(url.pathname) ??
-      GATE_CONFIRM_ROUTE.exec(url.pathname);
+      GATE_CONFIRM_ROUTE.exec(url.pathname) ??
+      STUDY_EFFORT_ROUTE.exec(url.pathname) ??
+      RUN_COMPARE_ROUTE.exec(url.pathname);
     if (!match) return false;
     if (!store)
       throw new ContractError(
@@ -909,6 +919,25 @@ export function createApi(
         );
       throw new ContractError('NOT_FOUND', 'Unknown settings route.');
     }
+    if (
+      ws &&
+      item &&
+      STUDY_EFFORT_ROUTE.test(url.pathname) &&
+      (await studyEffortRoutes({
+        store,
+        ctx,
+        ws,
+        attemptId: item,
+        method,
+        body: () => readJson(req),
+        send,
+      }))
+    )
+      return true;
+
+    // ADR-0117 (F3): the project report, a Markdown download built from the records.
+    if (ws && PROJECT_REPORT_ROUTE.test(url.pathname))
+      return projectReportRoutes({ store, ctx, ws, method, res });
     // The usage indicator (runbook step 9): read-only plan and API usage for one workspace.
     if (ws && USAGE_ROUTE.test(url.pathname)) {
       if (method === 'GET')
@@ -1346,6 +1375,13 @@ export function createApi(
         body: () => readJson(req),
         send,
       }))
+    )
+      return true;
+    // ADR-0120 (F7): two autopilots side by side, read only.
+    if (
+      ws &&
+      RUN_COMPARE_ROUTE.test(url.pathname) &&
+      (await runCompareRoutes({ store, ctx, ws, method, url, send }))
     )
       return true;
     if (
@@ -2679,6 +2715,30 @@ export function createApi(
     // ADR-0075: operations status and verification are the owner's, never a tester's.
     requireSession: (req, mutating) => authn.requireOwner(req, mutating),
   });
+  // ADR-0118 (F5): the owner's redacted support report on Monitor > Workers.
+  const supportRoutes = supportReportRoutes({
+    deployment,
+    pool,
+    ops,
+    ensureReady,
+    schemaVersion: () => schemaVersion,
+    readiness: () => opsRoutes.evaluate(),
+    maintenance: () => maintenance.snapshot(),
+    identity: localIdentity(env),
+    requireOwner: (req, mutating) => authn.requireOwner(req, mutating),
+  });
+  // ADR-0121 (F10): Monitor > Storage and the confirmed build-workspace cleanup.
+  const storageRoutes = createStorage({
+    store: pool ? new StorageStore(pool) : null,
+    products: artifacts.products,
+    studioRoots: {
+      plan: qualificationProducts.root,
+      recipe: recipeProducts.root,
+    },
+    ownerId,
+    ensureReady,
+    requireSession: (req, mutating) => authn.requireOwner(req, mutating),
+  });
   const server = createServer((req, res) => {
     bodyDeadline(req, res);
     void (async () => {
@@ -2820,6 +2880,12 @@ export function createApi(
         }
         return respond(res, opsOut.status, opsOut.value);
       }
+      const supportOut = await supportRoutes.route(req, url);
+      if (supportOut) return respond(res, supportOut.status, supportOut.value);
+      const storageOut = await storageRoutes.route(req, url, () =>
+        readJson(req),
+      );
+      if (storageOut) return respond(res, storageOut.status, storageOut.value);
       if (url.pathname.startsWith('/api/desktop/')) {
         if (!store)
           throw new ContractError(
@@ -2964,6 +3030,12 @@ import {
   portfolioRoutes,
 } from './portfolio.js';
 export { visitorKey } from './desktop.js';
+export {
+  RUN_COMPARE_ROUTE,
+  compareRuns,
+  comparisonSide,
+  type RunCompareStore,
+} from './run-compare.js';
 export { createPreviewServer } from './artifacts.js';
 export { WebDiscoveryRunner, stepId, answerJson } from './web-discovery.js';
 export {
@@ -2992,3 +3064,4 @@ export {
   runCapabilityCheck,
   type CapabilityRunner,
 } from './team-checks.js';
+export { supportReportRoutes } from './support-report.js';
