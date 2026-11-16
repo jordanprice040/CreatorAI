@@ -377,6 +377,8 @@ async function loadButtons() {
   const qualify = await compile('qualify.tsx', {
     './oversight.js': oversight,
     './allow-tasks.js': { AllowTasks: () => null },
+    // F12 term help: the word itself, as the Advanced view shows it.
+    './term.js': { Term: ({ children }: { children: unknown }) => children },
   });
   const mod = await compile('fix-buttons.tsx', {
     './oversight.js': oversight,
