@@ -1,0 +1,15 @@
+/* ADR-0122 (F13): the study effort timer's readout on the Study page. */
+.study-effort {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.study-effort-note,
+.study-effort-summary {
+  color: var(--muted);
+  font-size: 13px;
+}

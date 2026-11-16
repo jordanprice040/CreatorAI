@@ -5,6 +5,7 @@ import {
   text,
   hash,
   counter,
+  timestamp,
   nanoUsd,
   ConditionSchema,
   DiscoverySchema,
@@ -144,6 +145,59 @@ export const StudyInterventionSchema = z.strictObject({
   human_active_minutes: z.number().min(0).max(1440),
   wait_seconds: counter.max(86400),
 });
+/**
+ * ADR-0122 (F13): the study effort timer. In study mode only, the Study page times each
+ * intervention step in the browser and sends the totals with the intervention it ends. It only
+ * measures; it never names, describes or classifies the person.
+ */
+export const STUDY_EFFORT_TIMER_VERSION = 'study-effort-timer/1';
+/** Edits within this window keep a focused, visible page counted as active effort. */
+export const STUDY_EFFORT_IDLE_MS = 60_000;
+/** Allowance for request latency when the browser totals are checked against the server clock. */
+export const STUDY_EFFORT_CLOCK_SLACK_MS = 5_000;
+const effortMs = counter.max(86_400_000);
+/**
+ * Measured totals for one step, in milliseconds. `active_ms`: the page was visible and focused
+ * and the person edited within the idle window. `wait_ms`: otherwise, a studio request was in
+ * flight (the person was waiting on the studio). `idle_ms`: otherwise, the page was visible and
+ * focused but the person was not editing (reading, say). `away_ms`: the rest (the page was hidden
+ * or another window had focus).
+ */
+export const StudyEffortSchema = z.strictObject({
+  step_id: id,
+  timer_version: z.literal(STUDY_EFFORT_TIMER_VERSION),
+  active_ms: effortMs,
+  wait_ms: effortMs,
+  idle_ms: effortMs,
+  away_ms: effortMs,
+});
+export type StudyEffort = z.infer<typeof StudyEffortSchema>;
+/** Starting a step takes no input. */
+export const StartStudyEffortStepSchema = z.strictObject({});
+/** The intervention body the API accepts: the frozen intervention fields plus optional timing. */
+export const StudyInterventionRequestSchema = StudyInterventionSchema.extend({
+  effort: StudyEffortSchema.optional(),
+});
+export const StudyEffortStepSchema = z.strictObject({
+  id,
+  attempt_id: id,
+  step: z.literal('intervention'),
+  synthetic: z.boolean(),
+  started_at: timestamp,
+  measured: z
+    .strictObject({
+      event_id: id,
+      timer_version: z.literal(STUDY_EFFORT_TIMER_VERSION),
+      active_ms: effortMs,
+      wait_ms: effortMs,
+      idle_ms: effortMs,
+      away_ms: effortMs,
+      wall_ms: counter,
+      recorded_at: timestamp,
+    })
+    .nullable(),
+});
+export type StudyEffortStep = z.infer<typeof StudyEffortStepSchema>;
 export const FinishStudyAttemptSchema = z.strictObject({
   status: z.enum([
     'submitted',
