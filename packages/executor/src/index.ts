@@ -15,3 +15,4 @@ export * from './terminal.js';
 export * from './cli-options.js';
 export * from './recipe-benchmarks.js';
 export * from './recipe-scoring.js';
+export * from './recipe-structure.js';
