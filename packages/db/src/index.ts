@@ -61,3 +61,4 @@ export {
   skippedNotificationEvents,
   type NotifyInput,
 } from './notifications.js';
+export * from './backup-store.js';
