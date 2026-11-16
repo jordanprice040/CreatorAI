@@ -10,6 +10,7 @@ import {
   readFile,
   readdir,
   rm,
+  symlink,
   writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -528,6 +529,22 @@ test('upgrade takes a verified backup first, then migrates under the lock', asyn
   const need = await before.next('needs_migration');
   assert.equal(need.current, migrations.at(-2)!.version);
   assert.equal(await before.exit, 3);
+  // Re-review N-1 (L-3): a pre-upgrade backup that fails after its manifest is written (here
+  // pg_restore --list fails) leaves no folder, finished-looking or partial, and no upgrade.
+  const fakeBin = join(dir, 'fake-bin');
+  await mkdir(fakeBin);
+  await symlink(join(PG_BIN, 'pg_dump'), join(fakeBin, 'pg_dump'));
+  await writeFile(join(fakeBin, 'pg_restore'), '#!/bin/sh\nexit 1\n', {
+    mode: 0o755,
+  });
+  const failing = studio('migrate', { ...base, pg_bin: fakeBin });
+  const err = await failing.next('error', 120000);
+  assert.match(String(err.message), /Pre-upgrade backup failed/);
+  assert.notEqual(await failing.exit, 0);
+  assert.deepEqual(await readdir(join(dir, 'backups')), []);
+  const still = studio('serve', base);
+  await still.next('needs_migration');
+  assert.equal(await still.exit, 3);
   const up = studio('migrate', base);
   const r = (await up.next('result', 120000)).result as {
     applied: number[];

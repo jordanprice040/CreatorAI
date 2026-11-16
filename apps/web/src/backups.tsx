@@ -266,8 +266,10 @@ export function Backups({ session }: { session: SessionInfo }) {
             {v.folder_problem && <p className="small">{v.folder_problem}</p>}
             {v.other_studio_backups > 0 && (
               <p className="small">
-                {v.other_studio_backups} backup(s) another studio made in this
-                folder are not shown, and this studio never removes them.
+                {v.other_studio_backups} backup(s) here were made by another
+                studio, or by an earlier copy of this one (for example before a
+                reinstall). You can check and restore them; this studio never
+                removes them.
               </p>
             )}
             {!v.folder_problem && v.backups.length === 0 && (
@@ -283,6 +285,11 @@ export function Backups({ session }: { session: SessionInfo }) {
                         <span className="backup-kind">
                           {KIND_LABEL[b.kind]}
                         </span>
+                        {b.other_studio && (
+                          <span className="backup-kind">
+                            Another studio or earlier copy
+                          </span>
+                        )}
                         <br />
                         <small>
                           {b.name} · {sizeText(b.bytes)} · schema{' '}

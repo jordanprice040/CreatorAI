@@ -262,7 +262,7 @@ function safeRelative(path: string) {
 }
 /** Review N-2: names Windows would turn into a device or an alternate data stream. */
 const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i;
-function restorablePath(path: string) {
+function restorablePath(path: string, making = false) {
   const rel = safeRelative(path);
   if (
     path
@@ -273,7 +273,9 @@ function restorablePath(path: string) {
   )
     throw new ContractError(
       'INVALID_CONTRACT',
-      `Path in backup manifest can't be restored safely on Windows: ${path}`,
+      making
+        ? `The product file ${path} has a name Windows can't hold (a colon, a trailing dot or space, or a device name such as CON). Rename it, then back up again.`
+        : `Path in backup manifest can't be restored safely on Windows: ${path}`,
     );
   return rel;
 }
@@ -332,7 +334,9 @@ export async function createBackup(o: {
     for (const file of await files(o.productsRoot)) {
       const rel = relative(o.productsRoot, file).split(sep).join('/');
       const bytes = await readFile(file);
-      const to = join(o.outDir, 'products', safeRelative(rel));
+      // Re-review L-1: a name Windows can't hold is refused here, naming the file, rather
+      // than making a backup that fails its own check.
+      const to = join(o.outDir, 'products', restorablePath(rel, true));
       await mkdir(dirname(to), { recursive: true });
       await writeFile(to, bytes, { flag: 'wx' });
       products.push({ path: rel, sha256: sha256(bytes), bytes: bytes.length });
@@ -624,7 +628,7 @@ export async function listBackups(
 ): Promise<{
   backups: BackupEntry[];
   problem: string | null;
-  /** Backups another studio made in this folder, left out. */
+  /** Backups made by another studio, or an earlier copy of this one (listed, never pruned). */
   other_studio: number;
 }> {
   let entries;
@@ -643,15 +647,13 @@ export async function listBackups(
   }
   const latest = migrations.at(-1)!.version;
   const out: BackupEntry[] = [];
-  let other = 0;
   for (const entry of entries) {
     if (!entry.isDirectory() || entry.name.endsWith(PARTIAL_SUFFIX)) continue;
     if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/.test(entry.name)) continue;
+    // Re-review M-1: every backup is listed, checkable and restorable; the tag only marks
+    // one made by another studio (or an earlier copy of this one) and keeps it from pruning.
     const owner = backupTag(entry.name);
-    if (tag && owner && owner !== tag) {
-      other++;
-      continue;
-    }
+    const foreign = !!(tag && owner && owner !== tag);
     let m: Record<string, unknown>;
     try {
       m = JSON.parse(
@@ -684,6 +686,7 @@ export async function listBackups(
         bytes,
         product_files: products.length,
         restorable: same,
+        other_studio: foreign,
         restore_note: same
           ? null
           : `Made at schema ${schema as number}; this app is at ${latest}. Restore it with the app version that made it.`,
@@ -698,6 +701,7 @@ export async function listBackups(
         bytes: db.bytes as number,
         product_files: 0,
         restorable: false,
+        other_studio: foreign,
         restore_note:
           'An older upgrade backup of the database only (no product files). Restore it by hand with pg_restore; see docs/BACKUP_AND_RESTORE.md.',
       });
@@ -707,7 +711,11 @@ export async function listBackups(
     (a, b) =>
       b.created_at.localeCompare(a.created_at) || b.name.localeCompare(a.name),
   );
-  return { backups: out, problem: null, other_studio: other };
+  return {
+    backups: out,
+    problem: null,
+    other_studio: out.filter((b) => b.other_studio).length,
+  };
 }
 
 /**

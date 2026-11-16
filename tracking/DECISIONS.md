@@ -23,6 +23,12 @@
 - **L-6.** The inside-folder check treats only `..` and `../…` as outside, so a child named `..bk` is inside.
 - **Nits.** The restore guard uses `current_database()` (N-1); check and restore refuse manifest paths with `:`, a trailing dot or space, or a Windows device name (N-2); restore re-hashes the dump after `pg_restore` and each product file after copying (N-3); the daily check re-checks `close()` just before starting (N-4); a restore records its target as it starts and an interrupted restore says what may be left (N-5); a malformed URL escape is a 400 (N-6); the `assertSchemaCurrent` doc comment is back above it (N-7); `docs/LOCAL_DEVELOPMENT.md` names `CREATOR_PG_BIN` and `CREATOR_BACKUPS_DIR` (N-8).
 
+**Amendment (November 16, re-review of PR #227: one Medium, one Low, three nits, all fixed).**
+
+- **R2-M-1.** The studio tag changes when a database is re-created, so it no longer hides anything: every backup in the folder is listed, checkable and restorable, and one with another tag is only marked (`other_studio`, "Another studio or earlier copy"). The tag still limits pruning and partial cleanup to this studio's own folders.
+- **R2-L-1.** `createBackup` refuses a product file whose name Windows can't hold, naming the file, instead of making a backup that fails its own check (and, before an upgrade, refusing the upgrade with a manifest message).
+- **Nits.** Tests now cover a restore whose final verification fails (database and folder removed) and a pre-upgrade backup that fails after its manifest is written (no folder left, no upgrade). Untagged daily backups from the PR's first build are never pruned (docs say so). A failed restore says "removed" only for what its cleanup actually removed and names anything that could not be removed.
+
 Deviation from the plan's recommended default folder (`C:\CreatorAgentBackups`): the default is the studio's configured folder, so no Windows path is written into code; the owner can choose `C:\CreatorAgentBackups` in Settings (the app never deletes anything there except its own daily backups beyond the number kept). Jordan's F1 defaults (plan section 4, item 3) were recommendations; this implements them as recommended and they can be changed in Settings.
 
 Not covered: switching the desktop app to a restored copy (the page says how for a dev studio and that the desktop app can't yet; a natural part of F4's rollback); deleting a backup from the page; encryption or off-machine copies. ChatGPT and Claude sign-ins live outside the database and product store, so they are not in a backup.

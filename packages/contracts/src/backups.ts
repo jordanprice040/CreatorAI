@@ -33,6 +33,8 @@ export const BackupEntrySchema = z.strictObject({
   product_files: counter,
   /** Whether this version of the app can restore it (same schema, full format). */
   restorable: z.boolean(),
+  /** Made by another studio, or an earlier copy of this one: listed and restorable, never pruned. */
+  other_studio: z.boolean(),
   /** Why not, in a sentence, when it can't. */
   restore_note: z.string().max(400).nullable(),
 });
@@ -101,7 +103,7 @@ export const BackupsViewSchema = z.strictObject({
       error: z.string().max(2000).nullable(),
     })
     .nullable(),
-  /** Backups another studio made in the same folder, which this page leaves out. */
+  /** How many listed backups were made by another studio or an earlier copy of this one. */
   other_studio_backups: counter,
   /** The database the studio uses (`current_database()`), so a restore target can't reuse it. */
   database_name: z.string().max(63),

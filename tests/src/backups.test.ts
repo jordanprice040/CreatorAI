@@ -21,6 +21,7 @@ import {
   listBackups,
   migrations,
   backupTag,
+  createBackup,
   pruneDailyBackups,
 } from '@creator/db';
 import type { BackupsView, BackupRun } from '@creator/contracts';
@@ -366,6 +367,54 @@ test('F1-1: owner backs up from Settings (same manifest as pnpm backup), checks 
   assert.equal(bSave.status, 403);
   // With the daily backup off, the daily check does nothing.
   assert.equal(await api.backups.daily(), null);
+
+  // Re-review N-1 (L-2): a restore whose final verification fails removes the database and
+  // folder it created. A broken audit chain in the studio is carried into the backup.
+  const tamper = await admin.connect();
+  await tamper.query('set session_replication_role = replica');
+  await tamper.query(
+    `update audit_events set payload = '{"tampered": true}'::jsonb
+      where sequence = (select min(sequence) from audit_events)`,
+  );
+  tamper.release();
+  await post('/runs');
+  const broken = (await settle()).backups.find((x) => x.name !== entry.name)!;
+  assert.ok(broken);
+  const badName = `${own}_bad`;
+  const badFolder = join(dir, 'bad', 'products');
+  assert.equal(
+    (
+      await post(`/${broken.name}/restore`, {
+        database_name: badName,
+        products_root: badFolder,
+      })
+    ).status,
+    202,
+  );
+  const badRun = (await settle()).runs[0]!;
+  assert.equal(badRun.status, 'failed');
+  assert.match(badRun.error ?? '', /audit history did not verify/);
+  assert.match(badRun.error ?? '', /were removed\./);
+  assert.equal(await exists(badName), false);
+  await assert.rejects(readdir(badFolder), /ENOENT/);
+});
+
+test('F1-4: a product file Windows cannot hold is refused when the backup is made (re-review L-1)', async (t) => {
+  const db = await freshDatabase(t);
+  if (!db || !(await havePgDump(t))) return;
+  const dir = await scratch(t);
+  const products = join(dir, 'products');
+  await mkdir(join(products, 'p1'), { recursive: true });
+  await writeFile(join(products, 'p1', 'notes.'), 'trailing dot');
+  await assert.rejects(
+    createBackup({
+      databaseUrl: db.url,
+      productsRoot: products,
+      outDir: join(dir, 'out'),
+      pgBinDir,
+    }),
+    /product file p1\/notes\. has a name Windows can't hold/,
+  );
 });
 
 test('F1-2: one job at a time; the daily backup runs once per UTC day across restarts and keeps the newest N', async (t) => {
@@ -482,10 +531,17 @@ test('F1-2: one job at a time; the daily backup runs once per UTC day across res
   const d3 = await s1.daily();
   assert.ok(d3);
   await s1.idle();
+  // Re-review M-1: another studio's (or an earlier copy's) backup is listed and restorable,
+  // only marked, and never pruned.
   const list = await listBackups(folder, tag);
   assert.equal(list.other_studio, 1);
+  const theirs = list.backups.find((x) => x.name === foreign)!;
+  assert.equal(theirs.other_studio, true);
+  assert.equal(theirs.restorable, true);
   assert.ok((await readdir(folder)).includes(foreign));
-  const dailies = list.backups.filter((x) => x.kind === 'daily');
+  const dailies = list.backups.filter(
+    (x) => x.kind === 'daily' && !x.other_studio,
+  );
   assert.equal(dailies.length, 2, 'keep 2');
   assert.deepEqual(
     dailies.map((x) => x.name.slice(0, 16)),

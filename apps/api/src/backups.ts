@@ -396,19 +396,29 @@ export function createBackups(o: {
           workspaces: await countWorkspaces(targetUrl.toString()),
         };
       } catch (e) {
-        if (madeDb)
-          await dropDatabase(url, input.database_name).catch(() => undefined);
-        if (madeFolder)
-          await rm(target, { recursive: true, force: true }).catch(
-            () => undefined,
+        // Re-review N-3: say "removed" only for what was removed, and name what may remain.
+        const ok = (p: Promise<unknown>) =>
+          p.then(
+            () => true,
+            () => false,
           );
+        const dbGone = madeDb
+          ? await ok(dropDatabase(url, input.database_name))
+          : null;
+        const dirGone = madeFolder
+          ? await ok(rm(target, { recursive: true, force: true }))
+          : null;
         const removed = [
-          madeDb && `database ${input.database_name}`,
-          madeFolder && `folder ${target}`,
+          dbGone === true && `database ${input.database_name}`,
+          dirGone === true && `folder ${target}`,
+        ].filter(Boolean);
+        const left = [
+          dbGone === false && `database ${input.database_name}`,
+          dirGone === false && `folder ${target}`,
         ].filter(Boolean);
         throw new ContractError(
           e instanceof ContractError ? e.code : 'STORAGE_UNAVAILABLE',
-          `${errorText(e)}${removed.length ? ` The ${removed.join(' and ')} this restore created ${removed.length > 1 ? 'were' : 'was'} removed.` : ''}`,
+          `${errorText(e)}${removed.length ? ` The ${removed.join(' and ')} this restore created ${removed.length > 1 ? 'were' : 'was'} removed.` : ''}${left.length ? ` The ${left.join(' and ')} this restore created could not be removed; remove ${left.length > 1 ? 'them' : 'it'} before reusing the name.` : ''}`,
         );
       }
     });

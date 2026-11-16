@@ -72,8 +72,12 @@ The studio owner (the person recorded as studio spending manager) can do the sam
   `CREATOR_PRODUCTS_ROOT` pointing at it; the desktop app cannot switch to it yet.
 
 Folder names end in a short tag for the studio that made them (`-s<8 hex>`, from its
-database's name and id on the server), so two studios sharing a folder never prune, clean up
-or list each other's backups; the page says how many it leaves out. A restore refuses
+database's name and id on the server), so two studios sharing a folder never prune or clean up each other's backups. Every backup in
+the folder is still listed and can be checked or restored; one with another tag is marked as
+made by another studio or an earlier copy of this one (a re-created database or a reinstall
+gets a new tag). Daily backups made before tags existed are never pruned; delete them by hand.
+A product file whose name Windows can't hold (a colon, a trailing dot or space, a device name
+such as `CON`) is refused when the backup is made, naming the file. A restore refuses
 PostgreSQL's own databases (`postgres`, `template0`, `template1`) and any template or closed
 one; an existing database is allowed only if it is empty. If a restore fails at any step,
 including the final verification, the database and folder it created are removed.
