@@ -243,6 +243,12 @@ export const AutopilotConfigSchema = z
     limits: AutopilotLimitsSchema,
     /** Enter the path part way, at a recorded problem (null: from the beginning). */
     start: AutopilotStartSchema.nullable().default(null),
+    /**
+     * ADR-0124 (F2): when the plan account's usage limit or the connection's daily request cap
+     * stops it, continue by itself once that limit has room again, inside the run's approvals,
+     * the call limit and the end time. Off unless the owner ticks it (absent means off).
+     */
+    resume_after_limit: z.boolean().optional(),
   })
   .superRefine((r, ctx) => {
     const named = [...r.perspectives, ...r.excluded.map((e) => e.perspective)];
@@ -273,6 +279,13 @@ export const AutopilotConfigSchema = z
         code: 'custom',
         path: ['limits', 'max_calls'],
         message: `Searching the web first takes 2 more calls: allow at least ${AUTOPILOT_MIN_CALLS + 2}.`,
+      });
+    if (r.resume_after_limit && r.resource_setup.kind !== 'subscription')
+      ctx.addIssue({
+        code: 'custom',
+        path: ['resume_after_limit'],
+        message:
+          'Continuing after a usage limit resets is for a plan connection; an API budget or a local model has no such limit.',
       });
     if (r.start && r.research)
       ctx.addIssue({
@@ -322,6 +335,25 @@ export const AutopilotControlRequestSchema = z.strictObject({
   reason: short.optional(),
 });
 
+/**
+ * ADR-0124 (F2): where an autopilot that opted in to continuing after a usage limit stands.
+ * Worked out when read from its record; never stored as such.
+ */
+export const AutopilotAutoResumeSchema = z.strictObject({
+  /**
+   * `waiting`: stopped on a usage limit and will check again; `on`: opted in, not stopped on a
+   * limit now; `turned_off`: the owner turned it off; `used_up`: every automatic continue is used.
+   */
+  state: z.enum(['on', 'waiting', 'turned_off', 'used_up']),
+  /** Automatic continues made so far, and the most it may make. */
+  checks: counter,
+  max: counter,
+  /** While waiting: when it checks the limit again (null: whenever the daily cap has room). */
+  next_check_at: timestamp.nullable(),
+  turned_off_at: timestamp.nullable(),
+});
+export type AutopilotAutoResume = z.infer<typeof AutopilotAutoResumeSchema>;
+
 export const AutopilotSchema = z.strictObject({
   id,
   workspace_id: id,
@@ -357,6 +389,8 @@ export const AutopilotSchema = z.strictObject({
   approvals_ended_at: timestamp.nullable().optional(),
   /** ADR-0100: what to do next when it stopped (computed when read, never stored). */
   next: z.array(AutopilotNextSchema).max(8).optional(),
+  /** ADR-0124 (F2): present when the owner opted in to continuing after a usage limit. */
+  auto_resume: AutopilotAutoResumeSchema.optional(),
 });
 export type Autopilot = z.infer<typeof AutopilotSchema>;
 
@@ -404,6 +438,9 @@ export function autopilotContinuable(
   return { ok: true };
 }
 
+/** ADR-0124 (F2): automatic continues one autopilot may make after usage limits (the database refuses more). */
+export const AUTO_RESUME_MAX_CHECKS = 8;
+
 /** Steps one autopilot may record (the database refuses more). */
 export const AUTOPILOT_MAX_STEPS = 60;
 
@@ -436,6 +473,11 @@ export function autopilotSummary(c: AutopilotConfig): string[] {
     'If an option’s ethics gate was cleared only on the model’s word, it stops and asks you before choosing it. If you choose under Decide while it waits, Continue goes on with your choice.',
     'For a non-code option it saves a proposal drafted from the records. A software option first needs your humility review to be chosen, and writing and freezing its spec stays with you, so it stops there.',
     `Limits: at most ${c.limits.max_calls} model calls in all, each step setting aside its maximum first; it stops at ${until.slice(0, 10)} ${until.slice(11, 16)} UTC. The run's routine approvals, budgets, spending limits and connection caps still apply.`,
+    ...(c.resume_after_limit
+      ? [
+          `If the plan account's usage limit or the connection's daily request cap stops it, it checks again later and continues by itself (at most ${AUTO_RESUME_MAX_CHECKS} times), only inside this run's routine approvals, its call limit and its end time. You can turn this off on its card.`,
+        ]
+      : []),
     'Where your autopilot settings (Autopilot page) allow it, it takes a planned fallback instead of stopping (gathering evidence, choosing by the worst case, breaking a tie, the next candidate, a retry); each is recorded with the setting that allowed it.',
     'It never publishes, sends messages, spends outside the run, changes permissions or answers a question for you. Stop it at any time; what it made so far is kept.',
   ];

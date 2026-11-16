@@ -21,6 +21,12 @@ import {
   type Workflow,
   PlanRefusalCodeSchema,
   StartAutopilotRequestSchema,
+  AUTOPILOT_USAGE_NOTE,
+  AutopilotUsageCheckRequestSchema,
+  autopilotRequestFloor,
+  autopilotStageFloor,
+  parse,
+  type AutopilotUsageCheck,
   SETTING_FOR_STOP,
   SETTLED_BUT_COVERED,
   AUTOPILOT_SETTING_TEXT,
@@ -33,6 +39,8 @@ import {
 import {
   autopilotChildLimits,
   autopilotChoice,
+  connectionRefusals,
+  dailyCap,
   autopilotProblem,
   carried,
   notAdmitted,
@@ -614,17 +622,177 @@ export class AutopilotRunner {
     if (!room) return; // A connection that cannot be read is refused by admission instead.
     // Re-review 2 L-2: each step's own floor (autopilotChildLimits): explore 2, discovery its
     // response types + 2, assessment at least 2, and the research search's 2 on this connection.
-    const need =
-      2 +
-      (c.perspectives.length + 2) +
-      2 +
-      (c.research?.connection_id === r.connection_id ? 2 : 0);
+    // ADR-0124: the same count the usage check shows before the start.
+    const need = autopilotRequestFloor(c, r.connection_id);
     const left = room.per_run - room.used;
     if (left < need)
       throw new ContractError(
         'LIMIT_EXCEEDED',
         `This run has ${Math.max(0, left)} of the plan connection's ${room.per_run} requests per run left, and a whole process needs at least ${need}. Raise the per-run cap under Models and connections, or start from a recorded problem.`,
       );
+  }
+
+  /**
+   * ADR-0124 (F2): before a start, the requests this autopilot needs from each plan connection it
+   * uses (the start check's own count) beside what the connection has left on the run and today
+   * (the figures admission reads). Reads only; sends nothing.
+   */
+  async usageCheck(
+    ctx: CommandContext,
+    ws: string,
+    body: unknown,
+  ): Promise<AutopilotUsageCheck> {
+    const req = parse(AutopilotUsageCheckRequestSchema, body);
+    const c = req.config;
+    const ids = [
+      ...new Set(
+        [
+          c.resource_setup.kind === 'subscription'
+            ? c.resource_setup.connection_id
+            : null,
+          c.research?.connection_id ?? null,
+        ]
+          .filter((x): x is string => !!x)
+          .map((x) => x.toLowerCase()),
+      ),
+    ];
+    const connections: AutopilotUsageCheck['connections'] = [];
+    for (const id of ids) {
+      const d = await this.store.planConnectionDetail(ctx, ws, id);
+      const conn = d.connection;
+      const perRun = conn.settings.caps.responses.max_requests_per_run;
+      const room = req.run_id
+        ? await this.store.planRunRoom(ctx, ws, id, req.run_id)
+        : null;
+      const used = room?.used ?? 0;
+      const cap = room?.daily_cap ?? dailyCap(conn.settings.caps, d.usage);
+      const dailyLeft =
+        room?.daily_left ?? Math.max(0, cap - d.usage.last_24h_requests);
+      const perRunLeft = Math.max(0, perRun - used);
+      const need = autopilotRequestFloor(c, id);
+      const blockers = connectionRefusals(conn).map((x) =>
+        cutText(x.text, 600),
+      );
+      const fit =
+        blockers.length > 0
+          ? ('blocked' as const)
+          : perRunLeft < need
+            ? ('per_run' as const)
+            : dailyLeft < need
+              ? ('daily' as const)
+              : ('fits' as const);
+      const upTo = Math.min(c.limits.max_calls, perRunLeft);
+      const s = (n: number) => (n === 1 ? '' : 's');
+      const counts = `This autopilot needs at least ${need} request${s(need)} from ${conn.label} (up to ${upTo}); the connection has ${perRunLeft} of its ${perRun} per-run request${s(perRun)} left on this run and ${dailyLeft} of its ${cap} daily request${s(cap)} left today.`;
+      const line =
+        fit === 'fits'
+          ? counts
+          : fit === 'per_run'
+            ? `${counts} The per-run cap cannot hold it, so the start is refused: raise the cap under Models and connections.`
+            : fit === 'daily'
+              ? `${counts} It will stop when the daily cap is used up${c.resume_after_limit ? ' and continue by itself once the cap has room again' : '; then add requests or wait, and continue'}.`
+              : `${counts} The connection refuses requests now: ${blockers[0]}`;
+      connections.push({
+        connection_id: conn.id,
+        label: cutText(conn.label, 200),
+        need,
+        up_to: upTo,
+        per_run: perRun,
+        per_run_left: perRunLeft,
+        daily_cap: cap,
+        daily_left: dailyLeft,
+        quota: conn.quota.state,
+        blockers: blockers.slice(0, 12),
+        fit,
+        line: cutText(line, 600),
+      });
+    }
+    return { connections, note: AUTOPILOT_USAGE_NOTE };
+  }
+
+  /** ADR-0124 (F2): the owner turns off continuing by itself after a limit. */
+  async turnOffAutoResume(
+    ctx: CommandContext,
+    ws: string,
+    id: string,
+    body: unknown,
+  ) {
+    return this.withNext(
+      ctx,
+      ws,
+      await this.store.turnOffAutoResume(ctx, ws, id, body),
+    );
+  }
+
+  /**
+   * ADR-0124 (F2): continues opted-in autopilots stopped on a limit that passes with time, once
+   * it is due and the connection is checked again. The daily cap is read now (no request is
+   * sent): it continues when the stopped step's floor fits. The plan account's own limit cannot
+   * be read, so after the wait the stale "used up" mark is cleared, as Recheck usage does, and
+   * the step itself is the check: if the plan refuses again, it stops again and waits longer.
+   * Never continues when the connection refuses for any other reason. Runs with `watch`.
+   */
+  async resumeDue(now = Date.now()) {
+    for (const a of await this.store.autopilotsAwaitingResume()) {
+      const view = a.auto_resume;
+      if (view?.state !== 'waiting') continue;
+      if (view.next_check_at && Date.parse(view.next_check_at) > now) continue;
+      if (this.isActive(a.id)) continue;
+      const ctx: CommandContext = {
+        actorId: a.created_by,
+        autopilot: { id: a.id.toLowerCase() },
+      };
+      const conn = await this.#limitPassed(ctx, a.workspace_id, a).catch(
+        () => null,
+      );
+      if (!conn) continue;
+      const next = await this.store
+        .autoResumeAutopilot(ctx, a.workspace_id, a.id, a.version)
+        .catch(() => null);
+      if (!next) continue;
+      // Only once it has continued: the stale "used up" mark is cleared, as Recheck usage does,
+      // and the step's first request is the check. Done before the step is driven.
+      if (conn.quota === 'exhausted')
+        await this.store
+          .resetPlanQuotaObservation(ctx, a.workspace_id, conn.id, conn.version)
+          .catch(() => null);
+      this.#launch(next.created_by, a.workspace_id, next.id);
+    }
+  }
+
+  /**
+   * The connection the stopped step uses when the limit that stopped `a` may have passed (null
+   * when not): no refusal but the plan's usage limit, and for the daily cap room for the step.
+   */
+  async #limitPassed(
+    ctx: CommandContext,
+    ws: string,
+    a: Autopilot,
+  ): Promise<{ id: string; version: number; quota: string } | null> {
+    const r = a.config.resource_setup;
+    const last = a.steps.at(-1);
+    if (r.kind !== 'subscription' || !last) return null;
+    // A stopped search uses the research connection; every other step the main one.
+    const id =
+      last.stage === 'research' && a.config.research
+        ? a.config.research.connection_id
+        : r.connection_id;
+    const d = await this.store.planConnectionDetail(ctx, ws, id);
+    const others = connectionRefusals(d.connection).filter(
+      (x) => x.code !== 'quota_exhausted',
+    );
+    if (others.length) return null;
+    const found = {
+      id: d.connection.id,
+      version: d.connection.version,
+      quota: d.connection.quota.state,
+    };
+    if (last.stop_kind !== 'daily_cap') return found;
+    const room = await this.store.planRunRoom(ctx, ws, id, a.run_id);
+    return room.daily_left >=
+      Math.max(1, autopilotStageFloor(last.stage, a.config))
+      ? found
+      : null;
   }
 
   async retry(ctx: CommandContext, ws: string, id: string, body: unknown) {
@@ -683,6 +851,7 @@ export class AutopilotRunner {
     const tick = () =>
       void this.recover()
         .then(() => this.automate())
+        .then(() => this.resumeDue())
         .catch(() => undefined);
     tick();
     if (this.#watch) return;

@@ -4309,7 +4309,12 @@ export class ConnectionStore extends AutomationStore {
     ws: string,
     connectionId: string,
     runId: string,
-  ): Promise<{ per_run: number; used: number; daily_left: number }> {
+  ): Promise<{
+    per_run: number;
+    used: number;
+    daily_left: number;
+    daily_cap?: number;
+  }> {
     return this.tx((c) =>
       this.planRunRoomIn(c, ctxIn, ws, connectionId, runId),
     );
@@ -4325,7 +4330,13 @@ export class ConnectionStore extends AutomationStore {
     ws: string,
     connectionId: string,
     runId: string,
-  ): Promise<{ per_run: number; used: number; daily_left: number }> {
+  ): Promise<{
+    per_run: number;
+    used: number;
+    daily_left: number;
+    /** ADR-0124: the daily cap in force now (with unexpired extra requests). */
+    daily_cap?: number;
+  }> {
     const ctx = normalize(ctxIn);
     await this.role(c, uuid(ws), ctx.actorId, false);
     const conn = await this.#connection(c, uuid(ws), uuid(connectionId));
@@ -4335,6 +4346,7 @@ export class ConnectionStore extends AutomationStore {
       per_run: caps.responses.max_requests_per_run,
       used: usage.run_requests,
       daily_left: Math.max(0, dailyCap(caps, usage) - usage.last_24h_requests),
+      daily_cap: dailyCap(caps, usage),
     };
   }
 

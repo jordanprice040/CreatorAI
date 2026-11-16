@@ -64,6 +64,7 @@ export * from './sidebar.js';
 export * from './files.js';
 export * from './autopilot.js';
 export * from './autopilot-settings.js';
+export * from './autopilot-usage.js';
 export * from './automation.js';
 export * from './api-keys.js';
 export * from './recipe-qualification.js';

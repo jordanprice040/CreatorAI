@@ -3908,6 +3908,23 @@ create trigger spending_refusals_immutable before update or delete on spending_r
 create index spending_refusals_recent on spending_refusals (created_at desc);
 `,
   },
+  {
+    // ADR-0124 (F2): an autopilot that opted in (its config's resume_after_limit) continues by
+    // itself after a usage limit. These record how many automatic continues it made (bounded)
+    // and when the owner turned that off; turning it on again is not offered (start a new one).
+    // Numbers 70 to 73 are reserved for other milestones (N1, F10, F13, F1).
+    version: 74,
+    name: 'autopilot_auto_resume',
+    sql: `
+alter table autopilots add column resume_checks integer not null default 0;
+alter table autopilots add constraint autopilots_resume_checks_check
+ check (resume_checks between 0 and 8);
+alter table autopilots add column auto_resume_off_at timestamptz;
+alter table autopilots add column auto_resume_off_by uuid references actors(id);
+alter table autopilots add constraint autopilots_auto_resume_off_check
+ check ((auto_resume_off_at is null) = (auto_resume_off_by is null));
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {
