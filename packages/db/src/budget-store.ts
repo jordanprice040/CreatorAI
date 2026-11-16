@@ -8,6 +8,8 @@ import {
   runtimeExposure,
   currentSpendLimits,
   spendLimitRefusal,
+  SPENDING_WAIT_EXPLANATION,
+  recordSpendingRefusal,
 } from './runtime-ceiling.js';
 import type { Pool, PoolClient } from 'pg';
 import {
@@ -329,27 +331,25 @@ export class BudgetStore extends OversightStore {
   // ---- Owner's runtime ceiling (Settings, ADR-0043) ----------------------------------------
 
   /**
-   * The ceiling spans every workspace, so it is a deployment setting: only a signed-in person
-   * who owns at least one workspace may read or change it. Agents and system actors never can.
+   * ADR-0113 (S0): the studio-wide ceiling, limits and spend views belong to one studio
+   * spending manager, recorded in `studio_spending_manager`. Owning or creating a workspace
+   * never grants it (it replaced ADR-0043's "any workspace owner"). Agents, system actors and
+   * tester accounts never qualify, even if the row names them.
    */
-  /** A signed-in person who owns some workspace: the audience for the ceiling (ADR-0043). */
-  protected async isCeilingOwner(c: PoolClient, actorId: string) {
-    // ADR-0075: a tester account never qualifies, even if it came to own a workspace.
-    const { rows } = await c.query<{ kind: string; owner: boolean }>(
-      `select a.kind, exists(select 1 from workspace_members m
-          where m.actor_id = a.id and m.role = 'owner')
-          and not exists(select 1 from tester_accounts t where t.actor_id = a.id) as owner
-         from actors a where a.id = $1`,
+  protected async isSpendingManager(c: PoolClient, actorId: string) {
+    const { rows } = await c.query<{ ok: boolean }>(
+      `select exists(select 1 from studio_spending_manager s join actors a on a.id = s.actor_id
+          where s.actor_id = $1 and a.kind = 'human'
+            and not exists(select 1 from tester_accounts t where t.actor_id = a.id)) as ok`,
       [actorId],
     );
-    const r = rows[0];
-    return !!r && r.kind === 'human' && r.owner;
+    return rows[0]?.ok === true;
   }
-  private async requireCeilingOwner(c: PoolClient, actorId: string) {
-    if (!(await this.isCeilingOwner(c, actorId)))
+  private async requireSpendingManager(c: PoolClient, actorId: string) {
+    if (!(await this.isSpendingManager(c, actorId)))
       throw fail(
         'ACCESS_DENIED',
-        'Only a person who owns a workspace can view or change the spending ceiling and limits; create a workspace first if you have none.',
+        'Only the studio spending manager can view or change the spending ceiling and limits. Owning a workspace does not grant this.',
       );
   }
   private async ceilingView(c: PoolClient): Promise<RuntimeCeiling> {
@@ -386,7 +386,7 @@ export class BudgetStore extends OversightStore {
   async runtimeCeiling(ctx: CommandContext): Promise<RuntimeCeiling> {
     ctx = normalize(ctx);
     return this.tx(async (c) => {
-      await this.requireCeilingOwner(c, ctx.actorId);
+      await this.requireSpendingManager(c, ctx.actorId);
       return this.ceilingView(c);
     });
   }
@@ -402,7 +402,7 @@ export class BudgetStore extends OversightStore {
     ctx = normalize(ctx);
     const body = parse(SetRuntimeCeilingRequestSchema, raw);
     return this.tx(async (c) => {
-      await this.requireCeilingOwner(c, ctx.actorId);
+      await this.requireSpendingManager(c, ctx.actorId);
       await lockRuntimeCeiling(c);
       const cur = await currentCeiling(c, this.spending);
       if (body.expected_version !== cur.version)
@@ -496,6 +496,15 @@ export class BudgetStore extends OversightStore {
       `select version, limits, previous, reason, actor_id, created_at
          from runtime_limit_changes order by version desc limit 50`,
     );
+    // ADR-0113: the full refusal details, with amounts, for the manager only.
+    const refusals = await c.query(
+      `select s.id, s.reservation_id, s.study_attempt_id, s.reason_code, s.explanation,
+              s.created_at, s.workspace_id, w.name as workspace_name, s.run_id,
+              r.provider, r.model_id
+         from spending_refusals s join workspaces w on w.id = s.workspace_id
+         left join budget_reservations r on r.id = s.reservation_id
+        order by s.created_at desc, s.id limit 20`,
+    );
     return parse(SpendLimitsViewSchema, {
       version: cur.version,
       limits: cur.limits,
@@ -518,6 +527,21 @@ export class BudgetStore extends OversightStore {
           run_id: r.run,
           exposure_nano_usd: r.exposure,
         })),
+      recent_refusals: refusals.rows.map((r: Row) => ({
+        id: String(r.id),
+        reservation_id: r.reservation_id ? String(r.reservation_id) : null,
+        study_attempt_id: r.study_attempt_id
+          ? String(r.study_attempt_id)
+          : null,
+        workspace_id: String(r.workspace_id),
+        workspace_name: String(r.workspace_name),
+        run_id: String(r.run_id),
+        provider: r.provider ? String(r.provider) : null,
+        model_id: r.model_id ? String(r.model_id) : null,
+        reason_code: String(r.reason_code),
+        explanation: String(r.explanation),
+        created_at: iso(r.created_at),
+      })),
       history: history.rows.map((r: Row) => ({
         version: Number(r.version),
         limits: r.limits,
@@ -528,11 +552,11 @@ export class BudgetStore extends OversightStore {
       })),
     });
   }
-  /** Same audience as the ceiling: a signed-in person who owns a workspace. */
+  /** Same audience as the ceiling: the studio spending manager (ADR-0113). */
   async spendLimits(ctx: CommandContext): Promise<SpendLimitsView> {
     ctx = normalize(ctx);
     return this.tx(async (c) => {
-      await this.requireCeilingOwner(c, ctx.actorId);
+      await this.requireSpendingManager(c, ctx.actorId);
       return this.limitsView(c);
     });
   }
@@ -560,7 +584,7 @@ export class BudgetStore extends OversightStore {
     if (new Set(keys).size !== keys.length)
       throw fail('INVALID_CONTRACT', 'Each model can have only one limit.');
     return this.tx(async (c) => {
-      await this.requireCeilingOwner(c, ctx.actorId);
+      await this.requireSpendingManager(c, ctx.actorId);
       await lockRuntimeCeiling(c);
       const cur = await currentSpendLimits(c);
       if (body.expected_version !== cur.version)
@@ -1435,7 +1459,27 @@ export class BudgetStore extends OversightStore {
           await runtimeExposure(c, this.spending, { ws, runId }),
           amount,
         );
-        if (over) return deny(over.reason_code, over.explanation, extra);
+        // ADR-0113: the starter's record says the run waits on the studio limit; the amounts
+        // go to a record only the studio spending manager reads.
+        const spendingDeny = async (r: {
+          reason_code: string;
+          explanation: string;
+        }) => {
+          const out = await deny(
+            r.reason_code,
+            SPENDING_WAIT_EXPLANATION,
+            extra,
+          );
+          await recordSpendingRefusal(c, {
+            reservationId: out.reservation.id,
+            ws,
+            runId,
+            reasonCode: r.reason_code,
+            explanation: r.explanation,
+          });
+          return out;
+        };
+        if (over) return spendingDeny(over);
         // The owner's narrower per-run and per-model limits under that ceiling (ADR-0044).
         const narrow = await spendLimitRefusal(
           c,
@@ -1443,7 +1487,7 @@ export class BudgetStore extends OversightStore {
           { ws, runId, provider: plan.provider, modelId: plan.model_id },
           amount,
         );
-        if (narrow) return deny(narrow.reason_code, narrow.explanation, extra);
+        if (narrow) return spendingDeny(narrow);
       }
       // 4–5. Grants, mode, stage gates (T03). The bound amount is the maximum exposure.
       const admission = await this.admitIn(

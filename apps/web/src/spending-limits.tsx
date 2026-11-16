@@ -301,6 +301,35 @@ export function SpendingLimits({ session }: { session: SessionInfo }) {
                 </tbody>
               </table>
             )}
+            {v.recent_refusals.length > 0 && (
+              <details className="refusals">
+                <summary>
+                  Latest calls refused by the ceiling or a limit (
+                  {v.recent_refusals.length})
+                </summary>
+                <ul className="small">
+                  {v.recent_refusals.map((r) => (
+                    <li key={r.reservation_id}>
+                      {when(r.created_at)} ·{' '}
+                      {r.provider && r.model_id
+                        ? `${label(r.provider, r.model_id)} · `
+                        : ''}
+                      {r.explanation}{' '}
+                      <small>
+                        {r.workspace_name}
+                        {r.study_attempt_id
+                          ? ' · final study attempt'
+                          : ` · run ${r.run_id.slice(0, 8)}`}
+                      </small>
+                    </li>
+                  ))}
+                </ul>
+                <p className="small">
+                  The person whose run was refused sees only that it is waiting
+                  on the studio spending limit, without these amounts.
+                </p>
+              </details>
+            )}
             <div className="actions">
               <button className="secondary" type="button" onClick={edit}>
                 Change limits
