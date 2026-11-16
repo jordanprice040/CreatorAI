@@ -49,4 +49,16 @@ export type {
 } from './recipe-qualification-store.js';
 export * from './studio-lock.js';
 export * from './support-report-store.js';
+export * from './notification-store.js';
+export {
+  AUTOPILOT_STOP_PHRASE,
+  SPEND_THRESHOLDS,
+  autopilotEventKey,
+  dollarsDown,
+  dollarsExact,
+  notify,
+  notifySpendThresholds,
+  skippedNotificationEvents,
+  type NotifyInput,
+} from './notifications.js';
 export * from './backup-store.js';

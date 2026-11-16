@@ -71,4 +71,5 @@ export * from './api-keys.js';
 export * from './recipe-qualification.js';
 export * from './support-report.js';
 export * from './run-compare.js';
+export * from './notifications.js';
 export * from './backups.js';
