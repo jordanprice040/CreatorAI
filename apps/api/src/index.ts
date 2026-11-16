@@ -154,6 +154,7 @@ import { createOps } from './ops.js';
 import { localIdentity, supportReportRoutes } from './support-report.js';
 import { PROJECT_REPORT_ROUTE, projectReportRoutes } from './project-report.js';
 import { createStorage } from './storage.js';
+import { createBackups } from './backups.js';
 import {
   runCapabilityCheck,
   studioMachine,
@@ -629,6 +630,18 @@ export function createApi(
     ownerId,
     deployment.mode === 'local' && env.CREATOR_DESKTOP_MANAGED === '1',
   );
+  // ADR-0123 (F1): Settings › Backups and the daily backup, for the studio owner alone.
+  const backups = createBackups({
+    pool,
+    databaseUrl: dbUrl ?? null,
+    productsRoot: artifacts.products.root,
+    defaultFolder: env.CREATOR_BACKUPS_DIR || '.creator/backups',
+    pgBinDir: env.CREATOR_PG_BIN || undefined,
+    local: deployment.mode === 'local',
+    ensureReady,
+    requireSession: (req, mutating) => authn.requireOwner(req, mutating),
+    log: (m) => console.error(m),
+  });
   let storage: 'postgresql' | 'not_configured' | 'unavailable' = pool
     ? 'unavailable'
     : 'not_configured';
@@ -681,6 +694,14 @@ export function createApi(
     // Autopilots a stopped studio left running carry on (each step's start is idempotent).
     autopilot?.watch();
     if (portfolioScheduler === 'on') portfolio?.start();
+    await backups
+      .recover()
+      .catch((e: unknown) =>
+        console.error(
+          `Backup recovery: ${e instanceof Error ? e.message : 'failed'}`,
+        ),
+      );
+    backups.start();
   }
   let ready = init();
   ready.catch(() => undefined);
@@ -2896,6 +2917,8 @@ export function createApi(
         readJson(req),
       );
       if (storageOut) return respond(res, storageOut.status, storageOut.value);
+      const backupsOut = await backups.route(req, url, () => readJson(req));
+      if (backupsOut) return respond(res, backupsOut.status, backupsOut.value);
       if (url.pathname.startsWith('/api/desktop/')) {
         if (!store)
           throw new ContractError(
@@ -3001,6 +3024,7 @@ export function createApi(
     await recipeQualifications?.stop();
     await autopilot?.close();
     await portfolio?.stop();
+    await backups.close();
     server.closeAllConnections();
     preview.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -3022,6 +3046,8 @@ export function createApi(
     ready: () => ready,
     close,
     ops,
+    /** ADR-0123: the backups service (tests drive its daily check directly). */
+    backups,
     deployment,
     configHash,
     authMode: authn.mode,
@@ -3047,6 +3073,7 @@ export {
   type RunCompareStore,
 } from './run-compare.js';
 export { createPreviewServer } from './artifacts.js';
+export { createBackups, inside as insideFolder } from './backups.js';
 export { WebDiscoveryRunner, stepId, answerJson } from './web-discovery.js';
 export {
   AutopilotRunner,

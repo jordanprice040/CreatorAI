@@ -3942,6 +3942,57 @@ create trigger study_effort_measures_immutable before update or delete on study_
 `,
   },
   {
+    // ADR-0123 (F1): backups in Settings. The owner's backup settings are versioned and
+    // immutable, like the runtime ceiling. Each backup, check and restore is recorded as it
+    // starts and when it ends; one runs at a time, and the daily backup is attempted at most
+    // once per UTC day, whatever restarts happen (both enforced by unique indexes).
+    version: 73,
+    name: 'backups',
+    sql: `
+create table backup_settings (
+ version integer primary key check (version >= 1),
+ daily_enabled boolean not null,
+ keep_daily integer not null check (keep_daily between 1 and 60),
+ folder text not null check (length(folder) between 3 and 1000),
+ actor_id uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp()
+);
+create trigger backup_settings_immutable before update or delete on backup_settings
+ for each row execute function creator_reject_change();
+create table backup_runs (
+ id uuid primary key,
+ trigger text not null check (trigger in ('manual', 'daily', 'check', 'restore')),
+ status text not null default 'running' check (status in ('running', 'succeeded', 'failed', 'interrupted')),
+ backup_name text check (length(backup_name) between 1 and 200),
+ daily_day date,
+ actor_id uuid references actors(id),
+ started_at timestamptz not null default clock_timestamp(),
+ finished_at timestamptz,
+ error text check (length(error) between 1 and 2000),
+ result jsonb,
+ check ((trigger = 'daily') = (daily_day is not null)),
+ check ((trigger = 'daily') = (actor_id is null)),
+ check ((status = 'running') = (finished_at is null))
+);
+create unique index backup_runs_one_running on backup_runs ((true)) where status = 'running';
+create unique index backup_runs_daily_once on backup_runs (daily_day) where trigger = 'daily';
+create index backup_runs_recent on backup_runs (started_at desc);
+create function creator_backup_run_change() returns trigger language plpgsql as $$
+begin
+  if tg_op = 'DELETE' then raise exception 'backup runs are append-only'; end if;
+  if old.status <> 'running' then raise exception 'a finished backup run cannot change'; end if;
+  if new.id <> old.id or new.trigger <> old.trigger or new.daily_day is distinct from old.daily_day
+     or new.actor_id is distinct from old.actor_id or new.started_at <> old.started_at
+     or (new.backup_name is distinct from old.backup_name and old.backup_name is not null) then
+    raise exception 'only a running backup run''s outcome can be recorded';
+  end if;
+  return new;
+end $$;
+create trigger backup_runs_outcome before update or delete on backup_runs
+ for each row execute function creator_backup_run_change();
+`,
+  },
+  {
     // ADR-0124 (F2): an autopilot that opted in (its config's resume_after_limit) continues by
     // itself after a usage limit. These record how many automatic continues it made (bounded)
     // and when the owner turned that off; turning it on again is not offered (start a new one).

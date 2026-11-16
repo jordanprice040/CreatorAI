@@ -71,6 +71,21 @@ export async function migrate(pool: Pool): Promise<number[]> {
   }
 }
 
+/**
+ * ADR-0123: the highest applied migration, when every applied one is known to this code
+ * unchanged. Used for the backup taken before an upgrade, when the schema is older on purpose.
+ */
+export async function assertSchemaKnown(pool: Pool): Promise<number> {
+  const done = await appliedVersions(pool);
+  compare(done);
+  if (!done.length)
+    throw new ContractError(
+      'STORAGE_UNAVAILABLE',
+      'The database has no Creator Agent schema to back up.',
+    );
+  return Math.max(...done.map((d) => d.version));
+}
+
 /** Startup gate: the service refuses to serve records from an unmigrated or mismatched schema. */
 export async function assertSchemaCurrent(pool: Pool): Promise<number> {
   const done = await appliedVersions(pool);

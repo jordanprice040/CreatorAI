@@ -49,3 +49,4 @@ export type {
 } from './recipe-qualification-store.js';
 export * from './studio-lock.js';
 export * from './support-report-store.js';
+export * from './backup-store.js';

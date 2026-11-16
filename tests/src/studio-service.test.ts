@@ -10,6 +10,7 @@ import {
   readFile,
   readdir,
   rm,
+  symlink,
   writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -17,6 +18,7 @@ import { join, resolve } from 'node:path';
 import pg from 'pg';
 import {
   STUDIO_LOCK_KEY,
+  listBackups,
   migrationChecksum,
   migrations,
   takeStudioLock,
@@ -527,19 +529,59 @@ test('upgrade takes a verified backup first, then migrates under the lock', asyn
   const need = await before.next('needs_migration');
   assert.equal(need.current, migrations.at(-2)!.version);
   assert.equal(await before.exit, 3);
+  // Re-review N-1 (L-3): a pre-upgrade backup that fails after its manifest is written (here
+  // pg_restore --list fails) leaves no folder, finished-looking or partial, and no upgrade.
+  // R3-L-1: the fake tools are a symlink and a shell script, which Windows cannot run as
+  // pg_dump / pg_restore, so this part runs on Linux and macOS only and says so on Windows.
+  if (process.platform === 'win32')
+    t.diagnostic(
+      'skipped on Windows: the failing pre-upgrade backup part needs a symlinked pg_dump and a shell-script pg_restore',
+    );
+  else await failedPreUpgradeLeavesNothing(dir, base, PG_BIN!);
+  const still = studio('serve', base);
+  await still.next('needs_migration');
+  assert.equal(await still.exit, 3);
   const up = studio('migrate', base);
   const r = (await up.next('result', 120000)).result as {
     applied: number[];
-    backup: { dir: string; database: { sha256: string } };
+    backup: { dir: string; schema_from: number; database: { sha256: string } };
   };
   assert.equal(await up.exit, 0, up.log());
   assert.deepEqual(r.applied, [migrations.at(-1)!.version]);
+  // ADR-0123: the full T17 backup (database and products) at the schema before the upgrade,
+  // in a pre-upgrade folder that Settings › Backups lists.
   const manifest = JSON.parse(
     await readFile(join(r.backup.dir, 'backup-manifest.json'), 'utf8'),
-  ) as { schema_from: number };
-  assert.equal(manifest.schema_from, migrations.at(-2)!.version);
+  ) as { format: string; schema_version: number; database: { sha256: string } };
+  assert.equal(manifest.format, 'creator-backup/1');
+  assert.equal(manifest.schema_version, migrations.at(-2)!.version);
+  assert.equal(r.backup.schema_from, migrations.at(-2)!.version);
+  assert.equal(manifest.database.sha256, r.backup.database.sha256);
+  assert.match(r.backup.dir, /pre-upgrade-v\d+-/);
   assert.ok((await readdir(r.backup.dir)).includes('database.dump'));
+  const listed = await listBackups(join(dir, 'backups'));
+  assert.equal(listed.backups[0]!.kind, 'pre_upgrade');
+  assert.equal(listed.backups[0]!.restorable, false);
 });
+
+/** R3-L-1: the L-3 failure path, with fake database tools (Linux and macOS only). */
+async function failedPreUpgradeLeavesNothing(
+  dir: string,
+  base: ReturnType<typeof input>,
+  pgBin: string,
+) {
+  const fakeBin = join(dir, 'fake-bin');
+  await mkdir(fakeBin);
+  await symlink(join(pgBin, 'pg_dump'), join(fakeBin, 'pg_dump'));
+  await writeFile(join(fakeBin, 'pg_restore'), '#!/bin/sh\nexit 1\n', {
+    mode: 0o755,
+  });
+  const failing = studio('migrate', { ...base, pg_bin: fakeBin });
+  const err = await failing.next('error', 120000);
+  assert.match(String(err.message), /Pre-upgrade backup failed/);
+  assert.notEqual(await failing.exit, 0);
+  assert.deepEqual(await readdir(join(dir, 'backups')), []);
+}
 
 test('adoption copies a studio through a verified backup and leaves the source untouched', async (t) => {
   const source = await freshDatabase(t);
