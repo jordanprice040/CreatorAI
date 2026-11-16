@@ -785,6 +785,8 @@ export function createApi(
     /^\/api\/notifications(?:\/(recent|pending|read-all)|\/([^/]+)\/(claim|read|dismiss))?$/;
   const NOTIFICATION_PREFERENCES_ROUTE = /^\/api\/notification-preferences$/;
   const USAGE_ROUTE = /^\/api\/workspaces\/([^/]+)\/(usage)$/;
+  // F9 (ADR-0125): past discovery runs to start a similar project from (read-only).
+  const PAST_PROJECTS_ROUTE = /^\/api\/workspaces\/([^/]+)\/(past-projects)$/;
   const EVIDENCE_SITES_ROUTE = /^\/api\/workspaces\/([^/]+)\/(evidence-sites)$/;
   // ADR-0093 (P28): the workspace's own OpenAI API key (status, save or replace, remove).
   const API_KEY_ROUTE =
@@ -828,6 +830,7 @@ export function createApi(
       NOTIFICATIONS_ROUTE.exec(url.pathname) ??
       NOTIFICATION_PREFERENCES_ROUTE.exec(url.pathname) ??
       USAGE_ROUTE.exec(url.pathname) ??
+      PAST_PROJECTS_ROUTE.exec(url.pathname) ??
       EVIDENCE_SITES_ROUTE.exec(url.pathname) ??
       API_KEY_ROUTE.exec(url.pathname) ??
       CHAT_ROUTE.exec(url.pathname) ??
@@ -984,6 +987,11 @@ export function createApi(
       if (method === 'GET')
         return send(200, await store.usageSummary(ctx, ws), false);
       throw new ContractError('NOT_FOUND', 'Unknown usage route.');
+    }
+    if (ws && PAST_PROJECTS_ROUTE.test(url.pathname)) {
+      if (method === 'GET')
+        return send(200, await store.pastProjects(ctx, ws), false);
+      throw new ContractError('NOT_FOUND', 'Unknown past-projects route.');
     }
     // ADR-0056 evidence websites: any member may read the list in force; only a workspace
     // owner signed in as a person may change it (the store checks), and each change is logged.

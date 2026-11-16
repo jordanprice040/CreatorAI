@@ -69,6 +69,7 @@ export * from './autopilot-usage.js';
 export * from './automation.js';
 export * from './api-keys.js';
 export * from './recipe-qualification.js';
+export * from './past-projects.js';
 export * from './support-report.js';
 export * from './run-compare.js';
 export * from './notifications.js';
