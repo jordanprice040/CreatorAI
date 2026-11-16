@@ -13,7 +13,7 @@ import {
 import { useViewMode } from './view-mode.js';
 import { EventLine } from './event-line.js';
 import { plainText } from './plain-words.js';
-import { roleName } from './labels.js';
+import { clipText, roleName, runName } from './labels.js';
 import { Money } from './money.js';
 import { useState } from 'react';
 import { api, message, when, words } from './oversight.js';
@@ -24,6 +24,7 @@ import {
   StateBadge,
   Status,
   shortId,
+  runNames,
   useLoad,
   type View,
 } from './ui.js';
@@ -49,6 +50,15 @@ const proposalCount = (o: Overview) => {
   return `${n} ${n === 1 ? 'proposal' : 'proposals'}`;
 };
 
+/**
+ * Whole-app UX pass: which project a workflow belongs to, as on Runs, so three finished
+ * "Discovery" rows can be told apart.
+ */
+function RunOf({ w, names }: { w: Workflow; names?: Map<string, string> }) {
+  const name = runName(w.run_id, names ?? new Map());
+  return name ? <span> · {clipText(name, 48)}</span> : null;
+}
+
 /** Run monitor: what is running, what waits for a person, what it costs, what just happened. */
 export function Overview({
   session,
@@ -63,13 +73,16 @@ export function Overview({
   const base = `workspaces/${workspace.id}`;
   const [error, setError] = useState('');
   const data = useLoad(async () => {
-    const [overview, workflows, decisions, activity] = await Promise.all([
-      api(OverviewSchema, `${base}/overview`),
-      api(z.array(WorkflowSchema), `${base}/workflows`),
-      api(z.array(DecisionSchema), `${base}/decisions?status=pending`),
-      api(ActivityPageSchema, `${base}/activity?limit=8`),
-    ]);
-    return { overview, workflows, decisions, activity };
+    const [overview, workflows, decisions, activity, names] = await Promise.all(
+      [
+        api(OverviewSchema, `${base}/overview`),
+        api(z.array(WorkflowSchema), `${base}/workflows`),
+        api(z.array(DecisionSchema), `${base}/decisions?status=pending`),
+        api(ActivityPageSchema, `${base}/activity?limit=8`),
+        runNames(base),
+      ],
+    );
+    return { overview, workflows, decisions, activity, names };
   }, [workspace.id]);
   async function control(w: Workflow, action: 'pause' | 'resume' | 'cancel') {
     setError('');
@@ -205,6 +218,7 @@ export function Overview({
                     <button className="text" onClick={() => open('runs', w.id)}>
                       {roleName(w.role)} {!standard && shortId(w.id)}
                     </button>
+                    <RunOf w={w} names={d?.names} />
                     <small>
                       {' '}
                       · {STATE_NOTE[w.state]} · {words(w.reason)} · updated{' '}
@@ -284,6 +298,7 @@ export function Overview({
                         >
                           {roleName(w.role)} {!standard && shortId(w.id)}
                         </button>
+                        <RunOf w={w} names={d?.names} />
                         <small>
                           {' '}
                           {!differs && note && note !== w.state
