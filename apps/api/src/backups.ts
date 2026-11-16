@@ -9,7 +9,7 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises';
-import { isAbsolute, join, relative, resolve } from 'node:path';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import pg from 'pg';
 import {
   BackupNameSchema,
@@ -26,6 +26,8 @@ import {
   BackupStore,
   PARTIAL_SUFFIX,
   backupFolderName,
+  backupTag,
+  studioTag,
   checkBackup,
   createBackup,
   listBackups,
@@ -39,10 +41,15 @@ const DAILY_TICK_MS = 10 * 60 * 1000;
 const FIRST_TICK_MS = 2 * 60 * 1000;
 const ROUTE = /^\/api\/settings\/backups(?:\/([^/]+)(?:\/([a-z-]+))?)?$/;
 
-const inside = (child: string, parent: string) => {
+/** Review L-6: `..bk` is a child; only `..` itself or `../…` climbs out. */
+export const inside = (child: string, parent: string) => {
   const r = relative(parent, child);
-  return r === '' || (!!r && !r.startsWith('..') && !isAbsolute(r));
+  if (r === '') return true;
+  if (isAbsolute(r) || r === '..' || r.startsWith(`..${sep}`)) return false;
+  return true;
 };
+/** Databases a restore must never fill (review M-1). */
+const SYSTEM_DATABASES = new Set(['postgres', 'template0', 'template1']);
 const errorText = (e: unknown) =>
   e instanceof Error ? e.message : 'The backup step failed.';
 
@@ -126,15 +133,23 @@ export function createBackups(o: {
     return folder;
   }
 
-  const dbName = () =>
-    o.databaseUrl
-      ? decodeURIComponent(new URL(o.databaseUrl).pathname.slice(1))
-      : '';
+  // Review N-1: the server's own answer, not the URL path (which may be empty).
+  let own: { name: string; tag: string } | null = null;
+  async function studio() {
+    if (!own) {
+      const { rows } = await o.pool!.query<{ d: string }>(
+        'select current_database() as d',
+      );
+      own = { name: rows[0]!.d, tag: await studioTag(o.pool!) };
+    }
+    return own;
+  }
 
   async function view() {
     const { store: s } = need();
     const settings = await s.settings(resolve(o.defaultFolder));
-    const listed = await listBackups(settings.folder);
+    const me = await studio();
+    const listed = await listBackups(settings.folder, me.tag);
     const runs = await s.runs();
     return parse(BackupsViewSchema, {
       settings,
@@ -142,8 +157,9 @@ export function createBackups(o: {
       folder_problem: listed.problem,
       runs: runs.runs,
       running: runs.running,
-      last_daily_day: runs.lastDailyDay,
-      database_name: dbName(),
+      last_daily: runs.lastDaily,
+      other_studio_backups: listed.other_studio,
+      database_name: me.name,
       schema_version: migrations.at(-1)!.version,
     });
   }
@@ -211,7 +227,7 @@ export function createBackups(o: {
   async function backupNow(actorId: string) {
     const { store: s, url } = need();
     const settings = await s.settings(resolve(o.defaultFolder));
-    const name = backupFolderName('manual', now());
+    const name = backupFolderName('manual', now(), (await studio()).tag);
     const run = await s.startRun({
       trigger: 'manual',
       actorId,
@@ -229,10 +245,13 @@ export function createBackups(o: {
     if (!settings.daily_enabled) return null;
     const at = now();
     const day = at.toISOString().slice(0, 10);
-    const { lastDailyDay, running } = await store.runs();
-    if (lastDailyDay === day || running) return null;
-    const name = backupFolderName('daily', at);
+    const { lastDaily, running } = await store.runs();
+    if (lastDaily?.day === day || running) return null;
+    const tag = (await studio()).tag;
+    const name = backupFolderName('daily', at, tag);
     let run: BackupRun | null;
+    // Review N-4: close() may have run during the awaits above.
+    if (closed) return null;
     try {
       run = await store.startRun({
         trigger: 'daily',
@@ -253,6 +272,7 @@ export function createBackups(o: {
       const removed = await pruneDailyBackups(
         settings.folder,
         settings.keep_daily,
+        tag,
       );
       return { ...made, kept: settings.keep_daily, removed };
     });
@@ -265,9 +285,9 @@ export function createBackups(o: {
     const { store: s } = need();
     const valid = parse(BackupNameSchema, name);
     const settings = await s.settings(resolve(o.defaultFolder));
-    const b = (await listBackups(settings.folder)).backups.find(
-      (x) => x.name === valid,
-    );
+    const b = (
+      await listBackups(settings.folder, (await studio()).tag)
+    ).backups.find((x) => x.name === valid);
     if (!b)
       throw new ContractError('NOT_FOUND', 'No such backup in the folder.');
     return { folder: settings.folder, b };
@@ -310,11 +330,12 @@ export function createBackups(o: {
         'INVALID_CONFIG',
         b.restore_note ?? 'This app version cannot restore that backup.',
       );
-    if (input.database_name === dbName())
+    if (input.database_name === (await studio()).name)
       throw new ContractError(
         'INVALID_CONTRACT',
         'That is the database this studio uses. Restore into a new one.',
       );
+    await checkTarget(url, input.database_name);
     if (!isAbsolute(input.products_root))
       throw new ContractError(
         'INVALID_CONTRACT',
@@ -337,6 +358,7 @@ export function createBackups(o: {
       trigger: 'restore',
       actorId,
       backupName: b.name,
+      target: { database_name: input.database_name, products_root: target },
     });
     job(run!, async () => {
       // Only what this restore created is removed if it fails.
@@ -344,6 +366,7 @@ export function createBackups(o: {
         () => true,
         () => false,
       ));
+      await checkTarget(url, input.database_name);
       const madeDb = await createDatabase(url, input.database_name);
       try {
         const check = await restoreBackup({
@@ -353,15 +376,16 @@ export function createBackups(o: {
           pgBinDir: o.pgBinDir,
         });
         const bad = check.artifacts.filter((a) => !a.ok);
+        // Review L-2: a copy that fails its final check is removed like any other failure.
+        if (!check.ok)
+          throw new ContractError(
+            'EVIDENCE_MISMATCH',
+            check.audit_chain.ok
+              ? `${bad.length} product package(s) in the restored copy did not match their recorded hashes.`
+              : 'The restored audit history did not verify.',
+          );
         return {
-          ok: check.ok,
-          ...(check.ok
-            ? {}
-            : {
-                problem: check.audit_chain.ok
-                  ? `${bad.length} product package(s) did not match their recorded hashes.`
-                  : 'The restored audit history did not verify.',
-              }),
+          ok: true,
           database_name: input.database_name,
           products_root: target,
           schema_version: check.schema_version,
@@ -378,7 +402,14 @@ export function createBackups(o: {
           await rm(target, { recursive: true, force: true }).catch(
             () => undefined,
           );
-        throw e;
+        const removed = [
+          madeDb && `database ${input.database_name}`,
+          madeFolder && `folder ${target}`,
+        ].filter(Boolean);
+        throw new ContractError(
+          e instanceof ContractError ? e.code : 'STORAGE_UNAVAILABLE',
+          `${errorText(e)}${removed.length ? ` The ${removed.join(' and ')} this restore created ${removed.length > 1 ? 'were' : 'was'} removed.` : ''}`,
+        );
       }
     });
     return run!;
@@ -409,13 +440,13 @@ export function createBackups(o: {
       return { status: 202, value: parse(BackupStartedSchema, { run }) };
     }
     if (item && action === 'check') {
-      const run = await checkOne(session.actor_id, decodeURIComponent(item));
+      const run = await checkOne(session.actor_id, decoded(item));
       return { status: 202, value: parse(BackupStartedSchema, { run }) };
     }
     if (item && action === 'restore') {
       const run = await restoreOne(
         session.actor_id,
-        decodeURIComponent(item),
+        decoded(item),
         await body(),
       );
       return { status: 202, value: parse(BackupStartedSchema, { run }) };
@@ -428,10 +459,17 @@ export function createBackups(o: {
     if (!store) return;
     await store.sweepInterrupted();
     const settings = await store.settings(resolve(o.defaultFolder));
-    const names = await readdir(settings.folder).catch(() => [] as string[]);
-    for (const n of names)
-      if (/^(manual|daily)-[0-9TZ-]+\.partial$/.test(n))
-        await rm(join(settings.folder, n), { recursive: true, force: true });
+    const tag = (await studio()).tag;
+    // Review L-3/L-5: this studio's own unfinished folders only, upgrade ones too.
+    for (const folder of new Set([settings.folder, resolve(o.defaultFolder)])) {
+      const names = await readdir(folder).catch(() => [] as string[]);
+      for (const n of names)
+        if (
+          /^(manual|daily|pre-upgrade)-[0-9a-zA-Z-]+\.partial$/.test(n) &&
+          backupTag(n) === tag
+        )
+          await rm(join(folder, n), { recursive: true, force: true });
+    }
   }
 
   function start() {
@@ -499,5 +537,37 @@ async function countWorkspaces(url: string) {
       'select count(*)::int as n from workspaces',
     );
     return rows[0]!.n;
+  });
+}
+
+/** Review N-6: a malformed escape is a bad request, not a server failure. */
+function decoded(item: string) {
+  try {
+    return decodeURIComponent(item);
+  } catch {
+    throw new ContractError('INVALID_CONTRACT', 'Not a backup folder name.');
+  }
+}
+/**
+ * Review M-1: never a system or template database, nor one that refuses connections; an
+ * existing database is allowed only if it is empty (restoreBackup checks that again).
+ */
+async function checkTarget(url: string, name: string) {
+  if (SYSTEM_DATABASES.has(name))
+    throw new ContractError(
+      'INVALID_CONTRACT',
+      `${name} is a PostgreSQL system database. Restore into a new one.`,
+    );
+  await withAdmin(url, async (p) => {
+    const { rows } = await p.query<{ t: boolean; c: boolean }>(
+      'select datistemplate as t, datallowconn as c from pg_database where datname = $1',
+      [name],
+    );
+    const r = rows[0];
+    if (r && (r.t || !r.c))
+      throw new ContractError(
+        'INVALID_CONTRACT',
+        `${name} is a template or closed database. Restore into a new one.`,
+      );
   });
 }

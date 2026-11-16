@@ -14,12 +14,13 @@ import {
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import pg from 'pg';
-import { createApi, createBackups } from '@creator/api';
+import { createApi, createBackups, insideFolder } from '@creator/api';
 import {
   BackupStore,
   checkBackup,
   listBackups,
   migrations,
+  backupTag,
   pruneDailyBackups,
 } from '@creator/db';
 import type { BackupsView, BackupRun } from '@creator/contracts';
@@ -209,6 +210,20 @@ test('F1-1: owner backs up from Settings (same manifest as pnpm backup), checks 
     products_root: join(products, 'inner'),
   });
   assert.equal(nested.status, 400);
+  // Review M-1: system and template databases are never a target, even though empty.
+  for (const system of ['template1', 'postgres', 'template0']) {
+    const r = await post(`/${entry.name}/restore`, {
+      database_name: system,
+      products_root: join(dir, 'restored'),
+    });
+    assert.equal(r.status, 400, system);
+    assert.match(
+      ((await r.json()) as { error: { message: string } }).error.message,
+      /system database/,
+    );
+  }
+  // Review N-6: a malformed escape is a bad request, not a server failure.
+  assert.equal((await post('/%E0/check')).status, 400);
   assert.equal(
     (
       await post('/..%2F..%2Fetc/restore', {
@@ -452,11 +467,24 @@ test('F1-2: one job at a time; the daily backup runs once per UTC day across res
     { expected_version: 0, daily_enabled: true, keep_daily: 2, folder },
     async (f) => f,
   );
+  // Review L-5: another studio's daily in the same folder is never pruned or listed.
+  const mine = (await listBackups(folder)).backups[0]!;
+  const foreign = 'daily-2026-11-01T00-00-00-000Z-s00000000';
+  await mkdir(join(folder, foreign));
+  await writeFile(
+    join(folder, foreign, 'backup-manifest.json'),
+    await readFile(join(folder, mine.name, 'backup-manifest.json')),
+  );
+  const tag = backupTag(mine.name)!;
+  assert.match(tag, /^[0-9a-f]{8}$/);
+  assert.notEqual(tag, '00000000');
   clock = new Date('2026-11-18T08:00:00Z');
   const d3 = await s1.daily();
   assert.ok(d3);
   await s1.idle();
-  const list = await listBackups(folder);
+  const list = await listBackups(folder, tag);
+  assert.equal(list.other_studio, 1);
+  assert.ok((await readdir(folder)).includes(foreign));
   const dailies = list.backups.filter((x) => x.kind === 'daily');
   assert.equal(dailies.length, 2, 'keep 2');
   assert.deepEqual(
@@ -473,7 +501,17 @@ test('F1-2: one job at a time; the daily backup runs once per UTC day across res
     join(folder, 'manual-keepme', 'backup-manifest.json'),
     await readFile(join(folder, dailies[0]!.name, 'backup-manifest.json')),
   );
-  const removed = await pruneDailyBackups(folder, 1);
+  const removed = await pruneDailyBackups(folder, 1, tag);
   assert.equal(removed.length, 1);
   assert.ok((await readdir(folder)).includes('manual-keepme'));
+  assert.ok((await readdir(folder)).includes(foreign));
+});
+
+test('F1-3: a folder named "..something" inside the product store counts as inside (review L-6)', () => {
+  const root = resolve('/studio/products');
+  assert.equal(insideFolder(join(root, '..bk'), root), true);
+  assert.equal(insideFolder(join(root, 'a', 'b'), root), true);
+  assert.equal(insideFolder(root, root), true);
+  assert.equal(insideFolder(resolve('/studio/backups'), root), false);
+  assert.equal(insideFolder(resolve('/studio'), root), false);
 });

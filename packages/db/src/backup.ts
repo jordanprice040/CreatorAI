@@ -260,6 +260,23 @@ function safeRelative(path: string) {
     );
   return join(...parts);
 }
+/** Review N-2: names Windows would turn into a device or an alternate data stream. */
+const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i;
+function restorablePath(path: string) {
+  const rel = safeRelative(path);
+  if (
+    path
+      .split('/')
+      .some(
+        (p) => p.includes(':') || WINDOWS_RESERVED.test(p) || /[ .]$/.test(p),
+      )
+  )
+    throw new ContractError(
+      'INVALID_CONTRACT',
+      `Path in backup manifest can't be restored safely on Windows: ${path}`,
+    );
+  return rel;
+}
 
 export async function createBackup(o: {
   databaseUrl: string;
@@ -374,7 +391,7 @@ export async function checkBackup(
     );
   const listed = new Set<string>();
   for (const f of manifest.products) {
-    const bytes = await readFile(join(dir, 'products', safeRelative(f.path)));
+    const bytes = await readFile(join(dir, 'products', restorablePath(f.path)));
     if (sha256(bytes) !== f.sha256 || bytes.length !== f.bytes)
       throw new ContractError(
         'EVIDENCE_MISMATCH',
@@ -436,10 +453,26 @@ export async function restoreBackup(o: {
     ],
     target.env,
   );
+  // Review N-3: what was restored is hashed again, so a file swapped after the first check
+  // is caught.
+  if (
+    sha256(await readFile(join(o.backupDir, 'database.dump'))) !==
+    manifest.database.sha256
+  )
+    throw new ContractError(
+      'EVIDENCE_MISMATCH',
+      'database.dump changed while it was being restored.',
+    );
   for (const f of manifest.products) {
     const to = join(o.productsRoot, safeRelative(f.path));
     await mkdir(dirname(to), { recursive: true });
     await copyFile(join(o.backupDir, 'products', safeRelative(f.path)), to);
+    const copied = await readFile(to);
+    if (sha256(copied) !== f.sha256 || copied.length !== f.bytes)
+      throw new ContractError(
+        'EVIDENCE_MISMATCH',
+        `products/${f.path} changed while it was being restored.`,
+      );
   }
   const check = await verifyRestore(o.databaseUrl, o.productsRoot);
   // Snapshot backups (X06) must match exactly; older ones counted after the dump (at least).
@@ -547,16 +580,34 @@ export function backupKind(name: string): BackupKind {
   if (name.startsWith('adopt-')) return 'adopt';
   return 'other';
 }
-/** A folder name for a new backup: kind, then a sortable UTC time. */
+/**
+ * A folder name for a new backup: kind, a sortable UTC time and the studio's tag (review L-5),
+ * so studios sharing a folder never prune, sweep or list each other's backups.
+ */
 export function backupFolderName(
   kind: 'manual' | 'daily' | 'pre-upgrade',
   at: Date,
+  tag: string,
   schemaFrom?: number,
 ) {
   const stamp = at.toISOString().replace(/[:.]/g, '-');
   return kind === 'pre-upgrade'
-    ? `pre-upgrade-v${schemaFrom}-${stamp}`
-    : `${kind}-${stamp}`;
+    ? `pre-upgrade-v${schemaFrom}-${stamp}-s${tag}`
+    : `${kind}-${stamp}-s${tag}`;
+}
+/** The studio tag in a folder name the app made, or null (CLI, adopt, older backups). */
+export function backupTag(name: string): string | null {
+  return /-s([0-9a-f]{8})(?:\.partial)?$/.exec(name)?.[1] ?? null;
+}
+/**
+ * A short, stable tag for the studio a database holds: its name and object id on its server.
+ * A restored copy lives in another database, so it gets its own tag.
+ */
+export async function studioTag(q: Queryable): Promise<string> {
+  const { rows } = await q.query<{ k: string }>(
+    `select current_database() || ':' || oid::text as k from pg_database where datname = current_database()`,
+  );
+  return sha256(rows[0]!.k).slice(0, 8);
 }
 
 const nonNegative = (n: unknown) =>
@@ -569,7 +620,13 @@ const nonNegative = (n: unknown) =>
  */
 export async function listBackups(
   dir: string,
-): Promise<{ backups: BackupEntry[]; problem: string | null }> {
+  tag?: string,
+): Promise<{
+  backups: BackupEntry[];
+  problem: string | null;
+  /** Backups another studio made in this folder, left out. */
+  other_studio: number;
+}> {
   let entries;
   try {
     entries = await readdir(dir, { withFileTypes: true });
@@ -581,13 +638,20 @@ export async function listBackups(
         code === 'ENOENT'
           ? 'The backups folder does not exist yet. It is created with the first backup.'
           : `The backups folder can't be read (${code ?? 'error'}).`,
+      other_studio: 0,
     };
   }
   const latest = migrations.at(-1)!.version;
   const out: BackupEntry[] = [];
+  let other = 0;
   for (const entry of entries) {
     if (!entry.isDirectory() || entry.name.endsWith(PARTIAL_SUFFIX)) continue;
     if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/.test(entry.name)) continue;
+    const owner = backupTag(entry.name);
+    if (tag && owner && owner !== tag) {
+      other++;
+      continue;
+    }
     let m: Record<string, unknown>;
     try {
       m = JSON.parse(
@@ -643,21 +707,27 @@ export async function listBackups(
     (a, b) =>
       b.created_at.localeCompare(a.created_at) || b.name.localeCompare(a.name),
   );
-  return { backups: out, problem: null };
+  return { backups: out, problem: null, other_studio: other };
 }
 
 /**
- * Keeps the newest `keep` daily backups and deletes older ones. Only folders the daily job
- * made (`daily-…` with a full manifest) are ever removed; manual, upgrade and other backups
+ * Keeps the newest `keep` daily backups and deletes older ones. Only folders this studio's
+ * daily job made (`daily-…-s<tag>` with a full manifest) are ever removed; manual, upgrade and other backups
  * are the owner's to delete.
  */
 export async function pruneDailyBackups(
   dir: string,
   keep: number,
+  tag: string,
 ): Promise<string[]> {
-  const { backups } = await listBackups(dir);
+  const { backups } = await listBackups(dir, tag);
   const old = backups
-    .filter((b) => b.kind === 'daily' && b.format === BACKUP_FORMAT)
+    .filter(
+      (b) =>
+        b.kind === 'daily' &&
+        b.format === BACKUP_FORMAT &&
+        backupTag(b.name) === tag,
+    )
     .slice(keep);
   for (const b of old)
     await rm(join(dir, b.name), { recursive: true, force: true });

@@ -71,7 +71,6 @@ export async function migrate(pool: Pool): Promise<number[]> {
   }
 }
 
-/** Startup gate: the service refuses to serve records from an unmigrated or mismatched schema. */
 /**
  * ADR-0123: the highest applied migration, when every applied one is known to this code
  * unchanged. Used for the backup taken before an upgrade, when the schema is older on purpose.
@@ -87,6 +86,7 @@ export async function assertSchemaKnown(pool: Pool): Promise<number> {
   return Math.max(...done.map((d) => d.version));
 }
 
+/** Startup gate: the service refuses to serve records from an unmigrated or mismatched schema. */
 export async function assertSchemaCurrent(pool: Pool): Promise<number> {
   const done = await appliedVersions(pool);
   compare(done);

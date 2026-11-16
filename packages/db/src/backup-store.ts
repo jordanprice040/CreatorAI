@@ -133,11 +133,13 @@ export class BackupStore {
     actorId: string | null;
     backupName: string | null;
     dailyDay?: string;
+    /** A restore's target, recorded as it starts so an interrupted one names what it left. */
+    target?: Record<string, unknown>;
   }): Promise<BackupRun | null> {
     try {
       const { rows } = await this.pool.query<RunRow>(
-        `insert into backup_runs (id, trigger, backup_name, daily_day, actor_id)
-         values ($1, $2, $3, $4, $5)
+        `insert into backup_runs (id, trigger, backup_name, daily_day, actor_id, result)
+         values ($1, $2, $3, $4, $5, $6)
          returning id, trigger, status, backup_name, started_at, finished_at, error, result`,
         [
           randomUUID(),
@@ -145,6 +147,7 @@ export class BackupStore {
           o.backupName,
           o.trigger === 'daily' ? o.dailyDay : null,
           o.trigger === 'daily' ? null : o.actorId,
+          o.target ? JSON.stringify(o.target) : null,
         ],
       );
       return runOf(rows[0]!);
@@ -184,7 +187,11 @@ export class BackupStore {
   async sweepInterrupted(): Promise<number> {
     const { rowCount } = await this.pool.query(
       `update backup_runs set status = 'interrupted', finished_at = clock_timestamp(),
-          error = 'The studio stopped before this finished, or this copy was restored from a backup taken while it ran.'
+          error = case when trigger = 'restore' then
+            'The studio stopped before this restore finished, or this copy was restored from a backup taken while it ran. The new database (empty: the restore is one transaction) and any partly copied folder named in this record may still exist; remove them before reusing those names.'
+          else
+            'The studio stopped before this finished, or this copy was restored from a backup taken while it ran.'
+          end
         where status = 'running'`,
     );
     return rowCount ?? 0;
@@ -192,7 +199,11 @@ export class BackupStore {
   async runs(): Promise<{
     runs: BackupRun[];
     running: BackupRun | null;
-    lastDailyDay: string | null;
+    lastDaily: {
+      day: string;
+      status: BackupRun['status'];
+      error: string | null;
+    } | null;
   }> {
     const { rows } = await this.pool.query<RunRow>(
       `select id, trigger, status, backup_name, started_at, finished_at, error, result
@@ -202,13 +213,19 @@ export class BackupStore {
       `select id, trigger, status, backup_name, started_at, finished_at, error, result
          from backup_runs where status = 'running'`,
     );
-    const daily = await this.pool.query<{ d: string | null }>(
-      `select max(daily_day)::text as d from backup_runs where trigger = 'daily'`,
+    // Review L-1: the last attempt's outcome too, so a failed day is not shown as covered.
+    const daily = await this.pool.query<{
+      day: string;
+      status: BackupRun['status'];
+      error: string | null;
+    }>(
+      `select daily_day::text as day, status, error from backup_runs
+        where trigger = 'daily' order by daily_day desc limit 1`,
     );
     return {
       runs: rows.map(runOf),
       running: running.rows[0] ? runOf(running.rows[0]) : null,
-      lastDailyDay: daily.rows[0]?.d ?? null,
+      lastDaily: daily.rows[0] ?? null,
     };
   }
   async run(id: string): Promise<BackupRun | null> {

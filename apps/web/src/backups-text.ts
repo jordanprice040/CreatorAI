@@ -57,10 +57,16 @@ const str = (v: unknown) => (typeof v === 'string' ? v : '?');
 export function dailyText(v: BackupsView, today: string): string {
   if (!v.settings.daily_enabled)
     return 'Off. Backups are made only when you press Back up now.';
-  const keep = `keeps the newest ${v.settings.keep_daily}`;
-  return v.last_daily_day === today
-    ? `On while the app runs; today's has been taken. It ${keep}.`
-    : `On while the app runs; today's is taken within about 10 minutes of the app running. It ${keep}.`;
+  const keep = `It keeps the newest ${v.settings.keep_daily}.`;
+  const last = v.last_daily;
+  if (last?.day !== today)
+    return `On while the app runs; today's is taken within about 10 minutes of the app running. ${keep}`;
+  // Review L-1: one attempt a day, so a failed or interrupted one is said plainly.
+  if (last.status === 'running')
+    return `On; today's is being taken now. ${keep}`;
+  if (last.status === 'succeeded')
+    return `On while the app runs; today's has been taken. ${keep}`;
+  return `On, but today's ${last.status === 'failed' ? 'failed' : 'was interrupted'}${last.error ? ` (${last.error})` : ''}. The next try is tomorrow; press Back up now to make one today. ${keep}`;
 }
 
 /** A restore target's database name, suggested from the backup's name. */

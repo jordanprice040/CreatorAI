@@ -93,9 +93,17 @@ export const BackupsViewSchema = z.strictObject({
   /** Newest first, at most 20. */
   runs: z.array(BackupRunSchema).max(20),
   running: BackupRunSchema.nullable(),
-  /** The UTC day of the last daily backup attempt, if any. */
-  last_daily_day: z.iso.date().nullable(),
-  /** The database the studio uses, by name only, so a restore target can't reuse it. */
+  /** The last daily backup attempt (one per UTC day), and how it ended. */
+  last_daily: z
+    .strictObject({
+      day: z.iso.date(),
+      status: BackupRunStatusSchema,
+      error: z.string().max(2000).nullable(),
+    })
+    .nullable(),
+  /** Backups another studio made in the same folder, which this page leaves out. */
+  other_studio_backups: counter,
+  /** The database the studio uses (`current_database()`), so a restore target can't reuse it. */
   database_name: z.string().max(63),
   schema_version: counter,
 });

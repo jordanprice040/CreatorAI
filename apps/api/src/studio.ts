@@ -7,14 +7,16 @@ import {
   type Server,
   type ServerResponse,
 } from 'node:http';
-import { mkdir, readFile, stat } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, stat } from 'node:fs/promises';
 import { extname, isAbsolute, join, resolve, sep } from 'node:path';
 import { promisify } from 'node:util';
 import pg from 'pg';
 import { ContractError, z, parse } from '@creator/contracts';
 import {
+  PARTIAL_SUFFIX,
   backupFolderName,
   checkBackup,
+  studioTag,
   createBackup,
   databaseUrl,
   migrate,
@@ -345,28 +347,47 @@ const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
 /**
  * ADR-0123 (F1): before any migration, the full T17 backup (database snapshot plus product
  * store, hashed manifest) at the schema the database is at now, re-hashed and its dump listed
- * by pg_restore. It shows in Settings › Backups; only the app version that made it restores it.
+ * by pg_restore. It is written as `<name>.partial` and renamed only after both checks pass, so a
+ * failed one never looks finished (review L-3), into the folder chosen in Settings › Backups
+ * when one is saved and writable, else the setup's folder (review L-4).
  */
 async function preMigrationBackup(input: StudioInput, from: number) {
-  await mkdir(input.backups_dir, { recursive: true });
-  const dir = join(
-    input.backups_dir,
-    backupFolderName('pre-upgrade', new Date(), from),
-  );
+  const { folder, tag } = await withPool(input.database_url, async (p) => {
+    const tag = await studioTag(p);
+    const has = await p.query<{ t: string | null }>(
+      `select to_regclass('backup_settings')::text as t`,
+    );
+    if (!has.rows[0]?.t) return { folder: input.backups_dir, tag };
+    const { rows } = await p.query<{ folder: string }>(
+      'select folder from backup_settings order by version desc limit 1',
+    );
+    return { folder: rows[0]?.folder ?? input.backups_dir, tag };
+  });
+  let target = folder;
+  try {
+    await mkdir(target, { recursive: true });
+  } catch {
+    target = input.backups_dir;
+    await mkdir(target, { recursive: true });
+  }
+  const name = backupFolderName('pre-upgrade', new Date(), tag, from);
+  const dir = join(target, name);
+  const partial = dir + PARTIAL_SUFFIX;
   const pgBinDir = input.pg_bin ?? undefined;
   try {
     const manifest = await createBackup({
       databaseUrl: input.database_url,
       productsRoot: input.products_root,
-      outDir: dir,
+      outDir: partial,
       pgBinDir,
       schema: 'known',
     });
-    await checkBackup(dir, { schema: from });
+    await checkBackup(partial, { schema: from });
     const bin = (n: string) => (input.pg_bin ? join(input.pg_bin, n) : n);
-    await run(bin('pg_restore'), ['--list', join(dir, 'database.dump')], {
+    await run(bin('pg_restore'), ['--list', join(partial, 'database.dump')], {
       maxBuffer: 64 * 1024 * 1024,
     });
+    await rename(partial, dir);
     return {
       dir,
       format: manifest.format,
@@ -375,8 +396,10 @@ async function preMigrationBackup(input: StudioInput, from: number) {
       schema_to: latest(),
       database: manifest.database,
       product_files: manifest.products.length,
+      folder_fallback: target !== folder,
     };
   } catch (e) {
+    await rm(partial, { recursive: true, force: true }).catch(() => undefined);
     const err = e as { code?: string; stderr?: string };
     if (e instanceof ContractError)
       throw new ContractError(

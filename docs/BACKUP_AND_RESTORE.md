@@ -71,13 +71,22 @@ The studio owner (the person recorded as studio spending manager) can do the sam
   use is not changed. To use the copy, start a studio with `CREATOR_DATABASE_URL` and
   `CREATOR_PRODUCTS_ROOT` pointing at it; the desktop app cannot switch to it yet.
 
+Folder names end in a short tag for the studio that made them (`-s<8 hex>`, from its
+database's name and id on the server), so two studios sharing a folder never prune, clean up
+or list each other's backups; the page says how many it leaves out. A restore refuses
+PostgreSQL's own databases (`postgres`, `template0`, `template1`) and any template or closed
+one; an existing database is allowed only if it is empty. If a restore fails at any step,
+including the final verification, the database and folder it created are removed.
+
 Every backup, check and restore is recorded with its outcome, one at a time. ChatGPT and
 Claude sign-ins are stored outside the database and products folder, so they are not in a
 backup; sign in again after a restore.
 
 **Before an upgrade** the installed app now takes this full backup (database and product
-files) at the schema it is at, in `pre-upgrade-v<from>-<time>`, re-hashes it and lists the
-dump, before migrating. Only the app version that made it can restore it. Older upgrade
+files) at the schema it is at, in `pre-upgrade-v<from>-<time>-s<tag>` in the folder chosen in
+Settings (or the setup's folder if none is saved or it can't be written), re-hashes it and
+lists the dump, before migrating. It is written as `….partial` and renamed only after both
+checks pass. Only the app version that made it can restore it. Older upgrade
 backups (`pre-migrate-…`, database only) are listed too; restore those by hand with
 `pg_restore`.
 

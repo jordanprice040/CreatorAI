@@ -264,6 +264,12 @@ export function Backups({ session }: { session: SessionInfo }) {
 
             <h4>In the folder</h4>
             {v.folder_problem && <p className="small">{v.folder_problem}</p>}
+            {v.other_studio_backups > 0 && (
+              <p className="small">
+                {v.other_studio_backups} backup(s) another studio made in this
+                folder are not shown, and this studio never removes them.
+              </p>
+            )}
             {!v.folder_problem && v.backups.length === 0 && (
               <p className="small">No backups yet.</p>
             )}

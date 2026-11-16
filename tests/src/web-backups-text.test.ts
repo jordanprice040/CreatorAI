@@ -37,21 +37,52 @@ test('backup sizes, run lines and the daily line say what happened', async () =>
     r.runLine(run({ trigger: 'restore', status: 'interrupted' })),
     /: interrupted$/,
   );
-  const view = (daily: boolean, last: string | null) => ({
+  const view = (
+    daily: boolean,
+    last: { day: string; status: string; error: string | null } | null,
+  ) => ({
     settings: { daily_enabled: daily, keep_daily: 7 },
-    last_daily_day: last,
+    last_daily: last,
   });
-  assert.match(r.dailyText(view(false, null), '2026-11-16'), /^Off\./);
+  const today = '2026-11-16';
+  assert.match(r.dailyText(view(false, null), today), /^Off\./);
   assert.match(
-    r.dailyText(view(true, '2026-11-16'), '2026-11-16'),
+    r.dailyText(
+      view(true, { day: today, status: 'succeeded', error: null }),
+      today,
+    ),
     /today's has been taken.*newest 7/,
   );
   assert.match(
-    r.dailyText(view(true, '2026-11-15'), '2026-11-16'),
+    r.dailyText(
+      view(true, { day: '2026-11-15', status: 'succeeded', error: null }),
+      today,
+    ),
     /within about 10 minutes/,
   );
+  // Review L-1: a failed or interrupted day is never shown as taken.
+  const failed = r.dailyText(
+    view(true, {
+      day: today,
+      status: 'failed',
+      error: 'pg_dump was not found.',
+    }),
+    today,
+  );
+  assert.match(
+    failed,
+    /today's failed \(pg_dump was not found\.\).*Back up now/,
+  );
+  assert.doesNotMatch(failed, /has been taken/);
+  assert.match(
+    r.dailyText(
+      view(true, { day: today, status: 'interrupted', error: null }),
+      today,
+    ),
+    /was interrupted/,
+  );
   // A restore database name the server accepts.
-  const name = r.suggestDatabase('manual-2026-11-16T09-00-00-000Z');
+  const name = r.suggestDatabase('manual-2026-11-16T09-00-00-000Z-sab12cd34');
   assert.match(name, /^[a-z][a-z0-9_]{0,62}$/);
-  assert.equal(name, 'restored_manual_2026_11_16t09_00_00_000z');
+  assert.equal(name, 'restored_manual_2026_11_16t09_00_00_000z_sab12cd34');
 });

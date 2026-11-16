@@ -2983,7 +2983,7 @@ import {
 } from './portfolio.js';
 export { visitorKey } from './desktop.js';
 export { createPreviewServer } from './artifacts.js';
-export { createBackups } from './backups.js';
+export { createBackups, inside as insideFolder } from './backups.js';
 export { WebDiscoveryRunner, stepId, answerJson } from './web-discovery.js';
 export {
   AutopilotRunner,
