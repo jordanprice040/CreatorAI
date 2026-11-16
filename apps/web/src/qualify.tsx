@@ -27,6 +27,7 @@ import {
   type Admits,
 } from './qualification-role.js';
 import { api, words } from './oversight.js';
+import { Term } from './term.js';
 
 /**
  * The frozen benchmarks this app can start a plan qualification with (audit item 4, piece 4).
@@ -284,9 +285,10 @@ export function QualifyModel({
     <fieldset>
       <legend>Qualify a model for a task</legend>
       <p>
-        A qualification runs one frozen benchmark against a verified model. It
-        sends one plan request per case, counted against this connection&apos;s
-        caps, and stays at $0 on a plan. Every held-out case must pass for the
+        A <Term term="qualification">qualification</Term> runs one frozen
+        benchmark against a verified model. It sends one plan request per case,
+        counted against this connection&apos;s caps, and stays at $0 on a plan.
+        Every <Term term="held_out_case">held-out case</Term> must pass for the
         model to qualify. Starting records the qualification only; nothing is
         sent until you press Run.
       </p>

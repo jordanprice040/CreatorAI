@@ -25,6 +25,7 @@ import {
   type HumilityDraft,
 } from './humility-fields.js';
 import { Routine, WhatWillHappen } from './routine.js';
+import { Term } from './term.js';
 
 const ETHICS: { value: EthicalStatus; label: string }[] = [
   { value: 'none_identified', label: 'None identified' },
@@ -174,7 +175,8 @@ export function HumilityForm({
       aria-labelledby="hf-h"
     >
       <h3 id="hf-h">
-        Humility review of {clip(subject.label, 80)} v{subject.version}
+        <Term term="humility_review">Humility review</Term> of{' '}
+        {clip(subject.label, 80)} v{subject.version}
       </h3>
       <p className="small">
         Before building, compare custom software honestly with the other ways to

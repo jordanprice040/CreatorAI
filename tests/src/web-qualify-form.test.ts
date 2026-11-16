@@ -174,12 +174,15 @@ async function loadQualify() {
               words: (s: string) => s.replaceAll('_', ' '),
               api: async () => {},
             }
-          : name === './allow-tasks.js'
-            ? {
-                AllowTasks: ({ label }: { label: string }) =>
-                  createElement('button', null, label),
-              }
-            : require(name),
+          : name === './term.js'
+            ? // F12 term help: the word itself, as the Advanced view shows it.
+              { Term: ({ children }: { children: unknown }) => children }
+            : name === './allow-tasks.js'
+              ? {
+                  AllowTasks: ({ label }: { label: string }) =>
+                    createElement('button', null, label),
+                }
+              : require(name),
     exports,
   );
   return exports;

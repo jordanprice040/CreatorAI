@@ -18,6 +18,7 @@ import { endAfter } from './end-time.js';
 import { api, message, when, words } from './oversight.js';
 import { Fold, FoldAll, useFolds, type Folds } from './fold.js';
 import { firstNeeding } from './fold-state.js';
+import { Term } from './term.js';
 
 // ADR-0079 (P10): "Approve routine steps for me". The form only gathers the owner's choices
 // and shows the summary the studio writes from them. The server writes the same summary
@@ -637,7 +638,9 @@ export function RoutinePolicies({
   return (
     <>
       <div className="fold-head">
-        <h3>Routine approvals</h3>
+        <h3>
+          <Term term="routine_approval">Routine approvals</Term>
+        </h3>
         <FoldAll
           ids={policies.map((v) => v.policy.id)}
           folds={policyFolds}

@@ -33,6 +33,7 @@ import {
   runName,
 } from './labels.js';
 import { runNames } from './ui.js';
+import { Term } from './term.js';
 
 const TERMINAL = ['succeeded', 'failed', 'cancelled'];
 /** Record kinds a skeptic review can examine, in the order the picker groups them. */
@@ -456,10 +457,10 @@ export function Workflows({
               ) : (
                 <p className="small">
                   {detail.usage.attempts} calls · charged{' '}
-                  <Money nano={detail.usage.incurred} fixture={wf.fixture} /> ·
-                  in flight{' '}
-                  <Money nano={detail.usage.reserved} fixture={wf.fixture} /> ·
-                  unknown (held){' '}
+                  <Money nano={detail.usage.incurred} fixture={wf.fixture} /> ·{' '}
+                  <Term term="reservation">in flight</Term>{' '}
+                  <Money nano={detail.usage.reserved} fixture={wf.fixture} /> ·{' '}
+                  <Term term="unknown_outcome">unknown (held)</Term>{' '}
                   <Money nano={detail.usage.unknown} fixture={wf.fixture} />
                 </p>
               )}

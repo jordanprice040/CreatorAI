@@ -29,6 +29,7 @@ import {
 import { useOnShow } from './page-active.js';
 import { newestFirst } from './versions.js';
 import { Fold, FoldAll, useFolds, type Folds } from './fold.js';
+import { Term } from './term.js';
 
 const GATE_LABEL: Record<string, string> = {
   clear: 'clear',
@@ -250,7 +251,9 @@ function FreezeSpec({
   }
   return (
     <form className="freeze" onSubmit={(e) => void freeze(e)}>
-      <h4>Freeze v{spec.spec.version}</h4>
+      <h4>
+        <Term term="freeze">Freeze</Term> v{spec.spec.version}
+      </h4>
       <p className="small">
         A frozen version fixes the tasks and acceptance checks a build is held
         to. Later edits make a new version and show which tasks changed.
