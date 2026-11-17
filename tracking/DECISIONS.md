@@ -36,6 +36,13 @@ Rejected: the Tauri updater plugin (it requires its own signing key and gives no
 - **Row counts (N-7).** The rehearsal requires at least the rows the backup counted in every counted table. A future migration that deliberately deletes rows or drops a counted table must add an explicit allowance for that table to the rehearsal in the same change.
 - **Smaller fixes.** External mode needs `CREATEDB` for the copy and the rollback, now in DESKTOP_STUDIO (L-8). Tests restore into a database that does not exist yet and prove the rehearsal refuses a copy with fewer rows or a broken audit chain (L-9). Copy messages name what is copied (N-1). A confirmed update removes its downloaded installer; the rest is listed under Not covered (N-3). The manifest script refuses a staged bundle newer than the installer (N-8).
 
+**Amendment (November 17, review 2 of PR #239: 2 Low, 3 nits, all fixed).**
+
+- **Leftover copies are found by the original name (L-A).** The rollback drops `<name>_rehearse_*` copies before it restores the database, while the settings still name the database the copies were made from.
+- **One rollback per update (L-B).** A rollback first claims `updates/rollback-<id>.lock` (created exclusively). A second process that reaches a rollback for the same update (a helper that slept through its heartbeat and the copy the new version started to resume) records `rollback_already_claimed` and does nothing else; the claim is never released, so a later attempt for that update cannot run twice either.
+- **A failed installer blocks nothing (N-A).** When the installer itself fails, the version is not recorded in `failed.json` and the rollback text no longer says Windows lists it.
+- **Clean-up (N-B).** A confirmed update removes its downloaded installer, heartbeat, outcome file and settings copy. A rolled-back update keeps its files for inspection, and `failed.json` stays on purpose; both are listed under Not covered, as is a restart during the rollback itself (N-C).
+
 ## ADR-0129 — Study effort timer covers the human-only condition and the finish, and the analysis reads measured time (November 17, 2026; migration 78)
 
 Follow-ups to ADR-0122 (F13), whose "Not covered" named both: human-only and finish-level effort were still only reported, and the analysis report did not read measured timing. Jordan, November 17: start everything safe in parallel with N2. ADR-0129 and migration 78 are the next free numbers above the feature plan's reservations (75–77 stay reserved; F8 left 75 unused).

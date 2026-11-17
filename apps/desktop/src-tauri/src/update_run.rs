@@ -111,10 +111,13 @@ fn confirm_without_helper(sup: &Supervisor, paths: &Paths, id: &str) {
     sup.note("update: this version runs; the installer had stopped, so it confirmed itself");
 }
 
-/// After a confirmed update: the installer and the watcher's files are no longer needed.
+/// After a confirmed update: the installer and this update's own files are no longer needed
+/// (review 2 N-B). A rolled-back update keeps them for inspection.
 fn finish_confirmed(paths: &Paths, id: &str) {
     let _ = std::fs::remove_dir_all(paths.downloads());
     let _ = std::fs::remove_file(update::heartbeat(paths, id));
+    let _ = std::fs::remove_file(paths.outcome(id));
+    let _ = std::fs::remove_file(paths.settings_copy(id));
 }
 
 /// The new version does not start and nobody is watching: hand the rollback to the saved copy
@@ -768,6 +771,21 @@ impl Steps for RealSteps {
     fn block_version(&mut self, v: &str) -> Result<(), String> {
         update::block_version(&self.paths, v)
     }
+    fn claim_rollback(&mut self, id: &str) -> Result<bool, String> {
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(update::rollback_claim(&self.paths, id))
+        {
+            Ok(mut f) => {
+                use std::io::Write;
+                let _ = writeln!(f, "{} pid {}", chrono_now(), std::process::id());
+                Ok(true)
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Ok(false),
+            Err(_) => Err("the rollback's lock file could not be created".into()),
+        }
+    }
 }
 
 /// `--apply-update <id>`: run by the saved copy of the earlier version, with no window.
@@ -818,7 +836,9 @@ pub fn helper(root: PathBuf, id: &str, resume: bool) -> Result<(), String> {
         finish_confirmed(&steps.paths, id);
     }
     let _ = std::fs::remove_file(update::heartbeat(&steps.paths, id));
-    if out.stage != "confirmed" && out.stage != "rolled_back" {
+    // Only an update that ended badly here says so; one another process is rolling back
+    // (review 2 L-B) is reported by that process.
+    if matches!(out.stage.as_str(), "refused" | "rollback_failed") {
         #[cfg(windows)]
         crate::winsys::message("Creator Agent update", &out.detail);
     }

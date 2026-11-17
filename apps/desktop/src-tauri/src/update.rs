@@ -758,6 +758,21 @@ pub trait Steps {
     fn save(&mut self, p: &Pending) -> Result<(), String>;
     fn note(&mut self, event: &str, detail: Value);
     fn block_version(&mut self, v: &str) -> Result<(), String>;
+    /// Review 2 L-B: only one process may roll an update back. False when another already
+    /// claimed it (a helper that slept through its heartbeat and the copy started to resume).
+    fn claim_rollback(&mut self, id: &str) -> Result<bool, String>;
+}
+
+/// The lock file a rollback claims (review 2 L-B); created exclusively, never reused.
+pub fn rollback_claim(p: &Paths, id: &str) -> PathBuf {
+    p.root.join(format!("rollback-{id}.lock"))
+}
+
+/// Whether the installer may have changed the installed version (review 2 N-A).
+#[derive(Clone, Copy, PartialEq)]
+enum Installed {
+    No,
+    Maybe,
 }
 
 fn set(steps: &mut dyn Steps, p: &mut Pending, stage: &str, detail: &str) -> Result<(), String> {
@@ -824,6 +839,7 @@ pub fn apply(steps: &mut dyn Steps, mut p: Pending) -> Pending {
             &format!("The installer did not finish: {e}"),
             &installed_exe,
             &copy_exe,
+            Installed::No,
         );
     }
     if let Err(e) = set(steps, &mut p, "starting", "Starting the new version") {
@@ -833,6 +849,7 @@ pub fn apply(steps: &mut dyn Steps, mut p: Pending) -> Pending {
             &format!("The update's progress could not be saved: {e}"),
             &installed_exe,
             &copy_exe,
+            Installed::Maybe,
         );
     }
     if let Err(e) = steps.start_new_version(&installed_exe) {
@@ -842,6 +859,7 @@ pub fn apply(steps: &mut dyn Steps, mut p: Pending) -> Pending {
             &format!("The new version could not be started: {e}"),
             &installed_exe,
             &copy_exe,
+            Installed::Maybe,
         );
     }
     loop {
@@ -862,7 +880,7 @@ pub fn apply(steps: &mut dyn Steps, mut p: Pending) -> Pending {
             } else {
                 format!("The new version did not start: {}", o.detail)
             };
-            return roll_back(steps, p, &why, &installed_exe, &copy_exe);
+            return roll_back(steps, p, &why, &installed_exe, &copy_exe, Installed::Maybe);
         }
         if !steps.new_version_running() {
             return roll_back(
@@ -871,6 +889,7 @@ pub fn apply(steps: &mut dyn Steps, mut p: Pending) -> Pending {
                 "The new version closed before it reported that it runs",
                 &installed_exe,
                 &copy_exe,
+                Installed::Maybe,
             );
         }
         if steps.elapsed_since_start() >= START_DEADLINE {
@@ -880,6 +899,7 @@ pub fn apply(steps: &mut dyn Steps, mut p: Pending) -> Pending {
                 "The new version did not report that it runs within 30 minutes",
                 &installed_exe,
                 &copy_exe,
+                Installed::Maybe,
             );
         }
         steps.wait(Duration::from_secs(2));
@@ -897,7 +917,7 @@ pub fn resume_rollback(steps: &mut dyn Steps, p: Pending, why: &str) -> Pending 
             json!({"id": p.id, "reason": format!("the new version did not quit: {e}")}),
         );
     }
-    roll_back(steps, p, why, &installed_exe, &copy_exe)
+    roll_back(steps, p, why, &installed_exe, &copy_exe, Installed::Maybe)
 }
 
 fn roll_back(
@@ -906,7 +926,22 @@ fn roll_back(
     why: &str,
     installed_exe: &Path,
     copy_exe: &Path,
+    installed: Installed,
 ) -> Pending {
+    match steps.claim_rollback(&p.id) {
+        Ok(true) => {}
+        Ok(false) => {
+            steps.note(
+                "rollback_already_claimed",
+                json!({"id": p.id, "reason": why}),
+            );
+            return p;
+        }
+        Err(e) => steps.note(
+            "rollback_claim_unrecorded",
+            json!({"id": p.id, "reason": e}),
+        ),
+    }
     let mut problems = Vec::new();
     if let Err(e) = set(steps, &mut p, "rolling_back", why) {
         problems.push(format!("the update's progress could not be saved ({e})"));
@@ -918,15 +953,8 @@ fn roll_back(
     if let Err(e) = steps.restore_settings(Path::new(&p.settings_copy)) {
         problems.push(format!("the studio settings could not be put back ({e})"));
     }
-    match steps.database_changed(p.schema_before) {
-        Ok(false) => {}
-        Ok(true) => match steps.restore_database(Path::new(&p.backup_dir)) {
-            Ok(name) => restored_db = Some(name),
-            Err(e) => problems.push(format!("the backup could not be restored ({e})")),
-        },
-        Err(e) => problems.push(format!("the database could not be checked ({e})")),
-    }
-    // Review L-3: a stopped upgrade can leave its rehearsal copy behind.
+    // Review L-3: a stopped upgrade can leave its rehearsal copy behind. Review 2 L-A: before
+    // the restore, while the settings still name the database the copies were made from.
     match steps.drop_rehearsal_copies() {
         Ok(dropped) if !dropped.is_empty() => {
             steps.note(
@@ -938,6 +966,14 @@ fn roll_back(
         Err(e) => problems.push(format!(
             "leftover rehearsal copies of the database could not be checked or removed ({e})"
         )),
+    }
+    match steps.database_changed(p.schema_before) {
+        Ok(false) => {}
+        Ok(true) => match steps.restore_database(Path::new(&p.backup_dir)) {
+            Ok(name) => restored_db = Some(name),
+            Err(e) => problems.push(format!("the backup could not be restored ({e})")),
+        },
+        Err(e) => problems.push(format!("the database could not be checked ({e})")),
     }
     let files = steps.restore_files(Path::new(&p.rollback_dir), Path::new(&p.install_dir));
     let start = match &files {
@@ -952,8 +988,11 @@ fn roll_back(
     if let Err(e) = steps.start_previous(start) {
         problems.push(format!("the earlier version could not be started ({e})"));
     }
-    if let Err(e) = steps.block_version(&p.to_version) {
-        problems.push(format!("the failed version could not be recorded ({e})"));
+    // Review 2 N-A: an installer that failed changed nothing Windows records.
+    if installed == Installed::Maybe {
+        if let Err(e) = steps.block_version(&p.to_version) {
+            problems.push(format!("the failed version could not be recorded ({e})"));
+        }
     }
     let mut detail = format!("{why}. Creator Agent went back to {}.", p.from_version);
     if let Some(db) = &restored_db {
@@ -961,10 +1000,12 @@ fn roll_back(
             " The database was restored from the backup taken before the update into {db}; the upgraded one was kept, unchanged, for inspection."
         ));
     }
-    detail.push_str(&format!(
-        " Windows still lists {} as installed, so the next update must be newer than {}.",
-        p.to_version, p.to_version
-    ));
+    if installed == Installed::Maybe {
+        detail.push_str(&format!(
+            " Windows still lists {} as installed, so the next update must be newer than {}.",
+            p.to_version, p.to_version
+        ));
+    }
     if !problems.is_empty() {
         detail.push_str(&format!(" Problems: {}.", problems.join("; ")));
     }
@@ -1354,6 +1395,8 @@ mod tests {
         exit_waits: u32,
         save_fails: bool,
         leftover_copies: Vec<String>,
+        /// Another process already claimed the rollback (review 2 L-B).
+        claimed_elsewhere: bool,
         polls: u32,
         clock: Duration,
         log: Vec<String>,
@@ -1441,6 +1484,10 @@ mod tests {
         }
         fn note(&mut self, e: &str, _: Value) {
             self.log.push(format!("note {e}"));
+        }
+        fn claim_rollback(&mut self, _: &str) -> Result<bool, String> {
+            self.log.push("claim".into());
+            Ok(!std::mem::replace(&mut self.claimed_elsewhere, true))
         }
     }
 
@@ -1531,10 +1578,11 @@ mod tests {
             [
                 "install",
                 "start_new",
+                "claim",
                 "stop_new",
                 "restore_settings",
-                "restore_db",
                 "drop_rehearsals",
+                "restore_db",
                 "restore_files",
                 app.as_str(),
                 "block 0.2.0"
@@ -1591,7 +1639,13 @@ mod tests {
         let out = apply(&mut s, p);
         assert_eq!(out.stage, "rollback_failed");
         assert!(out.detail.contains("exit code 2"));
-        assert!(out.detail.contains("next update must be newer than 0.2.0"));
+        // Review 2 N-A: the installer changed nothing Windows records, so nothing is blocked.
+        assert!(
+            !out.detail.contains("Windows still lists"),
+            "{}",
+            out.detail
+        );
+        assert!(!s.log.iter().any(|l| l.starts_with("block ")));
         assert!(out.detail.contains("runs from its saved copy"));
         assert_eq!(
             s.log
@@ -1674,12 +1728,64 @@ mod tests {
         let mut s = FakeSteps {
             exited: true,
             alive: false,
+            db_changed: true,
             leftover_copies: vec!["creator_studio_rehearse_0a1b2c3d".into()],
             ..Default::default()
         };
         let out = apply(&mut s, p);
         assert_eq!(out.stage, "rolled_back");
         assert!(s.log.iter().any(|l| l == "note rehearsal_copies_dropped"));
+        // Review 2 L-A: copies are looked for before the restore renames the database.
+        let at = |name: &str| s.log.iter().position(|l| l == name).unwrap();
+        assert!(at("drop_rehearsals") < at("restore_db"), "{:?}", s.log);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    // Review 2 L-B: a helper that slept through its heartbeat and the copy the new version
+    // started both reach a rollback; only the first to claim it acts.
+    #[test]
+    fn only_one_process_rolls_an_update_back() {
+        let (dir, p) = with_installer("claim");
+        let mut s = FakeSteps {
+            exited: true,
+            alive: true,
+            outcome: Some(Outcome {
+                id: "abc".into(),
+                version: "0.2.0".into(),
+                result: "failed".into(),
+                detail: "port in use".into(),
+                at: String::new(),
+            }),
+            db_changed: true,
+            claimed_elsewhere: true,
+            ..Default::default()
+        };
+        let out = apply(&mut s, p.clone());
+        assert_eq!(out.stage, "starting", "left to the process that claimed it");
+        assert!(s.log.iter().any(|l| l == "note rollback_already_claimed"));
+        for step in ["stop_new", "restore_db", "restore_files", "drop_rehearsals"] {
+            assert!(!s.log.iter().any(|l| l == step), "{step}: {:?}", s.log);
+        }
+        assert!(!s.log.iter().any(|l| l.starts_with("start_previous")));
+        // The resume path loses the same way; the first claim wins.
+        let mut r = FakeSteps {
+            exited: true,
+            claimed_elsewhere: true,
+            ..Default::default()
+        };
+        let mut q = p;
+        q.stage = "resuming_rollback".into();
+        let out = resume_rollback(&mut r, q, "The new version did not start");
+        assert_eq!(out.stage, "resuming_rollback");
+        assert!(!r.log.iter().any(|l| l == "restore_files"));
+        let mut first = FakeSteps {
+            exited: true,
+            ..Default::default()
+        };
+        let (_, p2) = with_installer("claim2");
+        let mut q = p2;
+        q.stage = "resuming_rollback".into();
+        assert_eq!(resume_rollback(&mut first, q, "x").stage, "rolled_back");
         let _ = std::fs::remove_dir_all(dir);
     }
 

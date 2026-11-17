@@ -189,3 +189,8 @@ Checks: `node --test tests/dist/studio-service.test.js` (set `CREATOR_TEST_DATAB
   refused or rolled back stays in `updates\downloads\` until you delete it. A rollback's
   `products-rb-*` folder and the kept upgraded database are never removed automatically. A
   restart while the installer itself runs is not resumed (the status window shows the stage).
+  Neither is a restart during the rollback itself: the stage stays "Going back to the earlier
+  version" and its lock (`updates\rollback-<id>.lock`) stays, so reinstall the earlier version
+  and restore the backup the status window names by hand. A rolled-back update keeps its
+  `studio-before-<id>.json`, `outcome-<id>.json` and lock for inspection, and `failed.json`
+  keeps the highest rolled-back version on purpose; a confirmed update removes its own files.
