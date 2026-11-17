@@ -8,6 +8,7 @@ import {
   StudyInterventionRequestSchema,
   FinishStudyAttemptRequestSchema,
   STUDY_EFFORT_CLOCK_SLACK_MS,
+  STUDY_EFFORT_REFUSAL,
   STUDY_EFFORT_TIMER_VERSION,
   type StudyEffort,
   type StudyEffortEnd,
@@ -1096,23 +1097,26 @@ export class StudyStore extends ProjectReportStore {
     );
     const row = step.rows[0];
     if (!row || String(row.actor_id).toLowerCase() !== ctx.actorId)
-      throw fail(
+      throw effortFail(
         'NOT_FOUND',
         'The timed step does not belong to this attempt and person; start a new step.',
       );
     if (row.measured)
-      throw fail(
+      throw effortFail(
         'INVALID_TRANSITION',
         'This step’s time is already recorded; start a new step.',
       );
     if (row.step === 'intervention' && endedBy !== 'intervention')
-      throw fail(
+      throw effortFail(
         'INVALID_TRANSITION',
         'This step was started at the intervention form, so only an intervention ends it; start a new step.',
       );
     const wallMs = Number(row.wall_ms);
     const refusal = effortOverrun(effort, wallMs);
-    if (refusal) throw fail('INVALID_CONTRACT', refusal);
+    if (refusal) throw effortFail('INVALID_CONTRACT', refusal);
+    // `ended_by` always names the kind of the event in `event_id` (review N-4): the callers pass
+    // 'intervention' with an interventions event, 'entry' with an artifacts event and 'finish'
+    // with the finished event, in the same transaction that wrote it.
     await c.query(
       'insert into study_effort_measures(step_id,attempt_id,event_id,ended_by,timer_version,active_ms,wait_ms,idle_ms,away_ms,wall_ms) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
       [
@@ -1783,7 +1787,7 @@ export class StudyStore extends ProjectReportStore {
  */
 function notParticipant(a: StudyAttempt, ctx: CommandContext) {
   if (a.participant_actor_id.toLowerCase() !== ctx.actorId)
-    throw fail(
+    throw effortFail(
       'ACCESS_DENIED',
       'Only the person assigned to this attempt can time its steps.',
     );
@@ -1845,6 +1849,12 @@ export function measuredEffortSummary(
     steps,
   };
 }
+
+/** A refusal about the step time only (ADR-0129 review M-1). */
+const effortFail = (
+  code: ConstructorParameters<typeof ContractError>[0],
+  m: string,
+) => fail(code, `${m} ${STUDY_EFFORT_REFUSAL}`);
 
 /** Null when the measured totals fit inside the step's server time, else the reason. */
 export function effortOverrun(

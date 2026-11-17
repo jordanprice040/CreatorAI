@@ -74,6 +74,27 @@ check(
     /synthetic study, so it times the operator/.test(await box.innerText()),
   'the timer explains its steps and says a synthetic study times the operator',
 );
+// Review M-2: a second click on the attempt being timed keeps its step.
+await page
+  .getByRole('button', { name: /human only · assigned/ })
+  .first()
+  .click();
+await box.getByText('Timing this step').waitFor();
+const afterReclick = await get(
+  `workspaces/${ws}/study-attempts/${c.id}/effort-steps`,
+);
+check(
+  afterReclick.length === 1,
+  `a second click on the attempt keeps its one step (${afterReclick.length})`,
+);
+// Review M-1: a submit refused for the record (no entry yet) keeps the step running.
+await page.getByRole('button', { name: 'Submit saved work' }).click();
+await page.getByText(/needs an artifact/).waitFor();
+check(
+  /Timing this step/.test(await box.innerText()) &&
+    !/timer has stopped/.test(await page.locator('.error').innerText()),
+  'a submit refused for having no entry keeps the step timing',
+);
 const editor = page.getByLabel('Your document or code');
 await editor.pressSequentially('A checklist', { delay: 150 });
 await page.waitForTimeout(1200);
@@ -147,5 +168,10 @@ check(
     .condition_timed === false,
   'the export says the autonomous condition is not timed',
 );
-check(errors.length === 0, `no page errors (${errors.join(' | ')})`);
+// The refused submit above is meant to fail: the browser logs its 409 once, nothing else.
+const unexpected = errors.filter((e) => !/status of 409/.test(e));
+check(
+  unexpected.length === 0 && errors.length <= 1,
+  `no page errors besides the intended refused submit (${errors.join(' | ')})`,
+);
 await browser.close();

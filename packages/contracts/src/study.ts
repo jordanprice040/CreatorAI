@@ -177,6 +177,12 @@ export const StudyEffortSchema = z.strictObject({
   away_ms: effortMs,
 });
 export type StudyEffort = z.infer<typeof StudyEffortSchema>;
+/**
+ * ADR-0129 (review M-1): every refusal that is about the step time only, not the record it came
+ * with, ends with this sentence, so the Study page stops the timer only then and keeps the step
+ * running on any other refusal (a submit without an entry, say).
+ */
+export const STUDY_EFFORT_REFUSAL = 'The refusal is about the step time only.';
 /** Starting a step takes no input. */
 export const StartStudyEffortStepSchema = z.strictObject({});
 /** The intervention body the API accepts: the frozen intervention fields plus optional timing. */

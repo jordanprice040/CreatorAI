@@ -7,6 +7,7 @@ import { StudyStore, effortOverrun } from '@creator/db';
 import { createApi } from '@creator/api';
 import {
   STUDY_EFFORT_CLOCK_SLACK_MS,
+  STUDY_EFFORT_REFUSAL,
   STUDY_EFFORT_TIMER_VERSION,
   StudyAttemptSchema,
   StudyEffortStepSchema,
@@ -37,6 +38,18 @@ type TimerModule = {
     idleMs: number,
   ) => Clock;
   effortText(ms: number): string;
+  afterRefusal(errorText: string, marker: string): 'stop' | 'keep';
+  stepOnOpen(s: {
+    timed: boolean;
+    running: { attempt_id: string } | null;
+    attemptId: string;
+    steps: {
+      id: string;
+      attempt_id: string;
+      step: string;
+      measured: unknown;
+    }[];
+  }): { kind: string; step?: { id: string } };
 };
 
 test('effort clock: active needs a visible, focused page and a recent edit; waiting needs a request in flight', async () => {
@@ -483,6 +496,35 @@ test('ADR-0129: human-only steps end at a saved entry, the finish ends the last 
     }),
     { code: 'INVALID_CONTRACT' },
   );
+  // Review M-1: a refusal about the timing names itself, and one about the record does not, so
+  // the page keeps the step on the latter. Here a submit before any entry is refused for the
+  // record; the same step then still ends at the entry and the later finish.
+  const cOnly = await assign('human_only');
+  const open = await store.startEffortStep(person, ws.id, cOnly.id);
+  await assert.rejects(
+    store.writeAttempt(person, ws.id, cOnly.id, 'finish', {
+      ...finish,
+      effort: effort(open.id),
+    }),
+    (e: Error) =>
+      /needs an artifact/.test(e.message) &&
+      !e.message.includes(STUDY_EFFORT_REFUSAL),
+  );
+  await store.writeAttempt(person, ws.id, cOnly.id, 'artifacts', {
+    ...entry,
+    effort: effort(open.id),
+  });
+  assert.equal(
+    (await store.effortSteps(person, ws.id, cOnly.id))[0]!.measured?.ended_by,
+    'entry',
+  );
+  await assert.rejects(
+    store.writeAttempt(person, ws.id, c.id, 'finish', {
+      ...finish,
+      effort: effort(second.id, { active_ms: 60_000 }),
+    }),
+    (e: Error) => e.message.endsWith(STUDY_EFFORT_REFUSAL),
+  );
   const finished = (await store.writeAttempt(person, ws.id, c.id, 'finish', {
     ...finish,
     effort: effort(second.id, { active_ms: 2, wait_ms: 3 }),
@@ -600,4 +642,70 @@ test('ADR-0129: human-only steps end at a saved entry, the finish ends the last 
   assert.equal(ma.condition_timed, false);
   assert.equal(ma.timed_steps, 0);
   assert.equal(ma.complete, false);
+});
+
+test('ADR-0129 review: the page keeps the step on a record refusal and keeps or continues a step when an attempt opens', async () => {
+  const { afterRefusal, stepOnOpen } = (await loadWeb(
+    'effort-timer.ts',
+  )) as TimerModule;
+  // M-1: only a refusal about the timing stops the timer.
+  assert.equal(
+    afterRefusal(
+      'A submission needs an artifact; submitted is not independently verified success.',
+      STUDY_EFFORT_REFUSAL,
+    ),
+    'keep',
+  );
+  assert.equal(
+    afterRefusal(
+      'The assignment time cap has elapsed; record a failed or cancelled outcome.',
+      STUDY_EFFORT_REFUSAL,
+    ),
+    'keep',
+  );
+  assert.equal(
+    afterRefusal(
+      `The measured time (9 ms) is longer than the step lasted on the studio clock (1 ms). ${STUDY_EFFORT_REFUSAL}`,
+      STUDY_EFFORT_REFUSAL,
+    ),
+    'stop',
+  );
+  // M-2: opening the attempt being timed keeps its step; coming back continues the newest open
+  // attempt step; otherwise a new step starts; nobody else is timed.
+  const step = (id: string, over: Record<string, unknown> = {}) => ({
+    id,
+    attempt_id: 'att',
+    step: 'attempt',
+    measured: null,
+    ...over,
+  });
+  const open = (o: Partial<Parameters<TimerModule['stepOnOpen']>[0]>) =>
+    stepOnOpen({
+      timed: true,
+      running: null,
+      attemptId: 'att',
+      steps: [],
+      ...o,
+    });
+  assert.equal(open({ timed: false }).kind, 'none');
+  assert.equal(open({}).kind, 'start');
+  assert.equal(
+    open({ running: { attempt_id: 'att' }, steps: [step('s1')] }).kind,
+    'keep',
+  );
+  const back = open({
+    running: { attempt_id: 'other' },
+    steps: [step('s0', { measured: {} }), step('s1')],
+  });
+  assert.equal(back.kind, 'continue');
+  assert.equal(back.step?.id, 's1');
+  // The newest step ended, or was started at the intervention form under ADR-0122: start anew.
+  assert.equal(
+    open({ steps: [step('s1'), step('s2', { measured: {} })] }).kind,
+    'start',
+  );
+  assert.equal(
+    open({ steps: [step('s1', { step: 'intervention' })] }).kind,
+    'start',
+  );
 });

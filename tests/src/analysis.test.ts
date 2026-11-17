@@ -467,12 +467,25 @@ test('ADR-0129: the effort table reads measured time from the raw exports beside
     .filter((f) => f.arm === 'B' && f.task_key.startsWith('d'))
     .flatMap((f) => f.attempts.map((x) => x.attempt_id));
   assert.ok(ids.length >= 2);
+  const autonomous = new Set(
+    pkg.flow
+      .filter((f) => f.arm === 'A')
+      .flatMap((f) => f.attempts.map((x) => x.attempt_id)),
+  );
+  assert.ok(autonomous.size >= 1);
   const a = analyze(
     input(mixedFixture(), (f) => {
       for (const e of f.exports as unknown as {
         body: { attempts: Record<string, unknown>[] };
       }[])
         for (const at of e.body.attempts) {
+          // Review L-2: like a real export, every autonomous attempt carries an untimed block.
+          if (autonomous.has(String(at.id)))
+            at.measured_effort = {
+              subject: 'synthetic_operator_not_participant',
+              condition_timed: false,
+              steps: [],
+            };
           if (at.id === ids[0])
             at.measured_effort = {
               subject: 'synthetic_operator_not_participant',
@@ -533,11 +546,18 @@ test('ADR-0129: the effort table reads measured time from the raw exports beside
       'synthetic_operator_not_participant',
     ],
   );
-  // The autonomous arm has no measured time and says so.
+  // The autonomous arm has no measured time: null, not 0, and no subject label.
   const auto = row(a.prespecified.human_effort_and_latency, {
     stratum: 'decision',
     arm: 'A',
   });
   assert.equal(auto.measured_steps, 0);
   assert.equal(auto.measured_subject, null);
+  assert.equal(auto.measured_active_minutes, null);
+  assert.equal(auto.measured_studio_wait_seconds, null);
+  assert.equal(auto.measured_complete_attempts, 0);
+  // Review L-1: the plan and its output changed, so both versions moved on.
+  assert.equal(a.analysis_version, 'analysis/2');
+  assert.equal(a.schema_version, 'analysis/2');
+  assert.equal(a.plan.version, 'analysis-plan/2');
 });

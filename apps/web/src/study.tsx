@@ -6,6 +6,7 @@ import {
   StudyEffortStepSchema,
   STUDY_EFFORT_IDLE_MS,
   STUDY_EFFORT_TIMER_VERSION,
+  STUDY_EFFORT_REFUSAL,
   type StudyAttempt,
   type StudyEffort,
   type StudyEffortStep,
@@ -15,7 +16,13 @@ import {
 } from '@creator/contracts';
 import { api, message } from './oversight.js';
 import { useOnShow } from './page-active.js';
-import { EffortClock, effortText, type EffortTotals } from './effort-timer.js';
+import {
+  EffortClock,
+  afterRefusal,
+  effortText,
+  stepOnOpen,
+  type EffortTotals,
+} from './effort-timer.js';
 import './study-effort.css';
 
 const Entry = z.object({
@@ -148,12 +155,25 @@ export function Studies({
     setStep(null);
   }
   async function loadEffort(attemptId: string) {
-    setEffortSteps(
-      await api(
-        z.array(StudyEffortStepSchema),
-        `${base}/study-attempts/${attemptId}/effort-steps`,
-      ),
+    const steps = await api(
+      z.array(StudyEffortStepSchema),
+      `${base}/study-attempts/${attemptId}/effort-steps`,
     );
+    setEffortSteps(steps);
+    return steps;
+  }
+  /** Times `s` on this page from now (a new step, or one continued after a return). */
+  function runStep(s: StudyEffortStep) {
+    clock.current = new EffortClock(
+      performance.now(),
+      {
+        visible: document.visibilityState === 'visible',
+        focused: document.hasFocus(),
+      },
+      STUDY_EFFORT_IDLE_MS,
+    );
+    stepRef.current = s;
+    setStep(s);
   }
   /** Only the assigned person's own steps on a human-only or assisted attempt are timed. */
   function timedFor(a: StudyAttempt) {
@@ -176,17 +196,21 @@ export function Studies({
     } finally {
       setStarting(false);
     }
-    clock.current = new EffortClock(
-      performance.now(),
-      {
-        visible: document.visibilityState === 'visible',
-        focused: document.hasFocus(),
-      },
-      STUDY_EFFORT_IDLE_MS,
-    );
-    stepRef.current = started;
-    setStep(started);
+    runStep(started);
     await loadEffort(target.id);
+  }
+  /**
+   * After a save ended the step, times the next one. Returns a sentence to add to the save's
+   * notice when it can't start (past the time cap, say), so one message says both (review N-2).
+   */
+  async function nextStep(attemptId: string): Promise<string> {
+    try {
+      await startStep();
+      return '';
+    } catch (e) {
+      await loadEffort(attemptId);
+      return ` No further steps are timed: ${message(e)}`;
+    }
   }
   /** The running step's totals, to send with the record that ends it. */
   function stepEffort(): StudyEffort | undefined {
@@ -215,7 +239,9 @@ export function Studies({
       if (effort) stopTiming();
       return { result, timed: effort !== undefined };
     } catch (e) {
-      if (effort) {
+      // Review M-1: only a refusal of the timing itself stops the timer; any other refusal
+      // (a submit before an entry, say) leaves the step running, since nothing was saved.
+      if (effort && afterRefusal(message(e), STUDY_EFFORT_REFUSAL) === 'stop') {
         stopTiming();
         throw new Error(
           `${message(e)} The step timer has stopped; save again to record this without its time.`,
@@ -237,9 +263,12 @@ export function Studies({
     setAttempts(d.attempts);
   }
   async function openAttempt(a: StudyAttempt) {
-    // A step left open on another attempt stays on record as unfinished.
-    stopTiming();
-    setEffortSteps([]);
+    // Review M-2: a second click on the attempt being timed keeps its step running.
+    const same = stepRef.current?.attempt_id === a.id;
+    if (!same) {
+      stopTiming();
+      setEffortSteps([]);
+    }
     setEntries(
       await api(z.array(Entry), `${base}/study-attempts/${a.id}/entries`),
     );
@@ -250,10 +279,18 @@ export function Studies({
     setContext(
       await api(z.unknown(), `${base}/study-attempts/${a.id}/context`),
     );
-    if (a.condition !== 'autonomous') await loadEffort(a.id);
-    // ADR-0129: opening the attempt starts its first step. If it can't start (past the time
-    // cap, say), the readout says the timer is not running and offers Start.
-    if (timedFor(a)) await startStep(a).catch(() => undefined);
+    const steps = a.condition !== 'autonomous' ? await loadEffort(a.id) : [];
+    // ADR-0129: opening the attempt times it. Coming back to it (from another attempt or after
+    // a reload) continues its open step rather than leaving it unfinished. If a new step can't
+    // start (past the time cap, say), the readout says the timer is not running and offers Start.
+    const plan = stepOnOpen({
+      timed: timedFor(a),
+      running: stepRef.current,
+      attemptId: a.id,
+      steps,
+    });
+    if (plan.kind === 'continue') runStep(plan.step as StudyEffortStep);
+    if (plan.kind === 'start') await startStep(a).catch(() => undefined);
   }
   async function write(action: string, body: unknown) {
     if (!attempt) return;
@@ -552,16 +589,13 @@ export function Studies({
                   },
                 );
                 setSavedArtifact(saved as { id: string; content_hash: string });
-                setNotice(
-                  timed
-                    ? 'Saved verbatim with an immutable content hash, with the measured step time.'
-                    : 'Saved verbatim with an immutable content hash.',
-                );
                 // ADR-0129: the saved entry ended the step; the next one is timed from now.
-                if (timed) {
-                  await loadEffort(attempt.id);
-                  await startStep();
-                }
+                const more = timed ? await nextStep(attempt.id) : '';
+                setNotice(
+                  (timed
+                    ? 'Saved verbatim with an immutable content hash, with the measured step time.'
+                    : 'Saved verbatim with an immutable content hash.') + more,
+                );
               })
             }
           >
@@ -608,15 +642,15 @@ export function Studies({
                       'interventions',
                       body as object,
                     );
-                    await loadEffort(attempt.id);
-                    setNotice(
-                      timed
-                        ? 'Intervention, reported effort and measured step time saved.'
-                        : 'Intervention and reported effort saved.',
-                    );
                     // The intervention ended the step; the next one is timed from now
                     // (review M-1 of #221).
-                    if (timed) await startStep();
+                    const more = timed ? await nextStep(attempt.id) : '';
+                    if (!timed) await loadEffort(attempt.id);
+                    setNotice(
+                      (timed
+                        ? 'Intervention, reported effort and measured step time saved.'
+                        : 'Intervention and reported effort saved.') + more,
+                    );
                   })
                 }
               />

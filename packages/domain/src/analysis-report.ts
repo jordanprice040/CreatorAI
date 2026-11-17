@@ -253,7 +253,7 @@ export function renderAnalysis(a: Analysis) {
       'human-effort-latency',
       'Human effort and latency',
       p.human_effort_and_latency,
-      'attempt measurements',
+      'attempt measurements, and measured_effort from private/raw-exports (ADR-0129)',
     ],
     [
       'interventions',
