@@ -2,9 +2,9 @@
 
 ## November 17 update — sample seed commands take a workspace name (no migration or ADR)
 
-What now works: `pnpm cli seed-discovery [workspace-name]` and `pnpm cli seed-selection [workspace-name]` create their synthetic fixture workspace under the given name; without one they keep the old names. CLI only: no API, web or database change. Used to build the "Demo" workspace for Jordan's 2026-11-17 meeting in a separate demo studio on his PC (throwaway database `creator_demo`, ports 5193/4350/4360, worktree `C:\dev\creator_agent_demo`); real studios untouched.
+What now works: `pnpm cli seed-discovery [workspace-name]` and `pnpm cli seed-selection [workspace-name]` create their synthetic fixture workspace under the given name; without one they keep the old names. The name is one argument: extra unquoted words (`seed-selection Demo workspace`) are refused before anything is created, with a hint to quote the name. CLI only: no API, web or database change. Used to build the "Demo" workspace for Jordan's 2026-11-17 meeting in a separate demo studio on his PC (throwaway database `creator_demo`, ports 5193/4350/4360, worktree `C:\dev\creator_agent_demo`); real studios untouched. `docs/LOCAL_DEVELOPMENT.md` mentions the name argument.
 
-Checked: `pnpm typecheck` and `pnpm format:check` pass in the cloud container; `seed-selection Demo` ran against the throwaway demo database and created the fixture workspace "Demo". GitHub Actions is refused for billing, so CI shows red without logs.
+Checked in the cloud container on a throwaway PostgreSQL 16 database: `pnpm typecheck` and `pnpm format:check` pass; `tests/src/studio-builds.test.ts` now seeds `"Demo workspace"` by name (name and fixture mode asserted) after checking that two unquoted words are refused and create no workspace (1/1). Full `pnpm test:db` after review 1's fixes: 1526 tests, 1489 pass, 32 skipped, only the 5 known PowerShell-wrapper failures (441, 459, 888, 892, 987). `seed-selection Demo` also ran against the throwaway demo database on Jordan's PC. GitHub Actions is refused for billing, so CI shows red without logs.
 
 ## November 17 update — P32: create and install the GitHub App from the studio (ADR-0132, migration 79)
 

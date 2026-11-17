@@ -2,7 +2,7 @@
 
 ## November 17 handoff — seed commands take a workspace name (no migration or ADR)
 
-Branch `claude/project-thread-68dx3w`. `apps/cli/src/index.ts`: `seedDiscovery(call, name)` was already parameterised; `seedSelection(call, name)` now takes a name too, and the `seed-discovery` / `seed-selection` cases pass `rest[0]` (trimmed; empty falls back to the default name). Usage text updated. No tests cover the seed names (the seeds are exercised by walk scripts). The meeting demo studio on Jordan's PC (`C:\dev\creator_agent_demo`, database `creator_demo`, start with `Start-Demo.cmd`) can be removed on Jordan's say-so. Next free numbers unchanged: ADR-0132, migration 79.
+Branch `claude/project-thread-68dx3w`. `apps/cli/src/index.ts`: `seedDiscovery(call, name)` was already parameterised; `seedSelection(call, name)` now takes a name too, and the `seed-discovery` / `seed-selection` cases pass `seedName(rest)`: one argument (trimmed; empty falls back to the default name), more than one refused with a quoting hint (review 1 L-2). Usage text and `docs/LOCAL_DEVELOPMENT.md` updated. `tests/src/studio-builds.test.ts` covers the name and the refusal (review 1 L-1). The meeting demo studio on Jordan's PC (`C:\dev\creator_agent_demo`, database `creator_demo`, start with `Start-Demo.cmd`) can be removed on Jordan's say-so. Next free numbers unchanged: ADR-0132, migration 79.
 
 ## November 17 handoff — P32 GitHub App from the studio (ADR-0132, migration 79)
 

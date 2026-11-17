@@ -2674,7 +2674,7 @@ export async function runCli(
         );
         break;
       case 'seed-discovery':
-        data = await seedDiscovery(call, rest[0]?.trim() || undefined);
+        data = await seedDiscovery(call, seedName(rest));
         break;
       case 'scorecard':
         data = await call(
@@ -2732,7 +2732,7 @@ export async function runCli(
         );
         break;
       case 'seed-selection':
-        data = await seedSelection(call, rest[0]?.trim() || undefined);
+        data = await seedSelection(call, seedName(rest));
         break;
       default:
         throw new Error(USAGE);
@@ -2748,6 +2748,15 @@ export async function runCli(
     );
     return 1;
   }
+}
+
+/** The optional workspace name of a seed command: one argument, so a name with spaces needs quotes. */
+function seedName(rest: string[]): string | undefined {
+  if (rest.length > 1)
+    throw new Error(
+      'Give the workspace name as one argument; put a name with spaces in quotes, for example "Demo workspace".',
+    );
+  return rest[0]?.trim() || undefined;
 }
 
 type Call = <T>(

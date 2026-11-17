@@ -81,7 +81,17 @@ test('studio build routes: frozen-spec products, admission-gated builds, packagi
     });
     return { status: r.status, body: (await r.json()) as any };
   };
-  const seed = await cli('seed-selection');
+  // The seed takes one optional workspace name; unquoted extra words are refused before
+  // anything is created, so "Demo workspace" never silently becomes "Demo".
+  const workspacesBefore = (await cli('workspaces')).length;
+  await assert.rejects(
+    cli('seed-selection', 'Demo', 'workspace'),
+    /put a name with spaces in quotes/,
+  );
+  assert.equal((await cli('workspaces')).length, workspacesBefore);
+  const seed = await cli('seed-selection', 'Demo workspace');
+  assert.equal(seed.workspace.name, 'Demo workspace');
+  assert.equal(seed.workspace.record_mode, 'fixture');
   const ws: string = seed.workspace.id;
   const specId: string = seed.spec.id;
   const freeze = async (version: number) => {
