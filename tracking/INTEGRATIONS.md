@@ -1,5 +1,14 @@
 # Integration readiness
 
+## In-app updates from a private GitHub release — November 17, 2026 (F4, ADR-0128)
+
+The installed app can check a private GitHub repository's latest release, download its installer
+and install it, with a read-only token the owner saves in the status window (DPAPI). State:
+**fixture-tested only** (fake GitHub on 127.0.0.1 in Rust tests). Not activated: no release
+repository, token or release exists yet. Creating the repository, a token, publishing a release
+and the first real install on Jordan's PC each need his typed OK. Builds are unsigned (owner
+decision); the hash check is the integrity check.
+
 ## OpenAI API key added in the app — November 12, 2026 (P28, ADR-0093)
 
 The OpenAI API key route can now be turned on per workspace from Models and connections › Other

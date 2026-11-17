@@ -129,11 +129,71 @@ function render(s) {
       return li;
     }),
   );
+  renderUpdates(s);
   const b = s.bundle;
   $('build').textContent = b
     ? `Build ${String(b.source_commit).slice(0, 12)}${b.source_dirty ? ' (with uncommitted changes)' : ''}, Node ${b.node_version}, built ${b.built_at}`
     : '';
 }
+// F4 (ADR-0128): in-app updates. Values are rendered as text only.
+const STAGES = {
+  installing: 'Installing',
+  starting: 'Starting the new version',
+  rolling_back: 'Going back to the earlier version',
+  confirmed: 'Installed',
+  rolled_back: 'Went back to the earlier version',
+  rollback_failed: 'Went back to the earlier version, with problems',
+  refused: 'Not installed',
+};
+let updateFilled = false;
+function renderUpdates(s) {
+  const u = s.update;
+  $('updates').hidden = !u || s.phase === 'setup';
+  if (!u) return;
+  $('update-version').textContent =
+    `This is Creator Agent ${u.current_version}.`;
+  const settings = u.settings && !u.settings.error ? u.settings : null;
+  if (!updateFilled) {
+    updateFilled = true;
+    $('update-repo').value = settings?.repository ?? '';
+    $('update-at-start').checked = settings?.check_at_start ?? false;
+  }
+  $('update-token-state').textContent = u.token_saved
+    ? 'A token is saved, protected by Windows. It is never shown again; enter a new one to replace it.'
+    : 'No token saved.';
+  $('update-forget').hidden = !u.token_saved;
+  const p = u.pending;
+  const outcome = $('update-outcome');
+  outcome.hidden = !p;
+  if (p)
+    outcome.textContent = `Last update ${p.from_version} → ${p.to_version}: ${STAGES[p.stage] ?? p.stage}. ${p.detail}`;
+  const a = u.available;
+  const box = $('update-available');
+  if (!a) box.textContent = 'Not checked yet.';
+  else if (!a.newer)
+    box.textContent = `Up to date. The latest release is ${a.version} (checked ${a.checked_at}).`;
+  else {
+    const notes = a.manifest.notes ? ` Notes: ${a.manifest.notes}` : '';
+    box.textContent =
+      `Version ${a.version} is available (published ${a.published_at}, database layout ${a.manifest.schema_version}, ` +
+      `${(a.manifest.installer.size / 1048576).toFixed(1)} MB, SHA-256 ${a.manifest.installer.sha256.slice(0, 16)}…).` +
+      (u.downloaded ? ' Downloaded and verified.' : '') +
+      notes;
+  }
+  $('update-download').hidden = !a?.newer || u.downloaded;
+  $('update-install').hidden = !a?.newer || !u.downloaded;
+  $('update-history').replaceChildren(
+    ...u.history.map((h) => {
+      const li = document.createElement('li');
+      const d = h.detail ?? {};
+      const what =
+        d.reason ?? d.detail ?? (d.version ? `version ${d.version}` : '');
+      li.textContent = `${h.at} ${h.event.replace(/_/g, ' ')}${what ? ': ' + what : ''}`;
+      return li;
+    }),
+  );
+}
+
 async function refresh() {
   try {
     render(await invoke('studio_state'));
@@ -213,6 +273,43 @@ $('logs').addEventListener('click', () =>
 );
 $('quit').addEventListener('click', () =>
   act($('quit'), () => invoke('studio_quit')),
+);
+$('update-save').addEventListener('click', () =>
+  act($('update-save'), async () => {
+    const token = $('update-token').value.trim();
+    await invoke('studio_update_settings', {
+      repository: $('update-repo').value.trim(),
+      token: token || null,
+      checkAtStart: $('update-at-start').checked,
+    });
+    $('update-token').value = '';
+  }),
+);
+$('update-forget').addEventListener('click', () =>
+  act($('update-forget'), () => invoke('studio_update_forget_token')),
+);
+$('update-check').addEventListener('click', () =>
+  act($('update-check'), () => invoke('studio_update_check')),
+);
+$('update-download').addEventListener('click', () =>
+  act($('update-download'), () => invoke('studio_update_download')),
+);
+$('update-install').addEventListener('click', () =>
+  act($('update-install'), async () => {
+    const a = state?.update?.available;
+    if (!a) return;
+    const ok = window.confirm(
+      `Install Creator Agent ${a.version}?\n\n` +
+        'First a verified backup of the studio is saved and a copy of this version is kept. ' +
+        'Creator Agent then quits, installs the update and starts again. ' +
+        `If the new version needs a newer database layout (${a.manifest.schema_version}), ` +
+        'the upgrade is rehearsed on a copy of the database first and then applied without asking again. ' +
+        'If the new version does not start within 30 minutes, the earlier version is put back, ' +
+        'with the database restored from the backup when it had already been upgraded.',
+    );
+    if (!ok) return;
+    await invoke('studio_update_install');
+  }),
 );
 for (const r of document.querySelectorAll('input[name=kind]'))
   r.addEventListener('change', () => {

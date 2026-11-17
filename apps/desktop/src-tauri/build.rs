@@ -14,6 +14,11 @@ const COMMANDS: &[&str] = &[
     "studio_open_logs",
     "studio_open",
     "studio_quit",
+    "studio_update_settings",
+    "studio_update_forget_token",
+    "studio_update_check",
+    "studio_update_download",
+    "studio_update_install",
 ];
 
 fn main() {

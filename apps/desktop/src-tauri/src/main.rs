@@ -11,6 +11,8 @@ mod postgres;
 mod secret;
 mod signin;
 mod studio;
+mod update;
+mod update_run;
 #[cfg(windows)]
 mod winsys;
 use std::sync::{
@@ -557,6 +559,22 @@ fn build_studio_window(
 }
 
 fn main() {
+    // F4 (ADR-0128): the saved copy of the earlier version applies an update with no window.
+    let args: Vec<String> = std::env::args().collect();
+    if let Some(i) = args.iter().position(|a| a == "--apply-update") {
+        let id = args.get(i + 1).cloned().unwrap_or_default();
+        let r = if id.len() == 16 && id.chars().all(|c| c.is_ascii_hexdigit()) {
+            studio_root().and_then(|root| update_run::helper(root, &id))
+        } else {
+            Err("Malformed update id".into())
+        };
+        if let Err(e) = r {
+            eprintln!("Creator Agent update: {e}");
+            #[cfg(windows)]
+            winsys::message("Creator Agent update", &e);
+        }
+        return;
+    }
     // Debug-only probes observe actual WebView behavior against separately started services.
     let flag = |f: &str| cfg!(debug_assertions) && std::env::args().any(|a| a == f);
     let probes = Probes {
@@ -618,6 +636,11 @@ fn main() {
             control::studio_open_logs,
             control::studio_open,
             control::studio_quit,
+            control::studio_update_settings,
+            control::studio_update_forget_token,
+            control::studio_update_check,
+            control::studio_update_download,
+            control::studio_update_install,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -704,6 +727,7 @@ fn main() {
             }
             sup.watchdog();
             sup.start();
+            update_run::check_at_start(&sup);
             // N3 (ADR-0131): Windows notifications while the studio window is hidden.
             #[cfg(windows)]
             notify::start(handle.clone(), sup.clone());

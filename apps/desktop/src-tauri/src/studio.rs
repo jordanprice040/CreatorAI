@@ -138,7 +138,7 @@ impl Status {
     }
 }
 
-struct Inner {
+pub(crate) struct Inner {
     status: Status,
     busy: bool,
     child: Option<Child>,
@@ -153,6 +153,10 @@ struct Inner {
     log: VecDeque<String>,
     background_notice: bool,
     quiet_start: bool,
+    /// F4 (ADR-0128): the update this launch is the trial of, until it reports its outcome.
+    update_trial: Option<String>,
+    /// F4: an update check, download or install is running.
+    pub(crate) update_busy: bool,
 }
 
 pub struct Supervisor {
@@ -191,6 +195,8 @@ impl Supervisor {
                 log: VecDeque::new(),
                 background_notice: false,
                 quiet_start: std::env::args().any(|a| a == "--at-login"),
+                update_trial: crate::update_run::trial_for_this_version(&home),
+                update_busy: false,
             }),
             home,
         })
@@ -214,10 +220,38 @@ impl Supervisor {
     fn set(&self, s: Status) {
         self.note(&format!("[{}] {} — {}", s.phase, s.title, s.detail));
         let needs_owner = matches!(s.phase, "setup" | "failed" | "needs_migration");
-        self.inner.lock().unwrap().status = s;
+        // F4 (ADR-0128): the first launch after an update reports whether it runs; the copy
+        // that installed it is waiting for that. A database upgrade was approved with the
+        // install, so it goes ahead (backup and rehearsal first) without asking again.
+        let trial = {
+            let mut i = self.inner.lock().unwrap();
+            let t = match s.phase {
+                "running" | "failed" | "setup" => i.update_trial.take(),
+                "needs_migration" => i.update_trial.clone(),
+                _ => None,
+            };
+            i.status = s.clone();
+            t
+        };
+        if let Some(id) = trial {
+            crate::update_run::trial_event(self, &id, &s);
+            if s.phase == "needs_migration" {
+                return;
+            }
+        }
         if needs_owner {
             crate::show_control(&self.app);
         }
+    }
+    /// For the update trial: runs the database upgrade the owner approved with the install.
+    pub(crate) fn approve_migration_in_background(self: &Arc<Self>) {
+        let me = self.clone();
+        std::thread::spawn(move || {
+            let _ = me.approve_migration();
+        });
+    }
+    pub(crate) fn inner_lock(&self) -> std::sync::MutexGuard<'_, Inner> {
+        self.inner.lock().unwrap()
     }
     pub fn quitting(&self) -> bool {
         self.inner.lock().unwrap().quitting
@@ -266,19 +300,10 @@ impl Supervisor {
                 Err(e) => json!({"error": e}),
             },
             "bundle": bundle,
+            "version": env!("CARGO_PKG_VERSION"),
+            "update": crate::update_run::state(self, i.update_busy),
             "log": i.log.iter().rev().take(12).collect::<Vec<_>>(),
         })
-    }
-
-    fn node(&self) -> (PathBuf, PathBuf) {
-        (
-            self.resources.join("node").join("node.exe"),
-            self.resources
-                .join("service")
-                .join("app")
-                .join("dist")
-                .join("studio.mjs"),
-        )
     }
 
     fn service_log(&self) -> Result<std::fs::File, String> {
@@ -303,85 +328,29 @@ impl Supervisor {
         mode: &str,
         input: &Value,
     ) -> Result<(Child, ChildStdin, std::process::ChildStdout), String> {
-        let (node, entry) = self.node();
-        if !node.is_file() || !entry.is_file() {
-            return Err(
-                "The app's studio service files are missing; reinstall Creator Agent.".into(),
-            );
-        }
-        let mut cmd = Command::new(&node);
-        postgres::quiet(&mut cmd);
-        cmd.arg(&entry)
-            .arg(mode)
-            .current_dir(&self.home.root)
-            .env_clear()
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::from(self.service_log()?));
-        for k in [
-            "SystemRoot",
-            "SystemDrive",
-            "windir",
-            "TEMP",
-            "TMP",
-            "USERPROFILE",
-            "USERNAME",
-            "LOCALAPPDATA",
-            "APPDATA",
-            "COMPUTERNAME",
-            "NUMBER_OF_PROCESSORS",
-            "PROCESSOR_ARCHITECTURE",
-        ] {
-            if let Ok(v) = std::env::var(k) {
-                cmd.env(k, v);
-            }
-        }
-        // WSL (generated-code isolation) and the PostgreSQL tools are found by explicit paths.
-        let system = std::env::var("SystemRoot").unwrap_or_else(|_| "C:\\Windows".into());
-        cmd.env("PATH", format!("{system}\\System32;{system}"));
-        cmd.env("NODE_ENV", "production");
-        // Products are Git repositories (ADR-0046): Git is named by path, not found on PATH.
-        if let Some(git) = find_git() {
-            cmd.env("CREATOR_GIT", git);
-        }
-        let mut child = cmd
-            .spawn()
-            .map_err(|_| "Could not start the studio service".to_string())?;
+        #[allow(unused_mut)]
+        let (mut child, stdin, stdout) = spawn_service(
+            &self.resources,
+            &self.home,
+            mode,
+            input,
+            self.service_log()?,
+        )?;
         #[cfg(windows)]
         if let Some(job) = &self.job {
-            crate::winsys::assign(job, &child)?;
+            if let Err(e) = crate::winsys::assign(job, &child) {
+                let _ = child.kill();
+                return Err(e);
+            }
         }
-        let mut stdin = child.stdin.take().ok_or("No service input")?;
-        let stdout = child.stdout.take().ok_or("No service output")?;
-        writeln!(stdin, "{input}").map_err(|_| "Could not configure the studio service")?;
-        stdin.flush().ok();
         Ok((child, stdin, stdout))
     }
 
     /// Runs a one-shot service command (inspect, init, adopt, migrate) to its result.
-    fn command(&self, mode: &str, input: &Value) -> Result<Value, String> {
+    pub(crate) fn command(&self, mode: &str, input: &Value) -> Result<Value, String> {
         self.note(&format!("running service command {mode}"));
-        let (mut child, stdin, stdout) = self.spawn(mode, input)?;
-        let mut outcome: Result<Value, String> =
-            Err("The studio service ended without a result".into());
-        for line in BufReader::new(stdout).lines() {
-            let Ok(line) = line else { break };
-            let Ok(event) = serde_json::from_str::<Value>(&line) else {
-                continue;
-            };
-            match event["event"].as_str() {
-                Some("result") => outcome = Ok(event["result"].clone()),
-                Some("error") => {
-                    outcome = Err(event["message"]
-                        .as_str()
-                        .unwrap_or("Studio command failed")
-                        .to_string())
-                }
-                _ => {}
-            }
-        }
-        drop(stdin);
-        let _ = child.wait();
+        let (child, stdin, stdout) = self.spawn(mode, input)?;
+        let outcome = finish_command(child, stdin, stdout);
         match &outcome {
             Ok(_) => self.note(&format!("service command {mode} finished")),
             Err(e) => self.note(&format!("service command {mode} failed: {e}")),
@@ -403,7 +372,7 @@ impl Supervisor {
     }
 
     /// Database URL for the configured studio; starts the managed cluster when needed.
-    fn database_url(&self, c: &StudioConfig) -> Result<String, String> {
+    pub(crate) fn database_url(&self, c: &StudioConfig) -> Result<String, String> {
         if c.database.mode == "managed" {
             let cluster = self.cluster_for(c)?;
             postgres::verify_bin(&cluster.bin)?;
@@ -432,7 +401,7 @@ impl Supervisor {
         }
     }
 
-    fn input(&self, c: &StudioConfig, url: &str, source: Value) -> Value {
+    pub(crate) fn input(&self, c: &StudioConfig, url: &str, source: Value) -> Value {
         let i = self.inner.lock().unwrap();
         json!({
             "protocol": PROTOCOL,
@@ -919,7 +888,10 @@ impl Supervisor {
         });
     }
 
-    fn busy<T>(self: &Arc<Self>, f: impl FnOnce() -> Result<T, String>) -> Result<T, String> {
+    pub(crate) fn busy<T>(
+        self: &Arc<Self>,
+        f: impl FnOnce() -> Result<T, String>,
+    ) -> Result<T, String> {
         {
             let mut i = self.inner.lock().unwrap();
             if i.busy {
@@ -1234,6 +1206,105 @@ pub fn source_url(s: &Value) -> Result<String, String> {
     url.set_password(Some(&password))
         .map_err(|_| "Bad database password")?;
     Ok(url.to_string())
+}
+
+/// The bundled Node runtime and service entry under an app's `studio` resources folder.
+pub fn service_files(resources: &Path) -> (PathBuf, PathBuf) {
+    (
+        resources.join("node").join("node.exe"),
+        resources
+            .join("service")
+            .join("app")
+            .join("dist")
+            .join("studio.mjs"),
+    )
+}
+
+/// Starts a studio service child with a minimal environment: no inherited CREATOR_*, OPENAI_*
+/// or proxy settings, so a developer shell can never redirect the installed studio.
+pub fn spawn_service(
+    resources: &Path,
+    home: &Home,
+    mode: &str,
+    input: &Value,
+    log: std::fs::File,
+) -> Result<(Child, ChildStdin, std::process::ChildStdout), String> {
+    let (node, entry) = service_files(resources);
+    if !node.is_file() || !entry.is_file() {
+        return Err("The app's studio service files are missing; reinstall Creator Agent.".into());
+    }
+    let mut cmd = Command::new(&node);
+    postgres::quiet(&mut cmd);
+    cmd.arg(&entry)
+        .arg(mode)
+        .current_dir(&home.root)
+        .env_clear()
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::from(log));
+    for k in [
+        "SystemRoot",
+        "SystemDrive",
+        "windir",
+        "TEMP",
+        "TMP",
+        "USERPROFILE",
+        "USERNAME",
+        "LOCALAPPDATA",
+        "APPDATA",
+        "COMPUTERNAME",
+        "NUMBER_OF_PROCESSORS",
+        "PROCESSOR_ARCHITECTURE",
+    ] {
+        if let Ok(v) = std::env::var(k) {
+            cmd.env(k, v);
+        }
+    }
+    // WSL (generated-code isolation) and the PostgreSQL tools are found by explicit paths.
+    let system = std::env::var("SystemRoot").unwrap_or_else(|_| "C:\\Windows".into());
+    cmd.env("PATH", format!("{system}\\System32;{system}"));
+    cmd.env("NODE_ENV", "production");
+    // Products are Git repositories (ADR-0046): Git is named by path, not found on PATH.
+    if let Some(git) = find_git() {
+        cmd.env("CREATOR_GIT", git);
+    }
+    let mut child = cmd
+        .spawn()
+        .map_err(|_| "Could not start the studio service".to_string())?;
+    let mut stdin = child.stdin.take().ok_or("No service input")?;
+    let stdout = child.stdout.take().ok_or("No service output")?;
+    writeln!(stdin, "{input}").map_err(|_| "Could not configure the studio service")?;
+    stdin.flush().ok();
+    Ok((child, stdin, stdout))
+}
+
+/// Reads a one-shot service command's events to its result, then waits for the child.
+pub fn finish_command(
+    mut child: Child,
+    stdin: ChildStdin,
+    stdout: std::process::ChildStdout,
+) -> Result<Value, String> {
+    let mut outcome: Result<Value, String> =
+        Err("The studio service ended without a result".into());
+    for line in BufReader::new(stdout).lines() {
+        let Ok(line) = line else { break };
+        let Ok(event) = serde_json::from_str::<Value>(&line) else {
+            continue;
+        };
+        match event["event"].as_str() {
+            Some("result") => outcome = Ok(event["result"].clone()),
+            Some("error") => {
+                outcome = Err(event["message"]
+                    .as_str()
+                    .unwrap_or("Studio command failed")
+                    .to_string())
+            }
+            _ => {}
+        }
+    }
+    drop(stdin);
+    let _ = child.wait();
+    outcome
 }
 
 /// Copies a product store file by file, refusing links, then re-hashes every copy.

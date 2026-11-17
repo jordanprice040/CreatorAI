@@ -45,6 +45,7 @@ locations are refused). `CREATOR_STUDIO_HOME` overrides it for acceptance runs o
 | `postgres\data`   | app-managed PostgreSQL 18 cluster (managed mode)                             |
 | `products\`       | generated product store                                                      |
 | `backups\`        | adoption and pre-upgrade backups                                             |
+| `updates\`        | update settings, downloads, the saved copy for rollback, `history.jsonl`     |
 | `logs\`           | `supervisor.log`, `service.log`, `postgres.log`                              |
 
 ## First run
@@ -94,7 +95,39 @@ A failed setup removes only what it created and saves nothing.
   (Settings › Notifications in the studio says which). Focus Assist can still hide them.
   A copy started with `cargo run` has no registered app identity and shows none.
 - **Upgrades:** if a new app version needs a newer database layout, the status window
-  asks first, then saves a pre-upgrade backup and migrates under the existing lock.
+  asks first, then saves a pre-upgrade backup, rehearses the upgrade on a throwaway copy of the
+  database (ADR-0128) and only then migrates under the existing lock.
+- **Updates (F4, ADR-0128):** see [In-app updates](#in-app-updates).
+
+## In-app updates
+
+The status window's **Updates** section installs new versions from a private GitHub repository's
+releases. Set it up once: the repository (`owner/name`) and a fine-grained GitHub token with
+read-only access to that repository's contents (stored with Windows protection, never shown again).
+Nothing is checked until both are saved; checking at each start is opt-in.
+
+1. **Check for updates** reads the latest release and its `creator-agent-update.json`. It is refused
+   if the manifest, the release tag, the installer's size or GitHub's own digest disagree.
+2. **Download** saves the installer and keeps it only if its size and SHA-256 match the manifest.
+3. **Back up and install** (one confirmation) saves a verified backup, keeps a copy of this version,
+   quits, installs the update silently and starts the new version. A database upgrade the new
+   version needs runs without asking again, rehearsed on a copy first.
+4. If the new version does not report that it runs within 30 minutes (or fails, or closes), the
+   earlier version is put back. If the database had already been upgraded, the backup is restored
+   into a new database (`<name>_rb_<time>`) and the app switches to it; the upgraded one is kept.
+
+Builds are unsigned for the private beta (owner decision, November 17), so Windows may warn about
+the installer; the hash check proves the file is the one the release names, not who built it.
+
+**Publishing a release (manual):** raise `version` in `src-tauri/tauri.conf.json` and
+`src-tauri/Cargo.toml`, build from a clean checkout (below), then
+
+```powershell
+node apps/desktop/update-manifest.mjs "apps\desktop\src-tauri\target\release\bundle\nsis\Creator Agent_<version>_x64-setup.exe" --notes "What changed"
+```
+
+and create a release tagged `v<version>` in the private repository with the installer and
+`creator-agent-update.json`. Publishing is an outward step: it needs Jordan's go-ahead each time.
 
 ## Failure handling
 
@@ -131,5 +164,5 @@ Checks: `node --test tests/dist/studio-service.test.js` (set `CREATOR_TEST_DATAB
 
 - Persistent identity for the separately paired execution worker (ADR-0028 still holds:
   re-pair after restart).
-- Bundling PostgreSQL itself; OIDC sign-in inside the installed app; code signing and
-  updates; other Windows machines or architectures.
+- Bundling PostgreSQL itself; OIDC sign-in inside the installed app; code signing (updates
+  are hash-checked, ADR-0128); other Windows machines or architectures.

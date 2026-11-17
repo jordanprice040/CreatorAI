@@ -15,7 +15,8 @@ use windows::Win32::System::Registry::{
     RegDeleteKeyValueW, RegGetValueW, RegSetKeyValueW, HKEY_CURRENT_USER, REG_SZ, RRF_RT_REG_SZ,
 };
 use windows::Win32::System::Threading::{
-    CreateEventW, CreateMutexW, OpenEventW, SetEvent, WaitForSingleObject, EVENT_MODIFY_STATE,
+    CreateEventW, CreateMutexW, OpenEventW, OpenMutexW, SetEvent, WaitForSingleObject,
+    EVENT_MODIFY_STATE, SYNCHRONIZATION_SYNCHRONIZE,
 };
 use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONINFORMATION, MB_OK};
 
@@ -58,6 +59,21 @@ pub fn single_instance(key: &str) -> Result<Instance, String> {
             _mutex: Owned(mutex),
             show: Owned(show),
         })
+    }
+}
+
+/// F4 (ADR-0128): whether a studio for this home still holds its single-instance lock. Unlike
+/// `single_instance`, it never asks that studio to show its window.
+pub fn studio_running(key: &str) -> bool {
+    let mutex_name = HSTRING::from(format!("Local\\CreatorAgentStudio-{key}"));
+    unsafe {
+        match OpenMutexW(SYNCHRONIZATION_SYNCHRONIZE, false, &mutex_name) {
+            Ok(h) => {
+                let _ = CloseHandle(h);
+                true
+            }
+            Err(_) => false,
+        }
     }
 }
 

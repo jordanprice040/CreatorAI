@@ -1,10 +1,12 @@
 import { createInterface } from 'node:readline';
 import {
   adoptStudio,
+  backupStudio,
   initStudio,
   inspectDatabase,
   migrateStudio,
   parseStudioInput,
+  restoreStudio,
   serveStudio,
   type StudioEvent,
 } from './studio.js';
@@ -48,7 +50,11 @@ try {
             ? await initStudio(input)
             : mode === 'adopt'
               ? await adoptStudio(input)
-              : null;
+              : mode === 'backup'
+                ? await backupStudio(input)
+                : mode === 'restore'
+                  ? await restoreStudio(input)
+                  : null;
     if (result === null) throw new Error(`Unknown studio command: ${mode}`);
     emit({ event: 'result', mode, result });
     code = 'ok' in result && result.ok === false ? 2 : 0;
