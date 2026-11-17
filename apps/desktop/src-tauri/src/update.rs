@@ -731,8 +731,9 @@ pub fn trial_action(helper_alive: bool, result: &str) -> TrialAction {
 /// and then how much longer before it starts that version again (review L-2).
 pub const QUIT_WAIT: Duration = Duration::from_secs(120);
 pub const QUIT_WAIT_MORE: Duration = Duration::from_secs(20 * 60);
-/// How long a rollback keeps trying to put the earlier files back while the new version's
-/// last processes (its WebView2 children) still hold them (F4 live trial, November 17).
+/// How long a rollback keeps trying to put the earlier files back while something still holds
+/// the new version's files (F4 live trial, November 17: "in use" one second after it exited;
+/// which process held them was not seen, its own children or a virus scan are likely).
 pub const RESTORE_RETRY: Duration = Duration::from_secs(3 * 60);
 
 /// The steps of applying an update that touch the system, so the decisions can be tested.
@@ -756,6 +757,11 @@ pub trait Steps {
     fn drop_rehearsal_copies(&mut self) -> Result<Vec<String>, String>;
     /// Puts the earlier version's files back into the install folder.
     fn restore_files(&mut self, from: &Path, install_dir: &Path) -> Result<(), String>;
+    /// Renames the failed version's program in the install folder, so the Start menu cannot
+    /// start it while the rollback waits for its files (review of #243, L-1).
+    fn disable_failed_version(&mut self, exe: &Path) -> Result<(), String>;
+    /// True when a studio for this home runs (one started by hand during the rollback).
+    fn studio_running(&mut self) -> bool;
     /// Starts the earlier version again: from the install folder, or from the copy itself.
     fn start_previous(&mut self, exe: &Path) -> Result<(), String>;
     fn save(&mut self, p: &Pending) -> Result<(), String>;
@@ -978,12 +984,36 @@ fn roll_back(
         },
         Err(e) => problems.push(format!("the database could not be checked ({e})")),
     }
+    // Review of #243, L-1: while the rollback waits, the install folder still holds the
+    // failed version. Rename its program first so a Start menu click cannot start it and hold
+    // the files. Only when the installer may have run: otherwise those files are the earlier
+    // version's own.
+    if installed == Installed::Maybe {
+        if let Err(e) = steps.disable_failed_version(installed_exe) {
+            steps.note(
+                "failed_version_not_disabled",
+                json!({"id": p.id, "reason": e}),
+            );
+        }
+    }
     // Live trial finding: one second after the new version exited, its files were still in
-    // use, so a single attempt left the failed version installed. Keep trying for a while.
+    // use, so a single attempt left the failed version installed. Keep trying for a while,
+    // unless a studio was started meanwhile: it holds the files until it quits.
     let mut waited = Duration::ZERO;
+    let mut attempts = 0u32;
     let files = loop {
+        attempts += 1;
         match steps.restore_files(Path::new(&p.rollback_dir), Path::new(&p.install_dir)) {
             Err(e) if waited < RESTORE_RETRY => {
+                if steps.studio_running() {
+                    steps.note(
+                        "studio_started_during_rollback",
+                        json!({"id": p.id, "waited_seconds": waited.as_secs()}),
+                    );
+                    break Err(format!(
+                        "{e}, and Creator Agent was started again during the rollback, which holds them"
+                    ));
+                }
                 if waited.is_zero() {
                     steps.note("restore_files_retrying", json!({"id": p.id, "reason": e}));
                 }
@@ -1034,7 +1064,15 @@ fn roll_back(
     let _ = set(steps, &mut p, stage, &detail);
     steps.note(
         stage,
-        json!({"id": p.id, "to": p.to_version, "detail": p.detail, "restored_database": restored_db}),
+        json!({
+            "id": p.id,
+            "to": p.to_version,
+            "detail": p.detail,
+            "restored_database": restored_db,
+            // Review of #243, N-4: shows whether RESTORE_RETRY is long enough.
+            "restore_attempts": attempts,
+            "restore_wait_seconds": waited.as_secs(),
+        }),
     );
     p
 }
@@ -1410,6 +1448,8 @@ mod tests {
         /// Files in use for this many attempts, then free (the live trial's case).
         files_busy_for: u32,
         restore_attempts: u32,
+        /// A studio was started by hand during the rollback.
+        started_by_hand: bool,
         /// Exits seen only after this many waits (review L-2), or never with `exited: false`.
         exit_after_waits: u32,
         exit_waits: u32,
@@ -1491,6 +1531,13 @@ mod tests {
             } else {
                 Ok(())
             }
+        }
+        fn disable_failed_version(&mut self, _: &Path) -> Result<(), String> {
+            self.log.push("disable_failed".into());
+            Ok(())
+        }
+        fn studio_running(&mut self) -> bool {
+            self.started_by_hand
         }
         fn start_previous(&mut self, exe: &Path) -> Result<(), String> {
             self.log.push(format!("start_previous {}", exe.display()));
@@ -1604,6 +1651,7 @@ mod tests {
                 "restore_settings",
                 "drop_rehearsals",
                 "restore_db",
+                "disable_failed",
                 "restore_files",
                 app.as_str(),
                 "block 0.2.0"
@@ -1797,6 +1845,59 @@ mod tests {
         assert_eq!(
             stuck.restore_attempts as u64,
             RESTORE_RETRY.as_secs() / 3 + 1
+        );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    // Review of #243, L-1: the failed program is renamed before the files are retried, so the
+    // Start menu cannot start it; a studio started anyway stops the retries at once.
+    #[test]
+    fn a_rollback_disables_the_failed_program_and_stops_waiting_for_a_studio_started_by_hand() {
+        let (dir, p) = with_installer("byhand");
+        let mut s = FakeSteps {
+            exited: true,
+            alive: false,
+            files_busy_for: 2,
+            ..Default::default()
+        };
+        let out = apply(&mut s, p.clone());
+        assert_eq!(out.stage, "rolled_back", "{}", out.detail);
+        let at = |log: &[String], name: &str| log.iter().position(|l| l == name).unwrap();
+        assert!(at(&s.log, "disable_failed") < at(&s.log, "restore_files"));
+
+        let mut h = FakeSteps {
+            exited: true,
+            alive: false,
+            files_fail: true,
+            started_by_hand: true,
+            ..Default::default()
+        };
+        let out = apply(&mut h, p);
+        assert_eq!(out.stage, "rollback_failed");
+        assert_eq!(h.restore_attempts, 1);
+        assert!(out.detail.contains("started again during the rollback"));
+        assert!(h
+            .log
+            .iter()
+            .any(|l| l == "note studio_started_during_rollback"));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    // An installer that failed left the earlier version installed: its program is not renamed.
+    #[test]
+    fn a_failed_installer_does_not_disable_the_installed_program() {
+        let (dir, p) = with_installer("nodisable");
+        let mut s = FakeSteps {
+            exited: true,
+            installer_fails: true,
+            ..Default::default()
+        };
+        let out = apply(&mut s, p);
+        assert!(
+            !s.log.iter().any(|l| l == "disable_failed"),
+            "{:?} {}",
+            s.log,
+            out.stage
         );
         let _ = std::fs::remove_dir_all(dir);
     }

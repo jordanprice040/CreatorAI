@@ -776,19 +776,41 @@ impl Steps for RealSteps {
         Ok(names("dropped"))
     }
     fn restore_files(&mut self, from: &Path, install_dir: &Path) -> Result<(), String> {
-        let aside = install_dir.with_file_name(format!(
-            "{}.failed-update-{}",
-            install_dir
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_default(),
-            random_hex(4)?
-        ));
-        std::fs::rename(install_dir, &aside)
-            .map_err(|_| "the new version's files are in use".to_string())?;
-        crate::studio::copy_verified_as(from, install_dir, "app")?;
+        // Review of #243, N-1: a folder left by an earlier failed copy is removed instead of
+        // being moved aside again, so only one aside folder holds the new version's files.
+        if install_dir.exists() {
+            let aside = install_dir.with_file_name(format!(
+                "{}.failed-update-{}",
+                install_dir
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_default(),
+                random_hex(4)?
+            ));
+            std::fs::rename(install_dir, &aside)
+                .map_err(|_| "the new version's files are in use".to_string())?;
+        }
+        if let Err(e) = crate::studio::copy_verified_as(from, install_dir, "app") {
+            let _ = std::fs::remove_dir_all(install_dir);
+            return Err(format!("the earlier files could not be copied back ({e})"));
+        }
         let _ = std::fs::remove_file(install_dir.join(HELPER_EXE));
         Ok(())
+    }
+    fn disable_failed_version(&mut self, exe: &Path) -> Result<(), String> {
+        let mut to = exe.as_os_str().to_owned();
+        to.push(".failed");
+        std::fs::rename(exe, PathBuf::from(to)).map_err(|e| e.to_string())
+    }
+    fn studio_running(&mut self) -> bool {
+        #[cfg(windows)]
+        {
+            crate::winsys::studio_running(&Home::key_for(&self.home.root))
+        }
+        #[cfg(not(windows))]
+        {
+            false
+        }
     }
     fn start_previous(&mut self, exe: &Path) -> Result<(), String> {
         self.spawn(exe).map(|_| ())
