@@ -191,6 +191,12 @@ pub fn state(sup: &Supervisor, busy: bool, schema_version: Option<i64>) -> Value
             .ok()
             .flatten()
             .map(|f| f.highest_failed),
+        // Live trial findings: a release at or below a rolled-back version is not offered, and
+        // the saved copy a failed rollback runs says so instead of offering updates.
+        "available_blocked": available
+            .as_ref()
+            .is_some_and(|a| update::check_not_blocked(&paths, &a.version).is_err()),
+        "saved_copy": running_from_saved_copy(&paths).then_some(SAVED_COPY_TEXT),
     })
 }
 
@@ -353,6 +359,11 @@ pub fn install(sup: &Shared) -> Result<Value, String> {
         );
     }
     let paths = Paths::new(&sup.home.root);
+    // Live trial finding: the copy a failed rollback runs takes its own folder for the
+    // install folder, so an update started from it would install and save in the wrong place.
+    if running_from_saved_copy(&paths) {
+        return Err(SAVED_COPY_TEXT.into());
+    }
     let a: Available = update::read_json(&paths.available())?.ok_or("Check for updates first")?;
     if !a.newer {
         return Err(format!("{} is not newer than this version", a.version));
@@ -449,6 +460,26 @@ pub fn install(sup: &Shared) -> Result<Value, String> {
     sup.note("update: handing over to the saved copy and quitting");
     sup.quit();
     Ok(json!({"to_version": pending.to_version, "backup_dir": pending.backup_dir}))
+}
+
+const SAVED_COPY_TEXT: &str = "This is the saved copy of the earlier version that a rollback started, not the installed app. Quit, reinstall Creator Agent by hand with an installer newer than the failed version, then update from the installed app.";
+
+/// True when this program runs from `updates/rollback` (a rollback could not put its files
+/// back into the install folder).
+fn running_from_saved_copy(paths: &Paths) -> bool {
+    std::env::current_exe()
+        .ok()
+        .is_some_and(|exe| is_inside(&exe, &paths.rollback()))
+}
+
+pub fn is_inside(path: &Path, dir: &Path) -> bool {
+    let norm = |p: &Path| {
+        p.components()
+            .map(|c| c.as_os_str().to_string_lossy().to_lowercase())
+            .collect::<Vec<_>>()
+    };
+    let (p, d) = (norm(path), norm(dir));
+    p.len() > d.len() && p[..d.len()] == d[..]
 }
 
 /// The helper's own file name. The installer closes running copies of the app's program
@@ -856,6 +887,17 @@ mod tests {
         let long = restored_name(&"a".repeat(63), "20261117101500");
         assert!(long.len() <= 63);
         crate::home::valid_ident(&long).unwrap();
+    }
+    #[test]
+    fn the_saved_copy_is_recognised_by_its_folder() {
+        let rb = Path::new("/home/updates/rollback");
+        assert!(is_inside(&rb.join("0.1.0").join("creator-desktop.exe"), rb));
+        assert!(!is_inside(Path::new("/app/creator-desktop.exe"), rb));
+        assert!(!is_inside(rb, rb));
+        assert!(!is_inside(
+            Path::new("/home/updates/rollback-old/x.exe"),
+            rb
+        ));
     }
     #[test]
     fn restored_labels_name_the_restored_database() {

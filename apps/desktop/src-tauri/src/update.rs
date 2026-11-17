@@ -731,6 +731,9 @@ pub fn trial_action(helper_alive: bool, result: &str) -> TrialAction {
 /// and then how much longer before it starts that version again (review L-2).
 pub const QUIT_WAIT: Duration = Duration::from_secs(120);
 pub const QUIT_WAIT_MORE: Duration = Duration::from_secs(20 * 60);
+/// How long a rollback keeps trying to put the earlier files back while the new version's
+/// last processes (its WebView2 children) still hold them (F4 live trial, November 17).
+pub const RESTORE_RETRY: Duration = Duration::from_secs(3 * 60);
 
 /// The steps of applying an update that touch the system, so the decisions can be tested.
 pub trait Steps {
@@ -975,7 +978,21 @@ fn roll_back(
         },
         Err(e) => problems.push(format!("the database could not be checked ({e})")),
     }
-    let files = steps.restore_files(Path::new(&p.rollback_dir), Path::new(&p.install_dir));
+    // Live trial finding: one second after the new version exited, its files were still in
+    // use, so a single attempt left the failed version installed. Keep trying for a while.
+    let mut waited = Duration::ZERO;
+    let files = loop {
+        match steps.restore_files(Path::new(&p.rollback_dir), Path::new(&p.install_dir)) {
+            Err(e) if waited < RESTORE_RETRY => {
+                if waited.is_zero() {
+                    steps.note("restore_files_retrying", json!({"id": p.id, "reason": e}));
+                }
+                steps.wait(Duration::from_secs(3));
+                waited += Duration::from_secs(3);
+            }
+            r => break r,
+        }
+    };
     let start = match &files {
         Ok(()) => installed_exe,
         Err(e) => {
@@ -1390,6 +1407,9 @@ mod tests {
         alive: bool,
         db_changed: bool,
         files_fail: bool,
+        /// Files in use for this many attempts, then free (the live trial's case).
+        files_busy_for: u32,
+        restore_attempts: u32,
         /// Exits seen only after this many waits (review L-2), or never with `exited: false`.
         exit_after_waits: u32,
         exit_waits: u32,
@@ -1465,7 +1485,8 @@ mod tests {
         }
         fn restore_files(&mut self, _: &Path, _: &Path) -> Result<(), String> {
             self.log.push("restore_files".into());
-            if self.files_fail {
+            self.restore_attempts += 1;
+            if self.files_fail || self.restore_attempts <= self.files_busy_for {
                 Err("locked".into())
             } else {
                 Ok(())
@@ -1738,6 +1759,45 @@ mod tests {
         // Review 2 L-A: copies are looked for before the restore renames the database.
         let at = |name: &str| s.log.iter().position(|l| l == name).unwrap();
         assert!(at("drop_rehearsals") < at("restore_db"), "{:?}", s.log);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    // Live trial (November 17): the new version's files were still in use a second after it
+    // exited; the rollback must wait for them instead of leaving the failed version installed.
+    #[test]
+    fn a_rollback_waits_for_files_still_in_use_and_gives_up_only_after_the_retry_time() {
+        let (dir, p) = with_installer("busy");
+        let mut s = FakeSteps {
+            exited: true,
+            alive: false,
+            files_busy_for: 5,
+            ..Default::default()
+        };
+        let out = apply(&mut s, p.clone());
+        assert_eq!(out.stage, "rolled_back", "{}", out.detail);
+        assert_eq!(s.restore_attempts, 6);
+        assert!(s.log.iter().any(|l| l == "note restore_files_retrying"));
+        let app = format!(
+            "start_previous {}",
+            Path::new("/app").join("creator-desktop.exe").display()
+        );
+        assert_eq!(
+            s.log.iter().rfind(|l| l.starts_with("start_previous")),
+            Some(&app)
+        );
+        // Never free: it gives up after RESTORE_RETRY and runs from the saved copy.
+        let mut stuck = FakeSteps {
+            exited: true,
+            alive: false,
+            files_fail: true,
+            ..Default::default()
+        };
+        let out = apply(&mut stuck, p);
+        assert_eq!(out.stage, "rollback_failed");
+        assert_eq!(
+            stuck.restore_attempts as u64,
+            RESTORE_RETRY.as_secs() / 3 + 1
+        );
         let _ = std::fs::remove_dir_all(dir);
     }
 

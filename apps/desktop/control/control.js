@@ -182,10 +182,19 @@ function renderUpdates(s) {
       `Version ${a.version} is available (published ${a.published_at}, database layout ${a.manifest.schema_version}, ` +
       `${(a.manifest.installer.size / 1048576).toFixed(1)} MB, SHA-256 ${a.manifest.installer.sha256.slice(0, 16)}…).` +
       (u.downloaded ? ' Downloaded and verified.' : '') +
+      (u.available_blocked
+        ? ` It did not start here before and was rolled back, so it is not offered again; publish a version newer than ${u.highest_failed}.`
+        : '') +
       notes;
   }
-  $('update-download').hidden = !a?.newer || u.downloaded;
-  $('update-install').hidden = !a?.newer || !u.downloaded;
+  // Live trial findings: nothing is offered for a rolled-back version or from the saved copy.
+  const offer = a?.newer && !u.available_blocked && !u.saved_copy;
+  $('update-download').hidden = !offer || u.downloaded;
+  $('update-install').hidden = !offer || !u.downloaded;
+  if (u.saved_copy) {
+    outcome.hidden = false;
+    outcome.textContent = u.saved_copy + (p ? ` ${outcome.textContent}` : '');
+  }
   $('update-history').replaceChildren(
     ...u.history.map((h) => {
       const li = document.createElement('li');
