@@ -957,6 +957,18 @@ fn roll_back(
     }
     steps.note("rollback_started", json!({"id": p.id, "reason": why}));
     steps.stop_new_version();
+    // Review of #243, L-1 and review 2: until the files are put back, the install folder still
+    // holds the failed version, and the database restore can take a while. Rename its program
+    // first, so a Start menu click cannot start it and hold the files. Only when the installer
+    // may have run: otherwise those files are the earlier version's own.
+    if installed == Installed::Maybe {
+        if let Err(e) = steps.disable_failed_version(installed_exe) {
+            steps.note(
+                "failed_version_not_disabled",
+                json!({"id": p.id, "reason": e}),
+            );
+        }
+    }
     let mut restored_db = None;
     // Review L-5: the settings first, so the earlier version can read them again.
     if let Err(e) = steps.restore_settings(Path::new(&p.settings_copy)) {
@@ -983,18 +995,6 @@ fn roll_back(
             Err(e) => problems.push(format!("the backup could not be restored ({e})")),
         },
         Err(e) => problems.push(format!("the database could not be checked ({e})")),
-    }
-    // Review of #243, L-1: while the rollback waits, the install folder still holds the
-    // failed version. Rename its program first so a Start menu click cannot start it and hold
-    // the files. Only when the installer may have run: otherwise those files are the earlier
-    // version's own.
-    if installed == Installed::Maybe {
-        if let Err(e) = steps.disable_failed_version(installed_exe) {
-            steps.note(
-                "failed_version_not_disabled",
-                json!({"id": p.id, "reason": e}),
-            );
-        }
     }
     // Live trial finding: one second after the new version exited, its files were still in
     // use, so a single attempt left the failed version installed. Keep trying for a while,
@@ -1648,10 +1648,10 @@ mod tests {
                 "start_new",
                 "claim",
                 "stop_new",
+                "disable_failed",
                 "restore_settings",
                 "drop_rehearsals",
                 "restore_db",
-                "disable_failed",
                 "restore_files",
                 app.as_str(),
                 "block 0.2.0"
