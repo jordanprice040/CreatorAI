@@ -349,7 +349,7 @@ const USAGE = `Usage:
   pnpm cli discovery-start <workspace> <run-id> <request-json>
   pnpm cli discovery <workspace> <workflow-id> [--wait]
   pnpm cli discovery-packet <workspace> <workflow-id>
-  pnpm cli seed-discovery
+  pnpm cli seed-discovery [workspace-name]
   pnpm cli scorecard <workspace> <scorecard-json>
   pnpm cli report <workspace> <problem-id> [shortlist-size]
   pnpm cli select <workspace> <run-id> <select-json>
@@ -358,7 +358,7 @@ const USAGE = `Usage:
   pnpm cli spec <workspace> <spec-id>
   pnpm cli spec-revise <workspace> <spec-id> <revise-json>
   pnpm cli spec-freeze <workspace> <run-id> <freeze-json>
-  pnpm cli seed-selection
+  pnpm cli seed-selection [workspace-name]
 
 Workflows run on the API server's worker (or \`pnpm worker\`), not in this command: exiting the
 CLI or closing the web page does not stop or cancel them.
@@ -2674,7 +2674,7 @@ export async function runCli(
         );
         break;
       case 'seed-discovery':
-        data = await seedDiscovery(call);
+        data = await seedDiscovery(call, rest[0]?.trim() || undefined);
         break;
       case 'scorecard':
         data = await call(
@@ -2732,7 +2732,7 @@ export async function runCli(
         );
         break;
       case 'seed-selection':
-        data = await seedSelection(call);
+        data = await seedSelection(call, rest[0]?.trim() || undefined);
         break;
       default:
         throw new Error(USAGE);
@@ -3277,12 +3277,12 @@ const specSummary = (s: SpecStatus) => ({
  * revises one task to show which tasks the change invalidates. Every authorization the run
  * asks for is answered here as the signed-in owner, approve-once, for the exact version shown.
  */
-async function seedSelection(call: Call) {
+async function seedSelection(
+  call: Call,
+  name = 'Fixture selection and spec demonstration',
+) {
   // Full audit N-2: its own name, so the two seeds differ in the workspace picker.
-  const seeded = await seedDiscovery(
-    call,
-    'Fixture selection and spec demonstration',
-  );
+  const seeded = await seedDiscovery(call, name);
   const clinic = seeded.results.find((r) => r.scenario === 'software');
   const problemId = clinic?.discovery?.catalog_records.problem?.id;
   if (!clinic || !problemId)
