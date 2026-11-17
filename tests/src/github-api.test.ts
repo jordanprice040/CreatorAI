@@ -184,3 +184,54 @@ test('X04 API and CLI: connect, verify, create a repository, signed and deduplic
   );
   assert.equal(unknown.status, 404);
 });
+
+test('P32 API: GitHub App setup routes are owner-only and refuse without live GitHub', async (t) => {
+  let closeApi = async () => {};
+  t.after(() => closeApi());
+  const db = await freshDatabase(t);
+  if (!db) return;
+  const api = createApi({
+    CREATOR_DATABASE_URL: db.url,
+    CREATOR_DEV_LOGIN_CODE: LOGIN_CODE,
+    CREATOR_WORKER: 'off',
+  });
+  api.server.listen(0, '127.0.0.1');
+  await once(api.server, 'listening');
+  closeApi = api.close;
+  await api.ready();
+  const port = (api.server.address() as { port: number }).port;
+  const base = `http://127.0.0.1:${port}/api`;
+  const auth = await login(base);
+  const post = async (path: string, body: unknown) => {
+    const r = await fetch(`${base}/${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...auth.write },
+      body: JSON.stringify(body),
+    });
+    return { status: r.status, body: (await r.json()) as any };
+  };
+  const ws = (
+    await post('workspaces', { name: 'GitHub App', record_mode: 'real' })
+  ).body.id as string;
+  const list = await fetch(`${base}/workspaces/${ws}/github-app-setups`, {
+    headers: auth.read,
+  });
+  assert.equal(list.status, 200);
+  assert.deepEqual(await list.json(), []);
+  // Live GitHub is off on this API, so nothing starts and nothing is recorded.
+  const begin = await post(`workspaces/${ws}/github-app-setups`, {
+    organization: null,
+    open_browser: false,
+  });
+  assert.equal(begin.status, 400);
+  assert.equal(begin.body.error.code, 'LIVE_DISABLED');
+  const bad = await post(`workspaces/${ws}/github-app-setups`, {
+    open_browser: false,
+  });
+  assert.equal(bad.status, 400);
+  const missing = await post(
+    `workspaces/${ws}/github-app-setups/00000000-0000-4000-8000-000000000000/abandon`,
+    {},
+  );
+  assert.equal(missing.status, 404);
+});

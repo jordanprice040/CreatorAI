@@ -136,13 +136,34 @@ Other `params` kinds: `branch_create` (repository_id, branch, from_sha), `push`
 (head_branch, base_branch, title, body), `pr_merge` (pr_number, reviewed_head_sha,
 merge_method `merge` or `squash`).
 
+## Connect with GitHub from the studio (P32, ADR-0132)
+
+The simplest live setup, on the GitHub page of a real workspace (owner only, with
+`CREATOR_GITHUB=live` and the protected vault the installed app and dev studio use):
+
+1. **Create the GitHub App.** Your browser opens GitHub with a private app already
+   described (contents, issues, pull requests and repository creation; read access to
+   checks and statuses; no webhook, no workflows). Name it and press Create on GitHub.
+   Creator Agent keeps the app key protected on this computer (DPAPI on Windows); there is
+   nothing to copy.
+2. **Install on GitHub** and choose the repositories. Back in the studio, the page notices
+   the installation, or press **Check installation**.
+3. **Add the connection**: name, limits and required checks, as for any connection. Then
+   press **Verify** and create the grants runs need.
+
+Routes under `/api/workspaces/{ws}/`: `github-app-setups` (GET, POST
+`{organization, open_browser}`), `github-app-setups/{id}` (GET), `…/installation`,
+`…/connect`, `…/abandon` (POST). Stopping a setup deletes its key; the app stays on GitHub
+until you delete it under Settings › Developer settings › GitHub Apps. The installed app does
+not turn live GitHub on yet (see ADR-0132).
+
 ## Turning on live use (owner steps)
 
 The P22 live trial and its exact steps are in [LIVE_CONNECTION_CHECKS.md](LIVE_CONNECTION_CHECKS.md).
 
-1. Choose the credential: a GitHub App installed on selected repositories (recommended:
-   it can read check runs and tokens are short-lived) or a fine-grained token limited to
-   the owner and selected repositories, with an expiry.
+1. Prefer the in-app setup above. By hand, choose the credential: a GitHub App installed on
+   selected repositories (it can read check runs and tokens are short-lived) or a
+   fine-grained token limited to the owner and selected repositories, with an expiry.
 2. Put the secret in the API process environment only, for example in PowerShell:
    `$env:CREATOR_GITHUB_TOKEN = "<token>"` and `$env:CREATOR_GITHUB = "live"`.
 3. Register a `live` connection in a real workspace naming the owner's login and

@@ -12,8 +12,10 @@ import type {
   GitHubObservations,
   GitHubStore,
 } from '@creator/db';
+import type { PlanVault } from './plan-vault.js';
 import {
   FixtureGitHub,
+  LiveGitHub,
   liveGitHubFromEnv,
   type GitHubAdapter,
   type GitHubResponse,
@@ -35,8 +37,12 @@ export interface GitHubServiceOptions {
   ) => Promise<string> | string;
   /** Test seam: the fixture GitHub for a connection (default: one per connection). */
   fixture?: (connection: GitHubConnection) => FixtureGitHub;
-  /** Test seam: a live adapter for a connection (default: from env). */
+  /** Test seam: a live adapter for a connection (default: from env or, ADR-0132, the vault). */
   live?: (connection: GitHubConnection) => GitHubAdapter | null;
+  /** ADR-0132: where a studio-created GitHub App's key is sealed. */
+  vault?: PlanVault | null;
+  /** Tests only: loopback stand-ins for api.github.com and github.com for vault-keyed apps. */
+  appBases?: { apiBase: string; gitBase: string };
 }
 const repoData = (o: RepoObservation) => ({
   github_id: o.github_id,
@@ -102,21 +108,39 @@ export class GitHubService {
     }
     return f;
   }
-  #adapter(conn: GitHubConnection): GitHubAdapter | null {
-    if (conn.body.credential.kind === 'fixture') return this.fixtureFor(conn);
+  async #adapter(conn: GitHubConnection): Promise<GitHubAdapter | null> {
+    const cred = conn.body.credential;
+    if (cred.kind === 'fixture') return this.fixtureFor(conn);
     if (!this.liveEnabled) return null;
-    return this.opts.live
-      ? this.opts.live(conn)
-      : liveGitHubFromEnv(this.opts.env, conn.body.credential);
+    if (this.opts.live) return this.opts.live(conn);
+    if (cred.kind !== 'app_vault')
+      return liveGitHubFromEnv(this.opts.env, cred);
+    // ADR-0132: the key the in-app setup sealed; a missing vault or entry is "not set".
+    const pem = this.opts.vault
+      ? await this.opts.vault.getGitHubAppKey(cred.key_ref)
+      : null;
+    return pem
+      ? new LiveGitHub({
+          credential: {
+            kind: 'app_installation',
+            client_id: cred.app_client_id,
+            private_key: pem,
+            installation_id: cred.installation_id,
+          },
+          ...(this.opts.appBases ?? {}),
+        })
+      : null;
   }
-  #need(conn: GitHubConnection) {
-    const a = this.#adapter(conn);
+  async #need(conn: GitHubConnection) {
+    const a = await this.#adapter(conn);
     if (!a)
       throw new ContractError(
         'LIVE_DISABLED',
-        this.liveEnabled
-          ? 'The credential variable this connection names is not set on the API process.'
-          : 'Live GitHub is off (CREATOR_GITHUB=live is not set).',
+        !this.liveEnabled
+          ? 'Live GitHub is off (CREATOR_GITHUB=live is not set).'
+          : conn.body.credential.kind === 'app_vault'
+            ? 'The app key for this connection is not on this computer.'
+            : 'The credential variable this connection names is not set on the API process.',
       );
     return a;
   }
@@ -124,7 +148,7 @@ export class GitHubService {
   /** Reads who the credential belongs to; only the configured owner activates the connection. */
   async verify(ctx: CommandContext, ws: string, id: string) {
     const conn = await this.store.connectionForVerification(ctx, ws, id);
-    const a = this.#need(conn);
+    const a = await this.#need(conn);
     const who = await a.identity();
     const cls = classifyResponse(who.response);
     const refusal =
@@ -157,7 +181,7 @@ export class GitHubService {
   ): Promise<GitHubOperation> {
     const { req, connection, repository } =
       await this.store.prepareGitHubOperation(ctx, ws, raw);
-    const a = this.#adapter(connection);
+    const a = await this.#adapter(connection);
     const p = req.params;
     const obs: GitHubObservations = {};
     let paths: string[] | null = null;
@@ -273,7 +297,7 @@ export class GitHubService {
       ws,
       repositoryId,
     );
-    const a = this.#need(connection);
+    const a = await this.#need(connection);
     const looked = await a.repositoryRead(repository.github_id);
     if (!looked.repository)
       return {
@@ -315,7 +339,7 @@ export class GitHubService {
       connection,
       repository,
     } = await this.store.operationForReconcile(ctx, ws, id);
-    const a = this.#need(connection);
+    const a = await this.#need(connection);
     const p = op.params;
     const since = new Date(Date.parse(op.created_at) - 60_000).toISOString();
     const ref = repository && {

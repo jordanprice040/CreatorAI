@@ -559,6 +559,16 @@ export class FixtureGitHub implements GitHubAdapter {
   }
 }
 
+/** An app JWT (RS256, `iss` = client id, under ten minutes, backdated a minute for clock drift). */
+export function appJwt(clientId: string, privateKey: string): string {
+  const b64 = (v: unknown) =>
+    Buffer.from(JSON.stringify(v)).toString('base64url');
+  const now = Math.floor(Date.now() / 1000);
+  const unsigned = `${b64({ alg: 'RS256', typ: 'JWT' })}.${b64({ iat: now - 60, exp: now + 540, iss: clientId })}`;
+  const sig = createSign('RSA-SHA256').update(unsigned).sign(privateKey);
+  return `${unsigned}.${sig.toString('base64url')}`;
+}
+
 // ---- Live REST and Git adapter ------------------------------------------------------------
 
 export interface LiveGitHubOptions {
@@ -600,12 +610,7 @@ export class LiveGitHub implements GitHubAdapter {
   #jwt(): string {
     const c = this.opts.credential;
     if (c.kind !== 'app_installation') throw new Error('Not an app credential');
-    const b64 = (v: unknown) =>
-      Buffer.from(JSON.stringify(v)).toString('base64url');
-    const now = Math.floor(Date.now() / 1000);
-    const unsigned = `${b64({ alg: 'RS256', typ: 'JWT' })}.${b64({ iat: now - 60, exp: now + 540, iss: c.client_id })}`;
-    const sig = createSign('RSA-SHA256').update(unsigned).sign(c.private_key);
-    return `${unsigned}.${sig.toString('base64url')}`;
+    return appJwt(c.client_id, c.private_key);
   }
   /** Token for one call: the PAT, or an installation token scoped to these repos/permissions. */
   async #token(repoIds: number[] | null, permissions: Permissions) {

@@ -20,6 +20,15 @@ export const branchName = z
   .string()
   .regex(/^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$/);
 
+const clientId = z.string().regex(/^[A-Za-z0-9._-]{1,100}$/);
+const appSlug = z.string().regex(/^[a-z0-9][a-z0-9-]{0,99}$/);
+/** ADR-0132: the vault entry holding a studio-created GitHub App's private key. */
+export const githubAppKeyRef = z
+  .string()
+  .regex(
+    /^github-app-key\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+  );
+
 export const GitHubCredentialSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('fixture') }),
   z.strictObject({
@@ -30,8 +39,18 @@ export const GitHubCredentialSchema = z.discriminatedUnion('kind', [
   }),
   z.strictObject({
     kind: z.literal('app_installation'),
-    app_client_id: z.string().regex(/^[A-Za-z0-9._-]{1,100}$/),
+    app_client_id: clientId,
     private_key_env: envName,
+    installation_id: githubId,
+  }),
+  // ADR-0132 (P32): a GitHub App the owner created from the studio. Its private key is sealed in
+  // the studio's protected vault under key_ref; only the in-app setup writes this kind.
+  z.strictObject({
+    kind: z.literal('app_vault'),
+    app_id: githubId,
+    app_slug: appSlug,
+    app_client_id: clientId,
+    key_ref: githubAppKeyRef,
     installation_id: githubId,
   }),
 ]);
@@ -306,3 +325,73 @@ export const GitHubDeliverySchema = z.strictObject({
   received_at: timestamp,
 });
 export type GitHubDelivery = z.infer<typeof GitHubDeliverySchema>;
+
+// ADR-0132 (P32): the GitHub App the owner creates and installs from the studio (manifest flow),
+// so no token or key is made by hand. The studio exchanges GitHub's one-time code for the app's
+// key, seals it in the protected vault, finds the installation with the app's own JWT and then
+// registers an ordinary live connection that still needs Verify, grants and admission.
+/** GitHub gives an hour to finish the manifest handshake. */
+export const GITHUB_APP_SETUP_MS = 60 * 60 * 1000;
+export const GitHubAppSetupStatusSchema = z.enum([
+  'waiting_for_github',
+  'app_created',
+  'installed',
+  'connected',
+  'failed',
+  'abandoned',
+  'expired',
+]);
+export type GitHubAppSetupStatus = z.infer<typeof GitHubAppSetupStatusSchema>;
+export const GitHubAppSetupSchema = z.strictObject({
+  id,
+  workspace_id: id,
+  status: GitHubAppSetupStatusSchema,
+  /** Null: the app is registered on the owner's personal account. */
+  organization: login.nullable(),
+  app: z
+    .strictObject({
+      id: githubId,
+      slug: appSlug,
+      client_id: clientId,
+      name: z.string().max(200),
+      owner: GitHubIdentitySchema,
+      html_url: z.string().url().max(500),
+    })
+    .nullable(),
+  installation: z
+    .strictObject({
+      id: githubId,
+      account: GitHubIdentitySchema,
+      repository_selection: z.enum(['all', 'selected']),
+    })
+    .nullable(),
+  connection_id: id.nullable(),
+  failure: z.string().max(500).nullable(),
+  created_by: id,
+  created_at: timestamp,
+  updated_at: timestamp,
+});
+export type GitHubAppSetup = z.infer<typeof GitHubAppSetupSchema>;
+export const BeginGitHubAppSetupRequestSchema = z.strictObject({
+  organization: login.nullable(),
+  /** False for the CLI and tests: the reply's start_url is opened by hand. */
+  open_browser: z.boolean(),
+});
+export const GitHubAppSetupStartSchema = z.strictObject({
+  setup: GitHubAppSetupSchema,
+  /** A loopback page on this computer that sends the app description to GitHub. */
+  start_url: z.string().url(),
+  expires_in_s: z.number().int().positive(),
+});
+/** The connection the finished setup registers: everything but owner and credential. */
+export const ConnectGitHubAppSetupRequestSchema = z.strictObject({
+  label,
+  limits: GitHubLimitsSchema,
+  required_checks: z.array(z.string().trim().min(1).max(200)).max(20),
+  included_repositories: z
+    .array(z.strictObject({ github_id: githubId, full_name: label }))
+    .max(20),
+});
+export type ConnectGitHubAppSetupRequest = z.infer<
+  typeof ConnectGitHubAppSetupRequestSchema
+>;

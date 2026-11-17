@@ -9,6 +9,7 @@ import {
   GitHubReviewSchema,
   RunControlSchema,
   z,
+  type GitHubAppSetup,
   type GitHubConnection,
   type GitHubOperation,
   type GitHubOperationParams,
@@ -21,6 +22,7 @@ import { Empty, Status, runNames, useLoad, type View } from './ui.js';
 import { newestFirst } from './versions.js';
 import { runLabel } from './labels.js';
 import { checksSummary } from './github-checks.js';
+import { GitHubAppSetupPanel } from './github-app-setup.js';
 
 /** The simulated GitHub account fixture workspaces talk to (FixtureGitHub's default). */
 const FIXTURE_OWNER = { login: 'fixture-owner', id: 4_100_001 };
@@ -121,9 +123,10 @@ export function GitHub({
       ) : (
         <p className="small">
           A real workspace reaches github.com only when live GitHub is turned on
-          for the studio and a connection is verified. The token or app key
-          stays in the studio&apos;s environment; this page names it but never
-          sees it.
+          for the studio and a connection is verified. A GitHub App created here
+          keeps its key protected on this computer; a token or key you made by
+          hand stays in the studio&apos;s environment. This page never sees
+          either.
         </p>
       )}
       <div aria-live="polite">
@@ -162,9 +165,20 @@ export function GitHub({
                 ))}
               </ul>
             )}
+            {!viewer && !fixture && (
+              <GitHubAppSetupPanel
+                base={base}
+                session={session}
+                busy={busy}
+                act={act}
+                connected={() => data.reload()}
+              />
+            )}
             {!viewer && (
               <details className="gh-add" key={`add-${added}`}>
-                <summary>Add a connection</summary>
+                <summary>
+                  {fixture ? 'Add a connection' : 'Add a connection by hand'}
+                </summary>
                 <AddConnection
                   done={() => setAdded((n) => n + 1)}
                   base={base}
@@ -298,7 +312,7 @@ export function GitHub({
   );
 }
 
-type Act = (
+export type Act = (
   work: () => Promise<string | { text: string; attention: boolean }>,
 ) => Promise<void>;
 
@@ -341,7 +355,9 @@ function ConnectionRow({
             ? 'simulated credential'
             : b.credential.kind === 'fine_grained_pat'
               ? `token in ${b.credential.token_env}, expires ${when(b.credential.expires_at)}`
-              : `app key in ${b.credential.private_key_env}`}
+              : b.credential.kind === 'app_vault'
+                ? `app ${b.credential.app_slug}, key kept protected on this computer`
+                : `app key in ${b.credential.private_key_env}`}
         </small>
       </div>
       <small>
@@ -482,13 +498,18 @@ function ConnectionRow({
   );
 }
 
-function AddConnection({
+/**
+ * Adds a connection by hand, or (ADR-0132) finishes an installed GitHub App setup: then the
+ * owner and the credential come from the setup and only the name, limits and checks are asked.
+ */
+export function AddConnection({
   done,
   base,
   session,
   fixture,
   busy,
   act,
+  appSetup,
 }: {
   done: () => void;
   base: string;
@@ -496,8 +517,18 @@ function AddConnection({
   fixture: boolean;
   busy: boolean;
   act: Act;
+  appSetup?: GitHubAppSetup;
 }) {
-  const [label, setLabel] = useState(fixture ? 'Simulated GitHub' : '');
+  const fromApp = appSetup?.installation ?? null;
+  // Both forms can be on the page at once (the app setup's and the hand-made one).
+  const ids = appSetup ? 'gha' : 'ghc';
+  const [label, setLabel] = useState(
+    fixture
+      ? 'Simulated GitHub'
+      : fromApp
+        ? `GitHub (${fromApp.account.login})`
+        : '',
+  );
   const [login, setLogin] = useState(fixture ? FIXTURE_OWNER.login : '');
   const [ownerId, setOwnerId] = useState(
     fixture ? String(FIXTURE_OWNER.id) : '',
@@ -522,8 +553,32 @@ function AddConnection({
   function submit(e: FormEvent) {
     e.preventDefault();
     void act(async () => {
-      const body = {
+      const shared = {
         label: label.trim(),
+        limits: {
+          repo_prefix: repoPrefix.trim(),
+          branch_prefix: branchPrefix.trim(),
+          max_repositories: Number(maxRepos),
+          max_mutations_per_hour: Number(perHour),
+          max_open_prs_per_repo: Number(openPrs),
+        },
+        required_checks: lines(checks),
+        included_repositories: lines(included).map((l) => {
+          const [idText, ...name] = l.split(/\s+/);
+          return { github_id: Number(idText), full_name: name.join(' ') };
+        }),
+      };
+      if (appSetup) {
+        const r = await api(
+          z.object({ connection: GitHubConnectionSchema }),
+          `${base}/github-app-setups/${appSetup.id}/connect`,
+          { csrf: session.csrf_token, body: shared },
+        );
+        done();
+        return `${r.connection.body.label} added. Press Verify on it before asking for changes.`;
+      }
+      const body = {
+        label: shared.label,
         mode: fixture ? 'fixture' : 'live',
         owner: { login: login.trim(), id: Number(ownerId), type: ownerType },
         credential: fixture
@@ -541,18 +596,9 @@ function AddConnection({
                 installation_id: Number(installation),
               },
         webhook_secret_env: webhookEnv.trim() || null,
-        limits: {
-          repo_prefix: repoPrefix.trim(),
-          branch_prefix: branchPrefix.trim(),
-          max_repositories: Number(maxRepos),
-          max_mutations_per_hour: Number(perHour),
-          max_open_prs_per_repo: Number(openPrs),
-        },
-        required_checks: lines(checks),
-        included_repositories: lines(included).map((l) => {
-          const [idText, ...name] = l.split(/\s+/);
-          return { github_id: Number(idText), full_name: name.join(' ') };
-        }),
+        limits: shared.limits,
+        required_checks: shared.required_checks,
+        included_repositories: shared.included_repositories,
       };
       const c = await api(
         GitHubConnectionSchema,
@@ -570,49 +616,53 @@ function AddConnection({
     <form onSubmit={submit} className="gh-form">
       <div className="two">
         <div>
-          <label htmlFor="ghc-label">Name</label>
+          <label htmlFor={`${ids}-label`}>Name</label>
           <input
-            id="ghc-label"
+            id={`${ids}-label`}
             value={label}
             onChange={(e) => setLabel(e.target.value)}
           />
         </div>
-        <div>
-          <label htmlFor="ghc-type">Account type</label>
-          <select
-            id="ghc-type"
-            value={ownerType}
-            onChange={(e) =>
-              setOwnerType(e.target.value as 'User' | 'Organization')
-            }
-          >
-            <option value="User">Personal account</option>
-            <option value="Organization">Organization</option>
-          </select>
-        </div>
-        <div>
-          <label htmlFor="ghc-login">GitHub login</label>
-          <input
-            id="ghc-login"
-            value={login}
-            onChange={(e) => setLogin(e.target.value)}
-          />
-        </div>
-        <div>
-          <label htmlFor="ghc-id">Numeric account id</label>
-          <input
-            id="ghc-id"
-            inputMode="numeric"
-            value={ownerId}
-            onChange={(e) => setOwnerId(e.target.value)}
-          />
-        </div>
+        {!appSetup && (
+          <>
+            <div>
+              <label htmlFor={`${ids}-type`}>Account type</label>
+              <select
+                id={`${ids}-type`}
+                value={ownerType}
+                onChange={(e) =>
+                  setOwnerType(e.target.value as 'User' | 'Organization')
+                }
+              >
+                <option value="User">Personal account</option>
+                <option value="Organization">Organization</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor={`${ids}-login`}>GitHub login</label>
+              <input
+                id={`${ids}-login`}
+                value={login}
+                onChange={(e) => setLogin(e.target.value)}
+              />
+            </div>
+            <div>
+              <label htmlFor={`${ids}-id`}>Numeric account id</label>
+              <input
+                id={`${ids}-id`}
+                inputMode="numeric"
+                value={ownerId}
+                onChange={(e) => setOwnerId(e.target.value)}
+              />
+            </div>
+          </>
+        )}
       </div>
-      {!fixture && (
+      {!fixture && !appSetup && (
         <>
-          <label htmlFor="ghc-cred">Credential</label>
+          <label htmlFor={`${ids}-cred`}>Credential</label>
           <select
-            id="ghc-cred"
+            id={`${ids}-cred`}
             value={credKind}
             onChange={(e) =>
               setCredKind(
@@ -631,21 +681,21 @@ function AddConnection({
           {credKind === 'fine_grained_pat' ? (
             <div className="two">
               <div>
-                <label htmlFor="ghc-tenv">
+                <label htmlFor={`${ids}-tenv`}>
                   Environment variable holding the token
                 </label>
                 <input
-                  id="ghc-tenv"
+                  id={`${ids}-tenv`}
                   value={tokenEnv}
                   onChange={(e) => setTokenEnv(e.target.value)}
                 />
               </div>
               <div>
-                <label htmlFor="ghc-exp">
+                <label htmlFor={`${ids}-exp`}>
                   Token expiry you chose on GitHub (required)
                 </label>
                 <input
-                  id="ghc-exp"
+                  id={`${ids}-exp`}
                   type="datetime-local"
                   required
                   value={expires}
@@ -656,37 +706,39 @@ function AddConnection({
           ) : (
             <div className="two">
               <div>
-                <label htmlFor="ghc-client">App client id</label>
+                <label htmlFor={`${ids}-client`}>App client id</label>
                 <input
-                  id="ghc-client"
+                  id={`${ids}-client`}
                   value={clientId}
                   onChange={(e) => setClientId(e.target.value)}
                 />
               </div>
               <div>
-                <label htmlFor="ghc-inst">Installation id</label>
+                <label htmlFor={`${ids}-inst`}>Installation id</label>
                 <input
-                  id="ghc-inst"
+                  id={`${ids}-inst`}
                   inputMode="numeric"
                   value={installation}
                   onChange={(e) => setInstallation(e.target.value)}
                 />
               </div>
               <div>
-                <label htmlFor="ghc-key">
+                <label htmlFor={`${ids}-key`}>
                   Environment variable holding the app key
                 </label>
                 <input
-                  id="ghc-key"
+                  id={`${ids}-key`}
                   value={keyEnv}
                   onChange={(e) => setKeyEnv(e.target.value)}
                 />
               </div>
             </div>
           )}
-          <label htmlFor="ghc-hook">Webhook secret variable (optional)</label>
+          <label htmlFor={`${ids}-hook`}>
+            Webhook secret variable (optional)
+          </label>
           <input
-            id="ghc-hook"
+            id={`${ids}-hook`}
             placeholder="CREATOR_GITHUB_WEBHOOK_SECRET"
             value={webhookEnv}
             onChange={(e) => setWebhookEnv(e.target.value)}
@@ -699,64 +751,66 @@ function AddConnection({
       )}
       <div className="two">
         <div>
-          <label htmlFor="ghc-rp">New repository names start with</label>
+          <label htmlFor={`${ids}-rp`}>New repository names start with</label>
           <input
-            id="ghc-rp"
+            id={`${ids}-rp`}
             value={repoPrefix}
             onChange={(e) => setRepoPrefix(e.target.value)}
           />
         </div>
         <div>
-          <label htmlFor="ghc-bp">Studio branches start with</label>
+          <label htmlFor={`${ids}-bp`}>Studio branches start with</label>
           <input
-            id="ghc-bp"
+            id={`${ids}-bp`}
             value={branchPrefix}
             onChange={(e) => setBranchPrefix(e.target.value)}
           />
         </div>
         <div>
-          <label htmlFor="ghc-mr">Most repositories it may create</label>
+          <label htmlFor={`${ids}-mr`}>Most repositories it may create</label>
           <input
-            id="ghc-mr"
+            id={`${ids}-mr`}
             inputMode="numeric"
             value={maxRepos}
             onChange={(e) => setMaxRepos(e.target.value)}
           />
         </div>
         <div>
-          <label htmlFor="ghc-ph">Most changes per hour</label>
+          <label htmlFor={`${ids}-ph`}>Most changes per hour</label>
           <input
-            id="ghc-ph"
+            id={`${ids}-ph`}
             inputMode="numeric"
             value={perHour}
             onChange={(e) => setPerHour(e.target.value)}
           />
         </div>
         <div>
-          <label htmlFor="ghc-op">Most open pull requests per repository</label>
+          <label htmlFor={`${ids}-op`}>
+            Most open pull requests per repository
+          </label>
           <input
-            id="ghc-op"
+            id={`${ids}-op`}
             inputMode="numeric"
             value={openPrs}
             onChange={(e) => setOpenPrs(e.target.value)}
           />
         </div>
       </div>
-      <label htmlFor="ghc-checks">
+      <label htmlFor={`${ids}-checks`}>
         Checks every merge must pass (one per line; none means no merges)
       </label>
       <textarea
-        id="ghc-checks"
+        id={`${ids}-checks`}
         rows={2}
         value={checks}
         onChange={(e) => setChecks(e.target.value)}
       />
-      <label htmlFor="ghc-incl">
+      <label htmlFor={`${ids}-incl`}>
         Existing repositories it may use (one per line: numeric id, then
         owner/name)
       </label>
       <textarea
-        id="ghc-incl"
+        id={`${ids}-incl`}
         rows={2}
         placeholder="123456789 jordanprice040/example"
         value={included}
@@ -769,9 +823,10 @@ function AddConnection({
           disabled={
             busy ||
             !label.trim() ||
-            !login.trim() ||
-            !ownerId.trim() ||
-            (!fixture && credKind === 'fine_grained_pat' && !expires)
+            (!appSetup &&
+              (!login.trim() ||
+                !ownerId.trim() ||
+                (!fixture && credKind === 'fine_grained_pat' && !expires)))
           }
         >
           Add connection

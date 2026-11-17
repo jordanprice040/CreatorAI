@@ -1,11 +1,12 @@
 import type { IncomingMessage } from 'node:http';
 import { ContractError } from '@creator/contracts';
-import type { GitHubService } from '@creator/broker';
+import { BeginGitHubAppSetupRequestSchema, parse } from '@creator/contracts';
+import type { GitHubAppSetupService, GitHubService } from '@creator/broker';
 import type { CommandContext, GitHubStore } from '@creator/db';
 
 /** X04 routes under /api/workspaces/:ws/github-*. Matched separately from RECORD_ROUTE. */
 export const GITHUB_ROUTE =
-  /^\/api\/workspaces\/([^/]+)\/(github-connections|github-repositories|github-operations|github-reviews)(?:\/([^/]+)(?:\/(verify|revoke|reconcile|deliveries|checks))?)?$/;
+  /^\/api\/workspaces\/([^/]+)\/(github-connections|github-repositories|github-operations|github-reviews|github-app-setups)(?:\/([^/]+)(?:\/(verify|revoke|reconcile|deliveries|checks|installation|connect|abandon))?)?$/;
 /** GitHub delivers here (through the owner's local forwarder; the API binds to loopback). */
 export const GITHUB_WEBHOOK_ROUTE = /^\/api\/github\/webhooks\/([^/]+)$/;
 const MAX_WEBHOOK = 1024 * 1024;
@@ -13,6 +14,8 @@ const MAX_WEBHOOK = 1024 * 1024;
 export async function githubRoutes(r: {
   store: GitHubStore;
   service: GitHubService;
+  /** ADR-0132: the in-app GitHub App setup (null when the studio has no store). */
+  appSetup: GitHubAppSetupService | null;
   ctx: CommandContext;
   ws: string;
   collection: string;
@@ -77,6 +80,36 @@ export async function githubRoutes(r: {
       if (item && action === 'reconcile' && post)
         return send(200, await service.reconcile(ctx, ws, item), true);
       break;
+    // ADR-0132 (P32): create the GitHub App, find its installation, then connect it.
+    case 'github-app-setups': {
+      const setups = r.appSetup;
+      if (!item && get)
+        return send(200, await store.listGitHubAppSetups(ctx, ws), false);
+      if (item && !action && get)
+        return send(200, await store.getGitHubAppSetup(ctx, ws, item), false);
+      if (!setups) break;
+      if (!item && post)
+        return send(
+          202,
+          await setups.begin(
+            ctx,
+            ws,
+            parse(BeginGitHubAppSetupRequestSchema, await r.body()),
+          ),
+          true,
+        );
+      if (item && action === 'installation' && post)
+        return send(200, await setups.checkInstallation(ctx, ws, item), true);
+      if (item && action === 'connect' && post)
+        return send(
+          201,
+          await setups.connect(ctx, ws, item, await r.body()),
+          true,
+        );
+      if (item && action === 'abandon' && post)
+        return send(200, await setups.abandon(ctx, ws, item), true);
+      break;
+    }
     case 'github-reviews':
       if (!item && post)
         return send(

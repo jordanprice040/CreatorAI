@@ -4082,6 +4082,57 @@ alter table study_effort_measures add column ended_by text not null default 'int
 alter table study_effort_measures alter column ended_by drop default;
 `,
   },
+  {
+    // ADR-0132 (P32): the GitHub App the owner creates and installs from the studio. The app's
+    // private key never enters the database (key_ref names its sealed vault entry). The app and
+    // installation are set once; finished setups (connected, failed, abandoned, expired) never
+    // change. The connection itself is an ordinary github_connections row.
+    version: 79,
+    name: 'github_app_setups',
+    sql: `
+create table github_app_setups (
+  id uuid primary key,
+  workspace_id uuid not null references workspaces(id),
+  status text not null check (status in ('waiting_for_github', 'app_created', 'installed',
+    'connected', 'failed', 'abandoned', 'expired')),
+  organization text,
+  app jsonb,
+  key_ref text check (key_ref ~ '^github-app-key/[0-9a-f-]{36}$'),
+  installation jsonb,
+  connection_id uuid references github_connections(id),
+  failure text,
+  created_by uuid not null references actors(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check ((app is null) = (key_ref is null)),
+  check (status not in ('app_created', 'installed', 'connected') or app is not null),
+  check (status not in ('installed', 'connected') or installation is not null),
+  check ((status = 'connected') = (connection_id is not null)),
+  check ((status = 'failed') = (failure is not null))
+);
+create index github_app_setups_workspace on github_app_setups (workspace_id, created_at desc);
+create unique index github_app_setups_one_waiting on github_app_setups (workspace_id)
+ where status = 'waiting_for_github';
+create function creator_github_app_setup_change() returns trigger language plpgsql as $$
+begin
+  if tg_op = 'DELETE' then raise exception 'GitHub app setups are kept'; end if;
+  if old.status in ('connected', 'failed', 'abandoned', 'expired') then
+    raise exception 'a finished GitHub app setup cannot change';
+  end if;
+  if new.id <> old.id or new.workspace_id <> old.workspace_id
+     or new.organization is distinct from old.organization
+     or new.created_by <> old.created_by or new.created_at <> old.created_at
+     or (old.app is not null and new.app is distinct from old.app)
+     or (old.key_ref is not null and new.key_ref is distinct from old.key_ref)
+     or (old.installation is not null and new.installation is distinct from old.installation) then
+    raise exception 'a GitHub app setup only moves forward';
+  end if;
+  return new;
+end $$;
+create trigger github_app_setups_forward before update or delete on github_app_setups
+ for each row execute function creator_github_app_setup_change();
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

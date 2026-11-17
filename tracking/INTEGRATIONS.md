@@ -14,6 +14,10 @@ of the key and a real "Test connection" with a saved key in the installed app ne
 
 PR #157's opt-in `web_search` plan option is now used by one route: the search stage of a web discovery (and the scout cases of the `web-discovery-v2` qualification). A plan request carrying `web_search` without a web discovery binding is refused (`web_search_not_bound`). Pages are fetched only by the studio's own SourceBroker under the evidence-site policy. Live on the dev studio since November 11 on Jordan's typed OK: gpt-6-astra qualified on `web-discovery-v2` and one discovery ran ([evidence](evidence/web-discovery-live-2026-11-11/README.md)); the installed app has not run it. The Brave adapter stays disabled; the Claude Code route still runs without tools.
 
+## P32 GitHub App created from the studio — November 17, 2026
+
+ADR-0132. The GitHub App manifest flow (`POST github.com/settings/apps/new` from a loopback page, `POST /app-manifests/{code}/conversions`, `GET /app/installations` with the app JWT) is implemented and tested only against a loopback stand-in for GitHub. No live call, app, installation or repository exists. The key is sealed in the studio's protected vault (`github-app-key/<uuid>`), never in the environment or database. Live use still needs `CREATOR_GITHUB=live` (not set by the installed app), a verified connection and grants. Unverified until the live trial: GitHub accepting a manifest without a webhook and with `http://127.0.0.1:<port>` redirect and setup URLs; repository creation with an installation token on a personal account.
+
 ## P22 live connection checks: API key route and GitHub — November 10, 2026
 
 Jordan gave the typed OK for live API and GitHub tests on November 10 (22:40 UTC). Owner steps:
