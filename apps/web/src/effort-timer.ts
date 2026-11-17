@@ -109,35 +109,22 @@ export function afterRefusal(
   return errorText.includes(marker) ? 'stop' : 'keep';
 }
 
-type OpenStep = {
-  id: string;
-  attempt_id: string;
-  step: string;
-  measured: unknown;
-};
 /**
- * ADR-0129 review M-2: what opening an attempt does to the step timer.
+ * ADR-0129 reviews M-2 and M-3: what opening an attempt does to the step timer.
  * - keep: this attempt's step is already running on the page (a second click on it);
- * - continue: the attempt's newest step was started on the attempt and never ended (the person
- *   came back from another attempt or reloaded), so it carries on instead of being left open;
- * - start: a new step;
+ * - resume: the page timed this attempt earlier and left it for another one; its clock was kept
+ *   and counted the time away as "page not in front", so nothing measured is lost;
+ * - start: a new step (after a reload the page has no clock for an open step, which then stays
+ *   unfinished, so the attempt honestly reads `complete: false`);
  * - none: the person is not timed here.
  */
 export function stepOnOpen(s: {
   timed: boolean;
   running: { attempt_id: string } | null;
   attemptId: string;
-  steps: readonly OpenStep[];
-}): { kind: 'keep' | 'start' | 'none' } | { kind: 'continue'; step: OpenStep } {
+  parked: boolean;
+}): { kind: 'keep' | 'resume' | 'start' | 'none' } {
   if (!s.timed) return { kind: 'none' };
   if (s.running?.attempt_id === s.attemptId) return { kind: 'keep' };
-  const newest = s.steps.at(-1);
-  if (
-    newest &&
-    newest.attempt_id === s.attemptId &&
-    newest.step === 'attempt' &&
-    newest.measured === null
-  )
-    return { kind: 'continue', step: newest };
-  return { kind: 'start' };
+  return { kind: s.parked ? 'resume' : 'start' };
 }

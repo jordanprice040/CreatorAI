@@ -43,13 +43,8 @@ type TimerModule = {
     timed: boolean;
     running: { attempt_id: string } | null;
     attemptId: string;
-    steps: {
-      id: string;
-      attempt_id: string;
-      step: string;
-      measured: unknown;
-    }[];
-  }): { kind: string; step?: { id: string } };
+    parked: boolean;
+  }): { kind: string };
 };
 
 test('effort clock: active needs a visible, focused page and a recent edit; waiting needs a request in flight', async () => {
@@ -670,42 +665,37 @@ test('ADR-0129 review: the page keeps the step on a record refusal and keeps or 
     ),
     'stop',
   );
-  // M-2: opening the attempt being timed keeps its step; coming back continues the newest open
-  // attempt step; otherwise a new step starts; nobody else is timed.
-  const step = (id: string, over: Record<string, unknown> = {}) => ({
-    id,
-    attempt_id: 'att',
-    step: 'attempt',
-    measured: null,
-    ...over,
-  });
+  // M-2, M-3: opening the attempt being timed keeps its step; coming back to one the page left
+  // resumes its kept clock; after a reload (no kept clock) a new step starts; nobody else is
+  // timed.
   const open = (o: Partial<Parameters<TimerModule['stepOnOpen']>[0]>) =>
     stepOnOpen({
       timed: true,
       running: null,
       attemptId: 'att',
-      steps: [],
+      parked: false,
       ...o,
-    });
-  assert.equal(open({ timed: false }).kind, 'none');
-  assert.equal(open({}).kind, 'start');
+    }).kind;
+  assert.equal(open({ timed: false, parked: true }), 'none');
+  assert.equal(open({}), 'start');
+  assert.equal(open({ running: { attempt_id: 'att' } }), 'keep');
   assert.equal(
-    open({ running: { attempt_id: 'att' }, steps: [step('s1')] }).kind,
-    'keep',
+    open({ running: { attempt_id: 'other' }, parked: true }),
+    'resume',
   );
-  const back = open({
-    running: { attempt_id: 'other' },
-    steps: [step('s0', { measured: {} }), step('s1')],
+  assert.equal(open({ running: { attempt_id: 'other' } }), 'start');
+  // M-3: a clock kept while the person was on another attempt counts that time as away, so the
+  // step's totals still cover all of it.
+  const { EffortClock } = (await loadWeb('effort-timer.ts')) as TimerModule;
+  const kept = new EffortClock(0, { visible: true, focused: true }, 60_000);
+  kept.edited(0);
+  kept.visibility(6_000, false); // left for another attempt after 6 s of typing
+  kept.visibility(10_000, true); // came back
+  const t = kept.totals(12_000);
+  assert.deepEqual(t, {
+    active_ms: 8_000,
+    wait_ms: 0,
+    idle_ms: 0,
+    away_ms: 4_000,
   });
-  assert.equal(back.kind, 'continue');
-  assert.equal(back.step?.id, 's1');
-  // The newest step ended, or was started at the intervention form under ADR-0122: start anew.
-  assert.equal(
-    open({ steps: [step('s1'), step('s2', { measured: {} })] }).kind,
-    'start',
-  );
-  assert.equal(
-    open({ steps: [step('s1', { step: 'intervention' })] }).kind,
-    'start',
-  );
 });

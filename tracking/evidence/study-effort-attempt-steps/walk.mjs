@@ -101,6 +101,20 @@ await page.waitForTimeout(1200);
 const live = await box.innerText();
 check(/active [1-9]/.test(live), `typing an entry counts as active (${live})`);
 await page.screenshot({ path: join(out, '01-human-only-timing.png') });
+// Review M-3: leaving for another attempt and coming back keeps the step's clock, so the time
+// measured before the detour is not lost (the detour counts as "page not in front").
+await page
+  .getByRole('button', { name: /human in loop · assigned/ })
+  .first()
+  .click();
+await box.getByText('Timing this step').waitFor();
+await page.waitForTimeout(1500);
+await page
+  .getByRole('button', { name: /human only · assigned/ })
+  .first()
+  .click();
+await box.getByText('Timing this step').waitFor();
+await page.getByLabel('Your document or code').fill('A checklist');
 await page.getByRole('button', { name: 'Save entry' }).click();
 await page.getByText('with the measured step time').waitFor();
 await page.waitForFunction(() =>
@@ -128,6 +142,12 @@ check(
         s.measured.wall_ms + 5000,
     ),
   `the API returns an entry step and a finish step within their studio time (${JSON.stringify(cSteps.map((s) => s.measured))})`,
+);
+const e = cSteps[0]?.measured;
+const sum = e ? e.active_ms + e.wait_ms + e.idle_ms + e.away_ms : 0;
+check(
+  e && e.away_ms >= 1000 && sum >= e.wall_ms - 1500,
+  `after a detour to another attempt the entry step's totals still cover its studio time (${sum} of ${e?.wall_ms} ms, away ${e?.away_ms})`,
 );
 
 // Assisted: timing starts with the attempt, not only at the intervention form.

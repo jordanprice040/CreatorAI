@@ -69,6 +69,11 @@ export function Studies({
   const [starting, setStarting] = useState(false);
   const [effortSteps, setEffortSteps] = useState<StudyEffortStep[]>([]);
   const clock = useRef<EffortClock | null>(null);
+  // Review M-3: steps of attempts the person left while the page stayed open, with their clocks
+  // still running (the time away counts as "page not in front"), by attempt id.
+  const parked = useRef(
+    new Map<string, { step: StudyEffortStep; clock: EffortClock }>(),
+  );
   const attemptPanel = useRef<HTMLDivElement | null>(null);
   const [, setTick] = useState(0);
   const timing = step !== null;
@@ -111,6 +116,11 @@ export function Studies({
   useEffect(() => {
     setSelected('');
     picked.current = false;
+    // Another workspace's attempts are not timed here; their open steps stay unfinished.
+    parked.current.clear();
+    clock.current = null;
+    stepRef.current = null;
+    setStep(null);
     setAttempt(null);
     setAttempts([]);
     setContext(null);
@@ -150,6 +160,19 @@ export function Studies({
     }
   }
   function stopTiming() {
+    if (stepRef.current) parked.current.delete(stepRef.current.attempt_id);
+    clock.current = null;
+    stepRef.current = null;
+    setStep(null);
+  }
+  /** Leaves the running step for another attempt or study; its clock keeps counting, as away. */
+  function parkTiming() {
+    const s = stepRef.current;
+    const c = clock.current;
+    if (s && c) {
+      c.visibility(performance.now(), false);
+      parked.current.set(s.attempt_id, { step: s, clock: c });
+    }
     clock.current = null;
     stepRef.current = null;
     setStep(null);
@@ -252,7 +275,7 @@ export function Studies({
   }
   async function openStudy(id: string) {
     setSelected(id);
-    stopTiming();
+    parkTiming();
     setAttempt(null);
     setContext(null);
     if (!id) {
@@ -266,7 +289,7 @@ export function Studies({
     // Review M-2: a second click on the attempt being timed keeps its step running.
     const same = stepRef.current?.attempt_id === a.id;
     if (!same) {
-      stopTiming();
+      parkTiming();
       setEffortSteps([]);
     }
     setEntries(
@@ -279,17 +302,27 @@ export function Studies({
     setContext(
       await api(z.unknown(), `${base}/study-attempts/${a.id}/context`),
     );
-    const steps = a.condition !== 'autonomous' ? await loadEffort(a.id) : [];
-    // ADR-0129: opening the attempt times it. Coming back to it (from another attempt or after
-    // a reload) continues its open step rather than leaving it unfinished. If a new step can't
-    // start (past the time cap, say), the readout says the timer is not running and offers Start.
+    if (a.condition !== 'autonomous') await loadEffort(a.id);
+    // ADR-0129: opening the attempt times it. Coming back to it while the page stayed open
+    // resumes its kept clock, so nothing measured is lost. After a reload there is no clock, so a
+    // new step starts and the old one stays unfinished. If a new step can't start (past the
+    // time cap, say), the readout says the timer is not running and offers Start.
     const plan = stepOnOpen({
       timed: timedFor(a),
       running: stepRef.current,
       attemptId: a.id,
-      steps,
+      parked: parked.current.has(a.id),
     });
-    if (plan.kind === 'continue') runStep(plan.step as StudyEffortStep);
+    const kept = parked.current.get(a.id);
+    if (plan.kind === 'resume' && kept) {
+      parked.current.delete(a.id);
+      const now = performance.now();
+      kept.clock.visibility(now, document.visibilityState === 'visible');
+      kept.clock.focus(now, document.hasFocus());
+      clock.current = kept.clock;
+      stepRef.current = kept.step;
+      setStep(kept.step);
+    }
     if (plan.kind === 'start') await startStep(a).catch(() => undefined);
   }
   async function write(action: string, body: unknown) {

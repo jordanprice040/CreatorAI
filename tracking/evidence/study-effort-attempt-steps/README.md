@@ -3,8 +3,8 @@
 Cloud container, throwaway PostgreSQL 16 database `creator_walk_adr0129`, review ports 5183/4330/4340
 (`../owner-actions/stack.mjs`), synthetic fixture study only, $0, no model call.
 
-`node tracking/evidence/study-effort-attempt-steps/walk.mjs <database-url> <out-dir>`: 13 of 13 checks pass (after review 1; 11 of 11 before it).
-Opening the human-only attempt starts the step timer; a second click on it keeps its one step; a submit refused for having no entry keeps the step timing (the browser logs that intended 409); typing an entry counts as active; saving the
+`node tracking/evidence/study-effort-attempt-steps/walk.mjs <database-url> <out-dir>`: 14 of 14 checks pass (after review 2; 13 of 13 after review 1, 11 of 11 before it).
+Opening the human-only attempt starts the step timer; a second click on it keeps its one step; a submit refused for having no entry keeps the step timing (the browser logs that intended 409); a detour to the assisted attempt and back keeps the step's clock (the entry step's totals cover its server time, the detour counted as away); typing an entry counts as active; saving the
 entry ends the step (the API returned `ended_by` `entry`, `active_ms` 3209, `idle_ms` 59 against a
 server `wall_ms` of 3288) and the next starts; Submit saved work ends it (`ended_by` `finish`, `wall_ms`
 1050); opening the assisted attempt starts timing before the intervention form is opened; Stop attempt
