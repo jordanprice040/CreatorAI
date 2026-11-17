@@ -505,11 +505,6 @@ export const NativeNotificationsSchema = z.strictObject({
 export type NativeNotifications = z.infer<typeof NativeNotificationsSchema>;
 
 /**
- * `POST /api/notifications/catch-up`, once per start of the installed app: one summary row,
- * already claimed for Windows, of interrupting rows nobody showed (expired, or still pending
- * from before the call) that still need the person, or null when there are none.
- */
-/**
  * The summary request: how long the installed app has been running. Only rows that arrived
  * before it started are summarised, so a summary sent later (a late sign-in, Windows
  * notifications turned on mid-session) never swallows a new alert (review L-4 of #236).
@@ -522,6 +517,11 @@ export const NativeCatchUpRequestSchema = z.strictObject({
     .max(366 * 24 * 3_600_000),
 });
 
+/**
+ * `POST /api/notifications/catch-up`, once per start of the installed app: one summary row,
+ * already claimed for Windows, of interrupting rows nobody showed (expired, or still pending
+ * from before the app started) that still need the person, or null when there are none.
+ */
 export const NativeCatchUpSchema = z.strictObject({
   /** Settings › Notifications "Hide details on Windows" (review M-1 of #236). */
   hide_details: z.boolean(),
