@@ -1,0 +1,79 @@
+{
+  "qualification": {
+    "id": "2cd36cf2-7dbd-441d-8d16-6cf76416c76c",
+    "connection_id": "4e4a7bec-c1ca-4f31-8f87-b11ed5fc81d4",
+    "model_id": "gpt-6-astra",
+    "task_class": "patch_build",
+    "manifest_hash": "77f056a6770b50a201c3e44a0b8e5b5fe7c6c629a851cc0d0e1beccdce1698e1",
+    "min_held_out_cases": 3,
+    "floor": {
+      "numerator": 1,
+      "denominator": 1
+    },
+    "state": "qualified",
+    "development": {
+      "total": 1,
+      "passed": 1
+    },
+    "held_out": {
+      "total": 3,
+      "passed": 3
+    },
+    "reason": "3/3 held-out cases accepted; 3 of 3 were needed (absolute, not baseline-relative).",
+    "created_by": "00000000-0000-4000-8000-000000000001",
+    "created_at": "2026-11-17T07:06:51.846Z",
+    "decided_at": "2026-11-17T07:07:45.808Z",
+    "prompt_current": true,
+    "admits_assessment": false,
+    "admits_discovery": false,
+    "admits_web_discovery": false,
+    "admits_spec_drafts": false
+  },
+  "manifest_name": "t12-builder-v3",
+  "cases": [
+    {
+      "case_id": "bd-01",
+      "split": "development",
+      "request_id": "0be7075a-043f-4ec9-b446-319469d71abd",
+      "state": "completed",
+      "signal": "accepted",
+      "reason": null,
+      "output_chars": 821,
+      "answer": "{\"summary\":\"Implement deterministic JSON and --plain checklist output with all four steps, and reject other arguments with 'invalid input' and exit code 2.\",\"submission\":{\"expected_commit\":\"13912007557fdb01106584c7d34a37023b88c2f4\",\"changes\":[{\"path\":\"src/main.py\",\"before_hash\":\"00b22dd8a06a69a360b9d95b03d0cee4778410ef37052ba719c0f3cb730f8906\",\"content\":\"import json\\nimport sys\\n\\n\\ndef main():\\n    items = [\\\"inspect\\\", \\\"build\\\", \\\"review\\\", \\\"verify\\\"]\\n    args = sys.argv[1:]\\n    if not args:\\n        print(json.dumps({\\\"template\\\": \\\"checklist/1\\\", \\\"items\\\": items}))\\n        return 0\\n    if args == [\\\"--plain\\\"]:\\n        print(\\\"\\\\n\\\".join(items))\\n        return 0\\n    print(\\\"invalid input\\\")\\n    return 2\\n\\n\\nif __name__ == \\\"__main__\\\":\\n    sys.exit(main())\\n\"}],\"complete\":true},\"blocker\":null}",
+      "started_at": "2026-11-17T07:06:59.299Z"
+    },
+    {
+      "case_id": "bd-02",
+      "split": "held_out",
+      "request_id": "8246d243-5960-4853-9190-d3de89d750b7",
+      "state": "completed",
+      "signal": "accepted",
+      "reason": null,
+      "output_chars": 779,
+      "answer": "{\n  \"summary\": \"Updated the CLI to print the four-item checklist as JSON and reject any unexpected arguments with stdout 'invalid input' and exit code 2.\",\n  \"submission\": {\n    \"expected_commit\": \"13912007557fdb01106584c7d34a37023b88c2f4\",\n    \"changes\": [\n      {\n        \"path\": \"src/main.py\",\n        \"before_hash\": \"00b22dd8a06a69a360b9d95b03d0cee4778410ef37052ba719c0f3cb730f8906\",\n        \"content\": \"import json\\nimport sys\\n\\n\\ndef main():\\n    if len(sys.argv) != 1:\\n        print(\\\"invalid input\\\")\\n        return 2\\n    print(json.dumps({\\\"template\\\": \\\"checklist/1\\\", \\\"items\\\": [\\\"inspect\\\", \\\"build\\\", \\\"review\\\", \\\"verify\\\"]}))\\n    return 0\\n\\n\\nif __name__ == \\\"__main__\\\":\\n    sys.exit(main())\\n\"\n      }\n    ],\n    \"complete\": true\n  },\n  \"blocker\": null\n}",
+      "started_at": "2026-11-17T07:07:13.729Z"
+    },
+    {
+      "case_id": "bd-03",
+      "split": "held_out",
+      "request_id": "9352148c-4ad3-41f0-a307-4bbdd8cd7f7a",
+      "state": "completed",
+      "signal": "accepted",
+      "reason": null,
+      "output_chars": 895,
+      "answer": "{\n  \"summary\": \"Implement the four-step JSON checklist, exact --count mode, and rejection of all other arguments with stdout 'invalid input' and exit status 2.\",\n  \"submission\": {\n    \"expected_commit\": \"13912007557fdb01106584c7d34a37023b88c2f4\",\n    \"changes\": [\n      {\n        \"path\": \"src/main.py\",\n        \"before_hash\": \"00b22dd8a06a69a360b9d95b03d0cee4778410ef37052ba719c0f3cb730f8906\",\n        \"content\": \"import json\\nimport sys\\n\\n\\ndef main():\\n    items = [\\\"inspect\\\", \\\"build\\\", \\\"review\\\", \\\"verify\\\"]\\n    args = sys.argv[1:]\\n    if not args:\\n        print(json.dumps({\\\"template\\\": \\\"checklist/1\\\", \\\"items\\\": items}))\\n        return 0\\n    if args == [\\\"--count\\\"]:\\n        print(len(items))\\n        return 0\\n    print(\\\"invalid input\\\")\\n    return 2\\n\\n\\nif __name__ == \\\"__main__\\\":\\n    sys.exit(main())\\n\"\n      }\n    ],\n    \"complete\": true\n  },\n  \"blocker\": null\n}",
+      "started_at": "2026-11-17T07:07:22.819Z"
+    },
+    {
+      "case_id": "bd-04",
+      "split": "held_out",
+      "request_id": "821800e1-6680-4291-b65e-62626cda7d78",
+      "state": "completed",
+      "signal": "accepted",
+      "reason": null,
+      "output_chars": 869,
+      "answer": "{\n  \"summary\": \"Implement deterministic JSON checklist output, --last output, and rejection of unexpected arguments with exit status 2.\",\n  \"submission\": {\n    \"expected_commit\": \"13912007557fdb01106584c7d34a37023b88c2f4\",\n    \"changes\": [\n      {\n        \"path\": \"src/main.py\",\n        \"before_hash\": \"00b22dd8a06a69a360b9d95b03d0cee4778410ef37052ba719c0f3cb730f8906\",\n        \"content\": \"import json\\nimport sys\\n\\n\\ndef main():\\n    items = [\\\"inspect\\\", \\\"build\\\", \\\"review\\\", \\\"verify\\\"]\\n    args = sys.argv[1:]\\n    if not args:\\n        print(json.dumps({\\\"template\\\": \\\"checklist/1\\\", \\\"items\\\": items}))\\n        return 0\\n    if args == [\\\"--last\\\"]:\\n        print(items[-1])\\n        return 0\\n    print(\\\"invalid input\\\")\\n    return 2\\n\\n\\nif __name__ == \\\"__main__\\\":\\n    sys.exit(main())\\n\"\n      }\n    ],\n    \"complete\": true\n  },\n  \"blocker\": null\n}",
+      "started_at": "2026-11-17T07:07:34.785Z"
+    }
+  ]
+}
