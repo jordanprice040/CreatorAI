@@ -4,10 +4,12 @@ import {
   NotificationModeSchema,
   NotificationPreferencesSchema,
   NotificationTestSchema,
+  WindowsNotificationStatusSchema,
   quietHoursActive,
   type NotificationPreferences,
   type NotificationPreferencesBody,
   type SessionInfo,
+  type WindowsNotificationStatus,
   type Workspace,
 } from '@creator/contracts';
 import { ApiError, api, message } from './oversight.js';
@@ -24,6 +26,7 @@ import {
   setEvent,
   setGroup,
   timeZones,
+  windowsStatusText,
 } from './notification-rules.js';
 import { notificationsChanged } from './notifications.js';
 
@@ -47,6 +50,23 @@ export function NotificationSettings({
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [testNote, setTestNote] = useState('');
+  const [windows, setWindows] = useState<WindowsNotificationStatus | null>(
+    null,
+  );
+
+  // N3 (ADR-0131): whether the installed app is delivering Windows notifications for you.
+  async function loadWindows() {
+    try {
+      setWindows(
+        await api(
+          WindowsNotificationStatusSchema,
+          'notifications/windows-status',
+        ),
+      );
+    } catch {
+      setWindows(null);
+    }
+  }
 
   async function load() {
     try {
@@ -63,6 +83,7 @@ export function NotificationSettings({
   }
   useEffect(() => {
     void load();
+    void loadWindows();
   }, []);
 
   const dirty =
@@ -163,13 +184,21 @@ export function NotificationSettings({
         <h3>How you&apos;re interrupted</h3>
         <p>
           While a studio window is visible, an alert appears as a small toast in
-          its corner, once. If the window is hidden when something happens, it
-          waits in the bell and is not shown late.
+          its corner, once. While the installed Creator Agent app is minimised
+          or in the tray, the same alert appears as one Windows notification
+          instead; clicking it opens the place to act. You never get both. In a
+          hidden browser tab, an alert waits in the bell and is not shown late.
         </p>
         <p className="small">
-          <strong>Windows notifications:</strong> not available yet. They come
-          with a later update of the installed app; until then, alerts show only
-          in a visible studio window.
+          <strong>Windows notifications:</strong>{' '}
+          <span role="status">{windowsStatusText(windows)}</span>{' '}
+          <button
+            type="button"
+            className="text"
+            onClick={() => void loadWindows()}
+          >
+            Check again
+          </button>
         </p>
         <p>
           <button
@@ -192,14 +221,14 @@ export function NotificationSettings({
             onChange={(e) => set({ windows_hide_details: e.target.checked })}
           />
           Hide details on Windows (show only &quot;Creator Agent needs
-          you&quot;; applies once Windows notifications are available)
+          you&quot;, for example on the lock screen)
         </label>
 
         <h3>What you&apos;re told about</h3>
         <p className="small">
           {standard
             ? 'One row per kind. Advanced view lists every event.'
-            : 'Every event. "Interrupt" shows a toast (or, later, a Windows notification); "Inbox only" just adds it to the bell.'}
+            : 'Every event. "Interrupt" shows a toast (or a Windows notification while the app is hidden); "Inbox only" just adds it to the bell.'}
         </p>
         <ul className="notify-modes">
           {standard

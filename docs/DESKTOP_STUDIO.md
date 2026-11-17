@@ -82,6 +82,17 @@ A failed setup removes only what it created and saves nothing.
   execution worker keeps running but gets no new work. With _Keep running in the
   background_ the window hides, a tray icon stays and workflows continue.
 - **Quit:** tray icon, _Creator Agent → Quit_, or the status window.
+- **Windows notifications (N3, ADR-0131):** while you are signed in on this computer and
+  the studio window is minimised or in the tray, an alert that would interrupt you appears
+  as one Windows notification (title and one short line, or only "Creator Agent needs you"
+  with _Hide details on Windows_). Clicking it opens the studio window at the place to act
+  and marks the alert read. While the window is visible you get the in-app toast instead;
+  the app shows a Windows notification only if the page has not shown a new alert within
+  90 seconds. You never get both. Nothing is delivered while the app has quit; on the next
+  start, one summary ("Missed alerts: …") names what still needs you. The app polls every 30 seconds with its
+  own stored sign-in, and claims nothing while Windows has its notifications turned off
+  (Settings › Notifications in the studio says which). Focus Assist can still hide them.
+  A copy started with `cargo run` has no registered app identity and shows none.
 - **Upgrades:** if a new app version needs a newer database layout, the status window
   asks first, then saves a pre-upgrade backup and migrates under the existing lock.
 

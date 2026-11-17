@@ -1,13 +1,18 @@
 import type { PoolClient } from 'pg';
 import {
   ClaimNotificationRequestSchema,
+  NativeCatchUpRequestSchema,
   NOTIFICATION_EVENTS,
   NotificationGroupSchema,
   SetNotificationPreferencesRequestSchema,
+  interruptStateFor,
   notificationMode,
   parse,
   quietHoursActive,
   z,
+  type NativeCatchUp,
+  type NativeNotification,
+  type NativeNotifications,
   type Notification,
   type NotificationClaim,
   type NotificationEventKey,
@@ -38,6 +43,8 @@ export const NOTIFICATION_PENDING_MS = 10 * 60 * 1000;
 /** Retention: 90 days or the newest 1,000 per person, whichever keeps more. */
 export const NOTIFICATION_KEEP_DAYS = 90;
 export const NOTIFICATION_KEEP_LATEST = 1000;
+/** N3: the installed app's start-up summary looks back this far for rows that expired unseen. */
+export const NOTIFICATION_CATCH_UP_DAYS = 7;
 
 const PAGE = 50;
 
@@ -187,6 +194,154 @@ export class NotificationStore extends Store {
         ],
       );
       return rows.map((r) => toNotification(r as Row));
+    });
+  }
+
+  /**
+   * N3 (ADR-0131): what the installed app's native process may show as Windows notifications:
+   * the same pending rows as `pendingNotifications`, only those that interrupt (never toast-only
+   * or inbox rows), each with its age on the studio's clock so the native process needs no
+   * clock of its own. Also says whether the person hides details on Windows.
+   */
+  async nativeNotifications(
+    ctxIn: CommandContext,
+  ): Promise<NativeNotifications> {
+    const ctx = normalize(ctxIn);
+    return this.tx(async (c) => {
+      await this.#withdrawLost(c, ctx.actorId);
+      const { rows } = await c.query(
+        `select n.*, greatest(0, floor(extract(epoch from clock_timestamp() - n.first_at)
+             * 1000))::bigint as age_ms
+           from notifications n where ${VISIBLE}
+           and n.interrupt_state = 'pending' and n.mode = 'interrupt' and n.dismissed_at is null
+           and n.first_at > clock_timestamp() - make_interval(secs => $3::double precision / 1000)
+         order by n.first_at desc, n.id desc limit 50`,
+        [
+          ctx.actorId,
+          await this.#manager(c, ctx.actorId),
+          NOTIFICATION_PENDING_MS,
+        ],
+      );
+      const prefs = await notificationPreferencesIn(c, ctx.actorId);
+      return {
+        hide_details: prefs.body.windows_hide_details,
+        items: rows.map((r) => toNative(r as Row)),
+      };
+    });
+  }
+
+  /**
+   * N3 (ADR-0131): called once each time the installed app starts (plan §4, "Limits"). Rows
+   * that would have interrupted but nobody showed (expired, or still pending from before the
+   * app started) are checked again,
+   * like the quiet-hours digest: access, mutes and "Inbox only" choices made since, and whether
+   * the run, approval or claims still need the person. What still does becomes one summary,
+   * already claimed for Windows, so no browser tab can show it; each row it covers is marked
+   * delivered by it and is never summarised again. During quiet hours the rows are held for
+   * the digest instead (the urgent override still lets urgent ones through).
+   */
+  async catchUpNotifications(
+    ctxIn: CommandContext,
+    raw: unknown = { up_ms: 0 },
+    now = new Date(),
+  ): Promise<NativeCatchUp> {
+    const ctx = normalize(ctxIn);
+    const { up_ms: upMs } = parse(NativeCatchUpRequestSchema, raw);
+    return this.tx(async (c) => {
+      // The same lock as the digest, so a summary and a digest never take the same rows.
+      await c.query('select pg_advisory_xact_lock($1, hashtext($2))', [
+        4_310_131,
+        ctx.actorId,
+      ]);
+      await this.#withdrawLost(c, ctx.actorId);
+      const manager = await this.#manager(c, ctx.actorId);
+      // Nothing was delivering while the app was closed: an interrupting row still pending
+      // from before the app started was not shown, whatever its age (review L-1 of #236; the
+      // sweep may not have run yet either). Rows since the start are left to the poll and the
+      // web toast (review L-4).
+      const launched = `clock_timestamp() - make_interval(secs => $2::double precision / 1000)`;
+      await c.query(
+        `update notifications set interrupt_state = 'expired'
+          where actor_id = $1 and interrupt_state = 'pending' and mode = 'interrupt'
+            and first_at < ${launched}`,
+        [ctx.actorId, upMs],
+      );
+      const { rows } = await c.query(
+        `select n.* from notifications n where ${VISIBLE}
+           and n.interrupt_state = 'expired' and n.mode = 'interrupt' and n.batch_id is null
+           and n.read_at is null and n.dismissed_at is null
+           and n.event_key not in ('studio.test', 'studio.catch_up')
+           and n.first_at > clock_timestamp() - make_interval(days => $3)
+           and n.first_at < clock_timestamp() - make_interval(secs => $4::double precision / 1000)
+         order by n.first_at for update`,
+        [ctx.actorId, manager, NOTIFICATION_CATCH_UP_DAYS, upMs],
+      );
+      const prefs = await notificationPreferencesIn(c, ctx.actorId);
+      const open: Row[] = [];
+      const held: string[] = [];
+      for (const r of rows as Row[]) {
+        const state = interruptStateFor(
+          prefs.body,
+          {
+            eventKey: String(r.event_key) as NotificationEventKey,
+            workspaceId:
+              r.workspace_id === null ? null : String(r.workspace_id),
+            batched: false,
+            interrupt: true,
+          },
+          now,
+        );
+        // Muted or "Inbox only" now: it stays expired, in the inbox only.
+        if (state === 'none' || !(await stillOpen(c, r))) continue;
+        if (state === 'held_quiet') held.push(String(r.id));
+        else open.push(r);
+      }
+      if (held.length)
+        await c.query(
+          `update notifications set interrupt_state = 'held_quiet' where id = any($1::uuid[])`,
+          [held],
+        );
+      const hide = prefs.body.windows_hide_details;
+      if (!open.length)
+        return { hide_details: hide, count: 0, notification: null };
+      await c.query(
+        `update notifications set interrupt_state = 'claimed', interrupted_via = 'digest',
+           interrupted_at = clock_timestamp() where id = any($1::uuid[])`,
+        [open.map((r) => r.id)],
+      );
+      const first = String(open[0]!.id);
+      // Review L-2: neutral wording; a row may also have expired while the app was running
+      // (Windows notifications off, a hidden browser tab).
+      const summary = summaryOf('Missed alerts', open);
+      const made = await notify(c, {
+        actorId: ctx.actorId,
+        workspaceId: null,
+        eventKey: 'studio.catch_up',
+        ...summary,
+        link: '#/monitor/notifications?q=unread',
+        subjectKind: 'catch_up',
+        subjectId: first,
+        dedupeKey: `catchup:${first}`,
+        sourceKey: `catchup:${first}`,
+        now,
+      });
+      if (!made)
+        throw fail(
+          'VERSION_CONFLICT',
+          'The summary was not recorded; try again.',
+        );
+      const { rows: claimed } = await c.query(
+        `update notifications set interrupt_state = 'claimed', interrupted_via = 'windows',
+           interrupted_at = clock_timestamp()
+         where id = $1 and interrupt_state = 'pending'
+         returning *, 0::bigint as age_ms`,
+        [made.id],
+      );
+      return {
+        hide_details: hide,
+        count: open.length,
+        notification: claimed[0] ? toNative(claimed[0] as Row) : null,
+      };
     });
   }
 
@@ -448,27 +603,12 @@ export class NotificationStore extends Store {
           [open.map((r) => r.id)],
         );
         const first = String(open[0]!.id);
-        const n = open.length;
-        // Review L-1: say "need you" only of rows that do.
-        const needs = open.filter((r) => r.severity === 'needs_you').length;
-        const items = (k: number) => `${k} item${k === 1 ? '' : 's'}`;
-        const title =
-          needs === n
-            ? `While quiet hours were on: ${items(n)} still need${n === 1 ? 's' : ''} you`
-            : needs > 0
-              ? `While quiet hours were on: ${items(n)} to look at, ${needs} still need${needs === 1 ? 's' : ''} you`
-              : `While quiet hours were on: ${items(n)} to look at`;
-        const titles = open
-          .slice(0, 3)
-          .map((r) => String(r.title))
-          .join(' · ');
+        const summary = summaryOf('While quiet hours were on', open);
         await notify(c, {
           actorId: actor_id,
           workspaceId: null,
           eventKey: 'studio.digest',
-          title,
-          severity: needs > 0 ? 'needs_you' : 'warning',
-          body: n > 3 ? `${titles} · and ${n - 3} more` : titles,
+          ...summary,
           link: '#/monitor/notifications?q=unread',
           subjectKind: 'digest',
           subjectId: first,
@@ -510,6 +650,46 @@ export class NotificationStore extends Store {
       });
     });
   }
+}
+
+/**
+ * The title, line and severity of a summary of several rows (the quiet-hours digest, N2, and
+ * the installed app's start-up summary, N3). It says "need you" only of rows that do (review
+ * L-1 of #235).
+ */
+function summaryOf(
+  when: string,
+  open: Row[],
+): { title: string; body: string; severity: 'needs_you' | 'warning' } {
+  const n = open.length;
+  const needs = open.filter((r) => r.severity === 'needs_you').length;
+  const items = (k: number) => `${k} item${k === 1 ? '' : 's'}`;
+  const title =
+    needs === n
+      ? `${when}: ${items(n)} still need${n === 1 ? 's' : ''} you`
+      : needs > 0
+        ? `${when}: ${items(n)} to look at, ${needs} still need${needs === 1 ? 's' : ''} you`
+        : `${when}: ${items(n)} to look at`;
+  const titles = open
+    .slice(0, 3)
+    .map((r) => String(r.title))
+    .join(' · ');
+  return {
+    title,
+    body: n > 3 ? `${titles} · and ${n - 3} more` : titles,
+    severity: needs > 0 ? 'needs_you' : 'warning',
+  };
+}
+
+function toNative(r: Row): NativeNotification {
+  return {
+    id: String(r.id),
+    severity: r.severity as NativeNotification['severity'],
+    title: String(r.title),
+    body: String(r.body),
+    link: String(r.link),
+    age_ms: Number(r.age_ms ?? 0),
+  };
 }
 
 /**
