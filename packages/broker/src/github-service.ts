@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import {
   ContractError,
   type GitHubConnection,
+  type GitHubRevokeResult,
   type GitHubOperation,
   type GitHubPullChecks,
   type GitHubRepository,
@@ -105,7 +106,7 @@ export function refusalWording(
   return {
     ...cls,
     explanation:
-      'GitHub does not let this app create repositories on a personal account. Create the repository on GitHub, add it to the app’s installation, then list it on the connection.',
+      'GitHub does not let this app create repositories on a personal account. Create the repository on GitHub and add it to the app’s installation; to let Creator Agent use it, set up the connection again with the repository listed (Set up another app).',
   };
 }
 
@@ -186,12 +187,23 @@ export class GitHubService {
    * key, which nothing else uses (one setup, one connection; the generic route refuses
    * `app_vault`). The revoke event records that the key is being forgotten.
    */
-  async revoke(ctx: CommandContext, ws: string, id: string, raw: unknown) {
+  async revoke(
+    ctx: CommandContext,
+    ws: string,
+    id: string,
+    raw: unknown,
+  ): Promise<GitHubRevokeResult> {
     const conn = await this.store.revokeGitHubConnection(ctx, ws, id, raw);
     const cred = conn.body.credential;
     if (cred.kind === 'app_vault' && conn.status === 'revoked') {
       this.#appKeys.delete(cred.key_ref);
-      await this.opts.vault?.delete(cred.key_ref);
+      // Review 2 N-1: the revoke has committed; a key file that can't be deleted just now (locked
+      // on Windows, say) is reported, not turned into a failed revoke.
+      try {
+        await this.opts.vault?.delete(cred.key_ref);
+      } catch {
+        return { ...conn, key_forget_failed: true };
+      }
     }
     return conn;
   }

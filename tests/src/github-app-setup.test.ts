@@ -288,6 +288,15 @@ test('P32 GitHub App: create, install and connect from the studio; key only in t
   );
   assert.equal(plain.status, 200);
   assert.match(await plain.text(), /press Check installation/);
+  // Review 2 N-2: that visit asks GitHub once; a reload right after does not ask again.
+  for (let i = 0; i < 100 && gh.state.jwtIss.length === 0; i++)
+    await new Promise((r) => setTimeout(r, 10));
+  const asked = gh.state.jwtIss.length;
+  assert.equal(asked, 1);
+  const reload = await fetch(`${manifest.setup_url}?setup_action=install`);
+  assert.equal(reload.status, 200);
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(gh.state.jwtIss.length, asked);
 
   // Not installed yet: the check says so and changes nothing.
   await rejects('NOT_FOUND', svc.checkInstallation(owner, ws.id, created.id));
@@ -401,6 +410,7 @@ test('P32 GitHub App: create, install and connect from the studio; key only in t
     reason: 'Done with the trial.',
   });
   assert.equal(revoked.status, 'revoked');
+  assert.equal(revoked.key_forget_failed, undefined);
   assert.equal(vault.entries().length, 0);
   const ev = await s.db.pool.query(
     `select payload from audit_events where action = 'github.connection_revoked'`,
@@ -454,7 +464,7 @@ test('P32 review M-2: a refused repository creation on a personal account says w
         explanation: string;
       }
     ).explanation,
-    /Create the repository on GitHub, add it to the app’s installation/,
+    /Create the repository on GitHub and add it to the app’s installation; to let Creator Agent use it, set up the connection again with the repository listed/,
   );
   for (const [kind, c] of [
     ['repo_create', conn('app_vault', 'Organization')],
@@ -645,4 +655,31 @@ test('P32 manifest, start page and conversion parsing', async () => {
   assert.equal(parseConversion({ ...ok, slug: '../x' }), null);
   assert.equal(parseConversion({ ...ok, owner: { login: 'x' } }), null);
   assert.equal(setupStep(null), 'start');
+});
+
+test('P32 review 2 N-1: a key that cannot be deleted does not fail a committed revoke', async () => {
+  const conn = {
+    status: 'revoked',
+    body: {
+      credential: {
+        kind: 'app_vault',
+        app_id: 1,
+        app_slug: 'a',
+        app_client_id: 'c',
+        key_ref: 'github-app-key/00000000-0000-4000-8000-000000000001',
+        installation_id: 2,
+      },
+    },
+  } as unknown as GitHubConnection;
+  const vault = new MemoryVault();
+  vault.delete = async () => {
+    throw new Error('EBUSY: the key file is locked');
+  };
+  const service = new GitHubService(
+    { revokeGitHubConnection: async () => conn } as never,
+    { env: { CREATOR_GITHUB: 'live' }, vault, pushSource: () => '' },
+  );
+  const out = await service.revoke(owner, randomUUID(), randomUUID(), {});
+  assert.equal(out.status, 'revoked');
+  assert.equal(out.key_forget_failed, true);
 });

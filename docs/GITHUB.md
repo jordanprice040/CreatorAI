@@ -152,13 +152,20 @@ The simplest live setup, on the GitHub page of a real workspace (owner only, wit
 2. **Install on GitHub** and choose the repositories. The studio page looks again every few
    seconds while it waits and shows the installation when GitHub reports it; **Check
    installation** asks at once.
-3. **Add the connection**: name, limits and required checks, as for any connection. Then
-   press **Verify** and create the grants runs need.
+3. **Add the connection**: name, limits and required checks, as for any connection. List
+   the repositories Creator Agent may use here: a studio-made app connection's list can't be
+   changed later (to change it, set up another app). Then press **Verify** and create the
+   grants runs need.
+
+On a personal account GitHub may refuse to let the app create repositories (403). The
+operation then says so: create the repository on GitHub, add it to the app's installation,
+and set up the connection again with the repository listed (**Set up another app**).
 
 Routes under `/api/workspaces/{ws}/`: `github-app-setups` (GET, POST
 `{organization, open_browser}`), `github-app-setups/{id}` (GET), `…/installation`,
 `…/connect`, `…/abandon` (POST). Stopping a setup, or revoking its connection, deletes the
-app key from this computer; the app stays on GitHub until you delete it under Settings ›
+app key from this computer (if the key file can't be deleted just then, the revoke still
+stands and the page says so); the app stays on GitHub until you delete it under Settings ›
 Developer settings › GitHub Apps. The live trial plan is in
 [LIVE_CONNECTION_CHECKS.md](LIVE_CONNECTION_CHECKS.md). The installed app does
 not turn live GitHub on yet (see ADR-0132).

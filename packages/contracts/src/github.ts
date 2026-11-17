@@ -132,6 +132,15 @@ export const GitHubConnectionSchema = z.strictObject({
   created_at: timestamp,
   updated_at: timestamp,
 });
+/**
+ * Review 2 N-1 (ADR-0132): what revoke answers. The connection is revoked even when the app key
+ * could not be deleted from this computer just then (`key_forget_failed`).
+ */
+export const GitHubRevokeResultSchema = GitHubConnectionSchema.extend({
+  key_forget_failed: z.literal(true).optional(),
+});
+export type GitHubRevokeResult = z.infer<typeof GitHubRevokeResultSchema>;
+
 export type GitHubConnection = z.infer<typeof GitHubConnectionSchema>;
 export const RevokeGitHubConnectionRequestSchema = z.strictObject({
   expected_version: version,

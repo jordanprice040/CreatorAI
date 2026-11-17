@@ -7,6 +7,7 @@ import {
   GitHubPullChecksSchema,
   GitHubRepositorySchema,
   GitHubReviewSchema,
+  GitHubRevokeResultSchema,
   RunControlSchema,
   z,
   type GitHubAppSetup,
@@ -455,8 +456,8 @@ function ConnectionRow({
                 disabled={busy || !reason.trim()}
                 onClick={() =>
                   void act(async () => {
-                    await api(
-                      GitHubConnectionSchema,
+                    const r = await api(
+                      GitHubRevokeResultSchema,
                       `${base}/github-connections/${c.id}/revoke`,
                       {
                         csrf: session.csrf_token,
@@ -467,7 +468,9 @@ function ConnectionRow({
                       },
                     );
                     setRevoking(false);
-                    return `${b.label} revoked. It can't be used again.`;
+                    return r.key_forget_failed
+                      ? `${b.label} revoked. It can't be used again. The app key could not be deleted from this computer just now, but nothing here uses it any more. Deleting the app on GitHub (Settings › Developer settings › GitHub Apps) makes the key worthless.`
+                      : `${b.label} revoked. It can't be used again.`;
                   })
                 }
               >

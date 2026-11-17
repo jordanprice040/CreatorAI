@@ -178,6 +178,9 @@ export interface GitHubAppSetupOptions {
   timeoutMs?: number;
 }
 
+/** Review 2 N-2: the least time between two GitHub reads for stray install-return visits. */
+const STRAY_CHECK_MS = 5000;
+
 interface Attempt {
   state: string;
   ctx: CommandContext;
@@ -188,6 +191,8 @@ interface Attempt {
   /** Review M-1: the one code exchange; a second "created" request waits for it. */
   exchanging?:
     Promise<GitHubAppSetup | { status: number; text: string }> | undefined;
+  /** Review 2 N-2: when a stray install-return visit last asked GitHub (ms). */
+  strayCheckAt?: number | undefined;
   close: () => void;
 }
 
@@ -331,8 +336,7 @@ export class GitHubAppSetupService {
         u.pathname === SETUP_PATHS.installed &&
         u.searchParams.get('state') !== a?.state
       ) {
-        if (a)
-          void this.checkInstallation(a.ctx, a.ws, a.setup_id).catch(() => {});
+        if (a) void this.#strayInstalled(a).catch(() => {});
         done(
           200,
           'Return to Creator Agent. If it does not show the installation yet, press Check installation there. You can close this tab.',
@@ -484,6 +488,21 @@ export class GitHubAppSetupService {
       await vault.delete(ref).catch(() => {});
       throw e;
     }
+  }
+
+  /**
+   * Review 2 N-2: a visit to the install-return page without the setup's state asks GitHub only
+   * while the app still waits to be installed, and at most once every few seconds, so a reload
+   * or a prefetch does not repeat the call.
+   */
+  async #strayInstalled(a: Attempt) {
+    const now = Date.now();
+    if (a.strayCheckAt !== undefined && now - a.strayCheckAt < STRAY_CHECK_MS)
+      return;
+    a.strayCheckAt = now;
+    const s = await this.store.getGitHubAppSetup(a.ctx, a.ws, a.setup_id);
+    if (s.status !== 'app_created') return;
+    await this.checkInstallation(a.ctx, a.ws, a.setup_id);
   }
 
   /** Lists the app's installations with its own JWT and records the one on the app's owner. */
