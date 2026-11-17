@@ -177,9 +177,17 @@ export function inventoryEntry(raw: unknown): LocalModelInventoryEntry | null {
 }
 
 /**
- * Maps a non-streamed `/api/chat` answer. `prompt_eval_cached_count` is read as the part of
- * `prompt_eval_count` served from the cache; a body where it is larger is malformed. Missing
- * counts are malformed, not zero.
+ * Maps a non-streamed `/api/chat` answer. Missing counts are malformed, not zero.
+ *
+ * Provisional reading of the token counts (ADR-0127; to verify on a real server in the
+ * hardware-check slice): the docs call `prompt_eval_count` "Number of tokens in the prompt" and
+ * `prompt_eval_cached_count` "Number of prompt tokens read from the cache", but do not say
+ * whether the first includes the second. It is read as including it; when the cached count is
+ * larger, that reading cannot hold, so `prompt_eval_count` is taken as the uncached part
+ * instead. Either way the answer is kept.
+ *
+ * Thinking is turned off in the request (`think: false`), so `eval_count` is read as answer
+ * tokens and reasoning as 0.
  */
 export function chatOutcome(body: unknown, model: string): AdapterOutcome {
   const malformed = (message: string): AdapterOutcome => ({
@@ -198,15 +206,10 @@ export function chatOutcome(body: unknown, model: string): AdapterOutcome {
   const prompt = b.prompt_eval_count;
   const output = b.eval_count;
   const cached = b.prompt_eval_cached_count ?? 0;
-  if (
-    !isCount(prompt) ||
-    !isCount(output) ||
-    !isCount(cached) ||
-    cached > prompt
-  )
+  if (!isCount(prompt) || !isCount(output) || !isCount(cached))
     return malformed('The local model answer lacked usable token counts.');
   const usage: Usage = {
-    uncached_input_tokens: prompt - cached,
+    uncached_input_tokens: cached > prompt ? prompt : prompt - cached,
     cached_input_tokens: cached,
     cache_write_tokens: 0,
     output_tokens: output,
@@ -376,6 +379,8 @@ export class OllamaAdapter {
       model: this.model_id,
       messages: req.input.map((m) => ({ role: m.role, content: m.text })),
       stream: false,
+      // Documented boolean: no thinking output, so the output cap goes to the answer.
+      think: false,
       ...(req.output_format === 'json' ? { format: 'json' } : {}),
       options: {
         num_predict: req.max_output_tokens,
@@ -412,14 +417,10 @@ export class OllamaAdapter {
       { name: this.model_id, digest: this.digest },
       signal,
     );
+    // Nothing was sent to the model, so every not-ready check is a definite refusal. The
+    // message starts with the check's status so records can tell the cases apart.
     if (pin.status !== 'ready')
-      return pin.status === 'unreachable'
-        ? {
-            kind: 'unknown',
-            reason_code: 'network_error',
-            message: pin.message,
-          }
-        : refuse('unsupported', pin.message);
+      return refuse('unsupported', `${pin.status}: ${pin.message}`);
     const r = await request(
       this.#client.base,
       OLLAMA_PATHS.chat,

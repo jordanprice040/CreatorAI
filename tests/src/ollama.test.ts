@@ -163,6 +163,16 @@ test('config refuses cloud models, duplicate pins and digests that are not exact
   assert.equal(isCloudModelName('gpt-oss:120b-cloud'), true);
   assert.equal(isCloudModelName('example:cloud'), true);
   assert.equal(isCloudModelName('cloudy-model:1b'), false);
+  // Deliberately broad: a local name with a whole `cloud` segment is refused too.
+  assert.equal(isCloudModelName('my-cloud-model:1b'), true);
+  // Hugging Face names keep their capitals and can be pinned.
+  assert.equal(
+    parse(LocalModelsConfigSchema, {
+      ...base,
+      models: [{ name: 'hf.co/Owner/Example-1B-GGUF:Q4_K_M', digest: DIGEST }],
+    }).models.length,
+    1,
+  );
   for (const models of [
     [{ name: 'example:20b-cloud', digest: DIGEST }],
     [
@@ -310,6 +320,7 @@ test('a call checks the pin, then sends one non-streamed chat without tools', as
         { role: 'user', content: 'Say ok.' },
       ],
       stream: false,
+      think: false,
       format: 'json',
       options: { num_predict: 256, num_ctx: 8192 },
     });
@@ -346,6 +357,7 @@ test('text output sends no format and leaves the context size to the model', asy
         { role: 'user', content: 'Say ok.' },
       ],
       stream: false,
+      think: false,
       options: { num_predict: 256 },
     });
   } finally {
@@ -353,26 +365,58 @@ test('text output sends no format and leaves the context size to the model', asy
   }
 });
 
-test('a replaced, removed or remote model is refused before any chat is sent', async () => {
-  for (const models of [
-    [installed(OTHER)],
-    [],
-    [installed(DIGEST, { remote_host: 'https://example.invalid' })],
-  ]) {
+test('a model that is not ready is refused, with its status, before any chat is sent', async () => {
+  const cases: [Handler | null, string][] = [
+    [tags([installed(OTHER)]), 'digest_changed'],
+    [tags([]), 'not_installed'],
+    [
+      tags([installed(DIGEST, { remote_host: 'https://example.invalid' })]),
+      'remote_model',
+    ],
+    [json(200, { nothing: true }), 'malformed'],
+    // Nothing listens: still a definite refusal, because no chat was sent.
+    [null, 'unreachable'],
+  ];
+  for (const [answer, status] of cases) {
     const s = await fakeOllama({
-      'GET /api/tags': tags(models),
+      ...(answer ? { 'GET /api/tags': answer } : {}),
       'POST /api/chat': json(200, chatAnswer()),
     });
+    const url = s.url;
+    if (!answer) await s.close();
     try {
-      const out = await adapter(s.url).call(request(), signal());
-      assert.equal(out.kind, 'rejected');
+      const out = await adapter(url).call(request(), signal());
+      assert.equal(out.kind, 'rejected', status);
+      assert.equal(
+        'reason_code' in out ? out.reason_code : null,
+        'unsupported',
+      );
+      assert.ok(
+        out.kind === 'rejected' && out.message.startsWith(`${status}: `),
+      );
       assert.equal(
         s.seen.some((r) => r.path === OLLAMA_PATHS.chat),
         false,
       );
     } finally {
-      await s.close();
+      if (answer) await s.close();
     }
+  }
+});
+
+test('a cached count above the prompt count keeps the answer (provisional reading)', async () => {
+  const s = await fakeOllama({
+    'GET /api/tags': tags([installed()]),
+    'POST /api/chat': json(200, chatAnswer({ prompt_eval_cached_count: 41 })),
+  });
+  try {
+    const out = await adapter(s.url).call(request(), signal());
+    assert.equal(out.kind, 'completed');
+    if (out.kind !== 'completed') return;
+    assert.equal(out.usage.uncached_input_tokens, 40);
+    assert.equal(out.usage.cached_input_tokens, 41);
+  } finally {
+    await s.close();
   }
 });
 
@@ -429,11 +473,6 @@ test('server answers map to refused, unknown or malformed, never to a made-up su
     [json(200, chatAnswer({ done: false })), 'unknown', 'malformed_response'],
     [
       json(200, chatAnswer({ eval_count: undefined })),
-      'unknown',
-      'malformed_response',
-    ],
-    [
-      json(200, chatAnswer({ prompt_eval_cached_count: 41 })),
       'unknown',
       'malformed_response',
     ],

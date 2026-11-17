@@ -18,15 +18,20 @@ export const LOCAL_MODEL_DEFAULT_TIMEOUT_MS = 600_000;
 /** Largest response body the adapter reads from the local server. */
 export const LOCAL_MODEL_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 
-/** An Ollama model name as the server lists it, such as `family:tag` or `ns/family:tag`. */
+/**
+ * An Ollama model name as the server lists it, such as `family:tag`, `ns/family:tag` or a
+ * Hugging Face name with capitals (`hf.co/Owner/Model-GGUF:Q4_K_M`).
+ */
 export const LOCAL_MODEL_NAME_PATTERN =
-  /^[a-z0-9][a-z0-9._/-]{0,150}(:[A-Za-z0-9._-]{1,80})?$/;
+  /^[A-Za-z0-9][A-Za-z0-9._/-]{0,150}(:[A-Za-z0-9._-]{1,80})?$/;
 /** The digest `/api/tags` reports: 64 lowercase hex characters. */
 export const LOCAL_MODEL_DIGEST_PATTERN = /^[0-9a-f]{64}$/;
 
 /**
  * Ollama cloud models (tags such as `…:cloud` or `…-cloud`) run on ollama.com even when asked
- * through the local server, so a local route never pins or calls one.
+ * through the local server, so a local route never pins or calls one. Deliberately broad: any
+ * name with a whole `cloud` segment (between `:`, `/` or `-`, such as `my-cloud-model:1b`) is
+ * refused too, even if it is local; a word that only contains it (`cloudy`) is not.
  */
 export const isCloudModelName = (name: string) =>
   /(?:^|[:/-])cloud(?:$|[:/-])/i.test(name);
