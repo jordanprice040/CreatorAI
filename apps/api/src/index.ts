@@ -730,7 +730,11 @@ export function createApi(
         // a background job that has failed for more than ten minutes in the owner's inbox.
         if (notifications && ticks % 60 === 59) {
           void maintenance
-            .run('notifications', () => notifications.sweepNotifications())
+            // N2 (ADR-0130): then one digest per person whose quiet hours have ended.
+            .run('notifications', async () => {
+              await notifications.sweepNotifications();
+              await notifications.releaseQuietDigests();
+            })
             .catch(() => undefined);
           for (const f of failingJobs(maintenance.snapshot().jobs, startedAt))
             void notifications
@@ -782,7 +786,7 @@ export function createApi(
   const VIEW_PREFERENCE_ROUTE = /^\/api\/me\/view-mode$/;
   // ADR-0116 (N1): the signed-in person's own notifications and notification settings.
   const NOTIFICATIONS_ROUTE =
-    /^\/api\/notifications(?:\/(recent|pending|read-all)|\/([^/]+)\/(claim|read|dismiss))?$/;
+    /^\/api\/notifications(?:\/(recent|pending|read-all|test)|\/([^/]+)\/(claim|read|dismiss))?$/;
   const NOTIFICATION_PREFERENCES_ROUTE = /^\/api\/notification-preferences$/;
   const USAGE_ROUTE = /^\/api\/workspaces\/([^/]+)\/(usage)$/;
   // F9 (ADR-0125): past discovery runs to start a similar project from (read-only).
@@ -1429,6 +1433,11 @@ export function createApi(
         return send(200, await notifications.recentNotifications(ctx), false);
       if (list === 'pending' && method === 'GET')
         return send(200, await notifications.pendingNotifications(ctx), false);
+      // N2 (ADR-0130): Settings › Notifications "Send test", for the signed-in person only.
+      if (list === 'test' && method === 'POST') {
+        await readJson(req);
+        return send(200, await notifications.sendTestNotification(ctx), false);
+      }
       if (list === 'read-all' && method === 'POST') {
         await readJson(req);
         return send(200, await notifications.readAllNotifications(ctx), false);

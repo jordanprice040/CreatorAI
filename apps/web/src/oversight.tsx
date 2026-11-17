@@ -75,6 +75,8 @@ export async function api<T>(
     quiet?: boolean;
     /** ADR-0083: a Chat card's send; its audit events name the card's send as their cause. */
     trace?: { causation: string; correlation: string };
+    /** Called with the response's headers as soon as they arrive, before the body is read. */
+    onHeaders?: (headers: Headers) => void;
   } = {},
 ): Promise<T> {
   const sent = fetch(`/api/${path}`, {
@@ -110,6 +112,7 @@ export async function api<T>(
     sent.then(announce, announce);
   }
   const response = await sent;
+  init.onHeaders?.(response.headers);
   const body: unknown = await response.json();
   if (!response.ok) {
     const e =

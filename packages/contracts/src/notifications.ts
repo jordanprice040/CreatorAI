@@ -57,6 +57,9 @@ export const NotificationEventKeySchema = z.enum([
   'build.ready',
   'workflow.finished',
   'studio.maintenance',
+  // N2 (ADR-0130): system rows a person cannot route elsewhere; Settings does not list them.
+  'studio.digest',
+  'studio.test',
 ]);
 export type NotificationEventKey = z.infer<typeof NotificationEventKeySchema>;
 
@@ -68,6 +71,11 @@ export interface NotificationEventInfo {
   label: string;
   /** Shown in Settings only in the Advanced view. */
   advanced?: true;
+  /**
+   * N2 (ADR-0130): made by the studio itself (the quiet-hours digest, a test you asked for).
+   * Not listed in Settings, and a saved choice never changes how it is shown.
+   */
+  system?: true;
 }
 
 /** The event catalog: group, severity, default and the Settings label of every event. */
@@ -208,6 +216,20 @@ export const NOTIFICATION_EVENTS: Record<
     label: 'Background job failing',
     advanced: true,
   },
+  'studio.digest': {
+    group: 'studio',
+    severity: 'needs_you',
+    default: 'interrupt',
+    label: 'Still needs you after quiet hours',
+    system: true,
+  },
+  'studio.test': {
+    group: 'studio',
+    severity: 'info',
+    default: 'interrupt',
+    label: 'Test notification',
+    system: true,
+  },
 };
 
 /** "needs you" items and spend refusals: what the quiet-hours urgent override lets through (N2). */
@@ -218,11 +240,20 @@ export const URGENT_NOTIFICATION_EVENTS: readonly NotificationEventKey[] = [
   'spend.refused',
 ];
 
+const SYSTEM_KEYS: readonly string[] = Object.entries(NOTIFICATION_EVENTS)
+  .filter(([, v]) => v.system)
+  .map(([k]) => k);
+
 const clock = z.string().regex(/^([01][0-9]|2[0-3]):[0-5][0-9]$/);
 
 export const NotificationPreferencesBodySchema = z.strictObject({
-  /** Only rows the person changed; any other event uses its default. */
-  events: z.partialRecord(NotificationEventKeySchema, NotificationModeSchema),
+  /** Only rows the person changed; any other event uses its default. System rows refused. */
+  events: z
+    .partialRecord(NotificationEventKeySchema, NotificationModeSchema)
+    .refine(
+      (e) => Object.keys(e).every((k) => !SYSTEM_KEYS.includes(k)),
+      'The studio’s own notifications (digest, test) cannot be routed elsewhere.',
+    ),
   quiet_hours: z.strictObject({
     enabled: z.boolean(),
     start: clock,
@@ -273,7 +304,86 @@ export function notificationMode(
   body: Pick<NotificationPreferencesBody, 'events'>,
   key: NotificationEventKey,
 ): NotificationMode {
-  return body.events[key] ?? NOTIFICATION_EVENTS[key].default;
+  const info = NOTIFICATION_EVENTS[key];
+  if (info.system) return info.default;
+  return body.events[key] ?? info.default;
+}
+
+/** "HH:MM" as minutes after midnight. */
+const minutesOf = (hhmm: string) =>
+  Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/** The weekday (0 = Sunday) and minutes after midnight of `at` in an IANA time zone. */
+export function localClock(
+  at: Date,
+  tz: string,
+): { day: number; minutes: number } {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(at);
+  const part = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
+  return {
+    day: Math.max(0, WEEKDAYS.indexOf(part('weekday'))),
+    minutes: (Number(part('hour')) % 24) * 60 + Number(part('minute')),
+  };
+}
+
+/**
+ * N2 (ADR-0130): whether quiet hours hold interruptions at `at`. The window starts on each
+ * listed day and may cross midnight (22:00 to 07:00 listed for Friday covers Saturday
+ * morning). A window that starts and ends at the same minute is empty.
+ */
+export function quietHoursActive(
+  q: NotificationPreferencesBody['quiet_hours'],
+  at: Date,
+): boolean {
+  if (!q.enabled || q.days.length === 0) return false;
+  const start = minutesOf(q.start);
+  const end = minutesOf(q.end);
+  if (start === end) return false;
+  const { day, minutes } = localClock(at, q.tz);
+  if (start < end)
+    return q.days.includes(day) && minutes >= start && minutes < end;
+  if (minutes >= start) return q.days.includes(day);
+  return minutes < end && q.days.includes((day + 6) % 7);
+}
+
+/**
+ * N2 (ADR-0130): what a new notification's interruption becomes for one person. A workspace
+ * mute beats everything; inside quiet hours an interruption is held for the digest unless the
+ * urgent override lets an urgent event through.
+ */
+export function interruptStateFor(
+  prefs: NotificationPreferencesBody,
+  n: {
+    eventKey: NotificationEventKey;
+    workspaceId: string | null;
+    batched: boolean;
+    interrupt: boolean;
+  },
+  at: Date,
+): 'pending' | 'held_quiet' | 'none' {
+  const info = NOTIFICATION_EVENTS[n.eventKey];
+  if (notificationMode(prefs, n.eventKey) === 'inbox') return 'none';
+  if (n.batched || !n.interrupt) return 'none';
+  if (info.system) return 'pending';
+  if (n.workspaceId !== null && prefs.muted_workspaces.includes(n.workspaceId))
+    return 'none';
+  if (!quietHoursActive(prefs.quiet_hours, at)) return 'pending';
+  // Review L-1: a toast-only row (Build ready) is never held for the digest; it stays in the
+  // inbox, as when the window is hidden.
+  if (notificationMode(prefs, n.eventKey) === 'toast_only') return 'none';
+  if (
+    prefs.quiet_hours.urgent_override &&
+    URGENT_NOTIFICATION_EVENTS.includes(n.eventKey)
+  )
+    return 'pending';
+  return 'held_quiet';
 }
 
 /**
@@ -337,6 +447,9 @@ export type RecentNotifications = z.infer<typeof RecentNotificationsSchema>;
 export const ClaimNotificationRequestSchema = z.strictObject({
   via: z.enum(['toast', 'windows']),
 });
+
+/** N2 (ADR-0130): the result of "Send test" in Settings › Notifications. */
+export const NotificationTestSchema = z.strictObject({ id });
 
 export const NotificationClaimSchema = z.strictObject({
   id,

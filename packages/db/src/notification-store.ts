@@ -4,7 +4,9 @@ import {
   NOTIFICATION_EVENTS,
   NotificationGroupSchema,
   SetNotificationPreferencesRequestSchema,
+  notificationMode,
   parse,
+  quietHoursActive,
   z,
   type Notification,
   type NotificationClaim,
@@ -25,8 +27,10 @@ import {
 } from './store.js';
 import {
   notificationPreferencesIn,
+  notify,
   notifyMaintenanceFailing,
 } from './notifications.js';
+import { randomUUID } from 'node:crypto';
 import { isSpendingManagerIn } from './spending-manager.js';
 
 /** A pending interruption older than this is not shown any more; it stays in the inbox. */
@@ -163,7 +167,8 @@ export class NotificationStore extends Store {
   }
 
   /**
-   * Rows that may still interrupt (the native poll and the web toast, N2–N3). Access is checked
+   * Rows that may still interrupt (the native poll and the web toast, N2–N3), newest first, so
+   * a backlog of older pending rows never hides a new one (review L-5 of #235). Access is checked
    * again first: a row whose person lost access is withdrawn and never delivered.
    */
   async pendingNotifications(ctxIn: CommandContext): Promise<Notification[]> {
@@ -174,7 +179,7 @@ export class NotificationStore extends Store {
         `select n.* from notifications n where ${VISIBLE}
            and n.interrupt_state = 'pending' and n.dismissed_at is null
            and n.first_at > clock_timestamp() - make_interval(secs => $3::double precision / 1000)
-         order by n.first_at limit 50`,
+         order by n.first_at desc, n.id desc limit 50`,
         [
           ctx.actorId,
           await this.#manager(c, ctx.actorId),
@@ -188,7 +193,8 @@ export class NotificationStore extends Store {
   async #withdrawLost(c: PoolClient, actorId: string) {
     await c.query(
       `update notifications n set withdrawn_at = clock_timestamp(),
-         interrupt_state = case when n.interrupt_state = 'pending' then 'none' else n.interrupt_state end
+         interrupt_state = case when n.interrupt_state in ('pending', 'held_quiet') then 'none'
+           else n.interrupt_state end
         where n.actor_id = $1 and n.withdrawn_at is null and not (${VISIBLE})`,
       [actorId, await this.#manager(c, actorId)],
     );
@@ -352,6 +358,131 @@ export class NotificationStore extends Store {
     });
   }
 
+  /**
+   * N2 (ADR-0130): "Send test" in Settings › Notifications. One row for the person asking,
+   * ready to interrupt, so the next poll of a visible window shows it as a toast. A test sent
+   * within the last ten seconds is returned instead of making another.
+   */
+  async sendTestNotification(ctxIn: CommandContext): Promise<{ id: string }> {
+    const ctx = normalize(ctxIn);
+    return this.tx(async (c) => {
+      await c.query('select pg_advisory_xact_lock($1, hashtext($2))', [
+        4_310_130,
+        ctx.actorId,
+      ]);
+      const recent = await c.query<{ id: string }>(
+        `select id from notifications where actor_id = $1 and event_key = 'studio.test'
+           and first_at > clock_timestamp() - interval '10 seconds' limit 1`,
+        [ctx.actorId],
+      );
+      if (recent.rows[0]) return { id: String(recent.rows[0].id) };
+      const key = randomUUID();
+      const r = await notify(c, {
+        actorId: ctx.actorId,
+        workspaceId: null,
+        eventKey: 'studio.test',
+        title: 'Test notification',
+        body: 'Notifications work in this window. Nothing needs you.',
+        link: '#/settings/notifications',
+        subjectKind: 'test',
+        subjectId: key,
+        dedupeKey: `test:${key}`,
+        sourceKey: `test:${key}`,
+      });
+      if (!r)
+        throw fail('VERSION_CONFLICT', 'The test was not recorded; try again.');
+      return { id: r.id };
+    });
+  }
+
+  /**
+   * N2 (ADR-0130): once a person's quiet hours have ended, the interruptions they held become
+   * one digest. Each held row is checked again first: a run continued since, an approval
+   * answered or claims decided are left out quietly, and a row the person lost access to is
+   * withdrawn. What still needs them is marked delivered by the digest, and the digest itself
+   * interrupts once (toast or Windows). Returns the number of digests made.
+   */
+  async releaseQuietDigests(now = new Date()): Promise<number> {
+    const { rows: people } = await this.pool.query<{ actor_id: string }>(
+      `select distinct actor_id from notifications where interrupt_state = 'held_quiet'`,
+    );
+    let made = 0;
+    for (const { actor_id } of people) {
+      const done = await this.tx(async (c) => {
+        await c.query('select pg_advisory_xact_lock($1, hashtext($2))', [
+          4_310_131,
+          actor_id,
+        ]);
+        const prefs = await notificationPreferencesIn(c, actor_id);
+        if (quietHoursActive(prefs.body.quiet_hours, now)) return false;
+        await this.#withdrawLost(c, actor_id);
+        const { rows } = await c.query(
+          `select * from notifications where actor_id = $1 and interrupt_state = 'held_quiet'
+             and withdrawn_at is null order by first_at for update`,
+          [actor_id],
+        );
+        const open: Row[] = [];
+        for (const r of rows as Row[]) {
+          // Review M-1: a mute or an "Inbox only" choice made since the row was held wins.
+          const key = String(r.event_key) as NotificationEventKey;
+          const quiet =
+            (r.workspace_id !== null &&
+              prefs.body.muted_workspaces.includes(String(r.workspace_id))) ||
+            notificationMode(prefs.body, key) === 'inbox';
+          const still =
+            !quiet &&
+            r.dismissed_at === null &&
+            r.read_at === null &&
+            (await stillOpen(c, r));
+          if (still) open.push(r);
+          else
+            await c.query(
+              `update notifications set interrupt_state = 'none' where id = $1`,
+              [r.id],
+            );
+        }
+        if (!open.length) return false;
+        await c.query(
+          `update notifications set interrupt_state = 'claimed', interrupted_via = 'digest',
+             interrupted_at = clock_timestamp() where id = any($1::uuid[])`,
+          [open.map((r) => r.id)],
+        );
+        const first = String(open[0]!.id);
+        const n = open.length;
+        // Review L-1: say "need you" only of rows that do.
+        const needs = open.filter((r) => r.severity === 'needs_you').length;
+        const items = (k: number) => `${k} item${k === 1 ? '' : 's'}`;
+        const title =
+          needs === n
+            ? `While quiet hours were on: ${items(n)} still need${n === 1 ? 's' : ''} you`
+            : needs > 0
+              ? `While quiet hours were on: ${items(n)} to look at, ${needs} still need${needs === 1 ? 's' : ''} you`
+              : `While quiet hours were on: ${items(n)} to look at`;
+        const titles = open
+          .slice(0, 3)
+          .map((r) => String(r.title))
+          .join(' · ');
+        await notify(c, {
+          actorId: actor_id,
+          workspaceId: null,
+          eventKey: 'studio.digest',
+          title,
+          severity: needs > 0 ? 'needs_you' : 'warning',
+          body: n > 3 ? `${titles} · and ${n - 3} more` : titles,
+          link: '#/monitor/notifications?q=unread',
+          subjectKind: 'digest',
+          subjectId: first,
+          dedupeKey: `digest:${first}`,
+          sourceKey: `digest:${first}`,
+          now,
+        });
+        return true;
+      });
+      if (done) made++;
+    }
+    return made;
+  }
+
   /** A background job failing for more than ten minutes, for the studio's owner (Advanced). */
   async notifyMaintenance(
     ownerId: string,
@@ -379,4 +510,62 @@ export class NotificationStore extends Store {
       });
     });
   }
+}
+
+/**
+ * Whether a held row still needs its person (N2, ADR-0130): the same autopilot stop (its
+ * version unchanged), an approval still pending at the same version, or a discovery that
+ * still holds claims, a refused run still active with no paid dispatch since, a connection
+ * whose sign-in expired still signed out. Other rows (spend warnings, failures, a plan's usage
+ * limit) stay relevant.
+ */
+async function stillOpen(c: PoolClient, r: Row): Promise<boolean> {
+  const kind = String(r.subject_kind);
+  const id = String(r.subject_id);
+  const version = /:v(\d+)$/.exec(String(r.dedupe_key))?.[1];
+  if (kind === 'autopilot') {
+    const { rows } = await c.query(
+      `select 1 from autopilots where id = $1::uuid and state = 'finished'
+         and ($2::int is null or version = $2::int)`,
+      [id, version ?? null],
+    );
+    return rows.length > 0;
+  }
+  if (kind === 'decision') {
+    const { rows } = await c.query(
+      `select 1 from decision_requests where id = $1::uuid and status = 'pending'
+         and ($2::int is null or version = $2::int)`,
+      [id, version ?? null],
+    );
+    return rows.length > 0;
+  }
+  if (kind === 'run') {
+    // Review L-2: a refused or waiting run is still stopped while it is active and no paid
+    // dispatch was admitted for it since the row was last updated.
+    const { rows } = await c.query(
+      `select 1 from run_controls rc where rc.run_id = $1::uuid and rc.state = 'active'
+         and not exists (select 1 from budget_reservations b where b.run_id = rc.run_id
+           and b.status in ('in_flight', 'settled', 'unknown') and b.created_at > $2)`,
+      [id, r.last_at],
+    );
+    return rows.length > 0;
+  }
+  if (kind === 'plan_connection' && /:sign_in:/.test(String(r.dedupe_key))) {
+    // A connection whose sign-in expired is resolved once it is signed in again.
+    const { rows } = await c.query(
+      `select 1 from plan_connections where id = $1::uuid
+         and coalesce(sign_in->>'state', '') <> 'signed_in'`,
+      [id],
+    );
+    return rows.length > 0;
+  }
+  if (kind === 'web_discovery') {
+    const { rows } = await c.query(
+      `select 1 from web_discovery_claims where discovery_id = $1::uuid
+         and decision = 'pending' limit 1`,
+      [id],
+    );
+    return rows.length > 0;
+  }
+  return true;
 }

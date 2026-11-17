@@ -1,0 +1,22 @@
+workspace c02ccd2b-236c-4b25-9fa8-d5ca60dd477b
+PASS the bell is in the top bar
+PASS a toast names the stop ("Needs youAutopilot stopped: a tie needs your choice")
+PASS one toast for one stop
+PASS the row was claimed for the toast
+PASS the bell counts unread
+PASS Open lands on the stopped autopilot's card
+PASS the toast closes when opened
+PASS opening marks it read
+PASS the Autopilot page says where stop alerts are set
+PASS Settings says Build ready is toast only
+PASS Send test shows a toast at once
+PASS Escape closes the bell and returns focus to it
+PASS the bell lists the stop and the test
+PASS View all opens Monitor › Notifications
+PASS two windows, one toast (1)
+PASS the raced row was claimed once, for a toast
+PASS no catch-up toast for an item that arrived while hidden
+PASS it waits in the bell, unclaimed (it expires after ten minutes)
+PASS no sideways scroll at 390 px (390)
+PASS the browser Notification API is never used
+PASS no page errors
