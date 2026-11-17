@@ -138,7 +138,7 @@ impl Status {
     }
 }
 
-struct Inner {
+pub(crate) struct Inner {
     status: Status,
     busy: bool,
     child: Option<Child>,
@@ -153,6 +153,12 @@ struct Inner {
     log: VecDeque<String>,
     background_notice: bool,
     quiet_start: bool,
+    /// F4 (ADR-0128): the update this launch is the trial of, until it reports its outcome.
+    update_trial: Option<String>,
+    /// F4: an update check, download or install is running.
+    pub(crate) update_busy: bool,
+    /// The database layout the running studio reported when ready (review N-4).
+    pub(crate) schema_version: Option<i64>,
 }
 
 pub struct Supervisor {
@@ -191,6 +197,9 @@ impl Supervisor {
                 log: VecDeque::new(),
                 background_notice: false,
                 quiet_start: std::env::args().any(|a| a == "--at-login"),
+                update_trial: crate::update_run::trial_for_this_version(&home),
+                update_busy: false,
+                schema_version: None,
             }),
             home,
         })
@@ -214,10 +223,38 @@ impl Supervisor {
     fn set(&self, s: Status) {
         self.note(&format!("[{}] {} — {}", s.phase, s.title, s.detail));
         let needs_owner = matches!(s.phase, "setup" | "failed" | "needs_migration");
-        self.inner.lock().unwrap().status = s;
+        // F4 (ADR-0128): the first launch after an update reports whether it runs; the copy
+        // that installed it is waiting for that. A database upgrade was approved with the
+        // install, so it goes ahead (backup and rehearsal first) without asking again.
+        let trial = {
+            let mut i = self.inner.lock().unwrap();
+            let t = match s.phase {
+                "running" | "failed" | "setup" => i.update_trial.take(),
+                "needs_migration" => i.update_trial.clone(),
+                _ => None,
+            };
+            i.status = s.clone();
+            t
+        };
+        if let Some(id) = trial {
+            crate::update_run::trial_event(self, &id, &s);
+            if s.phase == "needs_migration" {
+                return;
+            }
+        }
         if needs_owner {
             crate::show_control(&self.app);
         }
+    }
+    /// For the update trial: runs the database upgrade the owner approved with the install.
+    pub(crate) fn approve_migration_in_background(self: &Arc<Self>) {
+        let me = self.clone();
+        std::thread::spawn(move || {
+            let _ = me.approve_migration();
+        });
+    }
+    pub(crate) fn inner_lock(&self) -> std::sync::MutexGuard<'_, Inner> {
+        self.inner.lock().unwrap()
     }
     pub fn quitting(&self) -> bool {
         self.inner.lock().unwrap().quitting
@@ -266,19 +303,10 @@ impl Supervisor {
                 Err(e) => json!({"error": e}),
             },
             "bundle": bundle,
+            "version": env!("CARGO_PKG_VERSION"),
+            "update": crate::update_run::state(self, i.update_busy, i.schema_version),
             "log": i.log.iter().rev().take(12).collect::<Vec<_>>(),
         })
-    }
-
-    fn node(&self) -> (PathBuf, PathBuf) {
-        (
-            self.resources.join("node").join("node.exe"),
-            self.resources
-                .join("service")
-                .join("app")
-                .join("dist")
-                .join("studio.mjs"),
-        )
     }
 
     fn service_log(&self) -> Result<std::fs::File, String> {
@@ -303,85 +331,29 @@ impl Supervisor {
         mode: &str,
         input: &Value,
     ) -> Result<(Child, ChildStdin, std::process::ChildStdout), String> {
-        let (node, entry) = self.node();
-        if !node.is_file() || !entry.is_file() {
-            return Err(
-                "The app's studio service files are missing; reinstall Creator Agent.".into(),
-            );
-        }
-        let mut cmd = Command::new(&node);
-        postgres::quiet(&mut cmd);
-        cmd.arg(&entry)
-            .arg(mode)
-            .current_dir(&self.home.root)
-            .env_clear()
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::from(self.service_log()?));
-        for k in [
-            "SystemRoot",
-            "SystemDrive",
-            "windir",
-            "TEMP",
-            "TMP",
-            "USERPROFILE",
-            "USERNAME",
-            "LOCALAPPDATA",
-            "APPDATA",
-            "COMPUTERNAME",
-            "NUMBER_OF_PROCESSORS",
-            "PROCESSOR_ARCHITECTURE",
-        ] {
-            if let Ok(v) = std::env::var(k) {
-                cmd.env(k, v);
-            }
-        }
-        // WSL (generated-code isolation) and the PostgreSQL tools are found by explicit paths.
-        let system = std::env::var("SystemRoot").unwrap_or_else(|_| "C:\\Windows".into());
-        cmd.env("PATH", format!("{system}\\System32;{system}"));
-        cmd.env("NODE_ENV", "production");
-        // Products are Git repositories (ADR-0046): Git is named by path, not found on PATH.
-        if let Some(git) = find_git() {
-            cmd.env("CREATOR_GIT", git);
-        }
-        let mut child = cmd
-            .spawn()
-            .map_err(|_| "Could not start the studio service".to_string())?;
+        #[allow(unused_mut)]
+        let (mut child, stdin, stdout) = spawn_service(
+            &self.resources,
+            &self.home,
+            mode,
+            input,
+            self.service_log()?,
+        )?;
         #[cfg(windows)]
         if let Some(job) = &self.job {
-            crate::winsys::assign(job, &child)?;
+            if let Err(e) = crate::winsys::assign(job, &child) {
+                let _ = child.kill();
+                return Err(e);
+            }
         }
-        let mut stdin = child.stdin.take().ok_or("No service input")?;
-        let stdout = child.stdout.take().ok_or("No service output")?;
-        writeln!(stdin, "{input}").map_err(|_| "Could not configure the studio service")?;
-        stdin.flush().ok();
         Ok((child, stdin, stdout))
     }
 
     /// Runs a one-shot service command (inspect, init, adopt, migrate) to its result.
-    fn command(&self, mode: &str, input: &Value) -> Result<Value, String> {
+    pub(crate) fn command(&self, mode: &str, input: &Value) -> Result<Value, String> {
         self.note(&format!("running service command {mode}"));
-        let (mut child, stdin, stdout) = self.spawn(mode, input)?;
-        let mut outcome: Result<Value, String> =
-            Err("The studio service ended without a result".into());
-        for line in BufReader::new(stdout).lines() {
-            let Ok(line) = line else { break };
-            let Ok(event) = serde_json::from_str::<Value>(&line) else {
-                continue;
-            };
-            match event["event"].as_str() {
-                Some("result") => outcome = Ok(event["result"].clone()),
-                Some("error") => {
-                    outcome = Err(event["message"]
-                        .as_str()
-                        .unwrap_or("Studio command failed")
-                        .to_string())
-                }
-                _ => {}
-            }
-        }
-        drop(stdin);
-        let _ = child.wait();
+        let (child, stdin, stdout) = self.spawn(mode, input)?;
+        let outcome = finish_command(child, stdin, stdout);
         match &outcome {
             Ok(_) => self.note(&format!("service command {mode} finished")),
             Err(e) => self.note(&format!("service command {mode} failed: {e}")),
@@ -403,36 +375,20 @@ impl Supervisor {
     }
 
     /// Database URL for the configured studio; starts the managed cluster when needed.
-    fn database_url(&self, c: &StudioConfig) -> Result<String, String> {
-        if c.database.mode == "managed" {
-            let cluster = self.cluster_for(c)?;
-            postgres::verify_bin(&cluster.bin)?;
-            if !cluster.exists() {
-                return Err("The studio database folder is missing. Restore it from a backup or run setup again.".into());
-            }
-            let started = cluster.start()?;
+    pub(crate) fn database_url(&self, c: &StudioConfig) -> Result<String, String> {
+        let (url, cluster) = open_database(&self.home, &self.secrets, c)?;
+        if let Some((cluster, started)) = cluster {
             self.note(if started {
                 "started the app's PostgreSQL"
             } else {
                 "reusing the app's running PostgreSQL"
             });
-            let pw = self
-                .secrets
-                .load("postgres")?
-                .ok_or("The studio database password is missing")?;
             self.inner.lock().unwrap().cluster = Some(cluster);
-            Ok(format!(
-                "postgresql://{}:{pw}@127.0.0.1:{}/{}",
-                c.database.user, c.database.port, c.database.name
-            ))
-        } else {
-            self.secrets
-                .load("database-url")?
-                .ok_or("The saved database connection is missing; run setup again".into())
         }
+        Ok(url)
     }
 
-    fn input(&self, c: &StudioConfig, url: &str, source: Value) -> Value {
+    pub(crate) fn input(&self, c: &StudioConfig, url: &str, source: Value) -> Value {
         let i = self.inner.lock().unwrap();
         json!({
             "protocol": PROTOCOL,
@@ -550,7 +506,11 @@ impl Supervisor {
             }
             match event["event"].as_str() {
                 Some("ready") => {
-                    let secret = self.inner.lock().unwrap().owner_secret.clone();
+                    let secret = {
+                        let mut i = self.inner.lock().unwrap();
+                        i.schema_version = event["schema_version"].as_i64();
+                        i.owner_secret.clone()
+                    };
                     match verify_ownership(&secret) {
                         Ok(()) => {
                             self.set(Status::new("running", "Creator Agent is running", "The studio, its workflow worker and private previews are running on this computer."));
@@ -919,7 +879,10 @@ impl Supervisor {
         });
     }
 
-    fn busy<T>(self: &Arc<Self>, f: impl FnOnce() -> Result<T, String>) -> Result<T, String> {
+    pub(crate) fn busy<T>(
+        self: &Arc<Self>,
+        f: impl FnOnce() -> Result<T, String>,
+    ) -> Result<T, String> {
         {
             let mut i = self.inner.lock().unwrap();
             if i.busy {
@@ -1236,28 +1199,175 @@ pub fn source_url(s: &Value) -> Result<String, String> {
     Ok(url.to_string())
 }
 
+/// Database URL for saved settings (the supervisor and the update helper share it, review
+/// L-7). In managed mode the app's cluster is checked and started; it is returned with
+/// whether this call started it.
+pub fn open_database(
+    home: &Home,
+    secrets: &Secrets,
+    c: &StudioConfig,
+) -> Result<(String, Option<(Cluster, bool)>), String> {
+    if c.database.mode == "managed" {
+        let cluster = Cluster {
+            bin: PathBuf::from(
+                c.pg_bin
+                    .clone()
+                    .ok_or("Choose the PostgreSQL 18 folder in settings")?,
+            ),
+            data: home.pg_data(),
+            port: c.database.port,
+            log: home.logs().join("postgres.log"),
+        };
+        postgres::verify_bin(&cluster.bin)?;
+        if !cluster.exists() {
+            return Err("The studio database folder is missing. Restore it from a backup or run setup again.".into());
+        }
+        let started = cluster.start()?;
+        let pw = secrets
+            .load("postgres")?
+            .ok_or("The studio database password is missing")?;
+        Ok((
+            format!(
+                "postgresql://{}:{pw}@127.0.0.1:{}/{}",
+                c.database.user, c.database.port, c.database.name
+            ),
+            Some((cluster, started)),
+        ))
+    } else {
+        Ok((
+            secrets
+                .load("database-url")?
+                .ok_or("The saved database connection is missing; run setup again")?,
+            None,
+        ))
+    }
+}
+
+/// The bundled Node runtime and service entry under an app's `studio` resources folder.
+pub fn service_files(resources: &Path) -> (PathBuf, PathBuf) {
+    (
+        resources.join("node").join("node.exe"),
+        resources
+            .join("service")
+            .join("app")
+            .join("dist")
+            .join("studio.mjs"),
+    )
+}
+
+/// Starts a studio service child with a minimal environment: no inherited CREATOR_*, OPENAI_*
+/// or proxy settings, so a developer shell can never redirect the installed studio.
+pub fn spawn_service(
+    resources: &Path,
+    home: &Home,
+    mode: &str,
+    input: &Value,
+    log: std::fs::File,
+) -> Result<(Child, ChildStdin, std::process::ChildStdout), String> {
+    let (node, entry) = service_files(resources);
+    if !node.is_file() || !entry.is_file() {
+        return Err("The app's studio service files are missing; reinstall Creator Agent.".into());
+    }
+    let mut cmd = Command::new(&node);
+    postgres::quiet(&mut cmd);
+    cmd.arg(&entry)
+        .arg(mode)
+        .current_dir(&home.root)
+        .env_clear()
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::from(log));
+    for k in [
+        "SystemRoot",
+        "SystemDrive",
+        "windir",
+        "TEMP",
+        "TMP",
+        "USERPROFILE",
+        "USERNAME",
+        "LOCALAPPDATA",
+        "APPDATA",
+        "COMPUTERNAME",
+        "NUMBER_OF_PROCESSORS",
+        "PROCESSOR_ARCHITECTURE",
+    ] {
+        if let Ok(v) = std::env::var(k) {
+            cmd.env(k, v);
+        }
+    }
+    // WSL (generated-code isolation) and the PostgreSQL tools are found by explicit paths.
+    let system = std::env::var("SystemRoot").unwrap_or_else(|_| "C:\\Windows".into());
+    cmd.env("PATH", format!("{system}\\System32;{system}"));
+    cmd.env("NODE_ENV", "production");
+    // Products are Git repositories (ADR-0046): Git is named by path, not found on PATH.
+    if let Some(git) = find_git() {
+        cmd.env("CREATOR_GIT", git);
+    }
+    let mut child = cmd
+        .spawn()
+        .map_err(|_| "Could not start the studio service".to_string())?;
+    let mut stdin = child.stdin.take().ok_or("No service input")?;
+    let stdout = child.stdout.take().ok_or("No service output")?;
+    writeln!(stdin, "{input}").map_err(|_| "Could not configure the studio service")?;
+    stdin.flush().ok();
+    Ok((child, stdin, stdout))
+}
+
+/// Reads a one-shot service command's events to its result, then waits for the child.
+pub fn finish_command(
+    mut child: Child,
+    stdin: ChildStdin,
+    stdout: std::process::ChildStdout,
+) -> Result<Value, String> {
+    let mut outcome: Result<Value, String> =
+        Err("The studio service ended without a result".into());
+    for line in BufReader::new(stdout).lines() {
+        let Ok(line) = line else { break };
+        let Ok(event) = serde_json::from_str::<Value>(&line) else {
+            continue;
+        };
+        match event["event"].as_str() {
+            Some("result") => outcome = Ok(event["result"].clone()),
+            Some("error") => {
+                outcome = Err(event["message"]
+                    .as_str()
+                    .unwrap_or("Studio command failed")
+                    .to_string())
+            }
+            _ => {}
+        }
+    }
+    drop(stdin);
+    let _ = child.wait();
+    outcome
+}
+
 /// Copies a product store file by file, refusing links, then re-hashes every copy.
 pub fn copy_verified(from: &Path, to: &Path) -> Result<usize, String> {
+    copy_verified_as(from, to, "products")
+}
+
+/// `copy_verified` for any app-made folder; `what` names it in messages (review N-1).
+pub fn copy_verified_as(from: &Path, to: &Path, what: &str) -> Result<usize, String> {
     if !from.is_dir() {
-        return Err("The products folder to copy does not exist".into());
+        return Err(format!("The {what} folder to copy does not exist"));
     }
     if to.exists()
         && std::fs::read_dir(to)
             .map(|mut d| d.next().is_some())
             .unwrap_or(true)
     {
-        return Err("The studio products folder is not empty".into());
+        return Err(format!("The folder for the {what} copy is not empty"));
     }
-    fn walk(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
-        for e in std::fs::read_dir(dir).map_err(|_| "Could not read the products folder")? {
-            let e = e.map_err(|_| "Could not read the products folder")?;
-            let t = e
-                .file_type()
-                .map_err(|_| "Could not read the products folder")?;
+    fn walk(dir: &Path, out: &mut Vec<PathBuf>, what: &str) -> Result<(), String> {
+        let unreadable = || format!("Could not read the {what} folder");
+        for e in std::fs::read_dir(dir).map_err(|_| unreadable())? {
+            let e = e.map_err(|_| unreadable())?;
+            let t = e.file_type().map_err(|_| unreadable())?;
             if t.is_symlink() {
                 return Err(format!("Refusing to copy a link: {}", e.path().display()));
             } else if t.is_dir() {
-                walk(&e.path(), out)?;
+                walk(&e.path(), out, what)?;
             } else {
                 out.push(e.path());
             }
@@ -1265,16 +1375,18 @@ pub fn copy_verified(from: &Path, to: &Path) -> Result<usize, String> {
         Ok(())
     }
     let mut files = Vec::new();
-    walk(from, &mut files)?;
-    std::fs::create_dir_all(to).map_err(|_| "Could not create the products folder")?;
+    walk(from, &mut files, what)?;
+    std::fs::create_dir_all(to).map_err(|_| format!("Could not create the {what} copy"))?;
     for f in &files {
-        let rel = f.strip_prefix(from).map_err(|_| "Bad product path")?;
+        let rel = f
+            .strip_prefix(from)
+            .map_err(|_| "A copied path is outside its folder")?;
         let dest = to.join(rel);
         std::fs::create_dir_all(dest.parent().unwrap())
-            .map_err(|_| "Could not create a product folder")?;
-        let bytes = std::fs::read(f).map_err(|_| "Could not read a product file")?;
-        std::fs::write(&dest, &bytes).map_err(|_| "Could not write a product file")?;
-        let copy = std::fs::read(&dest).map_err(|_| "Could not re-read a product file")?;
+            .map_err(|_| format!("Could not create a folder in the {what} copy"))?;
+        let bytes = std::fs::read(f).map_err(|_| format!("Could not read a {what} file"))?;
+        std::fs::write(&dest, &bytes).map_err(|_| format!("Could not write a {what} file"))?;
+        let copy = std::fs::read(&dest).map_err(|_| format!("Could not re-read a {what} file"))?;
         if Sha256::digest(&copy) != Sha256::digest(&bytes) {
             return Err(format!(
                 "Copy of {} does not match its source",

@@ -119,6 +119,12 @@ input:not([type='radio']):not([type='checkbox']) {
   color: var(--danger);
   white-space: pre-wrap;
 }
+.notice {
+  border-left: 3px solid var(--accent);
+  padding: 6px 10px;
+  margin: 8px 0;
+  white-space: pre-wrap;
+}
 .row {
   display: flex;
   flex-wrap: wrap;

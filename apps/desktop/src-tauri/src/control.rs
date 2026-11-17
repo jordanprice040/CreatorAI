@@ -140,3 +140,59 @@ pub async fn studio_quit(window: WebviewWindow, sup: State<'_, Shared>) -> Resul
     sup.quit();
     Ok(())
 }
+
+// ---- F4 in-app updates (ADR-0128) ----------------------------------------------------------
+
+#[tauri::command]
+pub async fn studio_update_settings(
+    window: WebviewWindow,
+    sup: State<'_, Shared>,
+    repository: String,
+    token: Option<String>,
+    check_at_start: bool,
+) -> Result<(), String> {
+    local(&window)?;
+    let s = sup.inner().clone();
+    blocking(move || crate::update_run::save_settings(&s, repository.trim(), token, check_at_start))
+        .await
+}
+
+#[tauri::command]
+pub async fn studio_update_forget_token(
+    window: WebviewWindow,
+    sup: State<'_, Shared>,
+) -> Result<(), String> {
+    local(&window)?;
+    let s = sup.inner().clone();
+    blocking(move || crate::update_run::forget_token(&s)).await
+}
+
+#[tauri::command]
+pub async fn studio_update_check(
+    window: WebviewWindow,
+    sup: State<'_, Shared>,
+) -> Result<Value, String> {
+    local(&window)?;
+    let s = sup.inner().clone();
+    blocking(move || crate::update_run::check(&s)).await
+}
+
+#[tauri::command]
+pub async fn studio_update_download(
+    window: WebviewWindow,
+    sup: State<'_, Shared>,
+) -> Result<Value, String> {
+    local(&window)?;
+    let s = sup.inner().clone();
+    blocking(move || crate::update_run::download(&s)).await
+}
+
+#[tauri::command]
+pub async fn studio_update_install(
+    window: WebviewWindow,
+    sup: State<'_, Shared>,
+) -> Result<Value, String> {
+    local(&window)?;
+    let s = sup.inner().clone();
+    blocking(move || crate::update_run::install(&s)).await
+}
