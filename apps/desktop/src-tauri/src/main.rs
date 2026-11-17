@@ -5,6 +5,7 @@ mod download;
 mod external;
 mod home;
 mod job;
+mod notify;
 mod postgres;
 mod secret;
 mod signin;
@@ -695,6 +696,9 @@ fn main() {
             }
             sup.watchdog();
             sup.start();
+            // N3 (ADR-0131): Windows notifications while the studio window is hidden.
+            #[cfg(windows)]
+            notify::start(handle.clone(), sup.clone());
             Ok(())
         })
         .build(tauri::generate_context!())

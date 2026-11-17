@@ -10,6 +10,9 @@ import {
 import pg from 'pg';
 import {
   BrokerStatusSchema,
+  NATIVE_SEEN_MS,
+  NativeOsSettingSchema,
+  type NativeOsSetting,
   BrokerCallRequestSchema,
   ContractError,
   z,
@@ -340,6 +343,9 @@ export function createApi(
   const codexLauncher = codexLauncherFromEnv(env);
   const ops = pool ? new OpsStore(pool) : null;
   const notifications = pool ? new NotificationStore(pool) : null;
+  // N3 (ADR-0131): when each person's installed app last polled for Windows notifications, and
+  // what Windows said about them. Kept in memory: the installed app runs this same service.
+  const nativeSeen = new Map<string, { at: number; os: NativeOsSetting }>();
   // Local product store shared with the owner CLI. Generated code only ever runs in its worker.
   const artifacts =
     deps.artifacts ??
@@ -786,7 +792,7 @@ export function createApi(
   const VIEW_PREFERENCE_ROUTE = /^\/api\/me\/view-mode$/;
   // ADR-0116 (N1): the signed-in person's own notifications and notification settings.
   const NOTIFICATIONS_ROUTE =
-    /^\/api\/notifications(?:\/(recent|pending|read-all|test)|\/([^/]+)\/(claim|read|dismiss))?$/;
+    /^\/api\/notifications(?:\/(recent|pending|read-all|test|native|catch-up|windows-status)|\/([^/]+)\/(claim|read|dismiss))?$/;
   const NOTIFICATION_PREFERENCES_ROUTE = /^\/api\/notification-preferences$/;
   const USAGE_ROUTE = /^\/api\/workspaces\/([^/]+)\/(usage)$/;
   // F9 (ADR-0125): past discovery runs to start a similar project from (read-only).
@@ -1433,6 +1439,36 @@ export function createApi(
         return send(200, await notifications.recentNotifications(ctx), false);
       if (list === 'pending' && method === 'GET')
         return send(200, await notifications.pendingNotifications(ctx), false);
+      // N3 (ADR-0131): the installed app's native poll, its start-up summary, and whether it
+      // is delivering (Settings › Notifications).
+      if (list === 'native' && method === 'GET') {
+        const os = NativeOsSettingSchema.catch('unknown').parse(
+          url.searchParams.get('os'),
+        );
+        nativeSeen.set(ctx.actorId, { at: Date.now(), os });
+        return send(200, await notifications.nativeNotifications(ctx), false);
+      }
+      if (list === 'catch-up' && method === 'POST') {
+        await readJson(req);
+        return send(200, await notifications.catchUpNotifications(ctx), false);
+      }
+      if (list === 'windows-status' && method === 'GET') {
+        const seen = nativeSeen.get(ctx.actorId);
+        const live = !!seen && Date.now() - seen.at < NATIVE_SEEN_MS;
+        return send(
+          200,
+          {
+            // The installed app claims nothing unless Windows says its notifications are on.
+            state: !live
+              ? 'not_running'
+              : seen.os === 'on'
+                ? 'on'
+                : 'off_in_windows',
+            seen_at: seen ? new Date(seen.at).toISOString() : null,
+          },
+          false,
+        );
+      }
       // N2 (ADR-0130): Settings › Notifications "Send test", for the signed-in person only.
       if (list === 'test' && method === 'POST') {
         await readJson(req);

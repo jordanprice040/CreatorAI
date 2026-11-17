@@ -224,3 +224,18 @@ export function browserTimeZone(): string {
     return 'UTC';
   }
 }
+
+/**
+ * N3 (ADR-0131): the Windows line in Settings › Notifications, from the installed app's last
+ * poll. Null means the status could not be read.
+ */
+export function windowsStatusText(
+  status: { state: 'on' | 'off_in_windows' | 'not_running' } | null,
+): string {
+  if (!status) return 'Status unknown right now.';
+  if (status.state === 'on')
+    return 'On in the Creator Agent app on this computer.';
+  if (status.state === 'off_in_windows')
+    return 'The app is running, but Windows does not allow its notifications. Turn them on for Creator Agent in Windows Settings › System › Notifications (a copy started from a developer build cannot show them). Until then, alerts wait in the bell.';
+  return 'Open the installed Creator Agent app and sign in to use Windows notifications. A browser tab never shows them.';
+}
