@@ -18,6 +18,7 @@ import { join, resolve } from 'node:path';
 import pg from 'pg';
 import {
   STUDIO_LOCK_KEY,
+  Store,
   listBackups,
   migrationChecksum,
   migrations,
@@ -28,6 +29,7 @@ import {
   inspectDatabase,
   ownershipMac,
   parseStudioInput,
+  rehearseMigration,
   sourceFetchEnv,
   STUDIO_PROTOCOL,
   webHandler,
@@ -545,9 +547,27 @@ test('upgrade takes a verified backup first, then migrates under the lock', asyn
   const r = (await up.next('result', 120000)).result as {
     applied: number[];
     backup: { dir: string; schema_from: number; database: { sha256: string } };
+    rehearsal: {
+      ok: boolean;
+      copy: string;
+      schema_from: number;
+      schema_to: number;
+      applied: number[];
+    };
   };
   assert.equal(await up.exit, 0, up.log());
   assert.deepEqual(r.applied, [migrations.at(-1)!.version]);
+  // ADR-0128 (F4): the same migration ran first on a restored copy, which is gone afterwards.
+  assert.equal(r.rehearsal.ok, true);
+  assert.equal(r.rehearsal.schema_from, migrations.at(-2)!.version);
+  assert.equal(r.rehearsal.schema_to, migrations.at(-1)!.version);
+  assert.deepEqual(r.rehearsal.applied, [migrations.at(-1)!.version]);
+  assert.match(r.rehearsal.copy, /_rehearse_[0-9a-f]{8}$/);
+  const copies = await db.admin.query(
+    'select 1 from pg_database where datname = $1',
+    [r.rehearsal.copy],
+  );
+  assert.equal(copies.rowCount, 0);
   // ADR-0123: the full T17 backup (database and products) at the schema before the upgrade,
   // in a pre-upgrade folder that Settings › Backups lists.
   const manifest = JSON.parse(
@@ -657,4 +677,254 @@ test('inspectDatabase compares the set of applied migrations, not only the highe
   const newer = await inspectDatabase(fresh.url);
   assert.equal(newer.unknown_newer, true);
   assert.deepEqual(newer.unknown_versions, [9999]);
+});
+
+// ADR-0128 (F4): a migration that fails on the rehearsal copy refuses the upgrade before the
+// real database is touched, and the copy is dropped either way.
+test('a failed rehearsal leaves the real database unchanged and drops the copy', async (t) => {
+  const fresh = await freshDatabase(t);
+  if (!fresh) return;
+  if (!PG_BIN) return t.skip('CREATOR_PG_BIN not set: pg_dump needed');
+  const dir = await home();
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const base = parseStudioInput(JSON.stringify(input(fresh.url, dir)));
+  const b = studio('backup', base);
+  const backup = (await b.next('result', 120000)).result as {
+    dir: string;
+    schema_from: number;
+  };
+  assert.equal(await b.exit, 0, b.log());
+  assert.match(backup.dir, /pre-upgrade-v\d+-/);
+  const before = await fresh.pool.query(
+    'select count(*)::int as n from schema_migrations',
+  );
+  let copy = '';
+  await assert.rejects(
+    rehearseMigration(base, backup.dir, backup.schema_from, async (p) => {
+      copy = (await p.query<{ d: string }>('select current_database() as d'))
+        .rows[0]!.d;
+      await p.query('create table rehearsal_marker (x int)');
+      throw new Error('planted migration failure');
+    }),
+    /rehearsal failed, so your database was not changed: the migration failed on the copy \(planted migration failure\)/,
+  );
+  assert.match(copy, /_rehearse_[0-9a-f]{8}$/);
+  const left = await fresh.pool.query(
+    'select 1 from pg_database where datname = $1',
+    [copy],
+  );
+  assert.equal(left.rowCount, 0);
+  const marker = await fresh.pool.query(
+    `select to_regclass('rehearsal_marker')::text as t`,
+  );
+  assert.equal(marker.rows[0].t, null);
+  const after = await fresh.pool.query(
+    'select count(*)::int as n from schema_migrations',
+  );
+  assert.equal(after.rows[0].n, before.rows[0].n);
+  // A rehearsal whose migration leaves the copy behind this code's layout is refused too.
+  await assert.rejects(
+    rehearseMigration(base, backup.dir, backup.schema_from, async (p) => {
+      await p.query('delete from schema_migrations where version = $1', [
+        migrations.at(-1)!.version,
+      ]);
+      return [];
+    }),
+    /the copy is not at this app's layout after migrating/,
+  );
+});
+
+// Review L-9: the rehearsal's own checks refuse a migrated copy that lost rows or whose audit
+// chain no longer verifies, and a copy it could not drop is not hidden (L-3).
+test('the rehearsal refuses a copy with fewer rows or a broken audit chain', async (t) => {
+  const fresh = await freshDatabase(t);
+  if (!fresh) return;
+  if (!PG_BIN) return t.skip('CREATOR_PG_BIN not set: pg_dump needed');
+  const store = new Store(fresh.pool);
+  const actor = { actorId: '00000000-0000-4000-8000-0000000000a1' };
+  await store.ensureActor({
+    id: actor.actorId,
+    kind: 'human',
+    display_name: 'Owner',
+  });
+  await store.createWorkspace(actor, {
+    name: 'Rehearsed',
+    record_mode: 'real',
+  });
+  await store.createWorkspace(actor, { name: 'Second', record_mode: 'real' });
+  const dir = await home();
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const base = parseStudioInput(JSON.stringify(input(fresh.url, dir)));
+  const b = studio('backup', base);
+  const backup = (await b.next('result', 120000)).result as {
+    dir: string;
+    schema_from: number;
+  };
+  assert.equal(await b.exit, 0, b.log());
+  const events = (
+    await fresh.pool.query<{ n: number }>(
+      'select count(*)::int as n from audit_events',
+    )
+  ).rows[0]!.n;
+  assert.ok(events >= 2);
+  // The copy is the test's own: triggers are bypassed there to plant the damage.
+  const tamper = (sql: string) => async (p: pg.Pool) => {
+    const c = await p.connect();
+    try {
+      await c.query("set session_replication_role = 'replica'");
+      await c.query(sql);
+    } finally {
+      await c.query("set session_replication_role = 'origin'");
+      c.release();
+    }
+    return [];
+  };
+  await assert.rejects(
+    rehearseMigration(
+      base,
+      backup.dir,
+      backup.schema_from,
+      tamper(
+        'delete from audit_events where sequence = (select max(sequence) from audit_events)',
+      ),
+    ),
+    new RegExp(
+      `rehearsal failed, so your database was not changed: the migrated copy has ${events - 1} rows in audit_events; the backup counted ${events}`,
+    ),
+  );
+  await assert.rejects(
+    rehearseMigration(
+      base,
+      backup.dir,
+      backup.schema_from,
+      tamper(
+        `update audit_events set payload = payload || '{"kind":"forged"}' where sequence = (select min(sequence) from audit_events)`,
+      ),
+    ),
+    /rehearsal failed, so your database was not changed: the audit chain of the migrated copy is broken at/,
+  );
+  const ok = await rehearseMigration(base, backup.dir, backup.schema_from);
+  assert.equal(ok.copy_dropped, true);
+  assert.equal('drop_error' in ok, false);
+  const name = new URL(fresh.url).pathname.slice(1);
+  const left = await fresh.pool.query(
+    'select 1 from pg_database where left(datname, $1) = $2',
+    [name.length + 10, `${name}_rehearse_`],
+  );
+  assert.equal(left.rowCount, 0);
+});
+
+// Review L-3: copies a stopped rehearsal left behind are found and dropped by name; another
+// database that only looks similar is left alone.
+test('drop-rehearsals removes only leftover rehearsal copies of this database', async (t) => {
+  const fresh = await freshDatabase(t);
+  if (!fresh) return;
+  const base = new URL(fresh.url).pathname.slice(1).slice(0, 40);
+  const leftover = `${base}_rehearse_0123abcd`;
+  const lookalike = `${base}_rehearse_keepme12`;
+  for (const n of [leftover, lookalike])
+    await fresh.pool.query(`create database "${n}"`);
+  t.after(async () => {
+    for (const n of [leftover, lookalike])
+      await fresh.pool
+        .query(`drop database if exists "${n}" with (force)`)
+        .catch(() => undefined);
+  });
+  const dir = await home();
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const d = studio('drop-rehearsals', input(fresh.url, dir));
+  const out = (await d.next('result', 60000)).result as {
+    ok: boolean;
+    dropped: string[];
+    failed: unknown[];
+  };
+  assert.equal(await d.exit, 0, d.log());
+  assert.deepEqual(out, { ok: true, dropped: [leftover], failed: [] });
+  const left = await fresh.pool.query<{ datname: string }>(
+    'select datname from pg_database where datname = any($1) order by datname',
+    [[leftover, lookalike]],
+  );
+  assert.deepEqual(
+    left.rows.map((r) => r.datname),
+    [lookalike],
+  );
+});
+
+// ADR-0128 (F4) rollback: the pre-update backup restores into a new database and product folder
+// with the full restore check; the database it came from is left as it is.
+test('backup then restore puts a verified copy into a new database for a rollback', async (t) => {
+  const fresh = await freshDatabase(t);
+  const target = await emptyDatabase(t);
+  if (!fresh || !target) return;
+  if (!PG_BIN) return t.skip('CREATOR_PG_BIN not set: pg_dump needed');
+  const ws = '21111111-2222-4333-8444-555555555555';
+  await fresh.pool.query(
+    `insert into actors (id, kind, display_name) values ('00000000-0000-4000-8000-000000000001','human','Local owner') on conflict do nothing`,
+  );
+  await fresh.pool.query(
+    `insert into workspaces (id, name, record_mode, fixture, created_by) values ($1, 'Before the update', 'real', false, '00000000-0000-4000-8000-000000000001')`,
+    [ws],
+  );
+  const dir = await home();
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await mkdir(join(dir, 'products', 'p1'), { recursive: true });
+  await writeFile(join(dir, 'products', 'p1', 'note.txt'), 'kept');
+  const b = studio('backup', input(fresh.url, dir));
+  const backup = (await b.next('result', 120000)).result as { dir: string };
+  assert.equal(await b.exit, 0, b.log());
+  // What the failed version did after the backup is not in the restored copy.
+  await fresh.pool.query(`update workspaces set name = 'After' where id = $1`, [
+    ws,
+  ]);
+  // Review L-9: like a rollback's `<name>_rb_<time>`, the target does not exist yet; the
+  // restore creates it.
+  const exists = await fresh.pool.query(
+    'select 1 from pg_database where datname = $1',
+    [target.name],
+  );
+  assert.equal(exists.rowCount, 0);
+  const restoredProducts = join(dir, 'products-restored');
+  const r = studio(
+    'restore',
+    input(target.url, dir, {
+      products_root: restoredProducts,
+      restore_from: backup.dir,
+    }),
+  );
+  const out = (await r.next('result', 120000)).result as {
+    ok: boolean;
+    database: string;
+  };
+  assert.equal(await r.exit, 0, r.log());
+  assert.equal(out.ok, true);
+  assert.equal(out.database, target.name);
+  const check = new pg.Pool({ connectionString: target.url, max: 1 });
+  check.on('error', () => undefined);
+  t.after(() => check.end());
+  const names = await check.query('select name from workspaces where id = $1', [
+    ws,
+  ]);
+  assert.equal(names.rows[0].name, 'Before the update');
+  assert.equal(
+    await readFile(join(restoredProducts, 'p1', 'note.txt'), 'utf8'),
+    'kept',
+  );
+  const source = await fresh.pool.query(
+    'select name from workspaces where id = $1',
+    [ws],
+  );
+  assert.equal(source.rows[0].name, 'After');
+  // A second restore into the now non-empty database is refused.
+  const again = studio(
+    'restore',
+    input(target.url, dir, {
+      products_root: join(dir, 'products-again'),
+      restore_from: backup.dir,
+    }),
+  );
+  assert.equal((await again.next('error', 120000)).code, 'INVALID_CONTRACT');
+  assert.notEqual(await again.exit, 0);
+  // Without a backup named, restore refuses.
+  const none = studio('restore', input(target.url, dir));
+  assert.equal((await none.next('error')).code, 'INVALID_CONTRACT');
 });

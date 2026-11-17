@@ -166,6 +166,63 @@
         <dl id="facts"></dl>
       </section>
 
+      <section id="updates" hidden>
+        <h2>Updates</h2>
+        <p class="small" id="update-version"></p>
+        <p id="update-outcome" class="notice" role="status" hidden></p>
+        <fieldset>
+          <legend>Where updates come from</legend>
+          <p class="small">
+            Creator Agent looks for new versions in a private GitHub
+            repository's releases, using a token that can only read that
+            repository. Nothing is checked until you save both and choose Check
+            for updates. Builds are not code-signed yet, so Windows may warn
+            about the installer; every download is checked against the SHA-256
+            its release names before it can be installed.
+          </p>
+          <label for="update-repo">Release repository (owner/name)</label>
+          <input
+            id="update-repo"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="owner/creator-agent-releases"
+          />
+          <label for="update-token"
+            >GitHub token with read-only access to that repository</label
+          >
+          <input
+            id="update-token"
+            type="password"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <p class="small" id="update-token-state"></p>
+          <label class="choice"
+            ><input type="checkbox" id="update-at-start" />
+            <span
+              ><strong>Check once each time Creator Agent starts</strong> (off
+              by default)</span
+            ></label
+          >
+          <div class="row">
+            <button id="update-save" type="button">Save</button>
+            <button id="update-forget" type="button">Remove token</button>
+          </div>
+        </fieldset>
+        <div class="row">
+          <button id="update-check" type="button">Check for updates</button>
+          <button id="update-download" type="button" hidden>Download</button>
+          <button id="update-install" class="primary" type="button" hidden>
+            Back up and install
+          </button>
+        </div>
+        <div id="update-available" class="small"></div>
+        <details>
+          <summary>Update history</summary>
+          <ol id="update-history"></ol>
+        </details>
+      </section>
+
       <section id="always">
         <div class="row">
           <button id="retry" type="button" hidden>Retry</button>

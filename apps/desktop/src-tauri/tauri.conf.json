@@ -29,7 +29,12 @@
             "allow-studio-sign-out",
             "allow-studio-open-logs",
             "allow-studio-open",
-            "allow-studio-quit"
+            "allow-studio-quit",
+            "allow-studio-update-settings",
+            "allow-studio-update-forget-token",
+            "allow-studio-update-check",
+            "allow-studio-update-download",
+            "allow-studio-update-install"
           ]
         }
       ]

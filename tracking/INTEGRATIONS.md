@@ -1,5 +1,16 @@
 # Integration readiness
 
+## In-app updates from a private GitHub release — November 17, 2026 (F4, ADR-0128)
+
+The installed app can check a private GitHub repository's latest release, download its installer
+and install it, with a read-only token the owner saves in the status window (DPAPI). State:
+**fixture-tested only** (fake GitHub on 127.0.0.1 in Rust tests). Not activated: no release
+repository, token or release exists yet. Creating the repository, a token, publishing a release
+and the first real install on Jordan's PC each need his typed OK. Builds are unsigned (owner
+decision); the hash check is the integrity check. Release installers must be named without
+spaces (GitHub renames them), and each release must be newer than any version that was rolled
+back. External database users need `CREATEDB` for the rehearsal copy and a rollback's restore.
+
 ## Local models through Ollama — November 17, 2026 (F11 first slice, ADR-0127)
 
 An adapter for a loopback Ollama server (`/api/version`, `/api/tags`, `/api/chat` only; no

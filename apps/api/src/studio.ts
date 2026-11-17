@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto';
+import { createHmac, randomBytes } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import {
   createServer,
@@ -14,6 +14,8 @@ import pg from 'pg';
 import { ContractError, z, parse } from '@creator/contracts';
 import {
   PARTIAL_SUFFIX,
+  Store,
+  assertSchemaCurrent,
   backupFolderName,
   checkBackup,
   studioTag,
@@ -80,6 +82,9 @@ export const StudioInputSchema = z.strictObject({
   source: z
     .strictObject({ database_url: url, products_root: absolute })
     .nullable(),
+  // ADR-0128 (F4): the verified backup a `restore` puts into this (new, empty) database and
+  // product folder when an update is rolled back. Omitted by every other command.
+  restore_from: absolute.nullable().default(null),
 });
 export type StudioInput = z.infer<typeof StudioInputSchema>;
 
@@ -342,6 +347,7 @@ export async function ensureDatabase(raw: string): Promise<boolean> {
 }
 
 const run = promisify(execFile);
+
 const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
 
 /**
@@ -425,7 +431,212 @@ async function withPool<T>(raw: string, f: (p: pg.Pool) => Promise<T>) {
   }
 }
 
-/** Owner-approved upgrade: verified backup first, then the existing advisory-locked migrate. */
+/** A database URL on the same server as `raw`, with another database name. */
+function sibling(raw: string, name: string) {
+  const u = new URL(raw);
+  u.pathname = `/${name}`;
+  return u.toString();
+}
+const dbName = (raw: string) =>
+  decodeURIComponent(new URL(raw).pathname.slice(1));
+const rehearsalBase = (raw: string) => dbName(raw).slice(0, 40);
+const errorText = (e: unknown) =>
+  e instanceof Error ? e.message : 'unknown error';
+
+/** Drops a database on the same server; returns why it could not, or null. */
+async function dropDatabase(raw: string, name: string) {
+  try {
+    await withPool(sibling(raw, 'postgres'), (p) =>
+      p.query(
+        `drop database if exists "${name.replace(/"/g, '""')}" with (force)`,
+      ),
+    );
+    return null;
+  } catch (e) {
+    return errorText(e);
+  }
+}
+
+/**
+ * Review L-3: a rehearsal stopped mid-way (the app closed, the PC restarted) leaves its copy.
+ * The update helper's rollback calls this to drop `<name>_rehearse_<8 hex>` copies of the
+ * configured database; any it cannot drop are reported, not hidden.
+ */
+export async function dropRehearsals(input: StudioInput) {
+  const base = rehearsalBase(input.database_url);
+  const found = await withPool(sibling(input.database_url, 'postgres'), (p) =>
+    p.query<{ datname: string }>(
+      'select datname from pg_database where left(datname, $1) = $2 order by datname',
+      [base.length + 10, `${base}_rehearse_`],
+    ),
+  );
+  const names = found.rows
+    .map((r) => r.datname)
+    .filter(
+      (n) =>
+        n.length === base.length + 18 &&
+        /^[0-9a-f]{8}$/.test(n.slice(base.length + 10)),
+    );
+  const dropped: string[] = [];
+  const failed: { name: string; error: string }[] = [];
+  for (const name of names) {
+    const error = await dropDatabase(input.database_url, name);
+    if (error) {
+      console.error(`rehearsal copy ${name} could not be dropped: ${error}`);
+      failed.push({ name, error });
+    } else dropped.push(name);
+  }
+  return { ok: failed.length === 0, dropped, failed };
+}
+
+export type Rehearsal = {
+  ok: true;
+  copy: string;
+  /** Review L-3: false when the copy could not be removed; `drop_error` says why. */
+  copy_dropped: boolean;
+  drop_error?: string;
+  schema_from: number;
+  schema_to: number;
+  applied: number[];
+  audit_events: number;
+  ms: number;
+};
+
+/**
+ * ADR-0128 (F4): before the real database is migrated, the verified pre-upgrade backup's
+ * database is restored into a throwaway copy on the same server and migrated there with this
+ * app's code. The copy must then be at this code's schema, keep an intact audit chain and hold
+ * at least the rows the backup counted. The copy is always dropped afterwards. Product files
+ * are not copied: no migration reads or writes them. Any failure refuses the upgrade before
+ * the real database is touched. `step` is the migration step (a seam for tests).
+ */
+export async function rehearseMigration(
+  input: StudioInput,
+  backupDir: string,
+  from: number,
+  step: (p: pg.Pool) => Promise<number[]> = migrate,
+): Promise<Rehearsal> {
+  const started = Date.now();
+  const copy = `${rehearsalBase(input.database_url)}_rehearse_${randomBytes(4).toString('hex')}`;
+  const url = sibling(input.database_url, copy);
+  const manifest = JSON.parse(
+    await readFile(join(backupDir, 'backup-manifest.json'), 'utf8'),
+  ) as { counts: Record<string, number> };
+  const fail = (why: string) =>
+    new ContractError(
+      'STORAGE_UNAVAILABLE',
+      `The upgrade was rehearsed on a copy first and the rehearsal failed, so your database was not changed: ${why}`,
+    );
+  try {
+    await ensureDatabase(url);
+  } catch (e) {
+    throw fail(
+      `the copy database could not be created (${errorText(e)}). The studio's database user needs permission to create databases.`,
+    );
+  }
+  let outcome: Omit<Rehearsal, 'copy_dropped' | 'drop_error'> | undefined;
+  let failure: unknown;
+  try {
+    const u = new URL(url);
+    const password = decodeURIComponent(u.password);
+    u.password = '';
+    const bin = (n: string) => (input.pg_bin ? join(input.pg_bin, n) : n);
+    try {
+      await run(
+        bin('pg_restore'),
+        [
+          '--no-owner',
+          '--no-privileges',
+          '--exit-on-error',
+          '--single-transaction',
+          `--dbname=${u.toString()}`,
+          join(backupDir, 'database.dump'),
+        ],
+        {
+          env: {
+            ...process.env,
+            ...(password ? { PGPASSWORD: password } : {}),
+          },
+          maxBuffer: 16 * 1024 * 1024,
+        },
+      );
+    } catch (e) {
+      const err = e as { stderr?: string };
+      throw fail(
+        `the backup could not be restored into the copy (${String(err.stderr ?? '').trim() || 'no output'})`,
+      );
+    }
+    outcome = await withPool(url, async (p) => {
+      let applied: number[];
+      try {
+        applied = await step(p);
+      } catch (e) {
+        throw fail(`the migration failed on the copy (${errorText(e)})`);
+      }
+      let schema: number;
+      try {
+        schema = await assertSchemaCurrent(p);
+      } catch (e) {
+        throw fail(
+          `the copy is not at this app's layout after migrating (${errorText(e)})`,
+        );
+      }
+      const audit = await new Store(p).verifyAuditChain();
+      if (!audit.ok)
+        throw fail(
+          `the audit chain of the migrated copy is broken at ${audit.broken_at}`,
+        );
+      for (const [table, n] of Object.entries(manifest.counts)) {
+        if (!/^[a-z_][a-z0-9_]*$/.test(table)) continue;
+        const has = await p.query<{ t: string | null }>(
+          'select to_regclass($1)::text as t',
+          [table],
+        );
+        const got = has.rows[0]?.t
+          ? (
+              await p.query<{ n: number }>(
+                `select count(*)::int as n from ${table}`,
+              )
+            ).rows[0]!.n
+          : 0;
+        if (got < n)
+          throw fail(
+            `the migrated copy has ${got} rows in ${table}; the backup counted ${n}`,
+          );
+      }
+      return {
+        ok: true as const,
+        copy,
+        schema_from: from,
+        schema_to: schema,
+        applied,
+        audit_events: audit.events,
+        ms: Date.now() - started,
+      };
+    });
+  } catch (e) {
+    failure = e;
+  }
+  // The copy is a full copy of the studio's records: a failed drop is reported, not hidden.
+  const dropError = await dropDatabase(input.database_url, copy);
+  if (dropError)
+    console.error(`rehearsal copy ${copy} could not be dropped: ${dropError}`);
+  const leftover = dropError
+    ? ` The rehearsal copy ${copy} could not be removed (${dropError}); remove it by hand or let the next update remove it.`
+    : '';
+  if (failure !== undefined) {
+    if (leftover && failure instanceof ContractError)
+      throw new ContractError(failure.code, failure.message + leftover);
+    throw failure;
+  }
+  return {
+    ...outcome!,
+    copy_dropped: !dropError,
+    ...(dropError ? { drop_error: dropError } : {}),
+  };
+}
+
+/** Owner-approved upgrade: verified backup, a rehearsal on a copy, then the locked migrate. */
 export async function migrateStudio(input: StudioInput) {
   const before = await inspectDatabase(input.database_url);
   if (!before.reachable)
@@ -441,8 +652,55 @@ export async function migrateStudio(input: StudioInput) {
   const backup = before.empty
     ? null
     : await preMigrationBackup(input, before.applied);
+  const rehearsal = backup
+    ? await rehearseMigration(input, backup.dir, before.applied)
+    : null;
   const applied = await withPool(input.database_url, (p) => migrate(p));
-  return { applied, backup, from: before.applied, to: latest() };
+  return { applied, backup, rehearsal, from: before.applied, to: latest() };
+}
+
+/**
+ * ADR-0128 (F4): the verified backup taken before an app update is installed, at the schema
+ * the database is at now. It is the backup a rollback restores.
+ */
+export async function backupStudio(input: StudioInput) {
+  const state = await inspectDatabase(input.database_url);
+  if (!state.reachable)
+    throw new ContractError(
+      'STORAGE_UNAVAILABLE',
+      state.error ?? 'Database unavailable.',
+    );
+  if (state.unknown_newer || state.applied !== state.expected)
+    throw new ContractError(
+      'INVALID_CONFIG',
+      `The studio database is at layout ${state.applied}; this app uses ${state.expected}. Start the studio normally first.`,
+    );
+  return preMigrationBackup(input, state.applied);
+}
+
+/**
+ * ADR-0128 (F4) rollback: restores a verified backup into a new, empty database and product
+ * folder with the full F1 restore check. The database the failed version used is left as it is.
+ */
+export async function restoreStudio(input: StudioInput) {
+  if (!input.restore_from)
+    throw new ContractError(
+      'INVALID_CONTRACT',
+      'Choose the backup to restore.',
+    );
+  await ensureDatabase(input.database_url);
+  const check = await restoreBackup({
+    backupDir: input.restore_from,
+    databaseUrl: input.database_url,
+    productsRoot: input.products_root,
+    pgBinDir: input.pg_bin ?? undefined,
+  });
+  return {
+    ok: check.ok,
+    database: dbName(input.database_url),
+    products_root: input.products_root,
+    check,
+  };
 }
 
 /** A new, empty studio: only into an empty database. */
