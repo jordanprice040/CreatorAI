@@ -1,6 +1,9 @@
 import { lazy, useEffect, useRef, useState, type FormEvent } from 'react';
 import { PageLoad } from './page-load.js';
 import { AsideButton, RightSidebar, useAside } from './aside.js';
+import { NotificationBell, Toasts, useNotifications } from './notifications.js';
+import { NotificationHistory } from './notification-history.js';
+import { NotificationSettings } from './notification-settings.js';
 import { createRoot } from 'react-dom/client';
 import {
   FixtureResponseSchema,
@@ -60,7 +63,7 @@ import { dotText, type MarkedView } from './activity-marks.js';
 import { PathView } from './path.js';
 import { FirstRun } from './first-run.js';
 import { nextStep } from './next-rules.js';
-import { hiddenTabs, routeHash, shownSections } from './pages.js';
+import { hiddenTabs, parseRoute, routeHash, shownSections } from './pages.js';
 import { Chat } from './chat.js';
 import { CommandPalette, PaletteButton } from './command-palette.js';
 import type { Prefill } from './prefill.js';
@@ -594,6 +597,13 @@ function App() {
     !onProjects &&
     seenStep[workspace.id] !== stepKey;
   const aside = useAside();
+  // ADR-0130 (N2): the bell and the in-app toasts, for the signed-in person.
+  const feed = useNotifications(auth.session?.csrf_token ?? '', studio);
+  /** Opens a notification's in-app link, in this window's workspace when it names none. */
+  const openLink = (link: string) => {
+    const r = parseRoute(link);
+    go({ view: r.view, id: r.id, q: r.q, ...(r.ws ? { ws: r.ws } : {}) });
+  };
   // Activity dots: something finished on a tab the person is not on (a run, an approval, a
   // build, a Chat reply). Cleared by opening that tab.
   const unseen = useActivityDots(
@@ -747,6 +757,21 @@ function App() {
         return <Storage session={s} />;
       case 'settings':
         return <Settings session={s} workspace={workspace} open={open} />;
+      case 'notifysettings':
+        return (
+          <NotificationSettings session={s} workspaces={workspaces ?? []} />
+        );
+      case 'notifications':
+        return (
+          <NotificationHistory
+            feed={feed}
+            workspaces={workspaces ?? []}
+            q={pageRoute.q}
+            setQ={(q) => go({ q }, true, 'notifications')}
+            openLink={openLink}
+            open={open}
+          />
+        );
       case 'payments':
         return (
           <Payments
@@ -1191,6 +1216,14 @@ function App() {
                 </span>
               )}
               {inStudio && signedIn && <PaletteButton />}
+              {inStudio && signedIn && (
+                <NotificationBell
+                  feed={feed}
+                  openLink={openLink}
+                  viewAll={() => open('notifications', '', '')}
+                  settings={() => open('notifysettings')}
+                />
+              )}
               {inStudio &&
                 signedIn &&
                 workspace?.role === 'owner' &&
@@ -1276,6 +1309,7 @@ function App() {
             </footer>
           )}
         </div>
+        {inStudio && <Toasts feed={feed} openLink={openLink} />}
         {inStudio && workspace && auth.session && (
           <FileDrop
             workspace={workspace}

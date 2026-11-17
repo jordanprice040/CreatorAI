@@ -43,6 +43,13 @@ export function AutopilotPage({
         it is doing, why it stopped and what to do next, Continue, and starting
         a new one with its settings.
       </p>
+      {/* ADR-0130 (N2): where the stop alerts are set (plan §10). */}
+      <p className="small">
+        You&apos;ll be notified when an autopilot stops ·{' '}
+        <button className="text small" onClick={() => open('notifysettings')}>
+          Change
+        </button>
+      </p>
       <nav className="jump-links small" aria-label="On this page">
         {JUMPS.map(([id, label]) => (
           <button

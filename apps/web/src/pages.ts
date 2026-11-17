@@ -33,7 +33,9 @@ export type View =
   | 'github'
   | 'payments'
   | 'autopilot'
-  | 'runcompare';
+  | 'runcompare'
+  | 'notifications'
+  | 'notifysettings';
 
 export type PageKey =
   | 'chat'
@@ -120,6 +122,8 @@ export const PAGES: readonly Page[] = [
     sections: [
       { view: 'overview', slug: 'overview', label: 'Overview' },
       { view: 'decisions', slug: 'approvals', label: 'Approvals' },
+      // ADR-0130 (N2): every notification, the bell's "View all".
+      { view: 'notifications', slug: 'notifications', label: 'Notifications' },
       { view: 'runs', slug: 'runs', label: 'Runs' },
       { view: 'activity', slug: 'activity', label: 'Activity' },
       { view: 'budgets', slug: 'budgets', label: 'Budgets' },
@@ -142,6 +146,12 @@ export const PAGES: readonly Page[] = [
     label: 'Settings',
     sections: [
       { view: 'settings', slug: 'general', label: 'Owner settings' },
+      // ADR-0130 (N2): how and when you are told about things, for you only.
+      {
+        view: 'notifysettings',
+        slug: 'notifications',
+        label: 'Notifications',
+      },
       { view: 'studies', slug: 'study', label: 'Study' },
     ],
   },
