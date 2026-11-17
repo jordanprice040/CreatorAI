@@ -134,6 +134,12 @@ pub fn claim_settled(status: u16) -> bool {
     (200..300).contains(&status) || status == 409
 }
 
+/// The summary request: how long this app has been running, so only alerts from before it
+/// started are summarised (review L-4 of #236). Close enough: the poller starts with the app.
+fn catch_up_body(up: Duration) -> Value {
+    json!({ "up_ms": u64::try_from(up.as_millis()).unwrap_or(u64::MAX).min(366 * 24 * 3_600_000) })
+}
+
 /// The changes since the last sample: the window's visibility and its page loads. A reload
 /// restarts the web toast's "never shown late" cutoff, so it restarts ours too (review N-6).
 fn shown_since(prev: Option<Instant>, visible: bool, reloaded: bool) -> Option<Instant> {
@@ -189,6 +195,7 @@ pub fn start(app: AppHandle, sup: Shared) {
         let mut loads = crate::STUDIO_PAGE_LOADS.load(Ordering::SeqCst);
         let mut last_poll: Option<Instant> = None;
         let mut caught_up = false;
+        let launched = Instant::now();
         let mut settled: VecDeque<String> = VecDeque::new();
         // Every toast shown this launch, so a click from Action Center still opens its link
         // (review N-3); each is a small handle.
@@ -247,7 +254,9 @@ pub fn start(app: AppHandle, sup: Shared) {
                         }
                     };
                     if !caught_up && os == "on" {
-                        match session.json(session.post("catch-up", json!({}))) {
+                        match session
+                            .json(session.post("catch-up", catch_up_body(launched.elapsed())))
+                        {
                             Ok(v) => {
                                 caught_up = true;
                                 let hide = v["hide_details"].as_bool().unwrap_or(true);
@@ -381,6 +390,18 @@ mod tests {
         // A row that was waiting before the window was shown stays in the bell.
         assert!(!may_claim(Some(Duration::from_secs(60)), 120_000));
         assert!(may_claim(Some(Duration::from_secs(121)), 120_000));
+    }
+
+    #[test]
+    fn the_summary_names_the_launch() {
+        assert_eq!(
+            catch_up_body(Duration::from_millis(1500)),
+            json!({"up_ms": 1500})
+        );
+        assert_eq!(
+            catch_up_body(Duration::from_secs(400 * 24 * 3600)),
+            json!({"up_ms": 366u64 * 24 * 3_600_000})
+        );
     }
 
     #[test]

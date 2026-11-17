@@ -292,6 +292,51 @@ test('N3 review M-1 and L-1: the summary covers rows still pending from before t
   assert.deepEqual((await s.inbox.nativeNotifications(owner)).items, []);
 });
 
+test('N3 review L-4: a summary sent later in a session takes only alerts from before the app started', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  // One stop five minutes before launch, one a minute after (the app has run two minutes).
+  const before = await s.stopped();
+  await s.age(owner, 5);
+  const after = await s.stopped();
+  await s.db.pool.query(
+    `update notifications set first_at = clock_timestamp() - interval '1 minute',
+       last_at = clock_timestamp() - interval '1 minute' where subject_id = $1`,
+    [after],
+  );
+  const up = await s.inbox.catchUpNotifications(owner, { up_ms: 120_000 });
+  assert.equal(up.count, 1);
+  const state = async (subject: string) =>
+    (
+      await s.rows(
+        `select interrupt_state from notifications where subject_id = $1 and actor_id = $2`,
+        [subject, owner.actorId],
+      )
+    )[0]!.interrupt_state;
+  assert.equal(await state(before), 'claimed');
+  // The new alert is still the poll's and the web toast's to show.
+  assert.equal(await state(after), 'pending');
+  const native = await s.inbox.nativeNotifications(owner);
+  assert.deepEqual(
+    native.items.map((n) => n.id),
+    (
+      await s.rows(
+        `select id from notifications where subject_id = $1 and actor_id = $2`,
+        [after, owner.actorId],
+      )
+    ).map((r) => r.id),
+  );
+  // Expired rows from after the start are not summarised either.
+  await s.db.pool.query(
+    `update notifications set interrupt_state = 'expired' where subject_id = $1`,
+    [after],
+  );
+  assert.equal(
+    (await s.inbox.catchUpNotifications(owner, { up_ms: 120_000 })).count,
+    0,
+  );
+});
+
 test('N3: the start-up summary re-checks access, mutes and quiet hours', async (t) => {
   const s = await setup(t);
   if (!s) return;
@@ -395,6 +440,7 @@ test('N3: the native routes need the session; Settings learns whether the instal
     method: string,
     path: string,
     headers: Record<string, string>,
+    body: unknown = {},
   ) => {
     const r = await fetch(`${base}/notifications/${path}`, {
       method,
@@ -402,7 +448,7 @@ test('N3: the native routes need the session; Settings learns whether the instal
         ...headers,
         ...(method === 'POST' ? { 'Content-Type': 'application/json' } : {}),
       },
-      ...(method === 'POST' ? { body: '{}' } : {}),
+      ...(method === 'POST' ? { body: JSON.stringify(body) } : {}),
     });
     return { status: r.status, body: (await r.json()) as unknown };
   };
@@ -455,8 +501,15 @@ test('N3: the native routes need the session; Settings learns whether the instal
     },
   );
   assert.equal(claimed.status, 200);
+  // The summary names how long the app has run; anything else is refused.
+  for (const bad of [{}, { up_ms: -1 }, { up_ms: 1.5 }, { up_ms: 0, x: 1 }])
+    assert.equal(
+      (await call('POST', 'catch-up', auth.write, bad)).status,
+      400,
+      JSON.stringify(bad),
+    );
   const catchUp = NativeCatchUpSchema.parse(
-    (await call('POST', 'catch-up', auth.write)).body,
+    (await call('POST', 'catch-up', auth.write, { up_ms: 60_000 })).body,
   );
   assert.deepEqual(catchUp, {
     hide_details: false,

@@ -1449,8 +1449,11 @@ export function createApi(
         return send(200, await notifications.nativeNotifications(ctx), false);
       }
       if (list === 'catch-up' && method === 'POST') {
-        await readJson(req);
-        return send(200, await notifications.catchUpNotifications(ctx), false);
+        return send(
+          200,
+          await notifications.catchUpNotifications(ctx, await readJson(req)),
+          false,
+        );
       }
       if (list === 'windows-status' && method === 'GET') {
         const seen = nativeSeen.get(ctx.actorId);

@@ -8,6 +8,8 @@ Checked in the cloud container on throwaway PostgreSQL 16 databases: `pnpm typec
 
 Review 1 (`/mnt/project-files/reviews/PR236_N3_WINDOWS_NOTIFICATIONS_REVIEW_2026-11-17.md`: 1 Medium, 3 Low, 6 nits) fixed: the start-up summary follows Hide details (M-1), covers rows still pending from before the start (L-1) and is worded neutrally (L-2); a failed claim is retried, only a win or a conflict settles it (L-3); and the six nits (Windows-only module, one HTTP client and clicks off the callback thread, every toast clickable, live region on the status only, "unavailable" status, reload restarts the shown clock). Checks after the fixes: typecheck and format pass; notification tests 33/33 (new: summary with Hide details and a row pending from before the start); Windows-target `cargo clippy --tests -D warnings` and `cargo fmt --check` clean. Full `pnpm test:db`: 1497 tests, 1463 pass, 29 skipped, only the 5 known PowerShell-wrapper failures (438, 456, 863, 867, 962).
 
+Re-review (1 Low) fixed: the start-up summary takes only alerts from before the app started (the app sends its uptime), so a summary sent after a late sign-in never swallows a new alert (L-4). Checks: typecheck, format, notification tests 34/34 (new: one alert before launch, one after), Windows-target clippy clean; full `pnpm test:db` 1498 tests, 1464 pass, 29 skipped, only the 5 known PowerShell-wrapper failures.
+
 Not done: check 13 on Jordan's PC (needs a build installed and launched by Jordan), `cargo test` on Windows, and a toast click after the app has quit (it does not open the link).
 
 ## November 17 update — study effort timer: human-only, finish and analysis (ADR-0129, migration 78)

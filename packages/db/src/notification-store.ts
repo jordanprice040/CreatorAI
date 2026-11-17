@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg';
 import {
   ClaimNotificationRequestSchema,
+  NativeCatchUpRequestSchema,
   NOTIFICATION_EVENTS,
   NotificationGroupSchema,
   SetNotificationPreferencesRequestSchema,
@@ -241,9 +242,11 @@ export class NotificationStore extends Store {
    */
   async catchUpNotifications(
     ctxIn: CommandContext,
+    raw: unknown = { up_ms: 0 },
     now = new Date(),
   ): Promise<NativeCatchUp> {
     const ctx = normalize(ctxIn);
+    const { up_ms: upMs } = parse(NativeCatchUpRequestSchema, raw);
     return this.tx(async (c) => {
       // The same lock as the digest, so a summary and a digest never take the same rows.
       await c.query('select pg_advisory_xact_lock($1, hashtext($2))', [
@@ -253,13 +256,15 @@ export class NotificationStore extends Store {
       await this.#withdrawLost(c, ctx.actorId);
       const manager = await this.#manager(c, ctx.actorId);
       // Nothing was delivering while the app was closed: an interrupting row still pending
-      // from before this call was not shown, whatever its age (review L-1 of #236; the sweep
-      // may not have run yet either). A window that opens now would not toast it late.
+      // from before the app started was not shown, whatever its age (review L-1 of #236; the
+      // sweep may not have run yet either). Rows since the start are left to the poll and the
+      // web toast (review L-4).
+      const launched = `clock_timestamp() - make_interval(secs => $2::double precision / 1000)`;
       await c.query(
         `update notifications set interrupt_state = 'expired'
           where actor_id = $1 and interrupt_state = 'pending' and mode = 'interrupt'
-            and first_at < clock_timestamp()`,
-        [ctx.actorId],
+            and first_at < ${launched}`,
+        [ctx.actorId, upMs],
       );
       const { rows } = await c.query(
         `select n.* from notifications n where ${VISIBLE}
@@ -267,8 +272,9 @@ export class NotificationStore extends Store {
            and n.read_at is null and n.dismissed_at is null
            and n.event_key not in ('studio.test', 'studio.catch_up')
            and n.first_at > clock_timestamp() - make_interval(days => $3)
+           and n.first_at < clock_timestamp() - make_interval(secs => $4::double precision / 1000)
          order by n.first_at for update`,
-        [ctx.actorId, manager, NOTIFICATION_CATCH_UP_DAYS],
+        [ctx.actorId, manager, NOTIFICATION_CATCH_UP_DAYS, upMs],
       );
       const prefs = await notificationPreferencesIn(c, ctx.actorId);
       const open: Row[] = [];
