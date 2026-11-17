@@ -45,6 +45,8 @@ locations are refused). `CREATOR_STUDIO_HOME` overrides it for acceptance runs o
 | `postgres\data`   | app-managed PostgreSQL 18 cluster (managed mode)                             |
 | `products\`       | generated product store                                                      |
 | `backups\`        | adoption and pre-upgrade backups                                             |
+| `updates\`        | update settings, downloads, the saved copy for rollback, `history.jsonl`     |
+| `products-rb-*\`  | product folder restored by an update rollback (with database `<name>_rb_*`)  |
 | `logs\`           | `supervisor.log`, `service.log`, `postgres.log`                              |
 
 ## First run
@@ -64,6 +66,8 @@ The setup window asks for:
      check (schema, audit chain, artifacts, lineage, exact budget totals) before saving
      anything. The source database and files are only read.
    - _Keep using an existing database server directly:_ external mode; you start it yourself.
+     Upgrades and updates rehearse on a copy and a rollback restores into a new database, so
+     the database user needs permission to create databases: `ALTER ROLE <user> CREATEDB;`.
 3. **Close behavior and login start.** Defaults: closing keeps the studio running in the
    background with a tray icon (owner decision #2; the first close each launch explains
    it); login start off (#3).
@@ -94,7 +98,55 @@ A failed setup removes only what it created and saves nothing.
   (Settings › Notifications in the studio says which). Focus Assist can still hide them.
   A copy started with `cargo run` has no registered app identity and shows none.
 - **Upgrades:** if a new app version needs a newer database layout, the status window
-  asks first, then saves a pre-upgrade backup and migrates under the existing lock.
+  asks first, then saves a pre-upgrade backup, rehearses the upgrade on a throwaway copy of the
+  database (ADR-0128) and only then migrates under the existing lock. In external mode the
+  database user needs `CREATEDB` for the copy (`ALTER ROLE <user> CREATEDB;`).
+- **Updates (F4, ADR-0128):** see [In-app updates](#in-app-updates).
+
+## In-app updates
+
+The status window's **Updates** section installs new versions from a private GitHub repository's
+releases. Set it up once: the repository (`owner/name`) and a fine-grained GitHub token with
+read-only access to that repository's contents (stored with Windows protection, never shown again).
+Nothing is checked until both are saved; checking at each start is opt-in.
+
+1. **Check for updates** reads the latest release and its `creator-agent-update.json`. It is refused
+   if the manifest, the release tag, the installer's size or GitHub's own digest disagree.
+2. **Download** saves the installer and keeps it only if its size and SHA-256 match the manifest.
+3. **Back up and install** (one confirmation) saves a verified backup, keeps a copy of this version,
+   quits, installs the update silently and starts the new version. A database upgrade the new
+   version needs runs without asking again, rehearsed on a copy first.
+4. If the new version does not report that it runs within 30 minutes (or fails, or closes), the
+   earlier version is put back, with its settings. If the database had already been upgraded, the
+   backup is restored into a new database (`<name>_rb_<time>`) and product folder
+   (`products-rb-<time>`) and the app switches to them; the upgraded ones are kept. Copies a
+   stopped rehearsal left behind (`<name>_rehearse_*`) are dropped. If the computer restarts
+   during the trial, the new version decides at its next start: it keeps itself when it runs, or
+   starts the saved copy to go back when it does not.
+5. Windows still lists a rolled-back version as installed and its installer refuses a lower one,
+   so **the next release must be newer than any version that was rolled back**; Check refuses
+   anything else. A release with an older database layout than the running studio is refused too.
+
+In external mode the database user needs `CREATEDB` (`ALTER ROLE <user> CREATEDB;`) for the
+rehearsal copy and for a rollback's restore.
+
+Builds are unsigned for the private beta (owner decision, November 17), so Windows may warn about
+the installer; the hash check proves the file is the one the release names, not who built it.
+
+**Publishing a release (manual):** raise `version` in `src-tauri/tauri.conf.json` and
+`src-tauri/Cargo.toml` (above any version that was rolled back), build from a clean checkout
+(below), rename the installer without the space (GitHub renames uploaded files with spaces,
+and the app looks for the exact name), then run the manifest script right after the build:
+
+```powershell
+cd apps\desktop\src-tauri\target\release\bundle\nsis
+Rename-Item "Creator Agent_<version>_x64-setup.exe" "Creator-Agent_<version>_x64-setup.exe"
+cd C:\dev\creator_agent
+node apps/desktop/update-manifest.mjs "apps\desktop\src-tauri\target\release\bundle\nsis\Creator-Agent_<version>_x64-setup.exe" --notes "What changed"
+```
+
+and create a release tagged `v<version>` in the private repository with the renamed installer and
+`creator-agent-update.json`. Publishing is an outward step: it needs Jordan's go-ahead each time.
 
 ## Failure handling
 
@@ -131,5 +183,14 @@ Checks: `node --test tests/dist/studio-service.test.js` (set `CREATOR_TEST_DATAB
 
 - Persistent identity for the separately paired execution worker (ADR-0028 still holds:
   re-pair after restart).
-- Bundling PostgreSQL itself; OIDC sign-in inside the installed app; code signing and
-  updates; other Windows machines or architectures.
+- Bundling PostgreSQL itself; OIDC sign-in inside the installed app; code signing (updates
+  are hash-checked, ADR-0128); other Windows machines or architectures.
+- Updates: the downloaded installer is removed once an update is confirmed, but one that is
+  refused or rolled back stays in `updates\downloads\` until you delete it. A rollback's
+  `products-rb-*` folder and the kept upgraded database are never removed automatically. A
+  restart while the installer itself runs is not resumed (the status window shows the stage).
+  Neither is a restart during the rollback itself: the stage stays "Going back to the earlier
+  version" and its lock (`updates\rollback-<id>.lock`) stays, so reinstall the earlier version
+  and restore the backup the status window names by hand. A rolled-back update keeps its
+  `studio-before-<id>.json`, `outcome-<id>.json` and lock for inspection, and `failed.json`
+  keeps the highest rolled-back version on purpose; a confirmed update removes its own files.
