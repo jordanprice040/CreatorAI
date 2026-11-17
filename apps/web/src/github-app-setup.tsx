@@ -8,7 +8,7 @@ import {
 } from '@creator/contracts';
 import { api } from './oversight.js';
 import { AddConnection, type Act } from './github.js';
-import { setupStep } from './github-app-setup-rules.js';
+import { pollsGitHub, setupStep } from './github-app-setup-rules.js';
 
 const POLL_MS = 3000;
 
@@ -35,6 +35,7 @@ export function GitHubAppSetupPanel({
   const [startUrl, setStartUrl] = useState('');
   const [org, setOrg] = useState('');
   const [tick, setTick] = useState(0);
+  const [another, setAnother] = useState(false);
   const latest = setups?.[0] ?? null;
   const step = setupStep(latest);
   useEffect(() => {
@@ -46,9 +47,9 @@ export function GitHubAppSetupPanel({
       live = false;
     };
   }, [base, tick]);
-  // While GitHub has the browser, look again every few seconds.
+  // While GitHub has the browser (creating, then installing), look again every few seconds.
   useEffect(() => {
-    if (step !== 'waiting') return;
+    if (!pollsGitHub(step)) return;
     const t = window.setInterval(() => setTick((n) => n + 1), POLL_MS);
     return () => window.clearInterval(t);
   }, [step]);
@@ -63,7 +64,21 @@ export function GitHubAppSetupPanel({
   return (
     <div className="gh-app-setup" aria-labelledby="gh-app-title">
       <h4 id="gh-app-title">Connect with GitHub (recommended)</h4>
-      {(step === 'start' || step === 'retry') && (
+      {step === 'connected' && latest?.app && (
+        <p>
+          <span className="badge ok">connected</span> Connected through{' '}
+          <strong>{latest.app.name}</strong> (
+          {latest.installation?.account.login ?? latest.app.owner.login}).{' '}
+          {!another && (
+            <button type="button" onClick={() => setAnother(true)}>
+              Set up another app
+            </button>
+          )}
+        </p>
+      )}
+      {(step === 'start' ||
+        step === 'retry' ||
+        (step === 'connected' && another)) && (
         <>
           {step === 'retry' && latest && (
             <p className="notice">
@@ -76,11 +91,14 @@ export function GitHubAppSetupPanel({
             </p>
           )}
           <p className="small">
-            Your browser opens GitHub with a private app already described:
-            access to repository contents, issues and pull requests, and read
-            access to checks. You name it and create it, then choose which
-            repositories it may use. Its key stays protected on this computer;
-            there is no token to copy.
+            Your browser opens GitHub with a private app already described. It
+            asks to change repository contents, issues and pull requests, to
+            read checks and commit statuses, and for Administration, which
+            Creator Agent needs to create repositories. GitHub&apos;s
+            Administration permission also covers repository settings and
+            deletion; Creator Agent never uses those. You name the app and
+            create it, then choose which repositories it may use. Its key stays
+            protected on this computer; there is no token to copy.
           </p>
           <details>
             <summary>Create it for an organization instead</summary>
@@ -120,6 +138,10 @@ export function GitHubAppSetupPanel({
             app in the browser window that opened. This page notices when it is
             done.
           </p>
+          <p className="small">
+            If GitHub showed an error instead, press Stop this setup below and
+            note what GitHub said.
+          </p>
           {startUrl && (
             <p className="small">
               No browser window? Open this address on this computer:{' '}
@@ -141,7 +163,7 @@ export function GitHubAppSetupPanel({
           <div className="actions">
             <a
               className="button"
-              href={`https://github.com/apps/${latest.app.slug}/installations/new`}
+              href={`${latest.app.html_url}/installations/new`}
               target="_blank"
               rel="noreferrer noopener"
             >

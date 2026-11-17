@@ -2,5 +2,6 @@ PASS a real workspace offers Create the GitHub App
 PASS after creation the page links to the installation page
 PASS the connect form asks no owner or credential
 PASS the new connection names the protected app key, not an environment variable
+PASS a connected setup says which app, with another app behind its own button
 PASS no sideways scroll at phone width
 PASS no page errors ()

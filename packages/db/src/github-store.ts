@@ -215,6 +215,7 @@ export class GitHubStore extends ArtifactStore {
     status: GitHubConnection['status'],
     reason: string | null,
     verification?: GitHubConnection['verification'],
+    extra?: Record<string, unknown>,
   ) {
     const { rows } = await c.query(
       `update github_connections set status = $2, status_reason = $3,
@@ -236,7 +237,7 @@ export class GitHubStore extends ArtifactStore {
         subjectId: conn.id,
         subjectVersion: next.version,
         contentHash: conn.body_hash,
-        payload: { from: conn.status, to: status, reason },
+        payload: { from: conn.status, to: status, reason, ...extra },
       });
     return next;
   }
@@ -531,7 +532,18 @@ export class GitHubStore extends ArtifactStore {
       if (conn.version !== req.expected_version)
         throw fail('VERSION_CONFLICT', 'The connection changed; reload it.');
       if (conn.status === 'revoked') return conn;
-      return this.#setConnection(c, ctx, conn, 'revoked', req.reason);
+      return this.#setConnection(
+        c,
+        ctx,
+        conn,
+        'revoked',
+        req.reason,
+        undefined,
+        // Review L-4: GitHubService deletes a studio-created app's sealed key after this.
+        conn.body.credential.kind === 'app_vault'
+          ? { app_key: 'forgotten_on_revoke' }
+          : undefined,
+      );
     });
   }
   async listGitHubRepositories(ctx: CommandContext, ws: string) {
@@ -1574,14 +1586,16 @@ export class GitHubStore extends ArtifactStore {
     return this.tx(async (c) => {
       const row = await this.#setup(c, ws, id, true);
       await this.requireOwner(c, ws, ctx.actorId);
-      if (!OPEN_SETUP.includes(String(row.status))) return toSetup(row);
+      // Review M-1: only the code exchange fails a setup, so only one still waiting for GitHub
+      // moves; an app already created (a second redirect raced the first) is left as it is.
+      if (String(row.status) !== 'waiting_for_github') return toSetup(row);
       return this.#moveSetup(
         c,
         ctx,
         ws,
         String(row.id),
         `status = 'failed', failure = $3`,
-        [reason.slice(0, 500) || 'GitHub App setup failed.'],
+        [reason.slice(0, 500)],
         'github.app_setup_failed',
       );
     });

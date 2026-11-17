@@ -15,8 +15,8 @@ the app JWT, connect, Verify) are covered against a loopback stand-in for GitHub
 | `01-start.png` | A real workspace offers "Connect with GitHub (recommended)" and Create the GitHub App |
 | `02-install.png` | After GitHub created the app: Install on GitHub (links to the app's installation page) and Check installation |
 | `03-connect.png` | Installed: the connect form asks only the name, limits, checks and included repositories |
-| `04-connected.png` | The connection row names the protected app key instead of an environment variable |
+| `04-connected.png` | The connection row names the protected app key instead of an environment variable; the panel says "Connected through" the app |
 | `05-phone.png` | Phone width (390 px), no sideways scroll |
 
-Result: [walk.txt](walk.txt), 6 of 6 PASS. Not covered here: the real GitHub pages (the live trial
+Result: [walk.txt](walk.txt), 7 of 7 PASS (re-run after review 1, which added the connected-state check). Not covered here: the real GitHub pages (the live trial
 needs Jordan's typed OK and a new private test repository).

@@ -6,7 +6,11 @@ import {
   type GitHubPullChecks,
   type GitHubRepository,
 } from '@creator/contracts';
-import { classifyResponse, webhookSignatureValid } from '@creator/domain';
+import {
+  classifyResponse,
+  webhookSignatureValid,
+  type ResponseClass,
+} from '@creator/domain';
 import type {
   CommandContext,
   GitHubObservations,
@@ -78,6 +82,34 @@ function createdRepository(d: Record<string, unknown> | null) {
 }
 
 /**
+ * Review M-2 (ADR-0132): GitHub may refuse an app installation token on `POST /user/repos`
+ * (personal accounts). Say what to do instead of GitHub's bare "Resource not accessible".
+ */
+export function refusalWording(
+  cls: ResponseClass,
+  kind: string,
+  conn: GitHubConnection,
+  res: GitHubResponse,
+): ResponseClass {
+  const app =
+    conn.body.credential.kind === 'app_vault' ||
+    conn.body.credential.kind === 'app_installation';
+  if (
+    kind !== 'repo_create' ||
+    !app ||
+    conn.body.owner.type !== 'User' ||
+    res.status !== 403 ||
+    cls.state === 'succeeded'
+  )
+    return cls;
+  return {
+    ...cls,
+    explanation:
+      'GitHub does not let this app create repositories on a personal account. Create the repository on GitHub, add it to the app’s installation, then list it on the connection.',
+  };
+}
+
+/**
  * X04: runs GitHub operations through the store's intent journal. Reads come first (repository
  * by immutable id, remote head, pull request, checks), then the store admits and records the
  * intent, then exactly one call is made and its answer settles the operation.
@@ -85,6 +117,7 @@ function createdRepository(d: Record<string, unknown> | null) {
 export class GitHubService {
   readonly liveEnabled: boolean;
   #fixtures = new Map<string, FixtureGitHub>();
+  #appKeys = new Map<string, string>();
   constructor(
     private readonly store: GitHubStore,
     private readonly opts: GitHubServiceOptions,
@@ -115,10 +148,13 @@ export class GitHubService {
     if (this.opts.live) return this.opts.live(conn);
     if (cred.kind !== 'app_vault')
       return liveGitHubFromEnv(this.opts.env, cred);
-    // ADR-0132: the key the in-app setup sealed; a missing vault or entry is "not set".
-    const pem = this.opts.vault
-      ? await this.opts.vault.getGitHubAppKey(cred.key_ref)
-      : null;
+    // ADR-0132: the key the in-app setup sealed; a missing vault or entry is "not set". Review
+    // N-5: unsealing starts PowerShell on Windows, so a key is unsealed once per process.
+    let pem = this.#appKeys.get(cred.key_ref) ?? null;
+    if (!pem && this.opts.vault) {
+      pem = await this.opts.vault.getGitHubAppKey(cred.key_ref);
+      if (pem) this.#appKeys.set(cred.key_ref, pem);
+    }
     return pem
       ? new LiveGitHub({
           credential: {
@@ -143,6 +179,21 @@ export class GitHubService {
             : 'The credential variable this connection names is not set on the API process.',
       );
     return a;
+  }
+
+  /**
+   * Review L-4 (ADR-0132): revoking a connection to a studio-created app also deletes its sealed
+   * key, which nothing else uses (one setup, one connection; the generic route refuses
+   * `app_vault`). The revoke event records that the key is being forgotten.
+   */
+  async revoke(ctx: CommandContext, ws: string, id: string, raw: unknown) {
+    const conn = await this.store.revokeGitHubConnection(ctx, ws, id, raw);
+    const cred = conn.body.credential;
+    if (cred.kind === 'app_vault' && conn.status === 'revoked') {
+      this.#appKeys.delete(cred.key_ref);
+      await this.opts.vault?.delete(cred.key_ref);
+    }
+    return conn;
   }
 
   /** Reads who the credential belongs to; only the configured owner activates the connection. */
@@ -232,7 +283,12 @@ export class GitHubService {
         message: (e as Error).message.slice(0, 200),
       };
     }
-    const cls = classifyResponse(res);
+    const cls = refusalWording(
+      classifyResponse(res),
+      p.kind,
+      begun.connection,
+      res,
+    );
     const data =
       cls.state === 'succeeded'
         ? p.kind === 'repo_create'

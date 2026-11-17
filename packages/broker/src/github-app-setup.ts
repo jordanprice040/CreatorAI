@@ -185,6 +185,9 @@ interface Attempt {
   setup_id: string;
   /** http://127.0.0.1:<port> of this attempt's listener. */
   local: string;
+  /** Review M-1: the one code exchange; a second "created" request waits for it. */
+  exchanging?:
+    Promise<GitHubAppSetup | { status: number; text: string }> | undefined;
   close: () => void;
 }
 
@@ -321,6 +324,21 @@ export class GitHubAppSetupService {
         done(404, 'Not found.');
         return;
       }
+      // Review L-2: GitHub's install redirect has no state when the installation was started
+      // from GitHub or the studio's own link. Nothing is trusted from it; it only asks the app's
+      // own JWT again (as Check installation does) and answers neutrally.
+      if (
+        u.pathname === SETUP_PATHS.installed &&
+        u.searchParams.get('state') !== a?.state
+      ) {
+        if (a)
+          void this.checkInstallation(a.ctx, a.ws, a.setup_id).catch(() => {});
+        done(
+          200,
+          'Return to Creator Agent. If it does not show the installation yet, press Check installation there. You can close this tab.',
+        );
+        return;
+      }
       if (!a || u.searchParams.get('state') !== a.state) {
         done(
           400,
@@ -391,27 +409,19 @@ export class GitHubAppSetupService {
       };
     }
     if (u.pathname === SETUP_PATHS.created) {
-      const install = (slug: string) => ({
-        redirect: `${this.#endpoints.web}/apps/${slug}/installations/new?state=${a.state}`,
-      });
-      // A reload of GitHub's redirect must not spend the used code again (and fail the setup).
-      const now = await this.store.getGitHubAppSetup(a.ctx, a.ws, a.setup_id);
-      if (now.status === 'app_created' && now.app) return install(now.app.slug);
-      if (now.status !== 'waiting_for_github')
-        return {
-          status: 409,
-          text: 'This setup is no longer waiting for GitHub. Return to Creator Agent.',
-        };
-      const code = u.searchParams.get('code') ?? '';
-      if (!/^[A-Za-z0-9_-]{1,100}$/.test(code))
-        return { status: 400, text: 'GitHub sent no usable code.' };
-      const setup = await this.#created(a, code);
-      if (setup.status !== 'app_created' || !setup.app)
+      // Review M-1: one exchange per attempt, started before any await, so a reload or double
+      // redirect can neither spend the code twice nor fail an app that was created.
+      a.exchanging ??= this.#exchangeOnce(a, u.searchParams.get('code') ?? '');
+      const out = await a.exchanging;
+      if (!('id' in out)) return out;
+      if (out.status !== 'app_created' || !out.app)
         return {
           status: 502,
-          text: `The app was not set up: ${setup.failure ?? 'see Creator Agent'}. Return to the studio.`,
+          text: `The app was not set up: ${out.failure ?? 'see Creator Agent'}. Return to the studio.`,
         };
-      return install(setup.app.slug);
+      return {
+        redirect: `${this.#endpoints.web}/apps/${out.app.slug}/installations/new?state=${a.state}`,
+      };
     }
     // Installed: GitHub's installation_id is only a hint; the app's own JWT decides.
     try {
@@ -426,6 +436,24 @@ export class GitHubAppSetupService {
       text: 'Installed. Return to Creator Agent to finish the connection. You can close this tab.',
       close: true,
     };
+  }
+
+  async #exchangeOnce(
+    a: Attempt,
+    code: string,
+  ): Promise<GitHubAppSetup | { status: number; text: string }> {
+    const now = await this.store.getGitHubAppSetup(a.ctx, a.ws, a.setup_id);
+    if (now.status === 'app_created') return now;
+    if (now.status !== 'waiting_for_github')
+      return {
+        status: 409,
+        text: 'This setup is no longer waiting for GitHub. Return to Creator Agent.',
+      };
+    if (!/^[A-Za-z0-9_-]{1,100}$/.test(code)) {
+      a.exchanging = undefined; // a later redirect with a usable code may still come
+      return { status: 400, text: 'GitHub sent no usable code.' };
+    }
+    return this.#created(a, code);
   }
 
   /** Step 2: exchange GitHub's one-time code; the key goes to the vault before anything else. */

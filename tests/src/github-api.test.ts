@@ -185,7 +185,7 @@ test('X04 API and CLI: connect, verify, create a repository, signed and deduplic
   assert.equal(unknown.status, 404);
 });
 
-test('P32 API: GitHub App setup routes are owner-only and refuse without live GitHub', async (t) => {
+test('P32 API: GitHub App setup routes list, refuse without live GitHub and check their input', async (t) => {
   let closeApi = async () => {};
   t.after(() => closeApi());
   const db = await freshDatabase(t);

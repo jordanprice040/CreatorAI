@@ -46,7 +46,7 @@ export async function githubRoutes(r: {
       if (item && action === 'revoke' && post)
         return send(
           200,
-          await store.revokeGitHubConnection(ctx, ws, item, await r.body()),
+          await service.revoke(ctx, ws, item, await r.body()),
           true,
         );
       if (item && action === 'deliveries' && get)

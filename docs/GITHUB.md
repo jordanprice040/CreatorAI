@@ -142,19 +142,25 @@ The simplest live setup, on the GitHub page of a real workspace (owner only, wit
 `CREATOR_GITHUB=live` and the protected vault the installed app and dev studio use):
 
 1. **Create the GitHub App.** Your browser opens GitHub with a private app already
-   described (contents, issues, pull requests and repository creation; read access to
-   checks and statuses; no webhook, no workflows). Name it and press Create on GitHub.
-   Creator Agent keeps the app key protected on this computer (DPAPI on Windows); there is
-   nothing to copy.
-2. **Install on GitHub** and choose the repositories. Back in the studio, the page notices
-   the installation, or press **Check installation**.
+   described: write access to contents, issues and pull requests; read access to checks,
+   commit statuses and metadata; and Administration (write), which Creator Agent needs to
+   create repositories. GitHub's Administration permission also covers repository settings
+   and deletion; Creator Agent never calls those, and each token it mints is limited to the
+   one call's permissions. No webhook, no workflows. Name the app and press Create on
+   GitHub. Creator Agent keeps the app key protected on this computer (DPAPI on Windows);
+   there is nothing to copy.
+2. **Install on GitHub** and choose the repositories. The studio page looks again every few
+   seconds while it waits and shows the installation when GitHub reports it; **Check
+   installation** asks at once.
 3. **Add the connection**: name, limits and required checks, as for any connection. Then
    press **Verify** and create the grants runs need.
 
 Routes under `/api/workspaces/{ws}/`: `github-app-setups` (GET, POST
 `{organization, open_browser}`), `github-app-setups/{id}` (GET), `…/installation`,
-`…/connect`, `…/abandon` (POST). Stopping a setup deletes its key; the app stays on GitHub
-until you delete it under Settings › Developer settings › GitHub Apps. The installed app does
+`…/connect`, `…/abandon` (POST). Stopping a setup, or revoking its connection, deletes the
+app key from this computer; the app stays on GitHub until you delete it under Settings ›
+Developer settings › GitHub Apps. The live trial plan is in
+[LIVE_CONNECTION_CHECKS.md](LIVE_CONNECTION_CHECKS.md). The installed app does
 not turn live GitHub on yet (see ADR-0132).
 
 ## Turning on live use (owner steps)

@@ -81,6 +81,20 @@ const keyOf = (raw: string): string => {
   return v.api_key;
 };
 
+// Review N-3: a GitHub App key is stored under its own field, not as an "api_key".
+const pemEntry = (pem: string) => JSON.stringify({ private_key_pem: pem });
+const pemOf = (raw: string): string => {
+  let v: { private_key_pem?: unknown } | null;
+  try {
+    v = JSON.parse(raw) as { private_key_pem?: unknown } | null;
+  } catch {
+    throw new Error('A saved key is damaged.');
+  }
+  if (typeof v?.private_key_pem !== 'string')
+    throw new Error('A saved key is damaged.');
+  return v.private_key_pem;
+};
+
 async function atomicWrite(path: string, data: string | Buffer) {
   const tmp = `${path}.${randomUUID()}.tmp`;
   await writeFile(tmp, data, { mode: 0o600 });
@@ -112,11 +126,11 @@ export class MemoryVault implements PlanVault {
   async getGitHubAppKey(ref: string) {
     fileOf('/', ref, 'github-app-key');
     const v = this.#m.get(ref);
-    return v ? keyOf(v) : null;
+    return v ? pemOf(v) : null;
   }
   async putGitHubAppKey(ref: string, pem: string) {
     fileOf('/', ref, 'github-app-key');
-    this.#m.set(ref, keyEntry(pem));
+    this.#m.set(ref, pemEntry(pem));
   }
   async delete(ref: string) {
     fileOf('/', ref);
@@ -161,11 +175,11 @@ export class FileDevVault implements PlanVault {
   }
   async getGitHubAppKey(ref: string) {
     const raw = await this.#read(fileOf(this.dir, ref, 'github-app-key'));
-    return raw === null ? null : keyOf(raw);
+    return raw === null ? null : pemOf(raw);
   }
   async putGitHubAppKey(ref: string, pem: string) {
     await mkdir(this.dir, { recursive: true, mode: 0o700 });
-    await atomicWrite(fileOf(this.dir, ref, 'github-app-key'), keyEntry(pem));
+    await atomicWrite(fileOf(this.dir, ref, 'github-app-key'), pemEntry(pem));
   }
   async delete(ref: string) {
     await rm(fileOf(this.dir, ref), { force: true });
@@ -255,10 +269,10 @@ export class DpapiVault implements PlanVault {
   }
   async getGitHubAppKey(ref: string) {
     const plain = await this.#open(ref, 'github-app-key');
-    return plain === null ? null : keyOf(plain);
+    return plain === null ? null : pemOf(plain);
   }
   async putGitHubAppKey(ref: string, pem: string) {
-    await this.#seal(ref, 'github-app-key', keyEntry(pem));
+    await this.#seal(ref, 'github-app-key', pemEntry(pem));
   }
   async delete(ref: string) {
     await rm(fileOf(this.dir, ref), { force: true });

@@ -11,6 +11,7 @@ import {
   ContractError,
   type ErrorCode,
   type GitHubAppSetup,
+  type GitHubConnection,
 } from '@creator/contracts';
 import { ContextStore, type CommandContext } from '@creator/db';
 import {
@@ -19,6 +20,7 @@ import {
   GitHubService,
   MemoryVault,
   githubAppManifest,
+  refusalWording,
   parseConversion,
   startPage,
 } from '@creator/broker';
@@ -40,9 +42,10 @@ async function loadSetupStep() {
   }).outputText;
   const exports = {} as {
     setupStep: (s: GitHubAppSetup | null) => string;
+    pollsGitHub: (step: string) => boolean;
   };
   new Function('exports', code)(exports);
-  return exports.setupStep;
+  return Object.assign(exports.setupStep, { polls: exports.pollsGitHub });
 }
 
 // ADR-0132 (P32) acceptance against a loopback stand-in for GitHub (labelled: nothing here
@@ -234,16 +237,23 @@ test('P32 GitHub App: create, install and connect from the studio; key only in t
   assert.equal(manifest.setup_url, `${local}/github-app/installed`);
 
   // GitHub sends the browser back with the one-time code; the studio sends it on to install.
-  const back = await fetch(
-    `${manifest.redirect_url}?code=good-code&state=${state}`,
-    { redirect: 'manual' },
+  // Review M-1: two arrivals at once (a reload while the exchange runs) spend the code once.
+  const [back, twin] = await Promise.all(
+    [1, 2].map(() =>
+      fetch(`${manifest.redirect_url}?code=good-code&state=${state}`, {
+        redirect: 'manual',
+      }),
+    ),
   );
-  assert.equal(back.status, 302);
+  assert.equal(back!.status, 302);
+  assert.equal(twin!.status, 302);
+  assert.equal(gh.state.conversions, 1);
+  assert.equal(vault.entries().length, 1);
   assert.equal(
-    back.headers.get('location'),
+    back!.headers.get('location'),
     `${gh.base}/apps/creator-agent-abc123/installations/new?state=${state}`,
   );
-  // A reload of that redirect does not spend the code again.
+  // A later reload of that redirect does not spend the code again either.
   const again = await fetch(
     `${manifest.redirect_url}?code=good-code&state=${state}`,
     { redirect: 'manual' },
@@ -258,6 +268,26 @@ test('P32 GitHub App: create, install and connect from the studio; key only in t
   const entries = vault.entries();
   assert.equal(entries.length, 1);
   assert.ok(entries[0]!.includes('PRIVATE KEY'));
+  assert.ok(entries[0]!.startsWith('{"private_key_pem":'));
+  assert.equal(setupStep.polls(setupStep(created)), true);
+  // Review M-1: a late failure of the exchange cannot fail an app that was created.
+  assert.equal(
+    (
+      await store.failGitHubAppSetup(
+        owner,
+        ws.id,
+        created.id,
+        'GitHub refused the code (404).',
+      )
+    ).status,
+    'app_created',
+  );
+  // Review L-2: GitHub's install redirect without state gets a neutral answer, not an error.
+  const plain = await fetch(
+    `${manifest.setup_url}?installation_id=1&setup_action=install`,
+  );
+  assert.equal(plain.status, 200);
+  assert.match(await plain.text(), /press Check installation/);
 
   // Not installed yet: the check says so and changes nothing.
   await rejects('NOT_FOUND', svc.checkInstallation(owner, ws.id, created.id));
@@ -360,6 +390,84 @@ test('P32 GitHub App: create, install and connect from the studio; key only in t
   await assert.rejects(
     noKey.verify(owner, ws.id, connection.id),
     /app key for this connection is not on this computer/,
+  );
+  assert.equal(setupStep(connected), 'connected');
+  assert.equal(setupStep.polls('connected'), false);
+
+  // Review L-4: revoking the app connection deletes its sealed key and says so in the journal.
+  const current = await store.getGitHubConnection(owner, ws.id, connection.id);
+  const revoked = await github.revoke(owner, ws.id, connection.id, {
+    expected_version: current.version,
+    reason: 'Done with the trial.',
+  });
+  assert.equal(revoked.status, 'revoked');
+  assert.equal(vault.entries().length, 0);
+  const ev = await s.db.pool.query(
+    `select payload from audit_events where action = 'github.connection_revoked'`,
+  );
+  assert.equal(ev.rows[0].payload.app_key, 'forgotten_on_revoke');
+  await assert.rejects(
+    github.verify(owner, ws.id, connection.id),
+    (e: unknown) => e instanceof ContractError,
+  );
+});
+
+test('P32 review M-2: a refused repository creation on a personal account says what to do', () => {
+  const conn = (
+    kind: 'app_vault' | 'fine_grained_pat',
+    type: 'User' | 'Organization',
+  ) =>
+    ({
+      body: {
+        owner: { login: 'o', id: 1, type },
+        credential:
+          kind === 'app_vault'
+            ? {
+                kind,
+                app_id: 1,
+                app_slug: 'a',
+                app_client_id: 'c',
+                key_ref: 'k',
+                installation_id: 2,
+              }
+            : {
+                kind,
+                token_env: 'CREATOR_GITHUB_TOKEN',
+                expires_at: '2026-12-01T00:00:00.000Z',
+              },
+      },
+    }) as unknown as GitHubConnection;
+  const refused = {
+    state: 'failed',
+    reason_code: 'github_403',
+    explanation: 'Resource not accessible by integration',
+  } as const;
+  const res = { status: 403, headers: {}, data: null, message: '' };
+  assert.match(
+    (
+      refusalWording(
+        refused,
+        'repo_create',
+        conn('app_vault', 'User'),
+        res,
+      ) as {
+        explanation: string;
+      }
+    ).explanation,
+    /Create the repository on GitHub, add it to the app’s installation/,
+  );
+  for (const [kind, c] of [
+    ['repo_create', conn('app_vault', 'Organization')],
+    ['repo_create', conn('fine_grained_pat', 'User')],
+    ['push', conn('app_vault', 'User')],
+  ] as const)
+    assert.equal(refusalWording(refused, kind, c, res), refused);
+  assert.equal(
+    refusalWording(refused, 'repo_create', conn('app_vault', 'User'), {
+      ...res,
+      status: 404,
+    }),
+    refused,
   );
 });
 

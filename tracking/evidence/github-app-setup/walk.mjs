@@ -40,8 +40,9 @@ const post = async (path, body) => {
   });
   return { status: r.status, body: await r.json().catch(() => null) };
 };
-const ws = (await post('workspaces', { name: 'GitHub walk', record_mode: 'real' }))
-  .body.id;
+const ws = (
+  await post('workspaces', { name: 'GitHub walk', record_mode: 'real' })
+).body.id;
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({
@@ -57,7 +58,9 @@ await page.goto(`${WEB}/#/connections/github?ws=${ws}`);
 await page.waitForTimeout(1500);
 const panel = page.locator('.gh-app-setup');
 check(
-  (await panel.getByRole('button', { name: 'Create the GitHub App' }).count()) === 1,
+  (await panel
+    .getByRole('button', { name: 'Create the GitHub App' })
+    .count()) === 1,
   'a real workspace offers Create the GitHub App',
 );
 await panel.screenshot({ path: `${out}/01-start.png` });
@@ -65,8 +68,9 @@ await panel.screenshot({ path: `${out}/01-start.png` });
 // The later steps, as GitHub would leave them (rows written directly; no GitHub call).
 const db = new pg.Client({ connectionString: dbUrl });
 await db.connect();
-const actor = (await db.query('select created_by from workspaces where id = $1', [ws]))
-  .rows[0].created_by;
+const actor = (
+  await db.query('select created_by from workspaces where id = $1', [ws])
+).rows[0].created_by;
 const account = { login: 'jordan-example', id: 4100001, type: 'User' };
 const app = {
   id: 777001,
@@ -85,7 +89,9 @@ await db.query(
 await page.reload();
 await page.waitForTimeout(1500);
 check(
-  (await panel.getByRole('link', { name: 'Install on GitHub' }).getAttribute('href')) ===
+  (await panel
+    .getByRole('link', { name: 'Install on GitHub' })
+    .getAttribute('href')) ===
     'https://github.com/apps/creator-agent-abc123/installations/new',
   'after creation the page links to the installation page',
 );
@@ -98,7 +104,8 @@ await page.reload();
 await page.waitForTimeout(1500);
 check(
   (await panel.getByLabel('GitHub login').count()) === 0 &&
-    (await panel.locator('#gha-label').inputValue()) === 'GitHub (jordan-example)',
+    (await panel.locator('#gha-label').inputValue()) ===
+      'GitHub (jordan-example)',
   'the connect form asks no owner or credential',
 );
 await panel.screenshot({ path: `${out}/03-connect.png` });
@@ -109,7 +116,24 @@ check(
   /key kept protected on this computer/.test(await rows.first().innerText()),
   'the new connection names the protected app key, not an environment variable',
 );
-await page.locator('.gh-connections').screenshot({ path: `${out}/04-connected.png` });
+await db.query(
+  `update github_app_setups set status = 'connected',
+     connection_id = (select id from github_connections where workspace_id = $2
+       order by created_at desc limit 1) where id = $1 and status = 'installed'`,
+  [id, ws],
+);
+await page.reload();
+await page.waitForTimeout(1500);
+check(
+  /Connected through Creator Agent abc123/.test(await panel.innerText()) &&
+    (await panel
+      .getByRole('button', { name: 'Create the GitHub App' })
+      .count()) === 0,
+  'a connected setup says which app, with another app behind its own button',
+);
+await page
+  .locator('.gh-connections')
+  .screenshot({ path: `${out}/04-connected.png` });
 await page.setViewportSize({ width: 390, height: 844 });
 await page.reload();
 await page.waitForTimeout(1500);
