@@ -189,8 +189,9 @@ export function NotificationSettings({
           instead; clicking it opens the place to act. You never get both. In a
           hidden browser tab, an alert waits in the bell and is not shown late.
         </p>
-        <p className="small" role="status">
-          <strong>Windows notifications:</strong> {windowsStatusText(windows)}{' '}
+        <p className="small">
+          <strong>Windows notifications:</strong>{' '}
+          <span role="status">{windowsStatusText(windows)}</span>{' '}
           <button
             type="button"
             className="text"

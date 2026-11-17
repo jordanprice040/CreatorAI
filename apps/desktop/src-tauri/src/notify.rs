@@ -12,6 +12,7 @@
 use crate::studio::{bounded_json, client, Shared};
 use serde_json::{json, Value};
 use std::collections::VecDeque;
+use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager};
 
@@ -126,21 +127,39 @@ fn open_link(app: &AppHandle, link: &str) {
     }
 }
 
+/// Whether a claim answer settles the row for this process: it won (2xx), or another window
+/// or the bell already took it (409). Anything else (a 5xx, an expired sign-in, no answer) is
+/// tried again on the next poll while the row is still pending (review L-3 of #236).
+pub fn claim_settled(status: u16) -> bool {
+    (200..300).contains(&status) || status == 409
+}
+
+/// The changes since the last sample: the window's visibility and its page loads. A reload
+/// restarts the web toast's "never shown late" cutoff, so it restarts ours too (review N-6).
+fn shown_since(prev: Option<Instant>, visible: bool, reloaded: bool) -> Option<Instant> {
+    match (visible, prev) {
+        (false, _) => None,
+        (true, Some(t)) if !reloaded => Some(t),
+        (true, _) => Some(Instant::now()),
+    }
+}
+
 struct Session {
+    http: reqwest::blocking::Client,
     token: String,
     csrf: String,
 }
 
 impl Session {
     fn get(&self, path: &str) -> Result<reqwest::blocking::Response, String> {
-        client(5)?
+        self.http
             .get(format!("{API}/{path}"))
             .header("Cookie", format!("creator_session={}", self.token))
             .send()
             .map_err(|_| "The studio did not answer".to_string())
     }
     fn post(&self, path: &str, body: Value) -> Result<reqwest::blocking::Response, String> {
-        client(5)?
+        self.http
             .post(format!("{API}/{path}"))
             .header("Cookie", format!("creator_session={}", self.token))
             .header("X-CSRF-Token", &self.csrf)
@@ -148,19 +167,31 @@ impl Session {
             .send()
             .map_err(|_| "The studio did not answer".to_string())
     }
+    fn json(&self, r: Result<reqwest::blocking::Response, String>) -> Result<Value, String> {
+        let r = r?;
+        if r.status().is_success() {
+            bounded_json(r)
+        } else {
+            Err(format!("HTTP {}", r.status()))
+        }
+    }
 }
 
-/// Starts the poller for the installed app (never for debug probes).
+/// Starts the poller for the installed app (Windows only; never for debug probes).
 pub fn start(app: AppHandle, sup: Shared) {
     std::thread::spawn(move || {
-        #[cfg(windows)]
         let _com = toast::init();
+        let Ok(http) = client(5) else {
+            return sup.note("Windows notifications are off: no local HTTP client");
+        };
         let aumid = app.config().identifier.clone();
-        let mut shown_since: Option<Instant> = None;
+        let mut shown: Option<Instant> = None;
+        let mut loads = crate::STUDIO_PAGE_LOADS.load(Ordering::SeqCst);
         let mut last_poll: Option<Instant> = None;
         let mut caught_up = false;
-        let mut tried: VecDeque<String> = VecDeque::new();
-        #[cfg(windows)]
+        let mut settled: VecDeque<String> = VecDeque::new();
+        // Every toast shown this launch, so a click from Action Center still opens its link
+        // (review N-3); each is a small handle.
         let mut alive: VecDeque<toast::Shown> = VecDeque::new();
         loop {
             if sup.quitting() {
@@ -170,78 +201,67 @@ pub fn start(app: AppHandle, sup: Shared) {
                 .get_webview_window("studio")
                 .map(|w| w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(true))
                 .unwrap_or(false);
-            shown_since = if visible {
-                shown_since.or_else(|| Some(Instant::now()))
-            } else {
-                None
-            };
+            let now_loads = crate::STUDIO_PAGE_LOADS.load(Ordering::SeqCst);
+            shown = shown_since(shown, visible, now_loads != loads);
+            loads = now_loads;
             let due = last_poll.is_none_or(|t| t.elapsed() >= POLL);
             if due && sup.running() {
                 last_poll = Some(Instant::now());
                 if let Some((token, csrf)) = sup.native_session() {
-                    let session = Session { token, csrf };
-                    #[cfg(windows)]
+                    let session = Session {
+                        http: http.clone(),
+                        token,
+                        csrf,
+                    };
                     let os = toast::setting(&aumid);
-                    #[cfg(not(windows))]
-                    let os = "unknown";
-                    let shown_for = shown_since.map(|t| t.elapsed());
-                    let mut show = |title: &str, body: &str, link: String, id: Option<String>| {
-                        #[cfg(windows)]
-                        {
+                    let shown_for = shown.map(|t| t.elapsed());
+                    let mut show = |title: &str, body: &str, link: String, id: String| {
+                        let app = app.clone();
+                        let clicked = sup.clone();
+                        let http = http.clone();
+                        let shown = toast::show(&aumid, &toast_xml(title, body), move || {
+                            // Off the WinRT callback thread: the session check and the read
+                            // are network calls (review N-2).
                             let app = app.clone();
-                            let clicked = sup.clone();
-                            match toast::show(&aumid, &toast_xml(title, body), move || {
+                            let clicked = clicked.clone();
+                            let http = http.clone();
+                            let (link, id) = (link.clone(), id.clone());
+                            std::thread::spawn(move || {
                                 let handle = app.clone();
-                                let link = link.clone();
                                 let _ = app.run_on_main_thread(move || open_link(&handle, &link));
                                 // Opening it reads it, as in the bell.
-                                if let (Some(id), Some((token, csrf))) =
-                                    (id.clone(), clicked.native_session())
-                                {
-                                    let _ = Session { token, csrf }
+                                if let Some((token, csrf)) = clicked.native_session() {
+                                    let _ = Session { http, token, csrf }
                                         .post(&format!("{id}/read"), json!({}));
                                 }
-                            }) {
-                                Ok(shown) => {
-                                    alive.push_back(shown);
-                                    if alive.len() > 20 {
-                                        alive.pop_front();
-                                    }
+                            });
+                        });
+                        match shown {
+                            Ok(t) => {
+                                alive.push_back(t);
+                                if alive.len() > 500 {
+                                    alive.pop_front();
                                 }
-                                Err(e) => sup.note(&format!("Windows notification failed: {e}")),
                             }
+                            Err(e) => sup.note(&format!("Windows notification failed: {e}")),
                         }
-                        #[cfg(not(windows))]
-                        let _ = (title, body, link, id);
                     };
                     if !caught_up && os == "on" {
-                        match session.post("catch-up", json!({})).and_then(|r| {
-                            if r.status().is_success() {
-                                bounded_json(r)
-                            } else {
-                                Err(format!("HTTP {}", r.status()))
-                            }
-                        }) {
+                        match session.json(session.post("catch-up", json!({}))) {
                             Ok(v) => {
                                 caught_up = true;
+                                let hide = v["hide_details"].as_bool().unwrap_or(true);
                                 if let Some(n) = item(&v["notification"]) {
-                                    let (t, b) = toast_text(&n.title, &n.body, false);
-                                    show(&t, &b, n.link, Some(n.id));
+                                    let (t, b) = toast_text(&n.title, &n.body, hide);
+                                    show(&t, &b, n.link, n.id);
                                 }
                             }
                             Err(e) => sup.note(&format!("Notification summary not read: {e}")),
                         }
                     }
-                    let polled = session.get(&format!("native?os={os}")).and_then(|r| {
-                        if r.status().is_success() {
-                            bounded_json(r)
-                        } else {
-                            Err(format!("HTTP {}", r.status()))
-                        }
-                    });
-                    match polled {
-                        // Windows has the app's notifications off (or this copy is not
-                        // installed): claim nothing, so the bell and the web toast keep them.
+                    match session.json(session.get(&format!("native?os={os}"))) {
+                        // Windows does not allow the app's notifications (or this copy has no
+                        // registered identity): claim nothing; the bell and the web keep them.
                         Ok(_) if os != "on" => {}
                         Ok(v) => {
                             let hide = v["hide_details"].as_bool().unwrap_or(true);
@@ -251,7 +271,7 @@ pub fn start(app: AppHandle, sup: Shared) {
                                 if claimed >= PER_POLL {
                                     break;
                                 }
-                                if tried.contains(&n.id) || !may_claim(shown_for, n.age_ms) {
+                                if settled.contains(&n.id) || !may_claim(shown_for, n.age_ms) {
                                     continue;
                                 }
                                 let Ok(r) = session
@@ -259,14 +279,18 @@ pub fn start(app: AppHandle, sup: Shared) {
                                 else {
                                     continue;
                                 };
-                                tried.push_back(n.id.clone());
-                                if tried.len() > 500 {
-                                    tried.pop_front();
+                                let status = r.status().as_u16();
+                                if !claim_settled(status) {
+                                    continue;
+                                }
+                                settled.push_back(n.id.clone());
+                                if settled.len() > 500 {
+                                    settled.pop_front();
                                 }
                                 if r.status().is_success() {
                                     claimed += 1;
                                     let (t, b) = toast_text(&n.title, &n.body, hide);
-                                    show(&t, &b, n.link, Some(n.id));
+                                    show(&t, &b, n.link, n.id);
                                 }
                             }
                         }
@@ -279,7 +303,6 @@ pub fn start(app: AppHandle, sup: Shared) {
     });
 }
 
-#[cfg(windows)]
 mod toast {
     use windows::core::{IInspectable, HSTRING};
     use windows::Data::Xml::Dom::XmlDocument;
@@ -361,6 +384,25 @@ mod tests {
     }
 
     #[test]
+    fn only_a_win_or_a_conflict_settles_a_claim() {
+        assert!(claim_settled(200));
+        assert!(claim_settled(409));
+        for retry in [401, 403, 404, 500, 502, 503] {
+            assert!(!claim_settled(retry), "{retry}");
+        }
+    }
+
+    #[test]
+    fn a_reload_or_a_hide_restarts_the_shown_clock() {
+        let then = Instant::now() - Duration::from_secs(300);
+        assert_eq!(shown_since(Some(then), true, false), Some(then));
+        assert_eq!(shown_since(Some(then), false, false), None);
+        let after_reload = shown_since(Some(then), true, true).unwrap();
+        assert!(after_reload > then);
+        assert!(shown_since(None, true, false).is_some());
+    }
+
+    #[test]
     fn only_in_app_routes_are_opened() {
         assert!(valid_link("#/autopilot/run?ws=1f0e&id=abc-1"));
         assert!(valid_link("#/monitor/notifications?q=unread"));
@@ -392,6 +434,16 @@ mod tests {
         assert!(xml.contains("<text>x y</text>"));
         assert!(!toast_xml("t", "").contains("<text></text>"));
         assert!(!xml.contains("<action"));
+        // The start-up summary follows the same setting (review M-1 of #236).
+        let summary = json!({"id":"12345678-1234-4234-8234-123456789abc",
+            "title":"Missed alerts: 2 items still need you",
+            "body":"Autopilot stopped: needs your choice · $19 of $20 spent or reserved",
+            "link":"#/monitor/notifications?q=unread","age_ms":0,"severity":"needs_you"});
+        let n = item(&summary).unwrap();
+        assert_eq!(
+            toast_text(&n.title, &n.body, true),
+            (HIDDEN_TITLE.to_string(), String::new())
+        );
     }
 
     #[test]

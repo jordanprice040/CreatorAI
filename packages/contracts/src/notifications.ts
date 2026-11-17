@@ -506,10 +506,12 @@ export type NativeNotifications = z.infer<typeof NativeNotificationsSchema>;
 
 /**
  * `POST /api/notifications/catch-up`, once per start of the installed app: one summary row,
- * already claimed for Windows, of interrupting rows that expired unseen and still need the
- * person, or null when there are none.
+ * already claimed for Windows, of interrupting rows nobody showed (expired, or still pending
+ * from before the call) that still need the person, or null when there are none.
  */
 export const NativeCatchUpSchema = z.strictObject({
+  /** Settings › Notifications "Hide details on Windows" (review M-1 of #236). */
+  hide_details: z.boolean(),
   count: counter,
   notification: NativeNotificationSchema.nullable(),
 });
@@ -517,7 +519,8 @@ export type NativeCatchUp = z.infer<typeof NativeCatchUpSchema>;
 
 /** Settings › Notifications: whether the installed app is delivering Windows notifications. */
 export const WindowsNotificationStatusSchema = z.strictObject({
-  state: z.enum(['on', 'off_in_windows', 'not_running']),
+  /** `unavailable`: Windows gave no answer, for example for a developer build (review N-5). */
+  state: z.enum(['on', 'off_in_windows', 'unavailable', 'not_running']),
   /** The installed app's last poll, on the studio's clock. */
   seen_at: timestamp.nullable(),
 });

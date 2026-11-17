@@ -215,10 +215,7 @@ test('N3: the start-up summary names what still needs you once, already claimed 
   );
   assert.equal(up.count, 1);
   assert.ok(up.notification);
-  assert.equal(
-    up.notification.title,
-    'While Creator Agent was closed: 1 item still needs you',
-  );
+  assert.equal(up.notification.title, 'Missed alerts: 1 item still needs you');
   assert.equal(up.notification.link, '#/monitor/notifications?q=unread');
   const byId = async (subject: string) =>
     (
@@ -247,12 +244,52 @@ test('N3: the start-up summary names what still needs you once, already claimed 
   // No browser tab can show it again, and the next start summarises nothing.
   assert.deepEqual(await s.inbox.pendingNotifications(owner), []);
   assert.deepEqual(await s.inbox.catchUpNotifications(owner), {
+    hide_details: false,
     count: 0,
     notification: null,
   });
   // The summary is in the bell like any other row.
   const recent = await s.inbox.recentNotifications(owner);
   assert.ok(recent.items.some((n) => n.event_key === 'studio.catch_up'));
+});
+
+test('N3 review M-1 and L-1: the summary covers rows still pending from before the start, and says to hide details', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  await s.inbox.setNotificationPreferences(owner, {
+    expected_version: 0,
+    body: { ...DEFAULT_NOTIFICATION_PREFERENCES, windows_hide_details: true },
+  });
+  // Arrived two minutes before the app started: still pending, nobody showed it.
+  const recent = await s.stopped();
+  await s.age(owner, 2);
+  // A toast-only row is never a Windows summary item, and stays pending.
+  const toast = await s.stopped();
+  await s.db.pool.query(
+    `update notifications set mode = 'toast_only' where subject_id = $1 and actor_id = $2`,
+    [toast, owner.actorId],
+  );
+  const up = NativeCatchUpSchema.parse(
+    await s.inbox.catchUpNotifications(owner),
+  );
+  assert.equal(up.hide_details, true);
+  assert.equal(up.count, 1);
+  assert.match(up.notification!.title, /^Missed alerts: 1 item/);
+  const state = async (subject: string) =>
+    (
+      await s.rows(
+        `select interrupt_state, interrupted_via from notifications
+          where subject_id = $1 and actor_id = $2`,
+        [subject, owner.actorId],
+      )
+    )[0]!;
+  assert.deepEqual(await state(recent), {
+    interrupt_state: 'claimed',
+    interrupted_via: 'digest',
+  });
+  assert.equal((await state(toast)).interrupt_state, 'pending');
+  // Nothing is left for the poll to show a second time.
+  assert.deepEqual((await s.inbox.nativeNotifications(owner)).items, []);
 });
 
 test('N3: the start-up summary re-checks access, mutes and quiet hours', async (t) => {
@@ -268,6 +305,7 @@ test('N3: the start-up summary re-checks access, mutes and quiet hours', async (
     'Left the project.',
   );
   assert.deepEqual(await s.inbox.catchUpNotifications(member), {
+    hide_details: false,
     count: 0,
     notification: null,
   });
@@ -404,7 +442,7 @@ test('N3: the native routes need the session; Settings learns whether the instal
   status = WindowsNotificationStatusSchema.parse(
     (await call('GET', 'windows-status', auth.read)).body,
   );
-  assert.equal(status.state, 'off_in_windows');
+  assert.equal(status.state, 'unavailable');
   await call('GET', 'native?os=on', auth.read);
 
   // The claim the native process makes, with the token the installed app reads.
@@ -420,13 +458,19 @@ test('N3: the native routes need the session; Settings learns whether the instal
   const catchUp = NativeCatchUpSchema.parse(
     (await call('POST', 'catch-up', auth.write)).body,
   );
-  assert.deepEqual(catchUp, { count: 0, notification: null });
+  assert.deepEqual(catchUp, {
+    hide_details: false,
+    count: 0,
+    notification: null,
+  });
 });
 
 test('N3: Settings says whether Windows notifications are on, off in Windows, or need the app', async () => {
   const r = (await loadWeb('notification-rules.ts')) as {
     windowsStatusText(
-      s: { state: 'on' | 'off_in_windows' | 'not_running' } | null,
+      s: {
+        state: 'on' | 'off_in_windows' | 'unavailable' | 'not_running';
+      } | null,
     ): string;
   };
   assert.match(
@@ -435,6 +479,14 @@ test('N3: Settings says whether Windows notifications are on, off in Windows, or
   );
   assert.match(
     r.windowsStatusText({ state: 'off_in_windows' }),
+    /Windows Settings/,
+  );
+  assert.match(
+    r.windowsStatusText({ state: 'unavailable' }),
+    /cannot show Windows notifications/,
+  );
+  assert.doesNotMatch(
+    r.windowsStatusText({ state: 'unavailable' }),
     /Windows Settings/,
   );
   assert.match(

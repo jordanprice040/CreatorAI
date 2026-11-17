@@ -89,7 +89,7 @@ A failed setup removes only what it created and saves nothing.
   and marks the alert read. While the window is visible you get the in-app toast instead;
   the app shows a Windows notification only if the page has not shown a new alert within
   90 seconds. You never get both. Nothing is delivered while the app has quit; on the next
-  start, one summary names what still needs you. The app polls every 30 seconds with its
+  start, one summary ("Missed alerts: …") names what still needs you. The app polls every 30 seconds with its
   own stored sign-in, and claims nothing while Windows has its notifications turned off
   (Settings › Notifications in the studio says which). Focus Assist can still hide them.
   A copy started with `cargo run` has no registered app identity and shows none.

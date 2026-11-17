@@ -1463,7 +1463,9 @@ export function createApi(
               ? 'not_running'
               : seen.os === 'on'
                 ? 'on'
-                : 'off_in_windows',
+                : seen.os === 'off'
+                  ? 'off_in_windows'
+                  : 'unavailable',
             seen_at: seen ? new Date(seen.at).toISOString() : null,
           },
           false,

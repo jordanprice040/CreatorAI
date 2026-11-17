@@ -231,7 +231,8 @@ export class NotificationStore extends Store {
 
   /**
    * N3 (ADR-0131): called once each time the installed app starts (plan §4, "Limits"). Rows
-   * that would have interrupted but expired unseen while the app was closed are checked again,
+   * that would have interrupted but nobody showed (expired, or still pending from before the
+   * app started) are checked again,
    * like the quiet-hours digest: access, mutes and "Inbox only" choices made since, and whether
    * the run, approval or claims still need the person. What still does becomes one summary,
    * already claimed for Windows, so no browser tab can show it; each row it covers is marked
@@ -251,12 +252,14 @@ export class NotificationStore extends Store {
       ]);
       await this.#withdrawLost(c, ctx.actorId);
       const manager = await this.#manager(c, ctx.actorId);
-      // After a restart the maintenance sweep may not have run yet.
+      // Nothing was delivering while the app was closed: an interrupting row still pending
+      // from before this call was not shown, whatever its age (review L-1 of #236; the sweep
+      // may not have run yet either). A window that opens now would not toast it late.
       await c.query(
         `update notifications set interrupt_state = 'expired'
-          where actor_id = $1 and interrupt_state = 'pending'
-            and first_at <= clock_timestamp() - make_interval(secs => $2::double precision / 1000)`,
-        [ctx.actorId, NOTIFICATION_PENDING_MS],
+          where actor_id = $1 and interrupt_state = 'pending' and mode = 'interrupt'
+            and first_at < clock_timestamp()`,
+        [ctx.actorId],
       );
       const { rows } = await c.query(
         `select n.* from notifications n where ${VISIBLE}
@@ -292,14 +295,18 @@ export class NotificationStore extends Store {
           `update notifications set interrupt_state = 'held_quiet' where id = any($1::uuid[])`,
           [held],
         );
-      if (!open.length) return { count: 0, notification: null };
+      const hide = prefs.body.windows_hide_details;
+      if (!open.length)
+        return { hide_details: hide, count: 0, notification: null };
       await c.query(
         `update notifications set interrupt_state = 'claimed', interrupted_via = 'digest',
            interrupted_at = clock_timestamp() where id = any($1::uuid[])`,
         [open.map((r) => r.id)],
       );
       const first = String(open[0]!.id);
-      const summary = summaryOf('While Creator Agent was closed', open);
+      // Review L-2: neutral wording; a row may also have expired while the app was running
+      // (Windows notifications off, a hidden browser tab).
+      const summary = summaryOf('Missed alerts', open);
       const made = await notify(c, {
         actorId: ctx.actorId,
         workspaceId: null,
@@ -325,6 +332,7 @@ export class NotificationStore extends Store {
         [made.id],
       );
       return {
+        hide_details: hide,
         count: open.length,
         notification: claimed[0] ? toNative(claimed[0] as Row) : null,
       };

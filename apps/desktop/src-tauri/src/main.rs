@@ -5,6 +5,7 @@ mod download;
 mod external;
 mod home;
 mod job;
+#[cfg(windows)]
 mod notify;
 mod postgres;
 mod secret;
@@ -26,6 +27,10 @@ use tauri::{
 pub const WEB_ORIGIN: &str = "http://127.0.0.1:5173/";
 const IDENTIFIER: &str = "com.creatoragent.studio";
 const DEFAULT_TITLE: &str = "Creator Agent — local studio";
+
+/// N3 (ADR-0131): finished page loads of the studio window. The Windows notification poller
+/// restarts its "shown since" clock on a reload, as the web toast restarts its own cutoff.
+pub static STUDIO_PAGE_LOADS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 /// Shows a passing note in the title bar, then puts the usual title back after a few seconds
 /// unless something else changed the title meanwhile (full audit 2026-11-02, PR #111 L4).
@@ -367,6 +372,9 @@ fn build_studio_window(
             }
         })
         .on_page_load(move |view, payload| {
+            if payload.event() == tauri::webview::PageLoadEvent::Finished {
+                STUDIO_PAGE_LOADS.fetch_add(1, Ordering::SeqCst);
+            }
             if smoke && payload.event() == tauri::webview::PageLoadEvent::Finished {
                 println!("NATIVE_WEBVIEW_NAVIGATION_FINISHED {}", payload.url());
                 view.app_handle().exit(0);
