@@ -1,5 +1,13 @@
 # Build status — November 10, 2026
 
+## November 17 update — F11 first slice: local Ollama adapter, design only (ADR-0127, no migration)
+
+What now works: `@creator/broker` has an Ollama adapter for a model running on this computer. It reaches only a loopback address (`127.0.0.1` or `[::1]`), reads the server version and installed-model list, checks a model pinned by name and digest before every call (refusing a missing, replaced or Ollama-cloud model before anything is sent), and sends one non-streamed chat with the output cap, JSON format when asked and no tools. Answers map to the broker's existing completed/refused/unknown outcomes with token counts as reported. `config/local-models.json` holds the address, timeout and context size and pins no model. Not wired into any route: a local workflow is still refused, nothing is offered to a role, nothing was downloaded and no real Ollama was contacted.
+
+Checked in the cloud container: `pnpm typecheck` and `pnpm format:check` pass; new `tests/src/ollama.test.ts` 13/13 against fake loopback servers (address rules, shipped config, cloud and duplicate pins refused, inventory kept as reported, the six pin-check outcomes including a closed port, request body for JSON and text, refused-before-chat for replaced/removed/remote models, unsupported actions never contact the server, 4xx/5xx/non-JSON/oversize/wrong-model/incomplete/inconsistent-count answers, redirects not followed, timeout and cancel, and that only the three allowed paths were requested). Full `pnpm test:db` (PostgreSQL 16): 1504 tests, 1470 pass, 29 skipped, only the 5 known PowerShell-wrapper failures (438, 456, 870, 874, 969; no `pwsh` in the container); `pnpm test:dev-safety` run separately: 22 tests, 19 pass, 0 fail.
+
+Not done: hardware check, model download, a local route in Models and connections, per-role qualification. Each device step needs Jordan's typed OK.
+
 ## November 17 update — study effort timer: human-only, finish and analysis (ADR-0129, migration 78)
 
 What now works: on the Study page the assigned participant's time is timed on human-only attempts as well as assisted ones, from opening the attempt to the finish. Each saved intervention or entry ends a step and starts the next; Submit saved work or Stop attempt ends the last step, so the finish is measured too. The readout sits at the top of the attempt panel. The autonomous condition is not timed. The export's `measured_effort` adds totals, a split by what ended each step, `finish_timed` and `complete`; the analysis's human effort table now reads the measured times beside the reported ones (reported figures unchanged, nothing imputed).
