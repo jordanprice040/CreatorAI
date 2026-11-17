@@ -1,0 +1,182 @@
+{
+  "id": "4d445253-78dc-4d63-812f-5befe464ffc1",
+  "workspace_id": "88df6c10-7310-4ec0-b623-7f48046bc447",
+  "connection_id": "4e4a7bec-c1ca-4f31-8f87-b11ed5fc81d4",
+  "recipe": "python-build/1",
+  "benchmark_id": "p14-xl-v1",
+  "model_id": "gpt-6-astra",
+  "builder_prompt_sha256": "1417735c421c97fa9c5626f6fe027fbf9fc8893a0f76dc5b5031c3de23d9bb7e",
+  "reviewer_prompt_sha256": "9e1cc6b4184526512d4cafa6f0f7f450579935c0bacaa3f17c558b1d2908f99c",
+  "freeze_sha256": "308fc5de6db962f58672730430a04b81498791c02f3d9e756b90f15056ae2c21",
+  "max_input_chars": 120000,
+  "source": "in_app",
+  "fixture": false,
+  "state": "qualified",
+  "attempts_needed": 3,
+  "passed": 3,
+  "reason": "3 of 3 attempts met every pass bar.",
+  "evidence": null,
+  "attempts": [
+    {
+      "id": "1db77888-1b6c-492b-8165-2af926a3629a",
+      "slot": 1,
+      "replaces": null,
+      "state": "passed",
+      "reason": "Every pass bar met.",
+      "product_id": "823b0bd4-7e46-40f3-9bea-e0bfde3c71d3",
+      "build_id": "3334bdfc-999d-41bc-865b-f1536951dc38",
+      "request_limit": 20,
+      "requests": 2,
+      "repairs": 0,
+      "result": {
+        "bars": [
+          {
+            "key": "build_verified",
+            "passed": true,
+            "detail": "Verified in 2 requests and 0 repair rounds; QA passed every frozen case and the reviewer approved."
+          },
+          {
+            "key": "requests_within_cap",
+            "passed": true,
+            "detail": "2 of at most 20 requests (the build's own cap)."
+          },
+          {
+            "key": "package_verified",
+            "passed": true,
+            "detail": "The exported package passed all 25 frozen cases again in the worker."
+          },
+          {
+            "key": "extended_cases",
+            "passed": true,
+            "detail": "All 37 extended cases passed."
+          },
+          {
+            "key": "structure",
+            "passed": true,
+            "detail": "src/stockroom has __init__.py and all 11 named modules, each with a function and imported, and src/main.py imports from stockroom"
+          }
+        ],
+        "build_reason": "Fresh review and executed acceptance cases passed for this exact task candidate",
+        "manifest_sha256": "599e2ced816ed12ac4cfffe17cfc87f9b55c8428109672276d7164876b6dfb1c",
+        "archive_sha256": "cd29a101085cf3577353c86d680f69c72597a47bd9d626c39d501ff22f21e90a",
+        "extended": {
+          "passed": 37,
+          "total": 37,
+          "failed": []
+        },
+        "wall_ms": 148972
+      },
+      "started_at": "2026-11-17T07:08:14.729Z",
+      "finished_at": "2026-11-17T07:10:43.711Z"
+    },
+    {
+      "id": "ef02a7f4-e8ca-4126-be82-ed1efd27edda",
+      "slot": 2,
+      "replaces": null,
+      "state": "passed",
+      "reason": "Every pass bar met.",
+      "product_id": "93a30a2e-69a0-4adb-b8ac-edcd7c1ed57d",
+      "build_id": "0bb085de-ee21-45c6-b1ac-94f083a8fbd5",
+      "request_limit": 20,
+      "requests": 2,
+      "repairs": 0,
+      "result": {
+        "bars": [
+          {
+            "key": "build_verified",
+            "passed": true,
+            "detail": "Verified in 2 requests and 0 repair rounds; QA passed every frozen case and the reviewer approved."
+          },
+          {
+            "key": "requests_within_cap",
+            "passed": true,
+            "detail": "2 of at most 20 requests (the build's own cap)."
+          },
+          {
+            "key": "package_verified",
+            "passed": true,
+            "detail": "The exported package passed all 25 frozen cases again in the worker."
+          },
+          {
+            "key": "extended_cases",
+            "passed": true,
+            "detail": "All 37 extended cases passed."
+          },
+          {
+            "key": "structure",
+            "passed": true,
+            "detail": "src/stockroom has __init__.py and all 11 named modules, each with a function and imported, and src/main.py imports from stockroom"
+          }
+        ],
+        "build_reason": "Fresh review and executed acceptance cases passed for this exact task candidate",
+        "manifest_sha256": "64e41758f4627f55db495e5990401597f340731e114dfd13999d22dfe434250d",
+        "archive_sha256": "235d4c087ffccb8f831cc169a9123bea6a3b4d187cae97942f44a0d5083631eb",
+        "extended": {
+          "passed": 37,
+          "total": 37,
+          "failed": []
+        },
+        "wall_ms": 151754
+      },
+      "started_at": "2026-11-17T07:10:43.720Z",
+      "finished_at": "2026-11-17T07:13:15.480Z"
+    },
+    {
+      "id": "51eb2c04-759d-4cb2-94b1-18b69a2db128",
+      "slot": 3,
+      "replaces": null,
+      "state": "passed",
+      "reason": "Every pass bar met.",
+      "product_id": "b1c8013b-d9af-4d7c-bf4f-8ad03404c85f",
+      "build_id": "20026aed-fcc3-406e-b4e3-526bbe4813fb",
+      "request_limit": 20,
+      "requests": 2,
+      "repairs": 0,
+      "result": {
+        "bars": [
+          {
+            "key": "build_verified",
+            "passed": true,
+            "detail": "Verified in 2 requests and 0 repair rounds; QA passed every frozen case and the reviewer approved."
+          },
+          {
+            "key": "requests_within_cap",
+            "passed": true,
+            "detail": "2 of at most 20 requests (the build's own cap)."
+          },
+          {
+            "key": "package_verified",
+            "passed": true,
+            "detail": "The exported package passed all 25 frozen cases again in the worker."
+          },
+          {
+            "key": "extended_cases",
+            "passed": true,
+            "detail": "All 37 extended cases passed."
+          },
+          {
+            "key": "structure",
+            "passed": true,
+            "detail": "src/stockroom has __init__.py and all 11 named modules, each with a function and imported, and src/main.py imports from stockroom"
+          }
+        ],
+        "build_reason": "Fresh review and executed acceptance cases passed for this exact task candidate",
+        "manifest_sha256": "090f5aac06f9d3617ad827565bc97b1243facfef1157f842a39615fef0c4f7d7",
+        "archive_sha256": "39b033cb1de14800ec0cc1d482a70c7c77633fbd7fd9773bce224c3b6a4b02c9",
+        "extended": {
+          "passed": 37,
+          "total": 37,
+          "failed": []
+        },
+        "wall_ms": 144219
+      },
+      "started_at": "2026-11-17T07:13:15.489Z",
+      "finished_at": "2026-11-17T07:15:39.714Z"
+    }
+  ],
+  "executing": false,
+  "version": 5,
+  "created_by": "00000000-0000-4000-8000-000000000001",
+  "created_at": "2026-11-17T07:08:14.706Z",
+  "finished_at": "2026-11-17T07:15:39.720Z"
+}
