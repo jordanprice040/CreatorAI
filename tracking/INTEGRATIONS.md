@@ -11,6 +11,13 @@ decision); the hash check is the integrity check. Release installers must be nam
 spaces (GitHub renames them), and each release must be newer than any version that was rolled
 back. External database users need `CREATEDB` for the rehearsal copy and a rollback's restore.
 
+## Local models through Ollama — November 17, 2026 (F11 first slice, ADR-0127)
+
+An adapter for a loopback Ollama server (`/api/version`, `/api/tags`, `/api/chat` only; no
+model management, no cloud models, pinned by name and digest). State: **fixture-tested only**
+(fake loopback servers). Not activated: no route, no role, no model pinned or downloaded, no real
+Ollama contacted. A hardware check, a model download and any live call each need Jordan's typed OK.
+
 ## OpenAI API key added in the app — November 12, 2026 (P28, ADR-0093)
 
 The OpenAI API key route can now be turned on per workspace from Models and connections › Other
