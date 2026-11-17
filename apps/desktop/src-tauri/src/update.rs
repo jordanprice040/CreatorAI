@@ -99,13 +99,15 @@ fn hex(s: &str, len: usize) -> bool {
             .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c))
 }
 
-/// An installer file name: one plain name ending in .exe, no folders.
+/// An installer file name: one plain name ending in .exe, no folders. Review H-1: only
+/// characters GitHub keeps when it stores a release asset (it renames others, a space becomes
+/// a dot), so the name in the manifest is the name the release lists.
 pub fn safe_installer_name(n: &str) -> bool {
     n.len() <= 200
         && n.to_ascii_lowercase().ends_with(".exe")
         && !n.starts_with('.')
         && n.chars()
-            .all(|c| c.is_ascii_alphanumeric() || " ._-".contains(c))
+            .all(|c| c.is_ascii_alphanumeric() || "._-".contains(c))
 }
 
 impl Manifest {
@@ -131,7 +133,9 @@ impl Manifest {
             return bad("installer.size is out of range");
         }
         if !safe_installer_name(&self.installer.name) {
-            return bad("installer.name must be a plain .exe file name");
+            return bad(
+                "installer.name must be a plain .exe file name of letters, digits, dots, - and _ (no spaces)",
+            );
         }
         if self.built_at.len() > 40 {
             return bad("built_at is too long");
@@ -227,6 +231,10 @@ impl Paths {
     pub fn rollback(&self) -> PathBuf {
         self.root.join("rollback")
     }
+    /// `studio.json` as it was when the update was approved (review L-5).
+    pub fn settings_copy(&self, id: &str) -> PathBuf {
+        self.root.join(format!("studio-before-{id}.json"))
+    }
 }
 
 pub fn write_json_atomic(path: &Path, v: &impl Serialize) -> Result<(), String> {
@@ -266,20 +274,46 @@ impl Settings {
 /// Kept beside the database, not in it: a rollback may replace the database.
 pub fn record(p: &Paths, event: &str, detail: Value) {
     let line = json!({"at": crate::studio::chrono_now(), "event": event, "detail": detail});
-    let _ = std::fs::create_dir_all(&p.root);
-    if let Ok(mut f) = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(p.history())
-    {
-        let _ = writeln!(f, "{line}");
+    let written = std::fs::create_dir_all(&p.root)
+        .and_then(|_| {
+            std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(p.history())
+        })
+        .and_then(|mut f| writeln!(f, "{line}"));
+    // Review L-6: a lost history line is itself noted, in the app's update log.
+    if let Err(e) = written {
+        if let Some(home) = p.root.parent() {
+            if let Ok(mut f) = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(home.join("logs").join("update.log"))
+            {
+                let _ = writeln!(f, "could not record {event} in history.jsonl ({e}): {line}");
+            }
+        }
     }
 }
 
+/// The last `last` history entries, reading only the end of the file (review N-6).
 pub fn history(p: &Paths, last: usize) -> Vec<Value> {
-    let Ok(text) = std::fs::read_to_string(p.history()) else {
+    use std::io::{Seek, SeekFrom};
+    const TAIL: u64 = 64 * 1024;
+    let Ok(mut f) = std::fs::File::open(p.history()) else {
         return Vec::new();
     };
+    let len = f.metadata().map(|m| m.len()).unwrap_or(0);
+    let start = len.saturating_sub(TAIL);
+    if f.seek(SeekFrom::Start(start)).is_err() {
+        return Vec::new();
+    }
+    let mut bytes = Vec::new();
+    if f.read_to_end(&mut bytes).is_err() {
+        return Vec::new();
+    }
+    let text = String::from_utf8_lossy(&bytes);
+    // A cut first line is dropped by the JSON parse below.
     let mut out: Vec<Value> = text
         .lines()
         .rev()
@@ -599,6 +633,8 @@ pub struct Pending {
     /// The verified backup taken just before; a rollback restores it when needed.
     pub backup_dir: String,
     pub schema_before: i64,
+    /// Review L-5: `studio.json` as it was before the update; a rollback puts it back first.
+    pub settings_copy: String,
     /// The copy of the running version that applies the update and can be put back.
     pub rollback_dir: String,
     pub install_dir: String,
@@ -609,6 +645,7 @@ pub struct Pending {
     pub created_at: String,
     pub updated_at: String,
 }
+
 /// Written by the new version once it runs (or fails to start) under a pending update.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -621,10 +658,84 @@ pub struct Outcome {
     pub at: String,
 }
 
+/// Review L-4: after a rollback Windows still lists the failed version as installed, and the
+/// installer refuses to install a lower one over it. Check refuses anything not above it.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Failed {
+    pub highest_failed: String,
+}
+pub fn failed_path(p: &Paths) -> PathBuf {
+    p.root.join("failed.json")
+}
+/// Records a version that was rolled back, keeping the highest.
+pub fn block_version(p: &Paths, v: &str) -> Result<(), String> {
+    let new = Version::parse(v)?;
+    let old = read_json::<Failed>(&failed_path(p))
+        .ok()
+        .flatten()
+        .and_then(|f| Version::parse(&f.highest_failed).ok());
+    if old.is_some_and(|o| o >= new) {
+        return Ok(());
+    }
+    write_json_atomic(
+        &failed_path(p),
+        &Failed {
+            highest_failed: v.into(),
+        },
+    )
+}
+/// Refuses a release that is not above every version that failed and was rolled back.
+pub fn check_not_blocked(p: &Paths, v: &str) -> Result<(), String> {
+    let Some(f) = read_json::<Failed>(&failed_path(p))? else {
+        return Ok(());
+    };
+    if Version::parse(v)? <= Version::parse(&f.highest_failed)? {
+        return Err(format!(
+            "Version {v} is not above {}, which did not start earlier and is still recorded by Windows, so its installer would refuse. Publish a version above {}.",
+            f.highest_failed, f.highest_failed
+        ));
+    }
+    Ok(())
+}
+
+/// Review M-1: the helper touches this file while it watches; a launch that finds it stale
+/// knows nobody is waiting for its report.
+pub fn heartbeat(p: &Paths, id: &str) -> PathBuf {
+    p.root.join(format!("helper-{id}.beat"))
+}
+pub const HEARTBEAT_FRESH: Duration = Duration::from_secs(20);
+pub fn helper_alive(age: Option<Duration>) -> bool {
+    age.is_some_and(|a| a <= HEARTBEAT_FRESH)
+}
+
+/// What a trial launch does with its outcome.
+#[derive(Debug, PartialEq)]
+pub enum TrialAction {
+    /// The helper is watching: write the outcome for it.
+    Report,
+    /// The helper had gone (restart, crash) and this version runs: keep it.
+    Confirm,
+    /// The helper had gone and this version does not start: start the saved copy to roll back.
+    ResumeRollback,
+}
+pub fn trial_action(helper_alive: bool, result: &str) -> TrialAction {
+    match (helper_alive, result) {
+        (true, _) => TrialAction::Report,
+        (false, "running") => TrialAction::Confirm,
+        (false, _) => TrialAction::ResumeRollback,
+    }
+}
+
+/// How long the helper waits for the earlier version to quit before it gives up installing,
+/// and then how much longer before it starts that version again (review L-2).
+pub const QUIT_WAIT: Duration = Duration::from_secs(120);
+pub const QUIT_WAIT_MORE: Duration = Duration::from_secs(20 * 60);
+
 /// The steps of applying an update that touch the system, so the decisions can be tested.
 pub trait Steps {
-    /// Waits until the version that started the update has quit.
-    fn wait_for_previous_exit(&mut self) -> Result<(), String>;
+    /// Waits up to `limit` until no studio for this home runs.
+    fn wait_for_previous_exit(&mut self, limit: Duration) -> Result<(), String>;
     fn run_installer(&mut self, installer: &Path) -> Result<(), String>;
     fn start_new_version(&mut self, exe: &Path) -> Result<(), String>;
     fn new_version_running(&mut self) -> bool;
@@ -632,40 +743,69 @@ pub trait Steps {
     fn read_outcome(&mut self, id: &str) -> Option<Outcome>;
     fn wait(&mut self, d: Duration);
     fn elapsed_since_start(&mut self) -> Duration;
+    /// Puts `studio.json` back as it was before the update.
+    fn restore_settings(&mut self, copy: &Path) -> Result<(), String>;
     /// True when the database is no longer at the layout the earlier version uses.
     fn database_changed(&mut self, schema_before: i64) -> Result<bool, String>;
     /// Restores the backup into a new database and points the settings at it; returns its name.
     fn restore_database(&mut self, backup_dir: &Path) -> Result<String, String>;
+    /// Drops rehearsal copies a stopped upgrade left behind; returns their names.
+    fn drop_rehearsal_copies(&mut self) -> Result<Vec<String>, String>;
     /// Puts the earlier version's files back into the install folder.
     fn restore_files(&mut self, from: &Path, install_dir: &Path) -> Result<(), String>;
     /// Starts the earlier version again: from the install folder, or from the copy itself.
     fn start_previous(&mut self, exe: &Path) -> Result<(), String>;
-    fn save(&mut self, p: &Pending);
+    fn save(&mut self, p: &Pending) -> Result<(), String>;
     fn note(&mut self, event: &str, detail: Value);
+    fn block_version(&mut self, v: &str) -> Result<(), String>;
+}
+
+fn set(steps: &mut dyn Steps, p: &mut Pending, stage: &str, detail: &str) -> Result<(), String> {
+    p.stage = stage.into();
+    p.detail = detail.into();
+    p.updated_at = crate::studio::chrono_now();
+    steps.save(p)
+}
+
+/// Gives up before installing, then makes sure the earlier version runs again (review L-2).
+fn refuse(steps: &mut dyn Steps, mut p: Pending, why: &str, installed_exe: &Path) -> Pending {
+    let _ = set(steps, &mut p, "refused", why);
+    steps.note("update_refused", json!({"id": p.id, "reason": why}));
+    let _ = steps.wait_for_previous_exit(QUIT_WAIT_MORE);
+    if let Err(e) = steps.start_previous(installed_exe) {
+        steps.note("start_previous_failed", json!({"id": p.id, "reason": e}));
+    }
+    p
 }
 
 /// Applies a pending update. Every path ends with a version running: the new one when it
 /// reported that it runs, otherwise the earlier one.
 pub fn apply(steps: &mut dyn Steps, mut p: Pending) -> Pending {
-    let set = |steps: &mut dyn Steps, p: &mut Pending, stage: &str, detail: &str| {
-        p.stage = stage.into();
-        p.detail = detail.into();
-        p.updated_at = crate::studio::chrono_now();
-        steps.save(p);
-    };
     let install_dir = PathBuf::from(&p.install_dir);
     let rollback_dir = PathBuf::from(&p.rollback_dir);
     let installed_exe = install_dir.join(&p.exe_name);
     let copy_exe = rollback_dir.join(&p.exe_name);
-    if let Err(e) = steps.wait_for_previous_exit() {
-        set(
+    // Review L-6: the new version learns of its trial from this file; unwritable means stop.
+    if let Err(e) = set(
+        steps,
+        &mut p,
+        "installing",
+        "Waiting for Creator Agent to quit",
+    ) {
+        return refuse(
             steps,
-            &mut p,
-            "refused",
-            &format!("Creator Agent did not quit, so nothing was installed: {e}"),
+            p,
+            &format!("The update's progress could not be saved, so nothing was installed: {e}"),
+            &installed_exe,
         );
-        steps.note("update_refused", json!({"id": p.id, "reason": p.detail}));
-        return p;
+    }
+    if let Err(e) = steps.wait_for_previous_exit(QUIT_WAIT) {
+        return refuse(
+            steps,
+            p,
+            &format!("Creator Agent did not quit, so nothing was installed: {e}"),
+            &installed_exe,
+        );
     }
     // The installer is hashed again here, by the copy that runs it.
     let want = InstallerRef {
@@ -674,10 +814,7 @@ pub fn apply(steps: &mut dyn Steps, mut p: Pending) -> Pending {
         sha256: p.installer_sha256.clone(),
     };
     if let Err(e) = verify_download(Path::new(&p.installer), &want) {
-        set(steps, &mut p, "refused", &e);
-        steps.note("update_refused", json!({"id": p.id, "reason": e}));
-        let _ = steps.start_previous(&installed_exe);
-        return p;
+        return refuse(steps, p, &e, &installed_exe);
     }
     steps.note("install_started", json!({"id": p.id, "to": p.to_version}));
     if let Err(e) = steps.run_installer(Path::new(&p.installer)) {
@@ -689,7 +826,15 @@ pub fn apply(steps: &mut dyn Steps, mut p: Pending) -> Pending {
             &copy_exe,
         );
     }
-    set(steps, &mut p, "starting", "Starting the new version");
+    if let Err(e) = set(steps, &mut p, "starting", "Starting the new version") {
+        return roll_back(
+            steps,
+            p,
+            &format!("The update's progress could not be saved: {e}"),
+            &installed_exe,
+            &copy_exe,
+        );
+    }
     if let Err(e) = steps.start_new_version(&installed_exe) {
         return roll_back(
             steps,
@@ -702,7 +847,7 @@ pub fn apply(steps: &mut dyn Steps, mut p: Pending) -> Pending {
     loop {
         if let Some(o) = steps.read_outcome(&p.id) {
             if o.result == "running" && o.version == p.to_version {
-                set(steps, &mut p, "confirmed", "The new version is running");
+                let _ = set(steps, &mut p, "confirmed", "The new version is running");
                 steps.note(
                     "update_confirmed",
                     json!({"id": p.id, "version": p.to_version}),
@@ -741,6 +886,20 @@ pub fn apply(steps: &mut dyn Steps, mut p: Pending) -> Pending {
     }
 }
 
+/// Review M-1: the saved copy started again by a new version that does not start after the
+/// first helper had gone. That version quits itself; the copy then rolls back.
+pub fn resume_rollback(steps: &mut dyn Steps, p: Pending, why: &str) -> Pending {
+    let installed_exe = PathBuf::from(&p.install_dir).join(&p.exe_name);
+    let copy_exe = PathBuf::from(&p.rollback_dir).join(&p.exe_name);
+    if let Err(e) = steps.wait_for_previous_exit(QUIT_WAIT + QUIT_WAIT_MORE) {
+        steps.note(
+            "rollback_waiting",
+            json!({"id": p.id, "reason": format!("the new version did not quit: {e}")}),
+        );
+    }
+    roll_back(steps, p, why, &installed_exe, &copy_exe)
+}
+
 fn roll_back(
     steps: &mut dyn Steps,
     mut p: Pending,
@@ -748,14 +907,17 @@ fn roll_back(
     installed_exe: &Path,
     copy_exe: &Path,
 ) -> Pending {
-    p.stage = "rolling_back".into();
-    p.detail = why.into();
-    p.updated_at = crate::studio::chrono_now();
-    steps.save(&p);
+    let mut problems = Vec::new();
+    if let Err(e) = set(steps, &mut p, "rolling_back", why) {
+        problems.push(format!("the update's progress could not be saved ({e})"));
+    }
     steps.note("rollback_started", json!({"id": p.id, "reason": why}));
     steps.stop_new_version();
-    let mut problems = Vec::new();
     let mut restored_db = None;
+    // Review L-5: the settings first, so the earlier version can read them again.
+    if let Err(e) = steps.restore_settings(Path::new(&p.settings_copy)) {
+        problems.push(format!("the studio settings could not be put back ({e})"));
+    }
     match steps.database_changed(p.schema_before) {
         Ok(false) => {}
         Ok(true) => match steps.restore_database(Path::new(&p.backup_dir)) {
@@ -763,6 +925,19 @@ fn roll_back(
             Err(e) => problems.push(format!("the backup could not be restored ({e})")),
         },
         Err(e) => problems.push(format!("the database could not be checked ({e})")),
+    }
+    // Review L-3: a stopped upgrade can leave its rehearsal copy behind.
+    match steps.drop_rehearsal_copies() {
+        Ok(dropped) if !dropped.is_empty() => {
+            steps.note(
+                "rehearsal_copies_dropped",
+                json!({"id": p.id, "databases": dropped}),
+            );
+        }
+        Ok(_) => {}
+        Err(e) => problems.push(format!(
+            "leftover rehearsal copies of the database could not be checked or removed ({e})"
+        )),
     }
     let files = steps.restore_files(Path::new(&p.rollback_dir), Path::new(&p.install_dir));
     let start = match &files {
@@ -777,31 +952,31 @@ fn roll_back(
     if let Err(e) = steps.start_previous(start) {
         problems.push(format!("the earlier version could not be started ({e})"));
     }
+    if let Err(e) = steps.block_version(&p.to_version) {
+        problems.push(format!("the failed version could not be recorded ({e})"));
+    }
     let mut detail = format!("{why}. Creator Agent went back to {}.", p.from_version);
     if let Some(db) = &restored_db {
         detail.push_str(&format!(
             " The database was restored from the backup taken before the update into {db}; the upgraded one was kept, unchanged, for inspection."
         ));
     }
+    detail.push_str(&format!(
+        " Windows still lists {} as installed, so the next update must be newer than {}.",
+        p.to_version, p.to_version
+    ));
     if !problems.is_empty() {
         detail.push_str(&format!(" Problems: {}.", problems.join("; ")));
     }
-    p.stage = if problems.is_empty() {
+    let stage = if problems.is_empty() {
         "rolled_back"
     } else {
         "rollback_failed"
-    }
-    .into();
-    p.detail = detail;
-    p.updated_at = crate::studio::chrono_now();
-    steps.save(&p);
+    };
+    let _ = set(steps, &mut p, stage, &detail);
     steps.note(
-        if problems.is_empty() {
-            "rolled_back"
-        } else {
-            "rollback_failed"
-        },
-        json!({"id": p.id, "detail": p.detail, "restored_database": restored_db}),
+        stage,
+        json!({"id": p.id, "to": p.to_version, "detail": p.detail, "restored_database": restored_db}),
     );
     p
 }
@@ -841,7 +1016,7 @@ mod tests {
             source_commit: "a".repeat(40),
             built_at: "2026-11-17T10:00:00Z".into(),
             installer: InstallerRef {
-                name: format!("Creator Agent_{version}_x64-setup.exe"),
+                name: format!("Creator-Agent_{version}_x64-setup.exe"),
                 size: bytes.len() as u64,
                 sha256: format!("{:x}", Sha256::digest(bytes)),
             },
@@ -930,11 +1105,13 @@ mod tests {
     // ---- a fake GitHub on 127.0.0.1 -----------------------------------------------------
 
     type Seen = Arc<Mutex<Vec<(String, HashMap<String, String>)>>>;
+    /// Path → (status, headers, body).
+    type Routes = HashMap<String, (u16, Vec<(String, String)>, Vec<u8>)>;
     struct Fake {
         base: String,
         seen: Seen,
     }
-    fn fake(routes: HashMap<String, (u16, Vec<(String, String)>, Vec<u8>)>) -> Fake {
+    fn fake(routes: Routes) -> Fake {
         let l = TcpListener::bind("127.0.0.1:0").unwrap();
         let base = format!("http://{}", l.local_addr().unwrap());
         let seen: Seen = Arc::default();
@@ -980,11 +1157,7 @@ mod tests {
         Fake { base, seen }
     }
 
-    fn release_routes(
-        m: &Manifest,
-        installer: &[u8],
-        installer_digest: Option<String>,
-    ) -> HashMap<String, (u16, Vec<(String, String)>, Vec<u8>)> {
+    fn release_routes(m: &Manifest, installer: &[u8], installer_digest: Option<String>) -> Routes {
         let mbytes = serde_json::to_vec(m).unwrap();
         let mut inst = json!({"id": 22, "name": m.installer.name, "size": m.installer.size});
         if let Some(d) = installer_digest {
@@ -1176,14 +1349,21 @@ mod tests {
         alive: bool,
         db_changed: bool,
         files_fail: bool,
+        /// Exits seen only after this many waits (review L-2), or never with `exited: false`.
+        exit_after_waits: u32,
+        exit_waits: u32,
+        save_fails: bool,
+        leftover_copies: Vec<String>,
         polls: u32,
         clock: Duration,
         log: Vec<String>,
         saved: Vec<String>,
     }
     impl Steps for FakeSteps {
-        fn wait_for_previous_exit(&mut self) -> Result<(), String> {
-            if self.exited {
+        fn wait_for_previous_exit(&mut self, limit: Duration) -> Result<(), String> {
+            self.exit_waits += 1;
+            self.log.push(format!("wait_exit {}", limit.as_secs()));
+            if self.exited && self.exit_waits > self.exit_after_waits {
                 Ok(())
             } else {
                 Err("still running".into())
@@ -1221,6 +1401,18 @@ mod tests {
         fn elapsed_since_start(&mut self) -> Duration {
             self.clock
         }
+        fn restore_settings(&mut self, _: &Path) -> Result<(), String> {
+            self.log.push("restore_settings".into());
+            Ok(())
+        }
+        fn drop_rehearsal_copies(&mut self) -> Result<Vec<String>, String> {
+            self.log.push("drop_rehearsals".into());
+            Ok(std::mem::take(&mut self.leftover_copies))
+        }
+        fn block_version(&mut self, v: &str) -> Result<(), String> {
+            self.log.push(format!("block {v}"));
+            Ok(())
+        }
         fn database_changed(&mut self, _: i64) -> Result<bool, String> {
             Ok(self.db_changed)
         }
@@ -1240,8 +1432,12 @@ mod tests {
             self.log.push(format!("start_previous {}", exe.display()));
             Ok(())
         }
-        fn save(&mut self, p: &Pending) {
+        fn save(&mut self, p: &Pending) -> Result<(), String> {
+            if self.save_fails {
+                return Err("disk full".into());
+            }
             self.saved.push(p.stage.clone());
+            Ok(())
         }
         fn note(&mut self, e: &str, _: Value) {
             self.log.push(format!("note {e}"));
@@ -1259,6 +1455,7 @@ mod tests {
             installer_size: bytes.len() as u64,
             backup_dir: "/b".into(),
             schema_before: 78,
+            settings_copy: "/u/studio-before.json".into(),
             rollback_dir: "/rb".into(),
             install_dir: "/app".into(),
             exe_name: "creator-desktop.exe".into(),
@@ -1297,7 +1494,7 @@ mod tests {
         };
         let out = apply(&mut s, p);
         assert_eq!(out.stage, "confirmed");
-        assert_eq!(s.saved, ["starting", "confirmed"]);
+        assert_eq!(s.saved, ["installing", "starting", "confirmed"]);
         assert!(!s
             .log
             .iter()
@@ -1323,7 +1520,7 @@ mod tests {
             .log
             .iter()
             .map(String::as_str)
-            .filter(|l| !l.starts_with("note"))
+            .filter(|l| !l.starts_with("note") && !l.starts_with("wait_exit"))
             .collect();
         let app = format!(
             "start_previous {}",
@@ -1335,9 +1532,12 @@ mod tests {
                 "install",
                 "start_new",
                 "stop_new",
+                "restore_settings",
                 "restore_db",
+                "drop_rehearsals",
                 "restore_files",
-                app.as_str()
+                app.as_str(),
+                "block 0.2.0"
             ]
         );
         let _ = std::fs::remove_dir_all(dir);
@@ -1391,6 +1591,7 @@ mod tests {
         let out = apply(&mut s, p);
         assert_eq!(out.stage, "rollback_failed");
         assert!(out.detail.contains("exit code 2"));
+        assert!(out.detail.contains("next update must be newer than 0.2.0"));
         assert!(out.detail.contains("runs from its saved copy"));
         assert_eq!(
             s.log
@@ -1415,6 +1616,10 @@ mod tests {
         };
         assert_eq!(apply(&mut s, p.clone()).stage, "refused");
         assert!(!s.log.iter().any(|l| l == "install"));
+        // Review L-2: after giving up it keeps waiting, then starts the earlier version.
+        assert_eq!(s.log[..2], ["wait_exit 120", "note update_refused"]);
+        assert_eq!(s.log[2], "wait_exit 1200");
+        assert!(s.log[3].starts_with("start_previous"));
         p.installer_sha256 = "0".repeat(64);
         let mut s = FakeSteps {
             exited: true,
@@ -1431,5 +1636,119 @@ mod tests {
             )
         );
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_slow_quit_still_installs_and_an_unsavable_update_never_starts() {
+        // Exits on the first wait (the 2-minute one): normal path.
+        let (dir, p) = with_installer("slow");
+        // Review L-6: progress that cannot be saved refuses before anything is installed,
+        // and the earlier version is started again.
+        let mut s = FakeSteps {
+            exited: true,
+            save_fails: true,
+            ..Default::default()
+        };
+        let out = apply(&mut s, p.clone());
+        assert_eq!(out.stage, "refused");
+        assert!(out.detail.contains("could not be saved"));
+        assert!(!s.log.iter().any(|l| l == "install"));
+        assert!(s.log.last().unwrap().starts_with("start_previous"));
+        // Review L-2: a quit slower than two minutes ends with the earlier version started
+        // once it has quit, not with nothing running.
+        let mut s = FakeSteps {
+            exited: true,
+            exit_after_waits: 1,
+            ..Default::default()
+        };
+        let out = apply(&mut s, p);
+        assert_eq!(out.stage, "refused");
+        assert_eq!(s.exit_waits, 2);
+        assert!(s.log.last().unwrap().starts_with("start_previous"));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_rollback_drops_leftover_rehearsal_copies_and_records_them() {
+        let (dir, p) = with_installer("leftover");
+        let mut s = FakeSteps {
+            exited: true,
+            alive: false,
+            leftover_copies: vec!["creator_studio_rehearse_0a1b2c3d".into()],
+            ..Default::default()
+        };
+        let out = apply(&mut s, p);
+        assert_eq!(out.stage, "rolled_back");
+        assert!(s.log.iter().any(|l| l == "note rehearsal_copies_dropped"));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    // Review M-1: the watcher can die (restart, crash) during the trial.
+    #[test]
+    fn a_trial_without_its_watcher_confirms_or_resumes_the_rollback() {
+        assert!(helper_alive(Some(Duration::from_secs(3))));
+        assert!(!helper_alive(Some(Duration::from_secs(21))));
+        assert!(!helper_alive(None));
+        assert_eq!(trial_action(true, "failed"), TrialAction::Report);
+        assert_eq!(trial_action(true, "running"), TrialAction::Report);
+        assert_eq!(trial_action(false, "running"), TrialAction::Confirm);
+        assert_eq!(trial_action(false, "failed"), TrialAction::ResumeRollback);
+        // The resumed copy waits for the failed version to quit, then rolls back fully.
+        let (dir, mut p) = with_installer("resume");
+        p.stage = "starting".into();
+        let mut s = FakeSteps {
+            exited: true,
+            db_changed: true,
+            ..Default::default()
+        };
+        let out = resume_rollback(
+            &mut s,
+            p,
+            "The new version did not start: Port 5173 is in use",
+        );
+        assert_eq!(out.stage, "rolled_back");
+        assert!(out.detail.contains("Port 5173"));
+        assert_eq!(s.log[0], "wait_exit 1320");
+        assert!(s.log.iter().any(|l| l == "restore_db"));
+        assert!(!s.log.iter().any(|l| l == "install" || l == "start_new"));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    // Review L-4: Windows keeps the failed version recorded, so nothing at or below it is offered.
+    #[test]
+    fn versions_at_or_below_a_failed_one_are_refused() {
+        let dir = tmp("blocked");
+        let paths = Paths { root: dir.clone() };
+        check_not_blocked(&paths, "0.1.1").unwrap();
+        block_version(&paths, "0.2.0").unwrap();
+        block_version(&paths, "0.1.5").unwrap();
+        for v in ["0.1.1", "0.2.0"] {
+            let e = check_not_blocked(&paths, v).unwrap_err();
+            assert!(e.contains("not above 0.2.0"), "{e}");
+        }
+        check_not_blocked(&paths, "0.2.1").unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    // Review H-1: GitHub renames asset files with spaces (a space becomes a dot), so a name it
+    // would change is refused in the manifest, and the release's listed name must match.
+    #[test]
+    fn installer_names_are_ones_github_keeps() {
+        let mut m = manifest(b"x", "0.2.0");
+        m.installer.name = "Creator Agent_0.2.0_x64-setup.exe".into();
+        assert!(m.validate().unwrap_err().contains("no spaces"));
+        let bytes = b"MZ installer".to_vec();
+        let m = manifest(&bytes, "0.2.0");
+        let mut routes = release_routes(&m, &bytes, None);
+        let latest = routes.get_mut("/repos/o/r/releases/latest").unwrap();
+        let mut rel: Value = serde_json::from_slice(&latest.2).unwrap();
+        rel["assets"][1]["name"] = json!("Creator.Agent_0.2.0_x64-setup.exe");
+        latest.2 = rel.to_string().into_bytes();
+        let f = fake(routes);
+        let e = source(&f).check(Version(0, 1, 0)).unwrap_err();
+        assert!(
+            e.contains("has no Creator-Agent_0.2.0_x64-setup.exe"),
+            "{e}"
+        );
     }
 }

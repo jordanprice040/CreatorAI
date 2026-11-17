@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -15,6 +15,7 @@ type Build = (o: {
   bundle: Record<string, unknown>;
   schemaVersion: number;
   notes?: string;
+  bundleMtimeMs?: number;
 }) => Promise<Record<string, unknown> & { installer: Record<string, unknown> }>;
 const script = (await import(
   pathToFileURL(resolve('apps/desktop/update-manifest.mjs')).href
@@ -35,7 +36,7 @@ const bundle = {
 test('the update manifest has the app-readable shape and the installer hash', async (t) => {
   const dir = await mkdtemp(join(tmpdir(), 'creator-update-manifest-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
-  const installer = join(dir, 'Creator Agent_0.2.0_x64-setup.exe');
+  const installer = join(dir, 'Creator-Agent_0.2.0_x64-setup.exe');
   const bytes = Buffer.from('MZ installer bytes');
   await writeFile(installer, bytes);
   const m = await script.buildManifest({
@@ -94,4 +95,36 @@ test('the update manifest refuses dirty bundles, odd versions and unsafe names',
     script.buildManifest({ ...base, installer: msi }),
     /plain \.exe/,
   );
+});
+
+test('the update manifest refuses names GitHub would rename and a bundle staged after the installer', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'creator-update-manifest-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  // Review H-1: GitHub lists "Creator Agent_…" as "Creator.Agent_…", so the app would never
+  // find the name the manifest records.
+  const spaced = join(dir, 'Creator Agent_0.2.0_x64-setup.exe');
+  await writeFile(spaced, 'MZ');
+  await assert.rejects(
+    script.buildManifest({
+      installer: spaced,
+      version: '0.2.0',
+      bundle,
+      schemaVersion: 79,
+    }),
+    /no spaces.*Creator-Agent_0\.2\.0_x64-setup\.exe/,
+  );
+  // Review N-8: a bundle re-staged after the build may name another commit.
+  const installer = join(dir, 'Creator-Agent_0.2.0_x64-setup.exe');
+  await writeFile(installer, 'MZ');
+  const built = (await stat(installer)).mtimeMs;
+  const base = { installer, version: '0.2.0', bundle, schemaVersion: 79 };
+  await assert.rejects(
+    script.buildManifest({ ...base, bundleMtimeMs: built + 60_000 }),
+    /bundle is newer than the installer/,
+  );
+  const m = await script.buildManifest({
+    ...base,
+    bundleMtimeMs: built - 60_000,
+  });
+  assert.equal(m.installer.name, 'Creator-Agent_0.2.0_x64-setup.exe');
 });

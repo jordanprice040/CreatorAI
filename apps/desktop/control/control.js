@@ -141,6 +141,7 @@ const STAGES = {
   starting: 'Starting the new version',
   rolling_back: 'Going back to the earlier version',
   confirmed: 'Installed',
+  resuming_rollback: 'Going back to the earlier version',
   rolled_back: 'Went back to the earlier version',
   rollback_failed: 'Went back to the earlier version, with problems',
   refused: 'Not installed',
@@ -151,7 +152,10 @@ function renderUpdates(s) {
   $('updates').hidden = !u || s.phase === 'setup';
   if (!u) return;
   $('update-version').textContent =
-    `This is Creator Agent ${u.current_version}.`;
+    `This is Creator Agent ${u.current_version}.` +
+    (u.highest_failed
+      ? ` ${u.highest_failed} did not start and was rolled back, so the next update must be newer than ${u.highest_failed}.`
+      : '');
   const settings = u.settings && !u.settings.error ? u.settings : null;
   if (!updateFilled) {
     updateFilled = true;
@@ -294,6 +298,14 @@ $('update-check').addEventListener('click', () =>
 $('update-download').addEventListener('click', () =>
   act($('update-download'), () => invoke('studio_update_download')),
 );
+// Review N-5: mention a database upgrade only when the release's layout is newer.
+function layoutText(current, release) {
+  if (current == null)
+    return `If the new version needs a newer database layout (${release}), the upgrade is rehearsed on a copy of the database first and then applied without asking again. `;
+  if (release > current)
+    return `The new version upgrades the database layout from ${current} to ${release}: the upgrade is rehearsed on a copy of the database first and then applied without asking again. `;
+  return `The database layout stays the same (${current}). `;
+}
 $('update-install').addEventListener('click', () =>
   act($('update-install'), async () => {
     const a = state?.update?.available;
@@ -302,8 +314,7 @@ $('update-install').addEventListener('click', () =>
       `Install Creator Agent ${a.version}?\n\n` +
         'First a verified backup of the studio is saved and a copy of this version is kept. ' +
         'Creator Agent then quits, installs the update and starts again. ' +
-        `If the new version needs a newer database layout (${a.manifest.schema_version}), ` +
-        'the upgrade is rehearsed on a copy of the database first and then applied without asking again. ' +
+        layoutText(state.update.schema_version, a.manifest.schema_version) +
         'If the new version does not start within 30 minutes, the earlier version is put back, ' +
         'with the database restored from the backup when it had already been upgraded.',
     );

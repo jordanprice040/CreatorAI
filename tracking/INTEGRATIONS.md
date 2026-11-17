@@ -7,7 +7,9 @@ and install it, with a read-only token the owner saves in the status window (DPA
 **fixture-tested only** (fake GitHub on 127.0.0.1 in Rust tests). Not activated: no release
 repository, token or release exists yet. Creating the repository, a token, publishing a release
 and the first real install on Jordan's PC each need his typed OK. Builds are unsigned (owner
-decision); the hash check is the integrity check.
+decision); the hash check is the integrity check. Release installers must be named without
+spaces (GitHub renames them), and each release must be newer than any version that was rolled
+back. External database users need `CREATEDB` for the rehearsal copy and a rollback's restore.
 
 ## OpenAI API key added in the app — November 12, 2026 (P28, ADR-0093)
 

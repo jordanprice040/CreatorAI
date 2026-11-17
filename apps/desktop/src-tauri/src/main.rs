@@ -561,10 +561,15 @@ fn build_studio_window(
 fn main() {
     // F4 (ADR-0128): the saved copy of the earlier version applies an update with no window.
     let args: Vec<String> = std::env::args().collect();
-    if let Some(i) = args.iter().position(|a| a == "--apply-update") {
+    // `--resume-rollback` is the same copy started again to roll back (review M-1).
+    if let Some(i) = args
+        .iter()
+        .position(|a| a == "--apply-update" || a == "--resume-rollback")
+    {
+        let resume = args[i] == "--resume-rollback";
         let id = args.get(i + 1).cloned().unwrap_or_default();
         let r = if id.len() == 16 && id.chars().all(|c| c.is_ascii_hexdigit()) {
-            studio_root().and_then(|root| update_run::helper(root, &id))
+            studio_root().and_then(|root| update_run::helper(root, &id, resume))
         } else {
             Err("Malformed update id".into())
         };

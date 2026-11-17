@@ -157,6 +157,8 @@ pub(crate) struct Inner {
     update_trial: Option<String>,
     /// F4: an update check, download or install is running.
     pub(crate) update_busy: bool,
+    /// The database layout the running studio reported when ready (review N-4).
+    pub(crate) schema_version: Option<i64>,
 }
 
 pub struct Supervisor {
@@ -197,6 +199,7 @@ impl Supervisor {
                 quiet_start: std::env::args().any(|a| a == "--at-login"),
                 update_trial: crate::update_run::trial_for_this_version(&home),
                 update_busy: false,
+                schema_version: None,
             }),
             home,
         })
@@ -301,7 +304,7 @@ impl Supervisor {
             },
             "bundle": bundle,
             "version": env!("CARGO_PKG_VERSION"),
-            "update": crate::update_run::state(self, i.update_busy),
+            "update": crate::update_run::state(self, i.update_busy, i.schema_version),
             "log": i.log.iter().rev().take(12).collect::<Vec<_>>(),
         })
     }
@@ -373,32 +376,16 @@ impl Supervisor {
 
     /// Database URL for the configured studio; starts the managed cluster when needed.
     pub(crate) fn database_url(&self, c: &StudioConfig) -> Result<String, String> {
-        if c.database.mode == "managed" {
-            let cluster = self.cluster_for(c)?;
-            postgres::verify_bin(&cluster.bin)?;
-            if !cluster.exists() {
-                return Err("The studio database folder is missing. Restore it from a backup or run setup again.".into());
-            }
-            let started = cluster.start()?;
+        let (url, cluster) = open_database(&self.home, &self.secrets, c)?;
+        if let Some((cluster, started)) = cluster {
             self.note(if started {
                 "started the app's PostgreSQL"
             } else {
                 "reusing the app's running PostgreSQL"
             });
-            let pw = self
-                .secrets
-                .load("postgres")?
-                .ok_or("The studio database password is missing")?;
             self.inner.lock().unwrap().cluster = Some(cluster);
-            Ok(format!(
-                "postgresql://{}:{pw}@127.0.0.1:{}/{}",
-                c.database.user, c.database.port, c.database.name
-            ))
-        } else {
-            self.secrets
-                .load("database-url")?
-                .ok_or("The saved database connection is missing; run setup again".into())
         }
+        Ok(url)
     }
 
     pub(crate) fn input(&self, c: &StudioConfig, url: &str, source: Value) -> Value {
@@ -519,7 +506,11 @@ impl Supervisor {
             }
             match event["event"].as_str() {
                 Some("ready") => {
-                    let secret = self.inner.lock().unwrap().owner_secret.clone();
+                    let secret = {
+                        let mut i = self.inner.lock().unwrap();
+                        i.schema_version = event["schema_version"].as_i64();
+                        i.owner_secret.clone()
+                    };
                     match verify_ownership(&secret) {
                         Ok(()) => {
                             self.set(Status::new("running", "Creator Agent is running", "The studio, its workflow worker and private previews are running on this computer."));
@@ -1208,6 +1199,50 @@ pub fn source_url(s: &Value) -> Result<String, String> {
     Ok(url.to_string())
 }
 
+/// Database URL for saved settings (the supervisor and the update helper share it, review
+/// L-7). In managed mode the app's cluster is checked and started; it is returned with
+/// whether this call started it.
+pub fn open_database(
+    home: &Home,
+    secrets: &Secrets,
+    c: &StudioConfig,
+) -> Result<(String, Option<(Cluster, bool)>), String> {
+    if c.database.mode == "managed" {
+        let cluster = Cluster {
+            bin: PathBuf::from(
+                c.pg_bin
+                    .clone()
+                    .ok_or("Choose the PostgreSQL 18 folder in settings")?,
+            ),
+            data: home.pg_data(),
+            port: c.database.port,
+            log: home.logs().join("postgres.log"),
+        };
+        postgres::verify_bin(&cluster.bin)?;
+        if !cluster.exists() {
+            return Err("The studio database folder is missing. Restore it from a backup or run setup again.".into());
+        }
+        let started = cluster.start()?;
+        let pw = secrets
+            .load("postgres")?
+            .ok_or("The studio database password is missing")?;
+        Ok((
+            format!(
+                "postgresql://{}:{pw}@127.0.0.1:{}/{}",
+                c.database.user, c.database.port, c.database.name
+            ),
+            Some((cluster, started)),
+        ))
+    } else {
+        Ok((
+            secrets
+                .load("database-url")?
+                .ok_or("The saved database connection is missing; run setup again")?,
+            None,
+        ))
+    }
+}
+
 /// The bundled Node runtime and service entry under an app's `studio` resources folder.
 pub fn service_files(resources: &Path) -> (PathBuf, PathBuf) {
     (
@@ -1309,26 +1344,30 @@ pub fn finish_command(
 
 /// Copies a product store file by file, refusing links, then re-hashes every copy.
 pub fn copy_verified(from: &Path, to: &Path) -> Result<usize, String> {
+    copy_verified_as(from, to, "products")
+}
+
+/// `copy_verified` for any app-made folder; `what` names it in messages (review N-1).
+pub fn copy_verified_as(from: &Path, to: &Path, what: &str) -> Result<usize, String> {
     if !from.is_dir() {
-        return Err("The products folder to copy does not exist".into());
+        return Err(format!("The {what} folder to copy does not exist"));
     }
     if to.exists()
         && std::fs::read_dir(to)
             .map(|mut d| d.next().is_some())
             .unwrap_or(true)
     {
-        return Err("The studio products folder is not empty".into());
+        return Err(format!("The folder for the {what} copy is not empty"));
     }
-    fn walk(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
-        for e in std::fs::read_dir(dir).map_err(|_| "Could not read the products folder")? {
-            let e = e.map_err(|_| "Could not read the products folder")?;
-            let t = e
-                .file_type()
-                .map_err(|_| "Could not read the products folder")?;
+    fn walk(dir: &Path, out: &mut Vec<PathBuf>, what: &str) -> Result<(), String> {
+        let unreadable = || format!("Could not read the {what} folder");
+        for e in std::fs::read_dir(dir).map_err(|_| unreadable())? {
+            let e = e.map_err(|_| unreadable())?;
+            let t = e.file_type().map_err(|_| unreadable())?;
             if t.is_symlink() {
                 return Err(format!("Refusing to copy a link: {}", e.path().display()));
             } else if t.is_dir() {
-                walk(&e.path(), out)?;
+                walk(&e.path(), out, what)?;
             } else {
                 out.push(e.path());
             }
@@ -1336,16 +1375,18 @@ pub fn copy_verified(from: &Path, to: &Path) -> Result<usize, String> {
         Ok(())
     }
     let mut files = Vec::new();
-    walk(from, &mut files)?;
-    std::fs::create_dir_all(to).map_err(|_| "Could not create the products folder")?;
+    walk(from, &mut files, what)?;
+    std::fs::create_dir_all(to).map_err(|_| format!("Could not create the {what} copy"))?;
     for f in &files {
-        let rel = f.strip_prefix(from).map_err(|_| "Bad product path")?;
+        let rel = f
+            .strip_prefix(from)
+            .map_err(|_| "A copied path is outside its folder")?;
         let dest = to.join(rel);
         std::fs::create_dir_all(dest.parent().unwrap())
-            .map_err(|_| "Could not create a product folder")?;
-        let bytes = std::fs::read(f).map_err(|_| "Could not read a product file")?;
-        std::fs::write(&dest, &bytes).map_err(|_| "Could not write a product file")?;
-        let copy = std::fs::read(&dest).map_err(|_| "Could not re-read a product file")?;
+            .map_err(|_| format!("Could not create a folder in the {what} copy"))?;
+        let bytes = std::fs::read(f).map_err(|_| format!("Could not read a {what} file"))?;
+        std::fs::write(&dest, &bytes).map_err(|_| format!("Could not write a {what} file"))?;
+        let copy = std::fs::read(&dest).map_err(|_| format!("Could not re-read a {what} file"))?;
         if Sha256::digest(&copy) != Sha256::digest(&bytes) {
             return Err(format!(
                 "Copy of {} does not match its source",

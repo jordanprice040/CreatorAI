@@ -439,10 +439,62 @@ function sibling(raw: string, name: string) {
 }
 const dbName = (raw: string) =>
   decodeURIComponent(new URL(raw).pathname.slice(1));
+const rehearsalBase = (raw: string) => dbName(raw).slice(0, 40);
+const errorText = (e: unknown) =>
+  e instanceof Error ? e.message : 'unknown error';
+
+/** Drops a database on the same server; returns why it could not, or null. */
+async function dropDatabase(raw: string, name: string) {
+  try {
+    await withPool(sibling(raw, 'postgres'), (p) =>
+      p.query(
+        `drop database if exists "${name.replace(/"/g, '""')}" with (force)`,
+      ),
+    );
+    return null;
+  } catch (e) {
+    return errorText(e);
+  }
+}
+
+/**
+ * Review L-3: a rehearsal stopped mid-way (the app closed, the PC restarted) leaves its copy.
+ * The update helper's rollback calls this to drop `<name>_rehearse_<8 hex>` copies of the
+ * configured database; any it cannot drop are reported, not hidden.
+ */
+export async function dropRehearsals(input: StudioInput) {
+  const base = rehearsalBase(input.database_url);
+  const found = await withPool(sibling(input.database_url, 'postgres'), (p) =>
+    p.query<{ datname: string }>(
+      'select datname from pg_database where left(datname, $1) = $2 order by datname',
+      [base.length + 10, `${base}_rehearse_`],
+    ),
+  );
+  const names = found.rows
+    .map((r) => r.datname)
+    .filter(
+      (n) =>
+        n.length === base.length + 18 &&
+        /^[0-9a-f]{8}$/.test(n.slice(base.length + 10)),
+    );
+  const dropped: string[] = [];
+  const failed: { name: string; error: string }[] = [];
+  for (const name of names) {
+    const error = await dropDatabase(input.database_url, name);
+    if (error) {
+      console.error(`rehearsal copy ${name} could not be dropped: ${error}`);
+      failed.push({ name, error });
+    } else dropped.push(name);
+  }
+  return { ok: failed.length === 0, dropped, failed };
+}
 
 export type Rehearsal = {
   ok: true;
   copy: string;
+  /** Review L-3: false when the copy could not be removed; `drop_error` says why. */
+  copy_dropped: boolean;
+  drop_error?: string;
   schema_from: number;
   schema_to: number;
   applied: number[];
@@ -465,8 +517,7 @@ export async function rehearseMigration(
   step: (p: pg.Pool) => Promise<number[]> = migrate,
 ): Promise<Rehearsal> {
   const started = Date.now();
-  const base = dbName(input.database_url).slice(0, 40);
-  const copy = `${base}_rehearse_${randomBytes(4).toString('hex')}`;
+  const copy = `${rehearsalBase(input.database_url)}_rehearse_${randomBytes(4).toString('hex')}`;
   const url = sibling(input.database_url, copy);
   const manifest = JSON.parse(
     await readFile(join(backupDir, 'backup-manifest.json'), 'utf8'),
@@ -480,9 +531,11 @@ export async function rehearseMigration(
     await ensureDatabase(url);
   } catch (e) {
     throw fail(
-      `the copy database could not be created (${e instanceof Error ? e.message : 'unknown error'}). The studio's database user needs permission to create databases.`,
+      `the copy database could not be created (${errorText(e)}). The studio's database user needs permission to create databases.`,
     );
   }
+  let outcome: Omit<Rehearsal, 'copy_dropped' | 'drop_error'> | undefined;
+  let failure: unknown;
   try {
     const u = new URL(url);
     const password = decodeURIComponent(u.password);
@@ -513,21 +566,19 @@ export async function rehearseMigration(
         `the backup could not be restored into the copy (${String(err.stderr ?? '').trim() || 'no output'})`,
       );
     }
-    return await withPool(url, async (p) => {
+    outcome = await withPool(url, async (p) => {
       let applied: number[];
       try {
         applied = await step(p);
       } catch (e) {
-        throw fail(
-          `the migration failed on the copy (${e instanceof Error ? e.message : 'unknown error'})`,
-        );
+        throw fail(`the migration failed on the copy (${errorText(e)})`);
       }
       let schema: number;
       try {
         schema = await assertSchemaCurrent(p);
       } catch (e) {
         throw fail(
-          `the copy is not at this app's layout after migrating (${e instanceof Error ? e.message : 'unknown error'})`,
+          `the copy is not at this app's layout after migrating (${errorText(e)})`,
         );
       }
       const audit = await new Store(p).verifyAuditChain();
@@ -563,11 +614,26 @@ export async function rehearseMigration(
         ms: Date.now() - started,
       };
     });
-  } finally {
-    await withPool(sibling(input.database_url, 'postgres'), (p) =>
-      p.query(`drop database if exists "${copy}" with (force)`),
-    ).catch(() => undefined);
+  } catch (e) {
+    failure = e;
   }
+  // The copy is a full copy of the studio's records: a failed drop is reported, not hidden.
+  const dropError = await dropDatabase(input.database_url, copy);
+  if (dropError)
+    console.error(`rehearsal copy ${copy} could not be dropped: ${dropError}`);
+  const leftover = dropError
+    ? ` The rehearsal copy ${copy} could not be removed (${dropError}); remove it by hand or let the next update remove it.`
+    : '';
+  if (failure !== undefined) {
+    if (leftover && failure instanceof ContractError)
+      throw new ContractError(failure.code, failure.message + leftover);
+    throw failure;
+  }
+  return {
+    ...outcome!,
+    copy_dropped: !dropError,
+    ...(dropError ? { drop_error: dropError } : {}),
+  };
 }
 
 /** Owner-approved upgrade: verified backup, a rehearsal on a copy, then the locked migrate. */

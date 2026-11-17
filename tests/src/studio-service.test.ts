@@ -18,6 +18,7 @@ import { join, resolve } from 'node:path';
 import pg from 'pg';
 import {
   STUDIO_LOCK_KEY,
+  Store,
   listBackups,
   migrationChecksum,
   migrations,
@@ -733,6 +734,122 @@ test('a failed rehearsal leaves the real database unchanged and drops the copy',
   );
 });
 
+// Review L-9: the rehearsal's own checks refuse a migrated copy that lost rows or whose audit
+// chain no longer verifies, and a copy it could not drop is not hidden (L-3).
+test('the rehearsal refuses a copy with fewer rows or a broken audit chain', async (t) => {
+  const fresh = await freshDatabase(t);
+  if (!fresh) return;
+  if (!PG_BIN) return t.skip('CREATOR_PG_BIN not set: pg_dump needed');
+  const store = new Store(fresh.pool);
+  const actor = { actorId: '00000000-0000-4000-8000-0000000000a1' };
+  await store.ensureActor({
+    id: actor.actorId,
+    kind: 'human',
+    display_name: 'Owner',
+  });
+  await store.createWorkspace(actor, {
+    name: 'Rehearsed',
+    record_mode: 'real',
+  });
+  await store.createWorkspace(actor, { name: 'Second', record_mode: 'real' });
+  const dir = await home();
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const base = parseStudioInput(JSON.stringify(input(fresh.url, dir)));
+  const b = studio('backup', base);
+  const backup = (await b.next('result', 120000)).result as {
+    dir: string;
+    schema_from: number;
+  };
+  assert.equal(await b.exit, 0, b.log());
+  const events = (
+    await fresh.pool.query<{ n: number }>(
+      'select count(*)::int as n from audit_events',
+    )
+  ).rows[0]!.n;
+  assert.ok(events >= 2);
+  // The copy is the test's own: triggers are bypassed there to plant the damage.
+  const tamper = (sql: string) => async (p: pg.Pool) => {
+    const c = await p.connect();
+    try {
+      await c.query("set session_replication_role = 'replica'");
+      await c.query(sql);
+    } finally {
+      await c.query("set session_replication_role = 'origin'");
+      c.release();
+    }
+    return [];
+  };
+  await assert.rejects(
+    rehearseMigration(
+      base,
+      backup.dir,
+      backup.schema_from,
+      tamper(
+        'delete from audit_events where sequence = (select max(sequence) from audit_events)',
+      ),
+    ),
+    new RegExp(
+      `rehearsal failed, so your database was not changed: the migrated copy has ${events - 1} rows in audit_events; the backup counted ${events}`,
+    ),
+  );
+  await assert.rejects(
+    rehearseMigration(
+      base,
+      backup.dir,
+      backup.schema_from,
+      tamper(
+        `update audit_events set payload = payload || '{"kind":"forged"}' where sequence = (select min(sequence) from audit_events)`,
+      ),
+    ),
+    /rehearsal failed, so your database was not changed: the audit chain of the migrated copy is broken at/,
+  );
+  const ok = await rehearseMigration(base, backup.dir, backup.schema_from);
+  assert.equal(ok.copy_dropped, true);
+  assert.equal('drop_error' in ok, false);
+  const name = new URL(fresh.url).pathname.slice(1);
+  const left = await fresh.pool.query(
+    'select 1 from pg_database where left(datname, $1) = $2',
+    [name.length + 10, `${name}_rehearse_`],
+  );
+  assert.equal(left.rowCount, 0);
+});
+
+// Review L-3: copies a stopped rehearsal left behind are found and dropped by name; another
+// database that only looks similar is left alone.
+test('drop-rehearsals removes only leftover rehearsal copies of this database', async (t) => {
+  const fresh = await freshDatabase(t);
+  if (!fresh) return;
+  const base = new URL(fresh.url).pathname.slice(1).slice(0, 40);
+  const leftover = `${base}_rehearse_0123abcd`;
+  const lookalike = `${base}_rehearse_keepme12`;
+  for (const n of [leftover, lookalike])
+    await fresh.pool.query(`create database "${n}"`);
+  t.after(async () => {
+    for (const n of [leftover, lookalike])
+      await fresh.pool
+        .query(`drop database if exists "${n}" with (force)`)
+        .catch(() => undefined);
+  });
+  const dir = await home();
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const d = studio('drop-rehearsals', input(fresh.url, dir));
+  const out = (await d.next('result', 60000)).result as {
+    ok: boolean;
+    dropped: string[];
+    failed: unknown[];
+  };
+  assert.equal(await d.exit, 0, d.log());
+  assert.deepEqual(out, { ok: true, dropped: [leftover], failed: [] });
+  const left = await fresh.pool.query<{ datname: string }>(
+    'select datname from pg_database where datname = any($1) order by datname',
+    [[leftover, lookalike]],
+  );
+  assert.deepEqual(
+    left.rows.map((r) => r.datname),
+    [lookalike],
+  );
+});
+
 // ADR-0128 (F4) rollback: the pre-update backup restores into a new database and product folder
 // with the full restore check; the database it came from is left as it is.
 test('backup then restore puts a verified copy into a new database for a rollback', async (t) => {
@@ -759,6 +876,13 @@ test('backup then restore puts a verified copy into a new database for a rollbac
   await fresh.pool.query(`update workspaces set name = 'After' where id = $1`, [
     ws,
   ]);
+  // Review L-9: like a rollback's `<name>_rb_<time>`, the target does not exist yet; the
+  // restore creates it.
+  const exists = await fresh.pool.query(
+    'select 1 from pg_database where datname = $1',
+    [target.name],
+  );
+  assert.equal(exists.rowCount, 0);
   const restoredProducts = join(dir, 'products-restored');
   const r = studio(
     'restore',

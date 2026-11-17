@@ -2,6 +2,7 @@ import { createInterface } from 'node:readline';
 import {
   adoptStudio,
   backupStudio,
+  dropRehearsals,
   initStudio,
   inspectDatabase,
   migrateStudio,
@@ -54,7 +55,9 @@ try {
                 ? await backupStudio(input)
                 : mode === 'restore'
                   ? await restoreStudio(input)
-                  : null;
+                  : mode === 'drop-rehearsals'
+                    ? await dropRehearsals(input)
+                    : null;
     if (result === null) throw new Error(`Unknown studio command: ${mode}`);
     emit({ event: 'result', mode, result });
     code = 'ok' in result && result.ok === false ? 2 : 0;

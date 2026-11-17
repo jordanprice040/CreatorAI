@@ -4,6 +4,11 @@
 //
 //   node apps/desktop/update-manifest.mjs <installer.exe> [--notes "text"] [--out <file>]
 //
+// GitHub renames uploaded files whose names hold special characters (a space becomes "."),
+// so the installer must first be renamed to letters, digits, ".", "_" and "-" only (review
+// H-1), e.g. "Creator Agent_0.2.0_x64-setup.exe" to "Creator-Agent_0.2.0_x64-setup.exe".
+// Run it right after the build: it refuses a staged bundle newer than the installer (N-8).
+//
 // The version comes from tauri.conf.json (it must be higher than the installed app's, and the
 // release tag must be that version or v<version>); the commit from the staged bundle, which
 // must have been built from a clean checkout; the database layout from the built migrations.
@@ -26,7 +31,7 @@ export function safeInstallerName(n) {
     n.length <= 200 &&
     n.toLowerCase().endsWith('.exe') &&
     !n.startsWith('.') &&
-    /^[A-Za-z0-9 ._-]+$/.test(n)
+    /^[A-Za-z0-9._-]+$/.test(n)
   );
 }
 
@@ -43,12 +48,15 @@ export async function buildManifest({
   bundle,
   schemaVersion,
   notes,
+  bundleMtimeMs,
 }) {
   if (!/^(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})$/.test(version))
     throw new Error(`"${version}" is not a version like 1.2.3`);
   const name = basename(installer);
   if (!safeInstallerName(name))
-    throw new Error(`"${name}" must be a plain .exe file name`);
+    throw new Error(
+      `"${name}" must be a plain .exe file name of letters, digits, ".", "_" and "-" (no spaces, which GitHub renames). Rename it first, e.g. to "${name.replace(/[^A-Za-z0-9._-]/g, '-')}".`,
+    );
   if (bundle.format !== 'creator-desktop-bundle/1')
     throw new Error('Unknown bundle manifest format');
   if (!/^[0-9a-f]{40}$/.test(bundle.source_commit))
@@ -61,7 +69,13 @@ export async function buildManifest({
     throw new Error('Unknown database layout');
   if (notes !== undefined && [...notes].length > 4000)
     throw new Error('Notes are longer than 4000 characters');
-  const size = statSync(installer).size;
+  const { size, mtimeMs } = statSync(installer);
+  // Review N-8: the commit comes from the staged bundle; one staged after this installer
+  // was built may name another commit.
+  if (bundleMtimeMs !== undefined && bundleMtimeMs > mtimeMs)
+    throw new Error(
+      'The staged bundle is newer than the installer, so it may name another commit. Build the installer again, then run this right after.',
+    );
   if (size < 1 || size > 1024 ** 3)
     throw new Error('The installer size is out of range');
   return {
@@ -101,9 +115,8 @@ async function main(argv) {
     throw new Error(
       `Cargo.toml says ${cargo}, tauri.conf.json says ${conf.version}; raise both to the release version`,
     );
-  const bundle = JSON.parse(
-    readFileSync(join(here, '.bundle/studio/bundle-manifest.json'), 'utf8'),
-  );
+  const bundlePath = join(here, '.bundle/studio/bundle-manifest.json');
+  const bundle = JSON.parse(readFileSync(bundlePath, 'utf8'));
   const { migrations } = await import(
     pathToFileURL(resolve(here, '../../packages/db/dist/migrations.js')).href
   );
@@ -113,6 +126,7 @@ async function main(argv) {
     bundle,
     schemaVersion: migrations.at(-1).version,
     notes,
+    bundleMtimeMs: statSync(bundlePath).mtimeMs,
   });
   const target = resolve(
     out ?? join(dirname(resolve(installer)), MANIFEST_ASSET),
