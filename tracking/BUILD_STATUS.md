@@ -1,5 +1,11 @@
 # Build status — November 10, 2026
 
+## November 17 update — sample seed commands take a workspace name (no migration or ADR)
+
+What now works: `pnpm cli seed-discovery [workspace-name]` and `pnpm cli seed-selection [workspace-name]` create their synthetic fixture workspace under the given name; without one they keep the old names. CLI only: no API, web or database change. Used to build the "Demo" workspace for Jordan's 2026-11-17 meeting in a separate demo studio on his PC (throwaway database `creator_demo`, ports 5193/4350/4360, worktree `C:\dev\creator_agent_demo`); real studios untouched.
+
+Checked: `pnpm typecheck` and `pnpm format:check` pass in the cloud container; `seed-selection Demo` ran against the throwaway demo database and created the fixture workspace "Demo". GitHub Actions is refused for billing, so CI shows red without logs.
+
 ## November 17 update — F11 first slice: local Ollama adapter, design only (ADR-0127, no migration)
 
 What now works: `@creator/broker` has an Ollama adapter for a model running on this computer. It reaches only a loopback address (`127.0.0.1` or `[::1]`), reads the server version and installed-model list, checks a model pinned by name and digest before every call (refusing a missing, replaced or Ollama-cloud model before anything is sent), and sends one non-streamed chat with the output cap, JSON format when asked and no tools. Answers map to the broker's existing completed/refused/unknown outcomes with token counts as reported. `config/local-models.json` holds the address, timeout and context size and pins no model. Not wired into any route: a local workflow is still refused, nothing is offered to a role, nothing was downloaded and no real Ollama was contacted.
