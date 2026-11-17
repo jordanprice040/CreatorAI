@@ -6,6 +6,7 @@ import {
   StudyEffortStepSchema,
   STUDY_EFFORT_IDLE_MS,
   STUDY_EFFORT_TIMER_VERSION,
+  STUDY_EFFORT_REFUSAL,
   type StudyAttempt,
   type StudyEffort,
   type StudyEffortStep,
@@ -15,7 +16,13 @@ import {
 } from '@creator/contracts';
 import { api, message } from './oversight.js';
 import { useOnShow } from './page-active.js';
-import { EffortClock, effortText, type EffortTotals } from './effort-timer.js';
+import {
+  EffortClock,
+  afterRefusal,
+  effortText,
+  stepOnOpen,
+  type EffortTotals,
+} from './effort-timer.js';
 import './study-effort.css';
 
 const Entry = z.object({
@@ -53,14 +60,20 @@ export function Studies({
   } | null>(null);
   const [expected, setExpected] = useState('');
   const [confirmStop, setConfirmStop] = useState(false);
-  // ADR-0122 (F13): the current intervention step's timer, and the attempt's timed steps.
+  // ADR-0122 (F13), ADR-0129: the running step's timer, and the attempt's timed steps. A step
+  // runs while the participant has a human-only or assisted attempt open, and the next
+  // intervention, saved entry or finish ends it.
   const [step, setStep] = useState<StudyEffortStep | null>(null);
   // Read by startStep after a save, when the `step` captured by the save handler is stale.
   const stepRef = useRef<StudyEffortStep | null>(null);
   const [starting, setStarting] = useState(false);
-  const editorOpen = useRef(false);
   const [effortSteps, setEffortSteps] = useState<StudyEffortStep[]>([]);
   const clock = useRef<EffortClock | null>(null);
+  // Review M-3: steps of attempts the person left while the page stayed open, with their clocks
+  // still running (the time away counts as "page not in front"), by attempt id.
+  const parked = useRef(
+    new Map<string, { step: StudyEffortStep; clock: EffortClock }>(),
+  );
   const attemptPanel = useRef<HTMLDivElement | null>(null);
   const [, setTick] = useState(0);
   const timing = step !== null;
@@ -103,6 +116,11 @@ export function Studies({
   useEffect(() => {
     setSelected('');
     picked.current = false;
+    // Another workspace's attempts are not timed here; their open steps stay unfinished.
+    parked.current.clear();
+    clock.current = null;
+    stepRef.current = null;
+    setStep(null);
     setAttempt(null);
     setAttempts([]);
     setContext(null);
@@ -142,31 +160,33 @@ export function Studies({
     }
   }
   function stopTiming() {
+    if (stepRef.current) parked.current.delete(stepRef.current.attempt_id);
+    clock.current = null;
+    stepRef.current = null;
+    setStep(null);
+  }
+  /** Leaves the running step for another attempt or study; its clock keeps counting, as away. */
+  function parkTiming() {
+    const s = stepRef.current;
+    const c = clock.current;
+    if (s && c) {
+      c.visibility(performance.now(), false);
+      parked.current.set(s.attempt_id, { step: s, clock: c });
+    }
     clock.current = null;
     stepRef.current = null;
     setStep(null);
   }
   async function loadEffort(attemptId: string) {
-    setEffortSteps(
-      await api(
-        z.array(StudyEffortStepSchema),
-        `${base}/study-attempts/${attemptId}/effort-steps`,
-      ),
+    const steps = await api(
+      z.array(StudyEffortStepSchema),
+      `${base}/study-attempts/${attemptId}/effort-steps`,
     );
+    setEffortSteps(steps);
+    return steps;
   }
-  async function startStep() {
-    if (!attempt || stepRef.current || starting) return;
-    setStarting(true);
-    let started: StudyEffortStep;
-    try {
-      started = await api(
-        StudyEffortStepSchema,
-        `${base}/study-attempts/${attempt.id}/effort-steps`,
-        { body: {}, csrf: session.csrf_token },
-      );
-    } finally {
-      setStarting(false);
-    }
+  /** Times `s` on this page from now (a new step, or one continued after a return). */
+  function runStep(s: StudyEffortStep) {
     clock.current = new EffortClock(
       performance.now(),
       {
@@ -175,13 +195,87 @@ export function Studies({
       },
       STUDY_EFFORT_IDLE_MS,
     );
-    stepRef.current = started;
-    setStep(started);
-    await loadEffort(attempt.id);
+    stepRef.current = s;
+    setStep(s);
+  }
+  /** Only the assigned person's own steps on a human-only or assisted attempt are timed. */
+  function timedFor(a: StudyAttempt) {
+    return (
+      a.condition !== 'autonomous' &&
+      a.state === 'assigned' &&
+      a.participant_actor_id.toLowerCase() === session.actor_id.toLowerCase()
+    );
+  }
+  async function startStep(target: StudyAttempt | null = attempt) {
+    if (!target || stepRef.current || starting) return;
+    setStarting(true);
+    let started: StudyEffortStep;
+    try {
+      started = await api(
+        StudyEffortStepSchema,
+        `${base}/study-attempts/${target.id}/effort-steps`,
+        { body: {}, csrf: session.csrf_token },
+      );
+    } finally {
+      setStarting(false);
+    }
+    runStep(started);
+    await loadEffort(target.id);
+  }
+  /**
+   * After a save ended the step, times the next one. Returns a sentence to add to the save's
+   * notice when it can't start (past the time cap, say), so one message says both (review N-2).
+   */
+  async function nextStep(attemptId: string): Promise<string> {
+    try {
+      await startStep();
+      return '';
+    } catch (e) {
+      await loadEffort(attemptId);
+      return ` No further steps are timed: ${message(e)}`;
+    }
+  }
+  /** The running step's totals, to send with the record that ends it. */
+  function stepEffort(): StudyEffort | undefined {
+    const s = stepRef.current;
+    const c = clock.current;
+    return s && c
+      ? {
+          step_id: s.id,
+          timer_version: STUDY_EFFORT_TIMER_VERSION,
+          ...c.totals(performance.now()),
+        }
+      : undefined;
+  }
+  /**
+   * Saves a record that ends the running step, with its measured time when one is running.
+   * If the studio refuses the save while it carries timing, the timer stops so that saving
+   * again records the work without it (the record matters more than its timing).
+   */
+  async function writeEnding(action: string, body: object) {
+    const effort = stepEffort();
+    try {
+      const result = await write(action, {
+        ...body,
+        ...(effort ? { effort } : {}),
+      });
+      if (effort) stopTiming();
+      return { result, timed: effort !== undefined };
+    } catch (e) {
+      // Review M-1: only a refusal of the timing itself stops the timer; any other refusal
+      // (a submit before an entry, say) leaves the step running, since nothing was saved.
+      if (effort && afterRefusal(message(e), STUDY_EFFORT_REFUSAL) === 'stop') {
+        stopTiming();
+        throw new Error(
+          `${message(e)} The step timer has stopped; save again to record this without its time.`,
+        );
+      }
+      throw e;
+    }
   }
   async function openStudy(id: string) {
     setSelected(id);
-    stopTiming();
+    parkTiming();
     setAttempt(null);
     setContext(null);
     if (!id) {
@@ -192,9 +286,12 @@ export function Studies({
     setAttempts(d.attempts);
   }
   async function openAttempt(a: StudyAttempt) {
-    // A step left open on another attempt stays on record as unfinished.
-    stopTiming();
-    setEffortSteps([]);
+    // Review M-2: a second click on the attempt being timed keeps its step running.
+    const same = stepRef.current?.attempt_id === a.id;
+    if (!same) {
+      parkTiming();
+      setEffortSteps([]);
+    }
     setEntries(
       await api(z.array(Entry), `${base}/study-attempts/${a.id}/entries`),
     );
@@ -205,7 +302,28 @@ export function Studies({
     setContext(
       await api(z.unknown(), `${base}/study-attempts/${a.id}/context`),
     );
-    if (a.condition === 'human_in_loop') await loadEffort(a.id);
+    if (a.condition !== 'autonomous') await loadEffort(a.id);
+    // ADR-0129: opening the attempt times it. Coming back to it while the page stayed open
+    // resumes its kept clock, so nothing measured is lost. After a reload there is no clock, so a
+    // new step starts and the old one stays unfinished. If a new step can't start (past the
+    // time cap, say), the readout says the timer is not running and offers Start.
+    const plan = stepOnOpen({
+      timed: timedFor(a),
+      running: stepRef.current,
+      attemptId: a.id,
+      parked: parked.current.has(a.id),
+    });
+    const kept = parked.current.get(a.id);
+    if (plan.kind === 'resume' && kept) {
+      parked.current.delete(a.id);
+      const now = performance.now();
+      kept.clock.visibility(now, document.visibilityState === 'visible');
+      kept.clock.focus(now, document.hasFocus());
+      clock.current = kept.clock;
+      stepRef.current = kept.step;
+      setStep(kept.step);
+    }
+    if (plan.kind === 'start') await startStep(a).catch(() => undefined);
   }
   async function write(action: string, body: unknown) {
     if (!attempt) return;
@@ -360,6 +478,46 @@ export function Studies({
             <summary>Frozen participant context</summary>
             <pre>{JSON.stringify(context, null, 2)}</pre>
           </details>
+          {attempt.condition !== 'autonomous' &&
+            attempt.state === 'assigned' && (
+              <div className="study-effort">
+                <TimerReadout
+                  busy={busy}
+                  onStart={() => void perform(() => startStep())}
+                  timer={
+                    attempt.participant_actor_id.toLowerCase() !==
+                    session.actor_id.toLowerCase()
+                      ? { state: 'not_participant' }
+                      : step && clock.current
+                        ? {
+                            state: 'running',
+                            totals: clock.current.totals(performance.now()),
+                          }
+                        : { state: starting ? 'starting' : 'off' }
+                  }
+                />
+                <span className="study-effort-note">
+                  Your time on this attempt is timed in steps: each{' '}
+                  {attempt.condition === 'human_in_loop'
+                    ? 'saved intervention or entry'
+                    : 'saved entry'}{' '}
+                  ends one and starts the next, and submitting or stopping ends
+                  the last. Active means this page is in front and you edited in
+                  the last minute; time on the page without editing (reading,
+                  say) is counted on its own. The timer measures time only; your
+                  reported minutes below stay your own report.
+                  {attempt.synthetic &&
+                    ' This is a synthetic study, so it times the operator testing the workflow, not a participant.'}
+                </span>
+              </div>
+            )}
+          {attempt.condition !== 'autonomous' && effortSteps.length > 0 && (
+            <EffortSummary
+              steps={effortSteps}
+              running={step?.id ?? null}
+              synthetic={attempt.synthetic}
+            />
+          )}
           {attempt.condition !== 'human_only' && (
             <button
               disabled={busy || attempt.state !== 'assigned'}
@@ -455,13 +613,22 @@ export function Studies({
             }
             onClick={() =>
               void perform(async () => {
-                const saved = await write('artifacts', {
-                  kind: artifactKind,
-                  name: 'Participant submission',
-                  content,
-                });
+                const { result: saved, timed } = await writeEnding(
+                  'artifacts',
+                  {
+                    kind: artifactKind,
+                    name: 'Participant submission',
+                    content,
+                  },
+                );
                 setSavedArtifact(saved as { id: string; content_hash: string });
-                setNotice('Saved verbatim with an immutable content hash.');
+                // ADR-0129: the saved entry ended the step; the next one is timed from now.
+                const more = timed ? await nextStep(attempt.id) : '';
+                setNotice(
+                  (timed
+                    ? 'Saved verbatim with an immutable content hash, with the measured step time.'
+                    : 'Saved verbatim with an immutable content hash.') + more,
+                );
               })
             }
           >
@@ -502,58 +669,25 @@ export function Studies({
             attempt.state === 'assigned' && (
               <InterventionEditor
                 busy={busy}
-                synthetic={attempt.synthetic}
-                timer={
-                  attempt.participant_actor_id.toLowerCase() !==
-                  session.actor_id.toLowerCase()
-                    ? { state: 'not_participant' }
-                    : step && clock.current
-                      ? {
-                          state: 'running',
-                          totals: clock.current.totals(performance.now()),
-                        }
-                      : { state: starting ? 'starting' : 'off' }
-                }
-                onToggle={(open) => {
-                  editorOpen.current = open;
-                }}
-                onStart={() => void perform(startStep)}
                 save={(body) =>
                   perform(async () => {
-                    const c = clock.current;
-                    const effort: StudyEffort | undefined =
-                      step && c
-                        ? {
-                            step_id: step.id,
-                            timer_version: STUDY_EFFORT_TIMER_VERSION,
-                            ...c.totals(performance.now()),
-                          }
-                        : undefined;
-                    await write('interventions', {
-                      ...(body as object),
-                      ...(effort ? { effort } : {}),
-                    });
-                    stopTiming();
-                    await loadEffort(attempt.id);
-                    setNotice(
-                      effort
-                        ? 'Intervention, reported effort and measured step time saved.'
-                        : 'Intervention and reported effort saved.',
+                    const { timed } = await writeEnding(
+                      'interventions',
+                      body as object,
                     );
-                    // Review M-1 (#221): the editor stays open, so the next intervention is
-                    // a new step and is timed from now.
-                    if (editorOpen.current) await startStep();
+                    // The intervention ended the step; the next one is timed from now
+                    // (review M-1 of #221).
+                    const more = timed ? await nextStep(attempt.id) : '';
+                    if (!timed) await loadEffort(attempt.id);
+                    setNotice(
+                      (timed
+                        ? 'Intervention, reported effort and measured step time saved.'
+                        : 'Intervention and reported effort saved.') + more,
+                    );
                   })
                 }
               />
             )}
-          {attempt.condition === 'human_in_loop' && effortSteps.length > 0 && (
-            <EffortSummary
-              steps={effortSteps}
-              running={step?.id ?? null}
-              synthetic={attempt.synthetic}
-            />
-          )}
           <label>
             Reported waiting seconds
             <input
@@ -579,7 +713,7 @@ export function Studies({
               disabled={busy || attempt.state !== 'assigned'}
               onClick={() =>
                 void perform(async () => {
-                  await write('finish', {
+                  const { timed } = await writeEnding('finish', {
                     status: 'submitted',
                     summary:
                       'Participant submitted saved work; not independently verified.',
@@ -588,7 +722,9 @@ export function Studies({
                   });
                   await openStudy(selected);
                   setNotice(
-                    'Submission recorded. This is not a verified-success rating.',
+                    timed
+                      ? 'Submission recorded with the measured time of its last step. This is not a verified-success rating.'
+                      : 'Submission recorded. This is not a verified-success rating.',
                   );
                 })
               }
@@ -616,7 +752,7 @@ export function Studies({
                   onClick={() =>
                     void perform(async () => {
                       setConfirmStop(false);
-                      await write('finish', {
+                      await writeEnding('finish', {
                         status:
                           attempt.condition === 'autonomous'
                             ? 'needs_human'
@@ -675,6 +811,8 @@ function EffortSummary({
       waiting on the studio {total('wait_ms')} · on the page, not editing{' '}
       {total('idle_ms')} · page not in front {total('away_ms')}
       {open > 0 && ` · ${open} unfinished`}
+      {steps.some((s) => s.measured?.ended_by === 'finish') &&
+        ' · finish timed'}
       {synthetic && ' (synthetic: the operator, not a participant)'}
     </p>
   );
@@ -728,17 +866,9 @@ function TimerReadout({
 
 function InterventionEditor({
   busy,
-  synthetic,
-  timer,
-  onToggle,
-  onStart,
   save,
 }: {
   busy: boolean;
-  synthetic: boolean;
-  timer: TimerView;
-  onToggle: (open: boolean) => void;
-  onStart: () => void;
   save: (body: unknown) => Promise<void>;
 }) {
   const [fields, setFields] = useState({
@@ -763,25 +893,8 @@ function InterventionEditor({
     resulting_change: 'Resulting change',
   };
   return (
-    <details
-      onToggle={(e) => {
-        const open = e.currentTarget.open;
-        onToggle(open);
-        if (open && timer.state === 'off') onStart();
-      }}
-    >
+    <details>
       <summary>Record human intervention</summary>
-      <div className="study-effort">
-        <TimerReadout timer={timer} busy={busy} onStart={onStart} />
-        <span className="study-effort-note">
-          Active means this page is in front and you edited in the last minute;
-          time on the page without editing (reading, say) is counted on its own.
-          Saving the intervention ends the step and, while this form stays open,
-          starts timing the next one. The timer measures time only.
-          {synthetic &&
-            ' This is a synthetic study, so it times the operator testing the workflow, not a participant.'}
-        </span>
-      </div>
       <form
         onSubmit={(e) => {
           e.preventDefault();

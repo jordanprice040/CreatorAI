@@ -3,13 +3,15 @@ import { readFileSync } from 'node:fs';
 import type { PoolClient } from 'pg';
 import {
   AssignStudySchema,
-  StudyArtifactSchema,
+  StudyArtifactRequestSchema,
   StudyTestSchema,
   StudyInterventionRequestSchema,
-  FinishStudyAttemptSchema,
+  FinishStudyAttemptRequestSchema,
   STUDY_EFFORT_CLOCK_SLACK_MS,
+  STUDY_EFFORT_REFUSAL,
   STUDY_EFFORT_TIMER_VERSION,
   type StudyEffort,
+  type StudyEffortEnd,
   type StudyEffortStep,
   OVERSIGHT_POLICY_VERSION,
   parse,
@@ -848,13 +850,13 @@ export class StudyStore extends ProjectReportStore {
     attemptId = uuid(attemptId);
     const schema =
       action === 'artifacts'
-        ? StudyArtifactSchema
+        ? StudyArtifactRequestSchema
         : action === 'tests'
           ? StudyTestSchema
           : action === 'interventions'
             ? StudyInterventionRequestSchema
             : action === 'finish'
-              ? FinishStudyAttemptSchema
+              ? FinishStudyAttemptRequestSchema
               : action === 'deviations'
                 ? z.strictObject({ reason: text, impact: text })
                 : z.strictObject({
@@ -928,13 +930,31 @@ export class StudyStore extends ProjectReportStore {
               'A submission needs an artifact; submitted is not independently verified success.',
             );
         }
-        return this.event(c, ctx, a.study_id, attemptId, 'finished', {
-          ...req,
-          wall_seconds: elapsed / 1000,
-          condition: a.condition,
-          primary: a.primary,
-          measurement_source: 'participant_report_except_wall_clock',
-        });
+        const finished = await this.event(
+          c,
+          ctx,
+          a.study_id,
+          attemptId,
+          'finished',
+          {
+            ...req,
+            wall_seconds: elapsed / 1000,
+            condition: a.condition,
+            primary: a.primary,
+            measurement_source: 'participant_report_except_wall_clock',
+          },
+        );
+        // ADR-0129: the finish ends the running step; the payload above stays as it was.
+        if (effort)
+          await this.#recordEffort(
+            c,
+            ctx,
+            attemptId,
+            finished.id,
+            effort,
+            'finish',
+          );
+        return finished;
       }
       if (action === 'tests') {
         const r = await c.query(
@@ -977,13 +997,22 @@ export class StudyStore extends ProjectReportStore {
         action,
         req,
       );
-      if (effort) await this.#recordEffort(c, ctx, attemptId, saved.id, effort);
+      if (effort)
+        await this.#recordEffort(
+          c,
+          ctx,
+          attemptId,
+          saved.id,
+          effort,
+          action === 'artifacts' ? 'entry' : 'intervention',
+        );
       return saved;
     });
   }
   /**
-   * ADR-0122 (F13): starts timing one intervention step on the server clock. Only an assigned
-   * attempt in the assisted condition records interventions, so only it is timed.
+   * ADR-0122 (F13), ADR-0129: starts timing one step on the server clock. The human-only and
+   * assisted conditions are timed; the autonomous condition's operator is not a participant
+   * doing the task, so it is not. The step is ended by the next intervention, entry or finish.
    */
   async startEffortStep(
     ctx: CommandContext,
@@ -996,10 +1025,10 @@ export class StudyStore extends ProjectReportStore {
     return this.tx(async (c) => {
       const a = await this.lockAttemptForWrite(c, ctx, ws, attemptId);
       notParticipant(a, ctx);
-      if (a.condition !== 'human_in_loop')
+      if (a.condition === 'autonomous')
         throw fail(
           'INVALID_TRANSITION',
-          'Only the assisted condition records interventions, so only it times intervention steps.',
+          'The autonomous condition is not timed; only the human-only and assisted conditions are.',
         );
       if (a.state !== 'assigned')
         throw fail(
@@ -1014,7 +1043,7 @@ export class StudyStore extends ProjectReportStore {
           'The assignment time cap has elapsed; no further steps are timed.',
         );
       const r = await c.query(
-        "insert into study_effort_steps(id,study_id,attempt_id,actor_id,step) values($1,$2,$3,$4,'intervention') returning *",
+        "insert into study_effort_steps(id,study_id,attempt_id,actor_id,step) values($1,$2,$3,$4,'attempt') returning *",
         [randomUUID(), a.study_id, attemptId, ctx.actorId],
       );
       return effortStep(r.rows[0]!, a.synthetic, null);
@@ -1034,8 +1063,8 @@ export class StudyStore extends ProjectReportStore {
   }
   async #effortRows(c: PoolClient, attemptId: string, synthetic: boolean) {
     const r = await c.query(
-      `select s.*, m.event_id, m.timer_version, m.active_ms, m.wait_ms, m.idle_ms,
-              m.away_ms, m.wall_ms,
+      `select s.*, m.event_id, m.ended_by, m.timer_version, m.active_ms, m.wait_ms,
+              m.idle_ms, m.away_ms, m.wall_ms,
               m.recorded_at
          from study_effort_steps s left join study_effort_measures m on m.step_id = s.id
         where s.attempt_id = $1 order by s.started_at, s.id`,
@@ -1046,9 +1075,10 @@ export class StudyStore extends ProjectReportStore {
     );
   }
   /**
-   * Binds the browser totals to the intervention that ends the step. The step must be this
+   * Binds the browser totals to the record that ends the step. The step must be this
    * attempt's, started by this person and not yet measured, and the totals cannot exceed the
-   * step's own time on the server clock (plus request latency).
+   * step's own time on the server clock (plus request latency). A step started under ADR-0122
+   * at the intervention form is ended only by an intervention.
    */
   async #recordEffort(
     c: PoolClient,
@@ -1056,9 +1086,10 @@ export class StudyStore extends ProjectReportStore {
     attemptId: string,
     eventId: string,
     effort: StudyEffort,
+    endedBy: StudyEffortEnd,
   ) {
     const step = await c.query(
-      `select s.actor_id, m.step_id as measured,
+      `select s.actor_id, s.step, m.step_id as measured,
               floor(extract(epoch from (clock_timestamp() - s.started_at)) * 1000)::bigint as wall_ms
          from study_effort_steps s left join study_effort_measures m on m.step_id = s.id
         where s.id = $1 and s.attempt_id = $2 for update of s`,
@@ -1066,24 +1097,33 @@ export class StudyStore extends ProjectReportStore {
     );
     const row = step.rows[0];
     if (!row || String(row.actor_id).toLowerCase() !== ctx.actorId)
-      throw fail(
+      throw effortFail(
         'NOT_FOUND',
         'The timed step does not belong to this attempt and person; start a new step.',
       );
     if (row.measured)
-      throw fail(
+      throw effortFail(
         'INVALID_TRANSITION',
         'This step’s time is already recorded; start a new step.',
       );
+    if (row.step === 'intervention' && endedBy !== 'intervention')
+      throw effortFail(
+        'INVALID_TRANSITION',
+        'This step was started at the intervention form, so only an intervention ends it; start a new step.',
+      );
     const wallMs = Number(row.wall_ms);
     const refusal = effortOverrun(effort, wallMs);
-    if (refusal) throw fail('INVALID_CONTRACT', refusal);
+    if (refusal) throw effortFail('INVALID_CONTRACT', refusal);
+    // `ended_by` always names the kind of the event in `event_id` (review N-4): the callers pass
+    // 'intervention' with an interventions event, 'entry' with an artifacts event and 'finish'
+    // with the finished event, in the same transaction that wrote it.
     await c.query(
-      'insert into study_effort_measures(step_id,attempt_id,event_id,timer_version,active_ms,wait_ms,idle_ms,away_ms,wall_ms) values($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+      'insert into study_effort_measures(step_id,attempt_id,event_id,ended_by,timer_version,active_ms,wait_ms,idle_ms,away_ms,wall_ms) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
       [
         effort.step_id,
         attemptId,
         eventId,
+        endedBy,
         effort.timer_version,
         effort.active_ms,
         effort.wait_ms,
@@ -1227,9 +1267,11 @@ export class StudyStore extends ProjectReportStore {
           (e) => e.kind === 'interventions',
         );
         const effort = await this.#effortRows(c, a.id, a.synthetic);
-        const timed = effort.flatMap((e) => (e.measured ? [e.measured] : []));
-        const seconds = (k: 'active_ms' | 'wait_ms' | 'idle_ms' | 'away_ms') =>
-          timed.reduce((n, m) => n + m[k], 0) / 1000;
+        const measuredEffort = measuredEffortSummary(
+          effort,
+          a.condition,
+          synthetic,
+        );
         const rs = reservations.rows;
         const sum = (predicate: (r: Row) => boolean, column: string) =>
           rs
@@ -1245,22 +1287,10 @@ export class StudyStore extends ProjectReportStore {
             content_redacted: true,
           },
           execution: execution.rows,
-          // ADR-0122: measured by the Study page's browser timer, beside (never replacing) the
-          // participant's own reported minutes. Synthetic studies time the operator testing the
-          // workflow, so their timing is never participant data.
-          measured_effort: {
-            source: STUDY_EFFORT_TIMER_VERSION,
-            subject: synthetic
-              ? 'synthetic_operator_not_participant'
-              : 'assigned_participant',
-            timed_steps: timed.length,
-            unfinished_steps: effort.length - timed.length,
-            intervention_active_seconds: seconds('active_ms'),
-            intervention_wait_seconds: seconds('wait_ms'),
-            intervention_idle_seconds: seconds('idle_ms'),
-            intervention_away_seconds: seconds('away_ms'),
-            steps: effort,
-          },
+          // ADR-0122, ADR-0129: measured by the Study page's browser timer, beside (never
+          // replacing) the participant's own reported minutes. Synthetic studies time the
+          // operator testing the workflow, so their timing is never participant data.
+          measured_effort: measuredEffort,
           measurements: {
             active_ai_seconds: 0,
             active_ai_source: synthetic
@@ -1368,7 +1398,7 @@ export class StudyStore extends ProjectReportStore {
           synthetic
             ? 'Synthetic only; no participants recruited.'
             : 'Final record; no analysis has been run on it.',
-          'Reported human timing is the participant’s own report. Measured step timing (study-effort-timer/1) comes from the Study page in the browser, covers only intervention steps timed there, and is checked only against the studio clock.',
+          'Reported human timing is the participant’s own report. Measured step timing (study-effort-timer/1) comes from the Study page in the browser: it covers the human-only and assisted conditions while the participant has the attempt open there, up to the finish (not the autonomous condition), and is checked only against the studio clock.',
           'Text checks run in the studio; code runs only in the isolated product worker.',
         ],
       };
@@ -1757,11 +1787,74 @@ export class StudyStore extends ProjectReportStore {
  */
 function notParticipant(a: StudyAttempt, ctx: CommandContext) {
   if (a.participant_actor_id.toLowerCase() !== ctx.actorId)
-    throw fail(
+    throw effortFail(
       'ACCESS_DENIED',
       'Only the person assigned to this attempt can time its steps.',
     );
 }
+
+type EffortTotalsSeconds = {
+  steps: number;
+  active_seconds: number;
+  wait_seconds: number;
+  idle_seconds: number;
+  away_seconds: number;
+};
+
+/**
+ * ADR-0122, ADR-0129: an attempt's measured effort for the export. Every earlier field keeps its
+ * name and meaning (`intervention_*` covers steps ended by an intervention); the totals, the
+ * split by what ended each step and the coverage flags are additive.
+ */
+export function measuredEffortSummary(
+  steps: StudyEffortStep[],
+  condition: string,
+  synthetic: boolean,
+) {
+  const timed = steps.flatMap((e) => (e.measured ? [e.measured] : []));
+  const sum = (list: typeof timed): EffortTotalsSeconds => ({
+    steps: list.length,
+    active_seconds: list.reduce((n, m) => n + m.active_ms, 0) / 1000,
+    wait_seconds: list.reduce((n, m) => n + m.wait_ms, 0) / 1000,
+    idle_seconds: list.reduce((n, m) => n + m.idle_ms, 0) / 1000,
+    away_seconds: list.reduce((n, m) => n + m.away_ms, 0) / 1000,
+  });
+  const by = (end: StudyEffortEnd) =>
+    sum(timed.filter((m) => m.ended_by === end));
+  const intervention = by('intervention');
+  const finishTimed = timed.some((m) => m.ended_by === 'finish');
+  const unfinished = steps.length - timed.length;
+  return {
+    source: STUDY_EFFORT_TIMER_VERSION,
+    subject: synthetic
+      ? 'synthetic_operator_not_participant'
+      : 'assigned_participant',
+    condition_timed: condition !== 'autonomous',
+    timed_steps: timed.length,
+    unfinished_steps: unfinished,
+    intervention_active_seconds: intervention.active_seconds,
+    intervention_wait_seconds: intervention.wait_seconds,
+    intervention_idle_seconds: intervention.idle_seconds,
+    intervention_away_seconds: intervention.away_seconds,
+    ...(({ steps: _, ...t }) => t)(sum(timed)),
+    by_end: {
+      intervention,
+      entry: by('entry'),
+      finish: by('finish'),
+    },
+    finish_timed: finishTimed,
+    // Timed from the first step to the finish with no step left open (a reload, say). Time
+    // before the first step started (before the page opened the attempt) is not effort.
+    complete: finishTimed && unfinished === 0,
+    steps,
+  };
+}
+
+/** A refusal about the step time only (ADR-0129 review M-1). */
+const effortFail = (
+  code: ConstructorParameters<typeof ContractError>[0],
+  m: string,
+) => fail(code, `${m} ${STUDY_EFFORT_REFUSAL}`);
 
 /** Null when the measured totals fit inside the step's server time, else the reason. */
 export function effortOverrun(
@@ -1783,12 +1876,13 @@ function effortStep(
   return {
     id: String(s.id),
     attempt_id: String(s.attempt_id),
-    step: 'intervention',
+    step: s.step === 'attempt' ? 'attempt' : 'intervention',
     synthetic,
     started_at: iso(s.started_at),
     measured: m
       ? {
           event_id: String(m.event_id),
+          ended_by: String(m.ended_by) as StudyEffortEnd,
           timer_version: String(
             m.timer_version,
           ) as typeof STUDY_EFFORT_TIMER_VERSION,

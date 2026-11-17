@@ -96,3 +96,35 @@ export function effortText(ms: number) {
   const m = Math.floor(s / 60);
   return m ? `${m} min ${String(s % 60).padStart(2, '0')} s` : `${s} s`;
 }
+
+/**
+ * ADR-0129 review M-1: after a save that carried the step's time is refused, the step stays
+ * running unless the refusal is about the timing itself (the server ends those messages with
+ * `marker`). A refused submit without an entry, say, keeps the step.
+ */
+export function afterRefusal(
+  errorText: string,
+  marker: string,
+): 'stop' | 'keep' {
+  return errorText.includes(marker) ? 'stop' : 'keep';
+}
+
+/**
+ * ADR-0129 reviews M-2 and M-3: what opening an attempt does to the step timer.
+ * - keep: this attempt's step is already running on the page (a second click on it);
+ * - resume: the page timed this attempt earlier and left it for another one; its clock was kept
+ *   and counted the time away as "page not in front", so nothing measured is lost;
+ * - start: a new step (after a reload the page has no clock for an open step, which then stays
+ *   unfinished, so the attempt honestly reads `complete: false`);
+ * - none: the person is not timed here.
+ */
+export function stepOnOpen(s: {
+  timed: boolean;
+  running: { attempt_id: string } | null;
+  attemptId: string;
+  parked: boolean;
+}): { kind: 'keep' | 'resume' | 'start' | 'none' } {
+  if (!s.timed) return { kind: 'none' };
+  if (s.running?.attempt_id === s.attemptId) return { kind: 'keep' };
+  return { kind: s.parked ? 'resume' : 'start' };
+}

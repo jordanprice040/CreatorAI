@@ -441,3 +441,123 @@ test('the analysis reads a real T15 rehearsal package, key and raw exports uncha
     r.package.counts.blocked,
   );
 });
+
+test('ADR-0129: the effort table reads measured time from the raw exports beside the reported figures', () => {
+  const base = analyze(input(mixedFixture()));
+  const ms = (
+    ended_by: string | undefined,
+    t: [number, number, number, number],
+  ) => ({
+    measured: {
+      ...(ended_by ? { ended_by } : {}),
+      active_ms: t[0],
+      wait_ms: t[1],
+      idle_ms: t[2],
+      away_ms: t[3],
+    },
+  });
+  const pkg = mixedFixture().package as unknown as {
+    flow: {
+      arm: string;
+      task_key: string;
+      attempts: { attempt_id: string }[];
+    }[];
+  };
+  const ids = pkg.flow
+    .filter((f) => f.arm === 'B' && f.task_key.startsWith('d'))
+    .flatMap((f) => f.attempts.map((x) => x.attempt_id));
+  assert.ok(ids.length >= 2);
+  const autonomous = new Set(
+    pkg.flow
+      .filter((f) => f.arm === 'A')
+      .flatMap((f) => f.attempts.map((x) => x.attempt_id)),
+  );
+  assert.ok(autonomous.size >= 1);
+  const a = analyze(
+    input(mixedFixture(), (f) => {
+      for (const e of f.exports as unknown as {
+        body: { attempts: Record<string, unknown>[] };
+      }[])
+        for (const at of e.body.attempts) {
+          // Review L-2: like a real export, every autonomous attempt carries an untimed block.
+          if (autonomous.has(String(at.id)))
+            at.measured_effort = {
+              subject: 'synthetic_operator_not_participant',
+              condition_timed: false,
+              steps: [],
+            };
+          if (at.id === ids[0])
+            at.measured_effort = {
+              subject: 'synthetic_operator_not_participant',
+              steps: [
+                // An export made before ADR-0129 has no ended_by.
+                ms(undefined, [60_000, 2_000, 30_000, 0]),
+                ms('finish', [60_000, 1_000, 0, 60_000]),
+              ],
+            };
+          if (at.id === ids[1])
+            at.measured_effort = {
+              subject: 'synthetic_operator_not_participant',
+              steps: [ms('entry', [0, 0, 0, 0]), { measured: null }],
+            };
+        }
+    }),
+  );
+  assert.deepEqual(failing(a), []);
+  const before = row(base.prespecified.human_effort_and_latency, {
+    stratum: 'decision',
+    arm: 'B',
+  });
+  const effort = row(a.prespecified.human_effort_and_latency, {
+    stratum: 'decision',
+    arm: 'B',
+  });
+  // Reported figures are unchanged by the measured ones.
+  for (const k of [
+    'human_active_minutes',
+    'intervention_active_minutes',
+    'human_wait_seconds',
+  ] as const)
+    assert.equal(effort[k], before[k]);
+  assert.equal(before.measured_steps, 0);
+  assert.equal(before.measured_untimed_attempts, ids.length);
+  assert.equal(before.measured_subject, null);
+  assert.deepEqual(
+    [
+      effort.measured_active_minutes,
+      effort.measured_studio_wait_seconds,
+      effort.measured_on_page_not_editing_minutes,
+      effort.measured_page_not_in_front_minutes,
+      effort.measured_steps,
+      effort.measured_unfinished_steps,
+      effort.measured_complete_attempts,
+      effort.measured_untimed_attempts,
+      effort.measured_subject,
+    ],
+    [
+      2,
+      3,
+      0.5,
+      1,
+      3,
+      1,
+      1,
+      ids.length - 2,
+      'synthetic_operator_not_participant',
+    ],
+  );
+  // The autonomous arm has no measured time: null, not 0, and no subject label.
+  const auto = row(a.prespecified.human_effort_and_latency, {
+    stratum: 'decision',
+    arm: 'A',
+  });
+  assert.equal(auto.measured_steps, 0);
+  assert.equal(auto.measured_subject, null);
+  assert.equal(auto.measured_active_minutes, null);
+  assert.equal(auto.measured_studio_wait_seconds, null);
+  assert.equal(auto.measured_complete_attempts, 0);
+  // Review L-1: the plan and its output changed, so both versions moved on.
+  assert.equal(a.analysis_version, 'analysis/2');
+  assert.equal(a.schema_version, 'analysis/2');
+  assert.equal(a.plan.version, 'analysis-plan/2');
+});
