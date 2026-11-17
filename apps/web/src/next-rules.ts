@@ -33,7 +33,9 @@ export type StepView =
   | 'github'
   | 'payments'
   | 'autopilot'
-  | 'runcompare';
+  | 'runcompare'
+  | 'notifications'
+  | 'notifysettings';
 
 export type BuildState =
   'none' | 'running' | 'verified' | 'checkpoint' | 'failed' | 'interrupted';
@@ -606,6 +608,8 @@ export function nextStep(view: StepView, f: StudioFacts): Step {
     case 'storage':
     case 'settings':
     case 'runcompare':
+    case 'notifications':
+    case 'notifysettings':
       return pipelineStep(f);
   }
 }

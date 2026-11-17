@@ -6,6 +6,7 @@ import {
   NOTIFICATION_LINK_PATTERN,
   DEFAULT_NOTIFICATION_PREFERENCES,
   NotificationPreferencesBodySchema,
+  interruptStateFor,
   notificationMode,
   type AutopilotStopKind,
   type NotificationEventKey,
@@ -49,6 +50,8 @@ export interface NotifyInput {
   batchId?: string | null;
   /** False keeps the row in the inbox only (for example a lower spend threshold). */
   interrupt?: boolean;
+  /** The time quiet hours are judged at; tests pass one, producers use the clock. */
+  now?: Date;
 }
 
 export type NotifyResult = { id: string; created: boolean } | null;
@@ -108,11 +111,17 @@ export async function notify(
   if (seen.rowCount) return null;
   const prefs = await notificationPreferencesIn(c, n.actorId);
   const mode = notificationMode(prefs.body, n.eventKey);
-  const muted =
-    n.workspaceId !== null &&
-    prefs.body.muted_workspaces.includes(n.workspaceId);
-  const interrupts =
-    mode !== 'inbox' && !n.batchId && n.interrupt !== false && !muted;
+  // N2 (ADR-0130): a mute beats everything; quiet hours hold the interruption for the digest.
+  const state = interruptStateFor(
+    prefs.body,
+    {
+      eventKey: n.eventKey,
+      workspaceId: n.workspaceId,
+      batched: !!n.batchId,
+      interrupt: n.interrupt !== false,
+    },
+    n.now ?? new Date(),
+  );
   const info = NOTIFICATION_EVENTS[n.eventKey];
   const { rows } = await c.query<{ id: string; created: boolean }>(
     `insert into notifications (id, actor_id, workspace_id, event_key, severity, mode, title,
@@ -134,7 +143,7 @@ export async function notify(
       n.subjectKind,
       n.subjectId,
       cut(n.dedupeKey, 200),
-      interrupts ? 'pending' : 'none',
+      state,
       n.batchId ?? null,
     ],
   );
@@ -150,7 +159,7 @@ export async function notify(
     await c.query(
       `update notifications set interrupt_state = 'none'
         where actor_id = $1 and subject_kind = $2 and subject_id = $3 and id <> $4
-          and interrupt_state = 'pending'`,
+          and interrupt_state in ('pending', 'held_quiet')`,
       [n.actorId, n.subjectKind, n.subjectId, row.id],
     );
   return { id: String(row.id), created: row.created === true };
