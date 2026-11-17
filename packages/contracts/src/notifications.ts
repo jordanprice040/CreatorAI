@@ -60,6 +60,8 @@ export const NotificationEventKeySchema = z.enum([
   // N2 (ADR-0130): system rows a person cannot route elsewhere; Settings does not list them.
   'studio.digest',
   'studio.test',
+  // N3 (ADR-0131): the installed app's one summary on start of what still needs the person.
+  'studio.catch_up',
 ]);
 export type NotificationEventKey = z.infer<typeof NotificationEventKeySchema>;
 
@@ -228,6 +230,13 @@ export const NOTIFICATION_EVENTS: Record<
     severity: 'info',
     default: 'interrupt',
     label: 'Test notification',
+    system: true,
+  },
+  'studio.catch_up': {
+    group: 'studio',
+    severity: 'needs_you',
+    default: 'interrupt',
+    label: 'Still needs you after the app was closed',
     system: true,
   },
 };
@@ -458,3 +467,76 @@ export const NotificationClaimSchema = z.strictObject({
   interrupted_at: timestamp,
 });
 export type NotificationClaim = z.infer<typeof NotificationClaimSchema>;
+
+/**
+ * N3 (ADR-0131): Windows notifications from the installed app's native process. It polls
+ * every 30 seconds with its own signed-in session. While its studio window is hidden or
+ * minimised it claims a row at once; while the window is visible the web toast gets the first
+ * 90 seconds, and the native process claims a row only if it arrived after the window was
+ * shown and is still unclaimed (the page may be broken).
+ */
+export const NATIVE_POLL_MS = 30_000;
+export const NATIVE_FALLBACK_MS = 90_000;
+/** How long after its last poll the installed app still counts as delivering. */
+export const NATIVE_SEEN_MS = 2 * 60_000;
+
+/** What Windows itself says about the app's notifications, as the native process read it. */
+export const NativeOsSettingSchema = z.enum(['on', 'off', 'unknown']);
+export type NativeOsSetting = z.infer<typeof NativeOsSettingSchema>;
+
+/** One row the native process may claim: never evidence or model output, only the row's text. */
+export const NativeNotificationSchema = z.strictObject({
+  id,
+  severity: NotificationSeveritySchema,
+  title: z.string().min(1).max(140),
+  body: z.string().max(400),
+  link: NotificationLinkSchema,
+  /** Milliseconds since the row first arrived, on the studio's clock. */
+  age_ms: counter,
+});
+export type NativeNotification = z.infer<typeof NativeNotificationSchema>;
+
+/** `GET /api/notifications/native`: interrupting rows still pending, newest first. */
+export const NativeNotificationsSchema = z.strictObject({
+  /** Settings › Notifications "Hide details on Windows". */
+  hide_details: z.boolean(),
+  items: z.array(NativeNotificationSchema).max(50),
+});
+export type NativeNotifications = z.infer<typeof NativeNotificationsSchema>;
+
+/**
+ * The summary request: how long the installed app has been running. Only rows that arrived
+ * before it started are summarised, so a summary sent later (a late sign-in, Windows
+ * notifications turned on mid-session) never swallows a new alert (review L-4 of #236).
+ */
+export const NativeCatchUpRequestSchema = z.strictObject({
+  up_ms: z
+    .number()
+    .int()
+    .min(0)
+    .max(366 * 24 * 3_600_000),
+});
+
+/**
+ * `POST /api/notifications/catch-up`, once per start of the installed app: one summary row,
+ * already claimed for Windows, of interrupting rows nobody showed (expired, or still pending
+ * from before the app started) that still need the person, or null when there are none.
+ */
+export const NativeCatchUpSchema = z.strictObject({
+  /** Settings › Notifications "Hide details on Windows" (review M-1 of #236). */
+  hide_details: z.boolean(),
+  count: counter,
+  notification: NativeNotificationSchema.nullable(),
+});
+export type NativeCatchUp = z.infer<typeof NativeCatchUpSchema>;
+
+/** Settings › Notifications: whether the installed app is delivering Windows notifications. */
+export const WindowsNotificationStatusSchema = z.strictObject({
+  /** `unavailable`: Windows gave no answer, for example for a developer build (review N-5). */
+  state: z.enum(['on', 'off_in_windows', 'unavailable', 'not_running']),
+  /** The installed app's last poll, on the studio's clock. */
+  seen_at: timestamp.nullable(),
+});
+export type WindowsNotificationStatus = z.infer<
+  typeof WindowsNotificationStatusSchema
+>;

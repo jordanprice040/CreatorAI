@@ -73,7 +73,7 @@ fn same(a: &str, b: &str) -> bool {
             == 0
 }
 
-fn client(timeout: u64) -> Result<reqwest::blocking::Client, String> {
+pub(crate) fn client(timeout: u64) -> Result<reqwest::blocking::Client, String> {
     reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(timeout))
         .no_proxy()
@@ -81,7 +81,7 @@ fn client(timeout: u64) -> Result<reqwest::blocking::Client, String> {
         .build()
         .map_err(|_| "Could not create a local HTTP client".into())
 }
-fn bounded_json(mut r: reqwest::blocking::Response) -> Result<Value, String> {
+pub(crate) fn bounded_json(mut r: reqwest::blocking::Response) -> Result<Value, String> {
     let mut bytes = Vec::new();
     (&mut r)
         .take(65537)
@@ -780,6 +780,12 @@ impl Supervisor {
         }
         let v = bounded_json(r).ok()?;
         Some((token, v["csrf_token"].as_str()?.to_string()))
+    }
+
+    /// N3 (ADR-0131): the native session for the Windows notification poller, checked with the
+    /// server first. None while signed out (nothing is polled then).
+    pub fn native_session(&self) -> Option<(String, String)> {
+        self.validate_session()
     }
 
     fn show_studio_signed_in(self: &Arc<Self>) {
