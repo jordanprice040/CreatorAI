@@ -437,7 +437,19 @@ test('X04 owner verification, scope limits, push, review, checks and exact-head 
   gh.setCheck(repo.github_id, c3, 'ci', 'success');
   // The head moving between our read and GitHub's merge is refused by GitHub's sha check (409).
   gh.failNext('merge', 409);
-  assert.equal(state(await merge(c3)), 'failed:stale_head');
+  const staleMerge = await merge(c3);
+  assert.equal(state(staleMerge), 'failed:stale_head');
+  // P32 live trial: a failed operation keeps what GitHub answered.
+  assert.deepEqual(
+    (staleMerge.result as { github_answer: Record<string, unknown> })
+      .github_answer.status,
+    409,
+  );
+  assert.equal(
+    (staleMerge.result as { github_answer: Record<string, unknown> })
+      .github_answer.step,
+    'call',
+  );
   const merged = await merge(c3);
   assert.equal(state(merged), 'succeeded:succeeded');
   assert.equal((merged.gate?.pull as { head_sha: string }).head_sha, c3);

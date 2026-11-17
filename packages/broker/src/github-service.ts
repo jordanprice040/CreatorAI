@@ -83,6 +83,26 @@ function createdRepository(d: Record<string, unknown> | null) {
 }
 
 /**
+ * P32 live trial (ADR-0132): what GitHub answered to an operation that did not succeed, kept on
+ * the operation so a refusal can be told from a rate limit afterwards. Status, GitHub's own
+ * message, which step answered (the App token step or the call) and the rate-limit and
+ * permission headers; never the body or a token.
+ */
+export function githubAnswer(res: GitHubResponse): Record<string, unknown> {
+  return {
+    github_answer: {
+      status: res.status,
+      step: res.stage ?? 'call',
+      message: res.message.slice(0, 300),
+      rate_limit_remaining: res.headers['x-ratelimit-remaining'] ?? null,
+      retry_after: res.headers['retry-after'] ?? null,
+      accepted_permissions:
+        res.headers['x-accepted-github-permissions'] ?? null,
+    },
+  };
+}
+
+/**
  * Review M-2 (ADR-0132): GitHub may refuse an app installation token on `POST /user/repos`
  * (personal accounts). Say what to do instead of GitHub's bare "Resource not accessible".
  */
@@ -95,12 +115,16 @@ export function refusalWording(
   const app =
     conn.body.credential.kind === 'app_vault' ||
     conn.body.credential.kind === 'app_installation';
+  // P32 live trial: only a real permission refusal on the call itself, never a rate limit or a
+  // refused app token, gets the personal-account wording.
   if (
     kind !== 'repo_create' ||
     !app ||
     conn.body.owner.type !== 'User' ||
     res.status !== 403 ||
-    cls.state === 'succeeded'
+    res.stage !== undefined ||
+    cls.state !== 'failed' ||
+    cls.reason_code !== 'permission_missing'
   )
     return cls;
   return {
@@ -306,7 +330,7 @@ export class GitHubService {
         ? p.kind === 'repo_create'
           ? createdRepository(res.data)
           : res.data
-        : null;
+        : githubAnswer(res);
     return this.store.finishGitHubOperation(ctx, ws, op.id, cls, data);
   }
   #ref(repo: GitHubRepository | null, obs: GitHubObservations): RepoRef | null {

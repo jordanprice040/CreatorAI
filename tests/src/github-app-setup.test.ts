@@ -449,8 +449,8 @@ test('P32 review M-2: a refused repository creation on a personal account says w
     }) as unknown as GitHubConnection;
   const refused = {
     state: 'failed',
-    reason_code: 'github_403',
-    explanation: 'Resource not accessible by integration',
+    reason_code: 'permission_missing',
+    explanation: 'GitHub refused the request.',
   } as const;
   const res = { status: 403, headers: {}, data: null, message: '' };
   assert.match(
@@ -472,6 +472,23 @@ test('P32 review M-2: a refused repository creation on a personal account says w
     ['push', conn('app_vault', 'User')],
   ] as const)
     assert.equal(refusalWording(refused, kind, c, res), refused);
+  // P32 live trial: a rate limit or a refused App token keeps its own wording.
+  const limited = {
+    state: 'failed',
+    reason_code: 'provider_rate_limited',
+    explanation: 'GitHub rate limit.',
+  } as const;
+  assert.equal(
+    refusalWording(limited, 'repo_create', conn('app_vault', 'User'), res),
+    limited,
+  );
+  assert.equal(
+    refusalWording(refused, 'repo_create', conn('app_vault', 'User'), {
+      ...res,
+      stage: 'app_token',
+    }),
+    refused,
+  );
   assert.equal(
     refusalWording(refused, 'repo_create', conn('app_vault', 'User'), {
       ...res,

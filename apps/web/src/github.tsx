@@ -1163,6 +1163,17 @@ function NewOperation({
   );
 }
 
+/** P32 live trial: what GitHub itself answered to an operation that did not succeed. */
+function answerText(o: GitHubOperation): string {
+  const a = (o.result as { github_answer?: Record<string, unknown> } | null)
+    ?.github_answer;
+  if (!a || typeof a.status !== 'number') return '';
+  const step = a.step === 'app_token' ? ' to the App token request' : '';
+  const msg =
+    typeof a.message === 'string' && a.message ? `: "${a.message}"` : '';
+  return ` (GitHub answered ${a.status}${step}${msg})`;
+}
+
 function OperationRow({
   o,
   repoName,
@@ -1190,6 +1201,7 @@ function OperationRow({
       <small>
         {' '}
         · {when(o.created_at)} · {words(o.reason_code)}: {o.explanation}
+        {answerText(o)}
       </small>
       {canAct && (o.state === 'unknown' || o.state === 'dispatched') && (
         <>

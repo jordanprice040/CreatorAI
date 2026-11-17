@@ -1128,7 +1128,9 @@ export class GitHubStore extends ArtifactStore {
             { status: 'access_lost', reason: outcome.explanation },
           );
       }
-      return this.#settle(c, ctx, op, outcome.state, outcome, null);
+      // P32 live trial: a failed or unknown operation keeps what GitHub answered (status,
+      // message, step, rate-limit headers), so the record can tell a refusal from a rate limit.
+      return this.#settle(c, ctx, op, outcome.state, outcome, data);
     });
   }
 

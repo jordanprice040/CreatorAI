@@ -134,3 +134,18 @@ in this order and record each pass or fail in ADR-0132 and here:
    Record which happened.
 6. Revoke the connection (the app key is deleted from this computer), then delete the app on
    GitHub › Settings › Developer settings › GitHub Apps.
+
+### Results, November 17, 2026 (16:26–16:45 UTC)
+
+Run on a separate worktree of main 1300b36 with a throwaway database and its own vault folder;
+the installed app and the dev studio were not touched; nothing was spent.
+
+1. GitHub accepted the manifest (no webhook, loopback URLs) and created the app "Creator Agent d4d2f8": **pass**.
+2. Installed on "Only select repositories" with `creator-agent-p32-trial` (id 1461650323) only; the page showed "installed" without a reload: **pass**.
+3. Connection added with that repository listed and verified (owner matched): **pass**.
+4. Reduced, because the throwaway database had no product to push: `branch_create` `creator/p32-base` from `main` and `issue_create` (issue #1) both succeeded through the app's installation token: **pass**. Push, pull request and a checks read on a pull request head were **not tested**; they use the same code path the P22 trial ran live with a fine-grained token.
+5. `repo_create` `creator-agent-p32-create` (after Jordan approved the decision once): GitHub answered **403** and nothing was created, but the studio classified the answer as `provider_rate_limited` (a 403 with a rate-limit sign) and saved no status or message, so whether GitHub refuses repository creation by an app on a personal account is **not settled**. The personal-account wording was shown although the reason said rate limit; fixed below.
+6. Revoked: the revoke event says `app_key: forgotten_on_revoke` and the trial vault folder was empty; Jordan deleted the app on GitHub; the trial studio, its database `creator_p32_trial` and its worktree were removed.
+
+Still open: push, pull request and checks read through an app token, and check 5 (rerun with a
+new app; failed operations now keep GitHub's status and message).
