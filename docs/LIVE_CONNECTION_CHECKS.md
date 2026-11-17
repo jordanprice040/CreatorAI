@@ -105,3 +105,32 @@ the trial repository (the studio never deletes repositories).
 Follow-up recorded at the owner's request (November 10): once the rest of the GitHub work is
 working, a separate trial with a token that can create repositories (studio-created
 `creator-agent-` repository), with its own OK.
+
+## GitHub App from the studio (P32, ADR-0132): live trial plan
+
+Needs Jordan's typed OK in the thread, on the dev studio (`CREATOR_GITHUB=live`; the installed app
+does not turn live GitHub on), with a new private test repository. Nothing is spent. Run the checks
+in this order and record each pass or fail in ADR-0132 and here:
+
+1. **GitHub accepts the manifest** (review L-5): pressing Create the GitHub App reaches GitHub's
+   "Create GitHub App" page, GitHub creates the app with **no webhook**, and the browser comes back
+   to `http://127.0.0.1:<port>/github-app/created`. If GitHub refuses the manifest, press Stop this
+   setup, note GitHub's words, and switch the manifest to the prepared fallback
+   `hook_attributes: { url: "https://github.com", active: false }` (an inactive webhook; nothing is
+   ever delivered).
+2. **Test repository first, then installation** (review 2 L-1): create the private test
+   repository `creator-agent-p32-trial` on GitHub, then install the app on "Only select
+   repositories" with that repository chosen; the page shows "installed" without a reload (or
+   after Check installation).
+3. **Connection with the repository listed**: add the connection with
+   `creator-agent-p32-trial` in its repositories (the list can't be edited later), then Verify.
+4. Branch, push, pull request, and a checks read on the pull request (check runs readable), on
+   that repository.
+5. **Repository creation on the personal account, as a separate check** (review M-2): one
+   `repo_create` (`creator-agent-p32-create`). If GitHub answers 403 the operation says
+   "GitHub does not let this app create repositories on a personal account…", and checks 2–4
+   already stand. If it is created, read it by id (`github-repos`) and record whether a
+   "selected repositories" installation can see it (GitHub may not add it automatically).
+   Record which happened.
+6. Revoke the connection (the app key is deleted from this computer), then delete the app on
+   GitHub › Settings › Developer settings › GitHub Apps.

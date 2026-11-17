@@ -2,13 +2,17 @@ import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import {
   GITHUB_POLICY_VERSION,
+  ConnectGitHubAppSetupRequestSchema,
+  GITHUB_APP_SETUP_MS,
   GitHubOperationRequestSchema,
   RecordGitHubReviewRequestSchema,
   RegisterGitHubConnectionRequestSchema,
   RevokeGitHubConnectionRequestSchema,
   parse,
   type CheckObservation,
+  type GitHubAppSetup,
   type GitHubConnection,
+  type GitHubConnectionBody,
   type GitHubDelivery,
   type GitHubIdentity,
   type GitHubOperation,
@@ -112,6 +116,29 @@ const toDelivery = (r: Row): GitHubDelivery => ({
   received_at: iso(r.received_at),
 });
 
+const toSetup = (r: Row): GitHubAppSetup => {
+  const status = r.status as GitHubAppSetup['status'];
+  const stale =
+    status === 'waiting_for_github' &&
+    Date.now() - new Date(r.created_at as string).getTime() >
+      GITHUB_APP_SETUP_MS;
+  return {
+    id: String(r.id),
+    workspace_id: String(r.workspace_id),
+    // A handshake GitHub no longer accepts reads as expired before anything writes it.
+    status: stale ? 'expired' : status,
+    organization: r.organization === null ? null : String(r.organization),
+    app: (r.app ?? null) as GitHubAppSetup['app'],
+    installation: (r.installation ?? null) as GitHubAppSetup['installation'],
+    connection_id: r.connection_id === null ? null : String(r.connection_id),
+    failure: r.failure === null ? null : String(r.failure),
+    created_by: String(r.created_by),
+    created_at: iso(r.created_at),
+    updated_at: iso(r.updated_at),
+  };
+};
+const OPEN_SETUP = ['waiting_for_github', 'app_created', 'installed'];
+
 /** What GitHubService read from GitHub just before a repository-scoped operation. */
 export interface GitHubObservations {
   repository?: {
@@ -188,6 +215,7 @@ export class GitHubStore extends ArtifactStore {
     status: GitHubConnection['status'],
     reason: string | null,
     verification?: GitHubConnection['verification'],
+    extra?: Record<string, unknown>,
   ) {
     const { rows } = await c.query(
       `update github_connections set status = $2, status_reason = $3,
@@ -209,7 +237,7 @@ export class GitHubStore extends ArtifactStore {
         subjectId: conn.id,
         subjectVersion: next.version,
         contentHash: conn.body_hash,
-        payload: { from: conn.status, to: status, reason },
+        payload: { from: conn.status, to: status, reason, ...extra },
       });
     return next;
   }
@@ -330,46 +358,54 @@ export class GitHubStore extends ArtifactStore {
     ctx = normalize(ctx);
     ws = uuid(ws);
     const body = parse(RegisterGitHubConnectionRequestSchema, raw);
-    const bodyHash = canonicalHash(body);
+    // ADR-0132: only the in-app setup names a vault key, so a request cannot point a new
+    // connection at a key another setup sealed.
+    if (body.credential.kind === 'app_vault')
+      throw fail(
+        'SCOPE_EXCEEDED',
+        'A GitHub App created in the studio is connected from its setup.',
+      );
     return this.tx(async (c) => {
       await this.requireOwner(c, ws, ctx.actorId);
-      const fixture = await this.#workspaceFixture(c, ws);
-      if (fixture !== (body.mode === 'fixture'))
-        throw fail(
-          'SCOPE_EXCEEDED',
-          fixture
-            ? 'A fixture workspace can only hold a fixture GitHub connection.'
-            : 'A real workspace cannot hold a fixture GitHub connection.',
-        );
-      const { rows } = await c.query(
-        `insert into github_connections (id, workspace_id, fixture, version, status, body,
-           body_hash, created_by) values ($1,$2,$3,1,'unverified',$4,$5,$6) returning *`,
-        [
-          randomUUID(),
-          ws,
-          fixture,
-          JSON.stringify(body),
-          bodyHash,
-          ctx.actorId,
-        ],
-      );
-      const conn = toConnection(rows[0] as Row);
-      await this.append(c, ctx, {
-        workspaceId: ws,
-        action: 'github.connection_registered',
-        subjectKind: 'github_connection',
-        subjectId: conn.id,
-        subjectVersion: 1,
-        contentHash: bodyHash,
-        payload: {
-          owner: body.owner,
-          credential_kind: body.credential.kind,
-          mode: body.mode,
-          policy_version: GITHUB_POLICY_VERSION,
-        },
-      });
-      return conn;
+      return this.#insertConnection(c, ctx, ws, body);
     });
+  }
+  async #insertConnection(
+    c: PoolClient,
+    ctx: CommandContext,
+    ws: string,
+    body: GitHubConnectionBody,
+  ) {
+    const bodyHash = canonicalHash(body);
+    const fixture = await this.#workspaceFixture(c, ws);
+    if (fixture !== (body.mode === 'fixture'))
+      throw fail(
+        'SCOPE_EXCEEDED',
+        fixture
+          ? 'A fixture workspace can only hold a fixture GitHub connection.'
+          : 'A real workspace cannot hold a fixture GitHub connection.',
+      );
+    const { rows } = await c.query(
+      `insert into github_connections (id, workspace_id, fixture, version, status, body,
+         body_hash, created_by) values ($1,$2,$3,1,'unverified',$4,$5,$6) returning *`,
+      [randomUUID(), ws, fixture, JSON.stringify(body), bodyHash, ctx.actorId],
+    );
+    const conn = toConnection(rows[0] as Row);
+    await this.append(c, ctx, {
+      workspaceId: ws,
+      action: 'github.connection_registered',
+      subjectKind: 'github_connection',
+      subjectId: conn.id,
+      subjectVersion: 1,
+      contentHash: bodyHash,
+      payload: {
+        owner: body.owner,
+        credential_kind: body.credential.kind,
+        mode: body.mode,
+        policy_version: GITHUB_POLICY_VERSION,
+      },
+    });
+    return conn;
   }
   async listGitHubConnections(ctx: CommandContext, ws: string) {
     ctx = normalize(ctx);
@@ -496,7 +532,18 @@ export class GitHubStore extends ArtifactStore {
       if (conn.version !== req.expected_version)
         throw fail('VERSION_CONFLICT', 'The connection changed; reload it.');
       if (conn.status === 'revoked') return conn;
-      return this.#setConnection(c, ctx, conn, 'revoked', req.reason);
+      return this.#setConnection(
+        c,
+        ctx,
+        conn,
+        'revoked',
+        req.reason,
+        undefined,
+        // Review L-4: GitHubService deletes a studio-created app's sealed key after this.
+        conn.body.credential.kind === 'app_vault'
+          ? { app_key: 'forgotten_on_revoke' }
+          : undefined,
+      );
     });
   }
   async listGitHubRepositories(ctx: CommandContext, ws: string) {
@@ -1378,6 +1425,317 @@ export class GitHubStore extends ArtifactStore {
         [uuid(connectionId)],
       );
       return rows.map((r: Row) => toDelivery(r));
+    });
+  }
+
+  // ---- ADR-0132 (P32): GitHub App created and installed from the studio ----------------------
+
+  async #setup(c: PoolClient, ws: string, id: string, lock = false) {
+    const { rows } = await c.query(
+      `select * from github_app_setups where workspace_id = $1 and id = $2${lock ? ' for update' : ''}`,
+      [ws, uuid(id)],
+    );
+    if (!rows[0]) throw fail('NOT_FOUND', 'GitHub App setup not found.');
+    return rows[0] as Row;
+  }
+  async #auditSetup(
+    c: PoolClient,
+    ctx: CommandContext,
+    ws: string,
+    setup: GitHubAppSetup,
+    action: string,
+  ) {
+    // Names, ids and status only; the key and GitHub's one-time code never reach the journal.
+    const payload = {
+      status: setup.status,
+      organization: setup.organization,
+      app: setup.app && {
+        id: setup.app.id,
+        slug: setup.app.slug,
+        owner: setup.app.owner,
+      },
+      installation: setup.installation,
+      connection_id: setup.connection_id,
+      failure: setup.failure,
+    };
+    await this.append(c, ctx, {
+      workspaceId: ws,
+      action,
+      subjectKind: 'github_app_setup',
+      subjectId: setup.id,
+      subjectVersion: 1,
+      contentHash: canonicalHash(payload),
+      payload,
+    });
+  }
+  async #moveSetup(
+    c: PoolClient,
+    ctx: CommandContext,
+    ws: string,
+    id: string,
+    set: string,
+    values: unknown[],
+    action: string,
+  ) {
+    const { rows } = await c.query(
+      `update github_app_setups set ${set}, updated_at = now()
+        where workspace_id = $1 and id = $2 returning *`,
+      [ws, id, ...values],
+    );
+    const setup = toSetup(rows[0] as Row);
+    await this.#auditSetup(c, ctx, ws, setup, action);
+    return setup;
+  }
+  /** Owner only, real workspaces only. A newer start retires any handshake still waiting. */
+  async beginGitHubAppSetup(
+    ctx: CommandContext,
+    ws: string,
+    organization: string | null,
+  ): Promise<GitHubAppSetup> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    return this.tx(async (c) => {
+      await this.requireOwner(c, ws, ctx.actorId);
+      if (await this.#workspaceFixture(c, ws))
+        throw fail(
+          'SCOPE_EXCEEDED',
+          'A fixture workspace talks to the simulated GitHub; create a GitHub App from a real workspace.',
+        );
+      const { rows: waiting } = await c.query(
+        `update github_app_setups set status = 'expired', updated_at = now()
+          where workspace_id = $1 and status = 'waiting_for_github' returning *`,
+        [ws],
+      );
+      for (const w of waiting)
+        await this.#auditSetup(
+          c,
+          ctx,
+          ws,
+          toSetup(w as Row),
+          'github.app_setup_expired',
+        );
+      const { rows } = await c.query(
+        `insert into github_app_setups (id, workspace_id, status, organization, created_by)
+         values ($1,$2,'waiting_for_github',$3,$4) returning *`,
+        [randomUUID(), ws, organization, ctx.actorId],
+      );
+      const setup = toSetup(rows[0] as Row);
+      await this.#auditSetup(c, ctx, ws, setup, 'github.app_setup_started');
+      return setup;
+    });
+  }
+  async listGitHubAppSetups(ctx: CommandContext, ws: string) {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    return this.tx(async (c) => {
+      await this.role(c, ws, ctx.actorId, false);
+      const { rows } = await c.query(
+        'select * from github_app_setups where workspace_id = $1 order by created_at desc, id limit 20',
+        [ws],
+      );
+      return rows.map((r: Row) => toSetup(r));
+    });
+  }
+  async getGitHubAppSetup(ctx: CommandContext, ws: string, id: string) {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    return this.tx(async (c) => {
+      await this.role(c, ws, ctx.actorId, false);
+      return toSetup(await this.#setup(c, ws, id));
+    });
+  }
+  /**
+   * GitHub created the app and the studio sealed its key. Only a setup still waiting, inside
+   * GitHub's hour, accepts it; anything else is refused so the caller can drop the sealed key.
+   */
+  async recordGitHubAppCreated(
+    ctx: CommandContext,
+    ws: string,
+    id: string,
+    v: { app: NonNullable<GitHubAppSetup['app']>; key_ref: string },
+  ) {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    return this.tx(async (c) => {
+      const row = await this.#setup(c, ws, id, true);
+      await this.requireOwner(c, ws, ctx.actorId);
+      if (toSetup(row).status !== 'waiting_for_github')
+        throw fail(
+          'INVALID_TRANSITION',
+          'This GitHub App setup is no longer waiting for GitHub.',
+        );
+      return this.#moveSetup(
+        c,
+        ctx,
+        ws,
+        String(row.id),
+        `status = 'app_created', app = $3, key_ref = $4`,
+        [JSON.stringify(v.app), v.key_ref],
+        'github.app_created',
+      );
+    });
+  }
+  async failGitHubAppSetup(
+    ctx: CommandContext,
+    ws: string,
+    id: string,
+    reason: string,
+  ) {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    return this.tx(async (c) => {
+      const row = await this.#setup(c, ws, id, true);
+      await this.requireOwner(c, ws, ctx.actorId);
+      // Review M-1: only the code exchange fails a setup, so only one still waiting for GitHub
+      // moves; an app already created (a second redirect raced the first) is left as it is.
+      if (String(row.status) !== 'waiting_for_github') return toSetup(row);
+      return this.#moveSetup(
+        c,
+        ctx,
+        ws,
+        String(row.id),
+        `status = 'failed', failure = $3`,
+        [reason.slice(0, 500)],
+        'github.app_setup_failed',
+      );
+    });
+  }
+  /** The setup and its key reference, for reading the app's installations with its own JWT. */
+  async githubAppSetupForInstallation(
+    ctx: CommandContext,
+    ws: string,
+    id: string,
+  ) {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    return this.tx(async (c) => {
+      await this.requireOwner(c, ws, ctx.actorId);
+      const row = await this.#setup(c, ws, id);
+      const setup = toSetup(row);
+      if (setup.status !== 'app_created' && setup.status !== 'installed')
+        throw fail(
+          'INVALID_TRANSITION',
+          setup.status === 'connected'
+            ? 'This GitHub App is already connected.'
+            : 'Create the GitHub App first.',
+        );
+      return { setup, key_ref: String(row.key_ref) };
+    });
+  }
+  async recordGitHubAppInstallation(
+    ctx: CommandContext,
+    ws: string,
+    id: string,
+    installation: NonNullable<GitHubAppSetup['installation']>,
+  ) {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    return this.tx(async (c) => {
+      const row = await this.#setup(c, ws, id, true);
+      await this.requireOwner(c, ws, ctx.actorId);
+      const setup = toSetup(row);
+      if (setup.status === 'installed') {
+        if (setup.installation?.id === installation.id) return setup;
+        throw fail(
+          'INVALID_TRANSITION',
+          'The app was installed again elsewhere. Abandon this setup and start a new one.',
+        );
+      }
+      if (setup.status !== 'app_created')
+        throw fail('INVALID_TRANSITION', 'Create the GitHub App first.');
+      return this.#moveSetup(
+        c,
+        ctx,
+        ws,
+        String(row.id),
+        `status = 'installed', installation = $3`,
+        [JSON.stringify(installation)],
+        'github.app_installed',
+      );
+    });
+  }
+  /**
+   * Registers the ordinary live connection for an installed app: the owner is the installation's
+   * account and the credential names the sealed key. It starts unverified like any other.
+   */
+  async connectGitHubAppSetup(
+    ctx: CommandContext,
+    ws: string,
+    id: string,
+    raw: unknown,
+  ): Promise<{ setup: GitHubAppSetup; connection: GitHubConnection }> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    const req = parse(ConnectGitHubAppSetupRequestSchema, raw);
+    return this.tx(async (c) => {
+      const row = await this.#setup(c, ws, id, true);
+      await this.requireOwner(c, ws, ctx.actorId);
+      const setup = toSetup(row);
+      if (setup.status !== 'installed' || !setup.app || !setup.installation)
+        throw fail(
+          'INVALID_TRANSITION',
+          setup.status === 'app_created'
+            ? 'Install the app on GitHub, then check the installation.'
+            : 'This GitHub App setup cannot be connected.',
+        );
+      const body = parse(RegisterGitHubConnectionRequestSchema, {
+        label: req.label,
+        mode: 'live',
+        owner: setup.installation.account,
+        credential: {
+          kind: 'app_vault',
+          app_id: setup.app.id,
+          app_slug: setup.app.slug,
+          app_client_id: setup.app.client_id,
+          key_ref: String(row.key_ref),
+          installation_id: setup.installation.id,
+        },
+        webhook_secret_env: null,
+        limits: req.limits,
+        required_checks: req.required_checks,
+        included_repositories: req.included_repositories,
+      });
+      const connection = await this.#insertConnection(c, ctx, ws, body);
+      const done = await this.#moveSetup(
+        c,
+        ctx,
+        ws,
+        String(row.id),
+        `status = 'connected', connection_id = $3`,
+        [connection.id],
+        'github.app_connected',
+      );
+      return { setup: done, connection };
+    });
+  }
+  /**
+   * Stops an unfinished setup. Returns the key reference so the service can delete the sealed
+   * key; the app itself stays on GitHub until the owner deletes it there.
+   */
+  async abandonGitHubAppSetup(ctx: CommandContext, ws: string, id: string) {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    return this.tx(async (c) => {
+      const row = await this.#setup(c, ws, id, true);
+      await this.requireOwner(c, ws, ctx.actorId);
+      if (!OPEN_SETUP.includes(String(row.status)))
+        throw fail(
+          'INVALID_TRANSITION',
+          'Only an unfinished GitHub App setup can be abandoned.',
+        );
+      const setup = await this.#moveSetup(
+        c,
+        ctx,
+        ws,
+        String(row.id),
+        `status = 'abandoned'`,
+        [],
+        'github.app_setup_abandoned',
+      );
+      return {
+        setup,
+        key_ref: row.key_ref === null ? null : String(row.key_ref),
+      };
     });
   }
 }

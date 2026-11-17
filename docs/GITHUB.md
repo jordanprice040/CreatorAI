@@ -136,13 +136,47 @@ Other `params` kinds: `branch_create` (repository_id, branch, from_sha), `push`
 (head_branch, base_branch, title, body), `pr_merge` (pr_number, reviewed_head_sha,
 merge_method `merge` or `squash`).
 
+## Connect with GitHub from the studio (P32, ADR-0132)
+
+The simplest live setup, on the GitHub page of a real workspace (owner only, with
+`CREATOR_GITHUB=live` and the protected vault the installed app and dev studio use):
+
+1. **Create the GitHub App.** Your browser opens GitHub with a private app already
+   described: write access to contents, issues and pull requests; read access to checks,
+   commit statuses and metadata; and Administration (write), which Creator Agent needs to
+   create repositories. GitHub's Administration permission also covers repository settings
+   and deletion; Creator Agent never calls those, and each token it mints is limited to the
+   one call's permissions. No webhook, no workflows. Name the app and press Create on
+   GitHub. Creator Agent keeps the app key protected on this computer (DPAPI on Windows);
+   there is nothing to copy.
+2. **Install on GitHub** and choose the repositories. The studio page looks again every few
+   seconds while it waits and shows the installation when GitHub reports it; **Check
+   installation** asks at once.
+3. **Add the connection**: name, limits and required checks, as for any connection. List
+   the repositories Creator Agent may use here: a studio-made app connection's list can't be
+   changed later (to change it, set up another app). Then press **Verify** and create the
+   grants runs need.
+
+On a personal account GitHub may refuse to let the app create repositories (403). The
+operation then says so: create the repository on GitHub, add it to the app's installation,
+and set up the connection again with the repository listed (**Set up another app**).
+
+Routes under `/api/workspaces/{ws}/`: `github-app-setups` (GET, POST
+`{organization, open_browser}`), `github-app-setups/{id}` (GET), `…/installation`,
+`…/connect`, `…/abandon` (POST). Stopping a setup, or revoking its connection, deletes the
+app key from this computer (if the key file can't be deleted just then, the revoke still
+stands and the page says so); the app stays on GitHub until you delete it under Settings ›
+Developer settings › GitHub Apps. The live trial plan is in
+[LIVE_CONNECTION_CHECKS.md](LIVE_CONNECTION_CHECKS.md). The installed app does
+not turn live GitHub on yet (see ADR-0132).
+
 ## Turning on live use (owner steps)
 
 The P22 live trial and its exact steps are in [LIVE_CONNECTION_CHECKS.md](LIVE_CONNECTION_CHECKS.md).
 
-1. Choose the credential: a GitHub App installed on selected repositories (recommended:
-   it can read check runs and tokens are short-lived) or a fine-grained token limited to
-   the owner and selected repositories, with an expiry.
+1. Prefer the in-app setup above. By hand, choose the credential: a GitHub App installed on
+   selected repositories (it can read check runs and tokens are short-lived) or a
+   fine-grained token limited to the owner and selected repositories, with an expiry.
 2. Put the secret in the API process environment only, for example in PowerShell:
    `$env:CREATOR_GITHUB_TOKEN = "<token>"` and `$env:CREATOR_GITHUB = "live"`.
 3. Register a `live` connection in a real workspace naming the owner's login and
