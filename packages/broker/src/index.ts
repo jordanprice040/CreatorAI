@@ -19,3 +19,4 @@ export * from './plan-service.js';
 export * from './claude-code.js';
 export * from './qualification-queue.js';
 export * from './github-app-setup.js';
+export * from './ollama.js';

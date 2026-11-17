@@ -74,3 +74,4 @@ export * from './support-report.js';
 export * from './run-compare.js';
 export * from './notifications.js';
 export * from './backups.js';
+export * from './local-models.js';
