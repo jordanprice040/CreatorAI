@@ -1213,7 +1213,7 @@ export class GitHubStore extends ArtifactStore {
             reason_code: 'found_on_github',
             explanation: found.note,
           },
-          found.data && kept ? { ...found.data, ...kept } : found.data,
+          kept ? { ...(found.data ?? {}), ...kept } : found.data,
         );
       }
       return this.#settle(

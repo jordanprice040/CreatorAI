@@ -103,16 +103,30 @@ export function githubAnswer(res: GitHubResponse): Record<string, unknown> {
 }
 
 /**
- * Review 1 N-3 (PR #244): a refusal at the App token step means the change itself was never
- * sent; say so instead of the call's wording. A 5xx or no answer there keeps the generic
- * wording, which already says the outcome is not known.
+ * Review 1 N-3 and review 2 L-1 (PR #244): when GitHub did not hand out the App token (it
+ * refused, did not answer, or the studio could not sign the request), the change itself was
+ * never sent. That is a plain failure, not an unknown outcome, so it says so and a retry needs
+ * no Reconcile first.
  */
 export function appTokenWording(
   cls: ResponseClass,
   res: GitHubResponse,
 ): ResponseClass {
-  if (res.stage !== 'app_token' || cls.state !== 'failed') return cls;
+  if (res.stage === undefined || cls.state === 'succeeded') return cls;
   const said = res.message ? ` GitHub said: ${res.message}` : '';
+  if (res.stage === 'studio')
+    return {
+      state: 'failed',
+      reason_code: 'app_token_unavailable',
+      explanation:
+        'The studio could not sign a GitHub App token request (check the App key), so the change was not sent.',
+    };
+  if (cls.state === 'unknown')
+    return {
+      state: 'failed',
+      reason_code: 'app_token_unavailable',
+      explanation: `GitHub did not hand out an App token (${res.status === null ? 'no answer' : res.status}), so the change was not sent. Try again later.${said}`,
+    };
   return {
     ...cls,
     explanation:

@@ -14,6 +14,7 @@ import {
   type GitHubConnection,
 } from '@creator/contracts';
 import { ContextStore, type CommandContext } from '@creator/db';
+import { classifyResponse } from '@creator/domain';
 import {
   GITHUB_APP_PERMISSIONS,
   GitHubAppSetupService,
@@ -754,6 +755,57 @@ test('P32 PR #244 review: a refused App token is kept as the token step and says
     /refused an App token for this change \(403\), so the change was not sent/,
   );
   // A refusal of the call itself keeps the call's wording.
+  // Review 2 L-1: no token handed out (no answer, or the studio could not sign) means the
+  // change was never sent: failed, not unknown, so a retry needs no Reconcile.
+  const silent = await new LiveGitHub({
+    credential: {
+      kind: 'app_installation',
+      client_id: 'Iv23fixtureclient',
+      private_key: PEM,
+      installation_id: 42,
+    },
+    apiBase: 'http://127.0.0.1:9',
+    fetch: (async () => {
+      throw new Error('connection reset');
+    }) as typeof fetch,
+  }).createRepository(
+    { login: 'fixture-owner', type: 'User' },
+    'creator-agent-x',
+    '',
+  );
+  assert.equal(silent.stage, 'app_token');
+  assert.equal(classifyResponse(silent).state, 'unknown');
+  const notSent = appTokenWording(classifyResponse(silent), silent);
+  assert.equal(notSent.state, 'failed');
+  assert.equal(
+    (notSent as { reason_code: string }).reason_code,
+    'app_token_unavailable',
+  );
+  assert.match(
+    (notSent as { explanation: string }).explanation,
+    /did not hand out an App token \(no answer\), so the change was not sent/,
+  );
+  const unsigned = await new LiveGitHub({
+    credential: {
+      kind: 'app_installation',
+      client_id: 'Iv23fixtureclient',
+      private_key: 'not a key',
+      installation_id: 42,
+    },
+    apiBase: 'http://127.0.0.1:9',
+    fetch: (async () => {
+      throw new Error('never called');
+    }) as typeof fetch,
+  }).createRepository(
+    { login: 'fixture-owner', type: 'User' },
+    'creator-agent-x',
+    '',
+  );
+  assert.equal(unsigned.stage, 'studio');
+  assert.equal(
+    appTokenWording(classifyResponse(unsigned), unsigned).state,
+    'failed',
+  );
   const { stage: _stage, ...call } = res;
   assert.equal(appTokenWording(cls, call), cls);
 });
