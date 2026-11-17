@@ -532,6 +532,10 @@ test('X04 uncertain effects reconcile from GitHub; no retry while unknown', asyn
   );
   const adopted = await svc.reconcile(agent, ws, lost.id);
   assert.equal(state(adopted), 'reconciled_succeeded:found_on_github');
+  assert.equal(
+    (adopted.result?.github_answer as { message: string }).message,
+    'timeout after send',
+  );
   const [repo] = await store.listGitHubRepositories(owner, ws);
   assert.equal(repo?.created_operation_id, lost.id);
   assert.equal(repo?.status, 'active');
@@ -549,10 +553,21 @@ test('X04 uncertain effects reconcile from GitHub; no retry while unknown', asyn
   };
   const unsent = await svc.operate(agent, ws, op(conn, run, push));
   assert.equal(state(unsent), 'unknown:no_response');
-  assert.equal(
-    state(await svc.reconcile(agent, ws, unsent.id)),
-    'reconciled_absent:absent_on_github',
-  );
+  // PR #244: an unknown operation keeps what GitHub (did not) answer, and reconciling keeps it.
+  const answerOf = (o: GitHubOperation) =>
+    (o.result as { github_answer?: Record<string, unknown> } | null)
+      ?.github_answer;
+  assert.deepEqual(answerOf(unsent), {
+    status: null,
+    step: 'call',
+    message: 'connection reset',
+    rate_limit_remaining: null,
+    retry_after: null,
+    accepted_permissions: null,
+  });
+  const absent = await svc.reconcile(agent, ws, unsent.id);
+  assert.equal(state(absent), 'reconciled_absent:absent_on_github');
+  assert.deepEqual(answerOf(absent), answerOf(unsent));
   assert.equal(
     state(await svc.operate(agent, ws, op(conn, run, push))),
     'succeeded:succeeded',

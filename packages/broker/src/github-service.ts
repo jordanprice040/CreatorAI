@@ -103,6 +103,28 @@ export function githubAnswer(res: GitHubResponse): Record<string, unknown> {
 }
 
 /**
+ * Review 1 N-3 (PR #244): a refusal at the App token step means the change itself was never
+ * sent; say so instead of the call's wording. A 5xx or no answer there keeps the generic
+ * wording, which already says the outcome is not known.
+ */
+export function appTokenWording(
+  cls: ResponseClass,
+  res: GitHubResponse,
+): ResponseClass {
+  if (res.stage !== 'app_token' || cls.state !== 'failed') return cls;
+  const said = res.message ? ` GitHub said: ${res.message}` : '';
+  return {
+    ...cls,
+    explanation:
+      cls.reason_code === 'provider_rate_limited'
+        ? `GitHub rate-limited the App token request, so the change was not sent. Try again later.${said}`
+        : res.status === 401
+          ? `GitHub did not accept the App's sign-in (App id or key), so the change was not sent.${said}`
+          : `GitHub refused an App token for this change (${res.status}), so the change was not sent: the App may lack a permission or no longer be installed on this repository.${said}`,
+  };
+}
+
+/**
  * Review M-2 (ADR-0132): GitHub may refuse an app installation token on `POST /user/repos`
  * (personal accounts). Say what to do instead of GitHub's bare "Resource not accessible".
  */
@@ -319,10 +341,8 @@ export class GitHubService {
         message: (e as Error).message.slice(0, 200),
       };
     }
-    const cls = refusalWording(
-      classifyResponse(res),
-      p.kind,
-      begun.connection,
+    const cls = appTokenWording(
+      refusalWording(classifyResponse(res), p.kind, begun.connection, res),
       res,
     );
     const data =

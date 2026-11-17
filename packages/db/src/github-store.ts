@@ -1199,6 +1199,9 @@ export class GitHubStore extends ArtifactStore {
           'INVALID_TRANSITION',
           `This operation is already ${op.state}.`,
         );
+      // Review 1 L-1 (PR #244): reconciling keeps what GitHub first answered.
+      const answer = op.result?.github_answer;
+      const kept = answer === undefined ? null : { github_answer: answer };
       if (found.exists) {
         await this.#applySuccess(c, ctx, op, found.data);
         return this.#settle(
@@ -1210,7 +1213,7 @@ export class GitHubStore extends ArtifactStore {
             reason_code: 'found_on_github',
             explanation: found.note,
           },
-          found.data,
+          found.data && kept ? { ...found.data, ...kept } : found.data,
         );
       }
       return this.#settle(
@@ -1222,7 +1225,7 @@ export class GitHubStore extends ArtifactStore {
           reason_code: 'absent_on_github',
           explanation: found.note,
         },
-        null,
+        kept,
       );
     });
   }
