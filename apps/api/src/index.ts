@@ -84,6 +84,7 @@ import {
 import { Worker } from '@creator/orchestrator';
 import {
   FixtureProcessor,
+  GitHubAppSetupService,
   GitHubService,
   PaymentService,
 } from '@creator/broker';
@@ -286,6 +287,8 @@ export function createApi(
       store: ConnectionStore,
       extra: { patchScorer: PlanServiceDeps['patchScorer'] },
     ) => PlanConnectionService;
+    /** Test seam: the GitHub App setup with loopback stand-ins for GitHub (ADR-0132). */
+    githubAppSetup?: (store: ConnectionStore) => GitHubAppSetupService;
     /** Test seam: runs a built-in capability check's program (ADR-0090). */
     capabilityRunner?: CapabilityRunner;
     /** Test seam: the build qualification harness's worker (ADR-0105). */
@@ -517,6 +520,8 @@ export function createApi(
   const github = store
     ? new GitHubService(store, {
         env,
+        // ADR-0132: keys of GitHub Apps created in the studio are sealed in the same vault.
+        vault: planVaultFromEnv(env),
         pushSource: async (productId, ws) => {
           const product = await artifacts.products
             .product(productId)
@@ -531,6 +536,11 @@ export function createApi(
           return artifacts.products.repo(productId);
         },
       })
+    : null;
+  // ADR-0132 (P32): the GitHub App the owner creates and installs from the studio.
+  const githubAppSetup = store
+    ? (deps.githubAppSetup?.(store) ??
+      new GitHubAppSetupService(store, { env, vault: planVaultFromEnv(env) }))
     : null;
   // X03: embedding models semantic search may call, per workspace mode (dated config).
   const searchService =
@@ -1609,6 +1619,7 @@ export function createApi(
       (await githubRoutes({
         store,
         service: github!,
+        appSetup: githubAppSetup,
         ctx,
         ws,
         collection,
@@ -3186,6 +3197,7 @@ export function createApi(
     await qualificationQueue?.stop();
     await recipeQualifications?.stop();
     await autopilot?.close();
+    githubAppSetup?.close();
     await portfolio?.stop();
     await backups.close();
     server.closeAllConnections();

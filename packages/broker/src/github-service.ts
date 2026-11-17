@@ -2,18 +2,25 @@ import { createHash } from 'node:crypto';
 import {
   ContractError,
   type GitHubConnection,
+  type GitHubRevokeResult,
   type GitHubOperation,
   type GitHubPullChecks,
   type GitHubRepository,
 } from '@creator/contracts';
-import { classifyResponse, webhookSignatureValid } from '@creator/domain';
+import {
+  classifyResponse,
+  webhookSignatureValid,
+  type ResponseClass,
+} from '@creator/domain';
 import type {
   CommandContext,
   GitHubObservations,
   GitHubStore,
 } from '@creator/db';
+import type { PlanVault } from './plan-vault.js';
 import {
   FixtureGitHub,
+  LiveGitHub,
   liveGitHubFromEnv,
   type GitHubAdapter,
   type GitHubResponse,
@@ -35,8 +42,12 @@ export interface GitHubServiceOptions {
   ) => Promise<string> | string;
   /** Test seam: the fixture GitHub for a connection (default: one per connection). */
   fixture?: (connection: GitHubConnection) => FixtureGitHub;
-  /** Test seam: a live adapter for a connection (default: from env). */
+  /** Test seam: a live adapter for a connection (default: from env or, ADR-0132, the vault). */
   live?: (connection: GitHubConnection) => GitHubAdapter | null;
+  /** ADR-0132: where a studio-created GitHub App's key is sealed. */
+  vault?: PlanVault | null;
+  /** Tests only: loopback stand-ins for api.github.com and github.com for vault-keyed apps. */
+  appBases?: { apiBase: string; gitBase: string };
 }
 const repoData = (o: RepoObservation) => ({
   github_id: o.github_id,
@@ -72,6 +83,34 @@ function createdRepository(d: Record<string, unknown> | null) {
 }
 
 /**
+ * Review M-2 (ADR-0132): GitHub may refuse an app installation token on `POST /user/repos`
+ * (personal accounts). Say what to do instead of GitHub's bare "Resource not accessible".
+ */
+export function refusalWording(
+  cls: ResponseClass,
+  kind: string,
+  conn: GitHubConnection,
+  res: GitHubResponse,
+): ResponseClass {
+  const app =
+    conn.body.credential.kind === 'app_vault' ||
+    conn.body.credential.kind === 'app_installation';
+  if (
+    kind !== 'repo_create' ||
+    !app ||
+    conn.body.owner.type !== 'User' ||
+    res.status !== 403 ||
+    cls.state === 'succeeded'
+  )
+    return cls;
+  return {
+    ...cls,
+    explanation:
+      'GitHub does not let this app create repositories on a personal account. Create the repository on GitHub and add it to the app’s installation; to let Creator Agent use it, set up the connection again with the repository listed (Set up another app).',
+  };
+}
+
+/**
  * X04: runs GitHub operations through the store's intent journal. Reads come first (repository
  * by immutable id, remote head, pull request, checks), then the store admits and records the
  * intent, then exactly one call is made and its answer settles the operation.
@@ -79,6 +118,7 @@ function createdRepository(d: Record<string, unknown> | null) {
 export class GitHubService {
   readonly liveEnabled: boolean;
   #fixtures = new Map<string, FixtureGitHub>();
+  #appKeys = new Map<string, string>();
   constructor(
     private readonly store: GitHubStore,
     private readonly opts: GitHubServiceOptions,
@@ -102,29 +142,76 @@ export class GitHubService {
     }
     return f;
   }
-  #adapter(conn: GitHubConnection): GitHubAdapter | null {
-    if (conn.body.credential.kind === 'fixture') return this.fixtureFor(conn);
+  async #adapter(conn: GitHubConnection): Promise<GitHubAdapter | null> {
+    const cred = conn.body.credential;
+    if (cred.kind === 'fixture') return this.fixtureFor(conn);
     if (!this.liveEnabled) return null;
-    return this.opts.live
-      ? this.opts.live(conn)
-      : liveGitHubFromEnv(this.opts.env, conn.body.credential);
+    if (this.opts.live) return this.opts.live(conn);
+    if (cred.kind !== 'app_vault')
+      return liveGitHubFromEnv(this.opts.env, cred);
+    // ADR-0132: the key the in-app setup sealed; a missing vault or entry is "not set". Review
+    // N-5: unsealing starts PowerShell on Windows, so a key is unsealed once per process.
+    let pem = this.#appKeys.get(cred.key_ref) ?? null;
+    if (!pem && this.opts.vault) {
+      pem = await this.opts.vault.getGitHubAppKey(cred.key_ref);
+      if (pem) this.#appKeys.set(cred.key_ref, pem);
+    }
+    return pem
+      ? new LiveGitHub({
+          credential: {
+            kind: 'app_installation',
+            client_id: cred.app_client_id,
+            private_key: pem,
+            installation_id: cred.installation_id,
+          },
+          ...(this.opts.appBases ?? {}),
+        })
+      : null;
   }
-  #need(conn: GitHubConnection) {
-    const a = this.#adapter(conn);
+  async #need(conn: GitHubConnection) {
+    const a = await this.#adapter(conn);
     if (!a)
       throw new ContractError(
         'LIVE_DISABLED',
-        this.liveEnabled
-          ? 'The credential variable this connection names is not set on the API process.'
-          : 'Live GitHub is off (CREATOR_GITHUB=live is not set).',
+        !this.liveEnabled
+          ? 'Live GitHub is off (CREATOR_GITHUB=live is not set).'
+          : conn.body.credential.kind === 'app_vault'
+            ? 'The app key for this connection is not on this computer.'
+            : 'The credential variable this connection names is not set on the API process.',
       );
     return a;
+  }
+
+  /**
+   * Review L-4 (ADR-0132): revoking a connection to a studio-created app also deletes its sealed
+   * key, which nothing else uses (one setup, one connection; the generic route refuses
+   * `app_vault`). The revoke event records that the key is being forgotten.
+   */
+  async revoke(
+    ctx: CommandContext,
+    ws: string,
+    id: string,
+    raw: unknown,
+  ): Promise<GitHubRevokeResult> {
+    const conn = await this.store.revokeGitHubConnection(ctx, ws, id, raw);
+    const cred = conn.body.credential;
+    if (cred.kind === 'app_vault' && conn.status === 'revoked') {
+      this.#appKeys.delete(cred.key_ref);
+      // Review 2 N-1: the revoke has committed; a key file that can't be deleted just now (locked
+      // on Windows, say) is reported, not turned into a failed revoke.
+      try {
+        await this.opts.vault?.delete(cred.key_ref);
+      } catch {
+        return { ...conn, key_forget_failed: true };
+      }
+    }
+    return conn;
   }
 
   /** Reads who the credential belongs to; only the configured owner activates the connection. */
   async verify(ctx: CommandContext, ws: string, id: string) {
     const conn = await this.store.connectionForVerification(ctx, ws, id);
-    const a = this.#need(conn);
+    const a = await this.#need(conn);
     const who = await a.identity();
     const cls = classifyResponse(who.response);
     const refusal =
@@ -157,7 +244,7 @@ export class GitHubService {
   ): Promise<GitHubOperation> {
     const { req, connection, repository } =
       await this.store.prepareGitHubOperation(ctx, ws, raw);
-    const a = this.#adapter(connection);
+    const a = await this.#adapter(connection);
     const p = req.params;
     const obs: GitHubObservations = {};
     let paths: string[] | null = null;
@@ -208,7 +295,12 @@ export class GitHubService {
         message: (e as Error).message.slice(0, 200),
       };
     }
-    const cls = classifyResponse(res);
+    const cls = refusalWording(
+      classifyResponse(res),
+      p.kind,
+      begun.connection,
+      res,
+    );
     const data =
       cls.state === 'succeeded'
         ? p.kind === 'repo_create'
@@ -273,7 +365,7 @@ export class GitHubService {
       ws,
       repositoryId,
     );
-    const a = this.#need(connection);
+    const a = await this.#need(connection);
     const looked = await a.repositoryRead(repository.github_id);
     if (!looked.repository)
       return {
@@ -315,7 +407,7 @@ export class GitHubService {
       connection,
       repository,
     } = await this.store.operationForReconcile(ctx, ws, id);
-    const a = this.#need(connection);
+    const a = await this.#need(connection);
     const p = op.params;
     const since = new Date(Date.parse(op.created_at) - 60_000).toISOString();
     const ref = repository && {
