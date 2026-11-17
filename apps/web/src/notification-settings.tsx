@@ -23,6 +23,7 @@ import {
   modesOf,
   setEvent,
   setGroup,
+  timeZones,
 } from './notification-rules.js';
 import { notificationsChanged } from './notifications.js';
 
@@ -140,7 +141,14 @@ export function NotificationSettings({
   const q = draft.quiet_hours;
   const setQuiet = (patch: Partial<typeof q>) =>
     set({ quiet_hours: { ...q, ...patch } });
-  const quietNow = quietHoursActive(q, new Date());
+  // A time zone typed half-way is not one yet: say nothing rather than fail the page.
+  let quietNow = false;
+  try {
+    quietNow = quietHoursActive(q, new Date());
+  } catch {
+    quietNow = false;
+  }
+  const zones = timeZones();
 
   return (
     <section className="panel" aria-labelledby="notify-settings-title">
@@ -319,8 +327,19 @@ export function NotificationSettings({
                   value={q.tz}
                   required
                   maxLength={64}
+                  list="notify-time-zones"
+                  placeholder="America/New_York"
+                  aria-describedby="notify-tz-hint"
                   onChange={(e) => setQuiet({ tz: e.target.value.trim() })}
                 />
+                <datalist id="notify-time-zones">
+                  {zones.map((z) => (
+                    <option key={z} value={z} />
+                  ))}
+                </datalist>
+                <span id="notify-tz-hint" className="small">
+                  A place name such as America/New_York or Europe/London
+                </span>
               </label>
             </div>
             <fieldset className="notify-days">

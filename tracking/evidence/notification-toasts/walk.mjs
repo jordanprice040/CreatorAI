@@ -245,6 +245,13 @@ check(
 await page.goto(`${WEB}/#/settings/notifications?ws=${ws}`);
 await page.getByRole('heading', { name: 'Notifications', level: 2 }).waitFor();
 await page.screenshot({ path: `${out}/02-settings.png`, fullPage: true });
+// Review L-3: Builds are toast only by default, said so in Standard view.
+check(
+  (await page
+    .getByText('Toast only by default: Build finished / preview ready')
+    .count()) === 1,
+  'Settings says Build ready is toast only',
+);
 await page.getByRole('button', { name: 'Send test' }).click();
 await page
   .locator('.toasts .toast', { hasText: 'Test notification' })
@@ -255,6 +262,18 @@ check(true, 'Send test shows a toast at once');
 await bell.click();
 await page.locator('.bell-panel .notification-row').first().waitFor();
 await page.screenshot({ path: `${out}/03-bell.png` });
+// Review N-4: Escape closes the panel and puts the keyboard back on the bell.
+await page.keyboard.press('Escape');
+check(
+  await page.evaluate(
+    () =>
+      document.activeElement?.classList.contains('bell-summary') === true &&
+      !document.querySelector('details.bell')?.hasAttribute('open'),
+  ),
+  'Escape closes the bell and returns focus to it',
+);
+await bell.click();
+await page.locator('.bell-panel .notification-row').first().waitFor();
 check(
   (await page.locator('.bell-panel .notification-row').count()) >= 2,
   'the bell lists the stop and the test',

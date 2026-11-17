@@ -4,7 +4,9 @@ import {
   NOTIFICATION_EVENTS,
   NotificationGroupSchema,
   SetNotificationPreferencesRequestSchema,
+  notificationMode,
   parse,
+  quietHoursActive,
   z,
   type Notification,
   type NotificationClaim,
@@ -28,7 +30,6 @@ import {
   notify,
   notifyMaintenanceFailing,
 } from './notifications.js';
-import { quietHoursActive } from '@creator/contracts';
 import { randomUUID } from 'node:crypto';
 import { isSpendingManagerIn } from './spending-manager.js';
 
@@ -166,7 +167,8 @@ export class NotificationStore extends Store {
   }
 
   /**
-   * Rows that may still interrupt (the native poll and the web toast, N2–N3). Access is checked
+   * Rows that may still interrupt (the native poll and the web toast, N2–N3), newest first, so
+   * a backlog of older pending rows never hides a new one (review L-5 of #235). Access is checked
    * again first: a row whose person lost access is withdrawn and never delivered.
    */
   async pendingNotifications(ctxIn: CommandContext): Promise<Notification[]> {
@@ -177,7 +179,7 @@ export class NotificationStore extends Store {
         `select n.* from notifications n where ${VISIBLE}
            and n.interrupt_state = 'pending' and n.dismissed_at is null
            and n.first_at > clock_timestamp() - make_interval(secs => $3::double precision / 1000)
-         order by n.first_at limit 50`,
+         order by n.first_at desc, n.id desc limit 50`,
         [
           ctx.actorId,
           await this.#manager(c, ctx.actorId),
@@ -421,7 +423,14 @@ export class NotificationStore extends Store {
         );
         const open: Row[] = [];
         for (const r of rows as Row[]) {
+          // Review M-1: a mute or an "Inbox only" choice made since the row was held wins.
+          const key = String(r.event_key) as NotificationEventKey;
+          const quiet =
+            (r.workspace_id !== null &&
+              prefs.body.muted_workspaces.includes(String(r.workspace_id))) ||
+            notificationMode(prefs.body, key) === 'inbox';
           const still =
+            !quiet &&
             r.dismissed_at === null &&
             r.read_at === null &&
             (await stillOpen(c, r));
@@ -440,6 +449,15 @@ export class NotificationStore extends Store {
         );
         const first = String(open[0]!.id);
         const n = open.length;
+        // Review L-1: say "need you" only of rows that do.
+        const needs = open.filter((r) => r.severity === 'needs_you').length;
+        const items = (k: number) => `${k} item${k === 1 ? '' : 's'}`;
+        const title =
+          needs === n
+            ? `While quiet hours were on: ${items(n)} still need${n === 1 ? 's' : ''} you`
+            : needs > 0
+              ? `While quiet hours were on: ${items(n)} to look at, ${needs} still need${needs === 1 ? 's' : ''} you`
+              : `While quiet hours were on: ${items(n)} to look at`;
         const titles = open
           .slice(0, 3)
           .map((r) => String(r.title))
@@ -448,7 +466,8 @@ export class NotificationStore extends Store {
           actorId: actor_id,
           workspaceId: null,
           eventKey: 'studio.digest',
-          title: `While quiet hours were on: ${n} item${n === 1 ? '' : 's'} still need${n === 1 ? 's' : ''} you`,
+          title,
+          severity: needs > 0 ? 'needs_you' : 'warning',
           body: n > 3 ? `${titles} · and ${n - 3} more` : titles,
           link: '#/monitor/notifications?q=unread',
           subjectKind: 'digest',
@@ -496,7 +515,9 @@ export class NotificationStore extends Store {
 /**
  * Whether a held row still needs its person (N2, ADR-0130): the same autopilot stop (its
  * version unchanged), an approval still pending at the same version, or a discovery that
- * still holds claims. Other rows (spend warnings, failures, connections) stay relevant.
+ * still holds claims, a refused run still active with no paid dispatch since, a connection
+ * whose sign-in expired still signed out. Other rows (spend warnings, failures, a plan's usage
+ * limit) stay relevant.
  */
 async function stillOpen(c: PoolClient, r: Row): Promise<boolean> {
   const kind = String(r.subject_kind);
@@ -515,6 +536,26 @@ async function stillOpen(c: PoolClient, r: Row): Promise<boolean> {
       `select 1 from decision_requests where id = $1::uuid and status = 'pending'
          and ($2::int is null or version = $2::int)`,
       [id, version ?? null],
+    );
+    return rows.length > 0;
+  }
+  if (kind === 'run') {
+    // Review L-2: a refused or waiting run is still stopped while it is active and no paid
+    // dispatch was admitted for it since the row was last updated.
+    const { rows } = await c.query(
+      `select 1 from run_controls rc where rc.run_id = $1::uuid and rc.state = 'active'
+         and not exists (select 1 from budget_reservations b where b.run_id = rc.run_id
+           and b.status in ('in_flight', 'settled', 'unknown') and b.created_at > $2)`,
+      [id, r.last_at],
+    );
+    return rows.length > 0;
+  }
+  if (kind === 'plan_connection' && /:sign_in:/.test(String(r.dedupe_key))) {
+    // A connection whose sign-in expired is resolved once it is signed in again.
+    const { rows } = await c.query(
+      `select 1 from plan_connections where id = $1::uuid
+         and coalesce(sign_in->>'state', '') <> 'signed_in'`,
+      [id],
     );
     return rows.length > 0;
   }

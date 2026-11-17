@@ -16,23 +16,57 @@ export function unreadLabel(n: number): string {
 }
 
 /**
- * Which pending rows this window may try to show as a toast. A row that was already pending
- * when the window became visible arrived while nobody was looking: it stays in the inbox and is
- * never shown late (plan §4, "no catch-up toast"). `baseline` holds those ids; `tried` holds
- * the ids this window already claimed or lost.
+ * Which pending rows this window may try to show as a toast: only rows that arrived (by the
+ * server's clock) at or after the window last became visible. Anything older arrived while
+ * nobody was looking: it stays in the inbox and is never shown late (plan §4, "no catch-up
+ * toast"; review L-4 of #235). `tried` holds the ids this window already claimed or lost.
  */
 export function toastCandidates(
   pending: readonly Notification[],
-  baseline: ReadonlySet<string>,
+  visibleSince: number,
   tried: ReadonlySet<string>,
 ): Notification[] {
   return pending.filter(
     (n) =>
       n.interrupt_state === 'pending' &&
       n.mode !== 'inbox' &&
-      !baseline.has(n.id) &&
+      Date.parse(n.first_at) >= visibleSince &&
       !tried.has(n.id),
   );
+}
+
+/**
+ * The server's clock minus this browser's, from a response's `Date` header (whole seconds).
+ * The header is rounded down, so the offset can be up to a second low; `toastCandidates`
+ * callers subtract a second more so a row that arrives just as the window shows still counts.
+ */
+export function serverOffsetMs(
+  dateHeader: string | null,
+  sentAt: number,
+  receivedAt: number,
+): number {
+  const server = dateHeader ? Date.parse(dateHeader) : NaN;
+  if (!Number.isFinite(server)) return 0;
+  return server + 500 - (sentAt + receivedAt) / 2;
+}
+
+/**
+ * Adds a toast that was just won. At most `max` are shown: "needs you" toasts stay until
+ * closed, so the oldest other toast leaves first (review N-1); only when every toast needs
+ * you does the oldest of them leave.
+ */
+export function withToast(
+  toasts: readonly Notification[],
+  n: Notification,
+  max = 4,
+): Notification[] {
+  if (toasts.some((x) => x.id === n.id)) return [...toasts];
+  const next = [...toasts, n];
+  while (next.length > max) {
+    const drop = next.findIndex((x) => x.severity !== 'needs_you');
+    next.splice(drop === -1 ? 0 : drop, 1);
+  }
+  return next;
 }
 
 /** How long a toast stays: "needs you" stays until closed, the rest leave after a while. */
@@ -153,10 +187,33 @@ export const MODE_LABEL: Record<NotificationMode, string> = {
 /** "Run blocked, needs you" and so on: what in a group interrupts by default, for Standard. */
 export function groupSummary(group: NotificationGroup): string {
   const keys = eventsOf(group, false);
-  const loud = keys.filter((k) => NOTIFICATION_EVENTS[k].default !== 'inbox');
-  if (!loud.length) return 'Inbox only by default.';
+  const by = (m: NotificationMode) =>
+    keys.filter((k) => NOTIFICATION_EVENTS[k].default === m);
+  const loud = by('interrupt');
+  const toast = by('toast_only');
+  const names = (ks: NotificationEventKey[]) =>
+    ks.map((k) => NOTIFICATION_EVENTS[k].label).join('; ');
   if (loud.length === keys.length) return 'All interrupt by default.';
-  return `Interrupts by default: ${loud.map((k) => NOTIFICATION_EVENTS[k].label).join('; ')}. The rest go to the inbox.`;
+  if (toast.length === keys.length)
+    return `Toast only by default: ${names(toast)} (never a Windows notification).`;
+  if (!loud.length && !toast.length) return 'Inbox only by default.';
+  const parts = [
+    loud.length ? `Interrupts by default: ${names(loud)}.` : '',
+    toast.length ? `Toast only by default: ${names(toast)}.` : '',
+  ].filter(Boolean);
+  return `${parts.join(' ')} The rest go to the inbox.`;
+}
+
+/** Every IANA time zone this browser knows, for the quiet-hours field's suggestions. */
+export function timeZones(): string[] {
+  try {
+    const list = (
+      Intl as { supportedValuesOf?: (k: string) => string[] }
+    ).supportedValuesOf?.('timeZone');
+    return list && list.length ? list : ['UTC'];
+  } catch {
+    return ['UTC'];
+  }
 }
 
 /** The browser's own IANA time zone, for quiet hours set up the first time. */

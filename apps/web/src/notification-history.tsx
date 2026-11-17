@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   NotificationGroupSchema,
   NotificationPageSchema,
@@ -38,6 +38,8 @@ export function NotificationHistory({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [tick, setTick] = useState(0);
+  /** Older pages were added; a poll then leaves the list alone instead of cutting it back. */
+  const [extended, setExtended] = useState(false);
   const now = Date.now();
 
   async function page(after: string | null) {
@@ -57,6 +59,7 @@ export function NotificationHistory({
         if (!live) return;
         setItems(r.items);
         setCursor(r.next_cursor);
+        setExtended(false);
         setError('');
       })
       .catch((e: unknown) => live && setError(message(e)))
@@ -65,12 +68,25 @@ export function NotificationHistory({
       live = false;
     };
   }, [group, ws, unread, tick]);
+  // Review N-6: the bell's poll found something new or newly read; read the list again.
+  const seen = feed.recent
+    ? `${feed.recent.unread}:${feed.recent.items[0]?.id ?? ''}:${feed.recent.items[0]?.last_at ?? ''}`
+    : '';
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    if (seen && !extended) setTick((t) => t + 1);
+  }, [seen]);
   async function more() {
     if (!cursor) return;
     setLoading(true);
     try {
       const r = await page(cursor);
       setItems((x) => [...x, ...r.items]);
+      setExtended(true);
       setCursor(r.next_cursor);
     } catch (e) {
       setError(message(e));

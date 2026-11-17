@@ -11,6 +11,7 @@ import {
   type AutopilotStopKind,
   type NotificationEventKey,
   type NotificationPreferencesBody,
+  type NotificationSeverity,
 } from '@creator/contracts';
 import { spendingManagerId } from './spending-manager.js';
 
@@ -52,6 +53,8 @@ export interface NotifyInput {
   interrupt?: boolean;
   /** The time quiet hours are judged at; tests pass one, producers use the clock. */
   now?: Date;
+  /** The catalog's severity unless given (the digest says "needs you" only when it does). */
+  severity?: NotificationSeverity;
 }
 
 export type NotifyResult = { id: string; created: boolean } | null;
@@ -135,7 +138,7 @@ export async function notify(
       n.actorId,
       n.workspaceId,
       n.eventKey,
-      info.severity,
+      n.severity ?? info.severity,
       mode,
       cut(n.title, 140),
       cut(n.body, 400),

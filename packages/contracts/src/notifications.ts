@@ -240,11 +240,20 @@ export const URGENT_NOTIFICATION_EVENTS: readonly NotificationEventKey[] = [
   'spend.refused',
 ];
 
+const SYSTEM_KEYS: readonly string[] = Object.entries(NOTIFICATION_EVENTS)
+  .filter(([, v]) => v.system)
+  .map(([k]) => k);
+
 const clock = z.string().regex(/^([01][0-9]|2[0-3]):[0-5][0-9]$/);
 
 export const NotificationPreferencesBodySchema = z.strictObject({
-  /** Only rows the person changed; any other event uses its default. */
-  events: z.partialRecord(NotificationEventKeySchema, NotificationModeSchema),
+  /** Only rows the person changed; any other event uses its default. System rows refused. */
+  events: z
+    .partialRecord(NotificationEventKeySchema, NotificationModeSchema)
+    .refine(
+      (e) => Object.keys(e).every((k) => !SYSTEM_KEYS.includes(k)),
+      'The studio’s own notifications (digest, test) cannot be routed elsewhere.',
+    ),
   quiet_hours: z.strictObject({
     enabled: z.boolean(),
     start: clock,
@@ -366,6 +375,9 @@ export function interruptStateFor(
   if (n.workspaceId !== null && prefs.muted_workspaces.includes(n.workspaceId))
     return 'none';
   if (!quietHoursActive(prefs.quiet_hours, at)) return 'pending';
+  // Review L-1: a toast-only row (Build ready) is never held for the digest; it stays in the
+  // inbox, as when the window is hidden.
+  if (notificationMode(prefs, n.eventKey) === 'toast_only') return 'none';
   if (
     prefs.quiet_hours.urgent_override &&
     URGENT_NOTIFICATION_EVENTS.includes(n.eventKey)

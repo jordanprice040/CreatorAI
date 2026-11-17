@@ -9,6 +9,7 @@ import {
 import {
   ConnectionStore,
   NotificationStore,
+  notify,
   type CommandContext,
 } from '@creator/db';
 import { freshDatabase } from './pg-harness.js';
@@ -126,7 +127,7 @@ async function setup(t: test.TestContext) {
   };
   const rows = (sql: string, args: unknown[] = []) =>
     db.pool.query(sql, args).then((r) => r.rows as Record<string, unknown>[]);
-  return { db, store, inbox, ws, stopped, rows };
+  return { db, store, inbox, ws, stopped, rows, run };
 }
 
 test('N2: quiet hours hold interruptions; the digest names only what still needs you, once', async (t) => {
@@ -267,4 +268,175 @@ test('N2: "Send test" makes one interrupting row for the person asking, not one 
   assert.deepEqual(await s.inbox.pendingNotifications(member), []);
   await s.inbox.claimNotification(owner, a.id, { via: 'toast' });
   assert.equal((await s.inbox.recentNotifications(owner)).unread, 1);
+});
+
+test('N2 review M-1, L-1, L-2: the digest follows mutes and choices made since, says "need you" only of rows that do, and drops a run that got going again', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const body = quietNow();
+  await s.inbox.setNotificationPreferences(owner, {
+    expected_version: 0,
+    body,
+  });
+  const second = await s.store.createWorkspace(owner, {
+    name: 'Muted later',
+    record_mode: 'fixture',
+  });
+  const hook = (n: Parameters<typeof notify>[1]) =>
+    s.db.pool.connect().then(async (c) => {
+      try {
+        await c.query('begin');
+        const r = await notify(c, n);
+        await c.query('commit');
+        return r;
+      } finally {
+        c.release();
+      }
+    });
+  const base = (ws: string, key: string) => ({
+    actorId: owner.actorId,
+    workspaceId: ws,
+    title: `Held ${key}`,
+    body: '',
+    link: `#/monitor/runs?ws=${ws}`,
+    dedupeKey: key,
+    sourceKey: key,
+  });
+  // Held: a failed step in a workspace muted later; a failed step in a workspace kept;
+  // a refused run that is still stopped; a refused run that got a paid dispatch since.
+  await hook({
+    ...base(second.id, 'a'),
+    eventKey: 'autopilot.failed',
+    subjectKind: 'workflow',
+    subjectId: 'w1',
+  });
+  await hook({
+    ...base(s.ws.id, 'b'),
+    eventKey: 'autopilot.failed',
+    subjectKind: 'workflow',
+    subjectId: 'w2',
+  });
+  const stuck = await s.run();
+  const moving = await s.run();
+  await hook({
+    ...base(s.ws.id, 'c'),
+    eventKey: 'autopilot.limit',
+    subjectKind: 'run',
+    subjectId: stuck,
+  });
+  await hook({
+    ...base(s.ws.id, 'd'),
+    eventKey: 'autopilot.limit',
+    subjectKind: 'run',
+    subjectId: moving,
+  });
+  // Build ready is toast only: never held for the digest (L-1).
+  const built = await hook({
+    ...base(s.ws.id, 'e'),
+    eventKey: 'build.ready',
+    subjectKind: 'artifact',
+    subjectId: 'a1',
+  });
+  const states = await s.rows(
+    `select dedupe_key, interrupt_state from notifications where actor_id = $1 order by dedupe_key`,
+    [owner.actorId],
+  );
+  assert.deepEqual(
+    states.map((r) => r.interrupt_state),
+    ['held_quiet', 'held_quiet', 'held_quiet', 'held_quiet', 'none'],
+  );
+  assert.ok(built);
+  // A paid dispatch was admitted for "moving" after it was held (L-2).
+  const envelope = randomUUID();
+  await s.db.pool.query(
+    `insert into budget_envelopes (id, workspace_id, fixture, kind, name, status, cap_nano,
+       max_in_flight, created_by) values ($1,$2,true,'global','Walk budget','active',0,1,$3)`,
+    [envelope, s.ws.id, owner.actorId],
+  );
+  await s.db.pool.query(
+    `update notifications set last_at = last_at - interval '1 minute' where dedupe_key = 'd'`,
+  );
+  await s.db.pool.query(
+    `insert into budget_reservations (id, workspace_id, fixture, envelope_id, run_id,
+       logical_operation_id, attempt, request_hash, action_type, provider, model_id, status,
+       reason_code, explanation, reserved_nano, created_by)
+     values ($1,$2,true,$3,$4,$1,1,$5,'model.generate','fixture','fixture','in_flight','ok',
+       'A paid dispatch after the refusal.',0,$6)`,
+    [randomUUID(), s.ws.id, envelope, moving, 'b'.repeat(64), owner.actorId],
+  );
+  // After holding: mute the second workspace (M-1).
+  await s.inbox.setNotificationPreferences(owner, {
+    expected_version: 1,
+    body: { ...body, muted_workspaces: [second.id] },
+  });
+  assert.equal(
+    await s.inbox.releaseQuietDigests(new Date(Date.now() + 3 * 3_600_000)),
+    1,
+  );
+  const after = await s.rows(
+    `select dedupe_key, interrupt_state, interrupted_via, title, severity from notifications
+      where actor_id = $1 order by dedupe_key`,
+    [owner.actorId],
+  );
+  const by = (k: string) => after.find((r) => r.dedupe_key === k)!;
+  assert.equal(by('a').interrupt_state, 'none'); // muted since
+  assert.equal(by('b').interrupted_via, 'digest');
+  assert.equal(by('c').interrupted_via, 'digest');
+  assert.equal(by('d').interrupt_state, 'none'); // got going again
+  const digest = after.find((r) => String(r.dedupe_key).startsWith('digest:'))!;
+  // Only warnings left: "to look at", not "need you".
+  assert.match(
+    String(digest.title),
+    /While quiet hours were on: \d items to look at$/,
+  );
+  assert.equal(digest.severity, 'warning');
+});
+
+test('N2 review M-1: an "Inbox only" choice made after a row was held keeps it out of the digest', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const body = quietNow();
+  await s.inbox.setNotificationPreferences(owner, {
+    expected_version: 0,
+    body,
+  });
+  await s.stopped();
+  await s.store.drainOutbox();
+  await s.inbox.setNotificationPreferences(owner, {
+    expected_version: 1,
+    body: { ...body, events: { 'autopilot.needs_you': 'inbox' } },
+  });
+  assert.equal(
+    await s.inbox.releaseQuietDigests(new Date(Date.now() + 3 * 3_600_000)),
+    0,
+  );
+  const [row] = await s.rows(
+    `select interrupt_state from notifications where actor_id = $1`,
+    [owner.actorId],
+  );
+  assert.equal(row!.interrupt_state, 'none');
+});
+
+test('N2 review L-5: the pending list is the newest rows, so a backlog never hides a new one', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  for (let i = 0; i < 55; i++)
+    await s.db.pool.query(
+      `insert into notifications (id, actor_id, workspace_id, event_key, severity, mode, title, link,
+         subject_kind, subject_id, dedupe_key, interrupt_state, first_at, last_at)
+       values ($1,$2,$3,'autopilot.failed','warning','interrupt',$4,$5,'workflow',$4,$4,'pending',
+         clock_timestamp() - make_interval(secs => $6), clock_timestamp() - make_interval(secs => $6))`,
+      [
+        randomUUID(),
+        owner.actorId,
+        s.ws.id,
+        `old${i}`,
+        `#/monitor/runs?ws=${s.ws.id}`,
+        120 + i,
+      ],
+    );
+  const fresh = await s.inbox.sendTestNotification(owner);
+  const pending = await s.inbox.pendingNotifications(owner);
+  assert.equal(pending.length, 50);
+  assert.equal(pending[0]!.id, fresh.id);
 });

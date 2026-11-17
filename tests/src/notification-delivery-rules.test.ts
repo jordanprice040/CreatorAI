@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
+  NotificationPreferencesBodySchema,
   interruptStateFor,
   notificationMode,
   quietHoursActive,
@@ -20,9 +21,20 @@ type Rules = {
   unreadLabel(n: number): string;
   toastCandidates(
     pending: readonly Notification[],
-    baseline: ReadonlySet<string>,
+    visibleSince: number,
     tried: ReadonlySet<string>,
   ): Notification[];
+  serverOffsetMs(
+    date: string | null,
+    sentAt: number,
+    receivedAt: number,
+  ): number;
+  withToast(
+    t: readonly Notification[],
+    n: Notification,
+    max?: number,
+  ): Notification[];
+  groupSummary(g: NotificationGroup): string;
   toastLifetimeMs(n: Pick<Notification, 'severity'>): number | null;
   listedEvents(advanced: boolean): NotificationEventKey[];
   listedGroups(advanced: boolean): NotificationGroup[];
@@ -115,7 +127,9 @@ test('N2: a mute beats the urgent override; quiet hours hold all but urgent item
       at,
     );
   assert.equal(state(base, 'autopilot.needs_you'), 'held_quiet');
-  assert.equal(state(base, 'build.ready'), 'held_quiet');
+  // Toast only is never held for the digest (review L-1): it stays in the inbox.
+  assert.equal(state(base, 'build.ready'), 'none');
+  assert.equal(state(base, 'autopilot.failed'), 'held_quiet');
   assert.equal(state(base, 'workflow.finished'), 'none'); // inbox only by default
   const override = {
     ...base,
@@ -175,24 +189,73 @@ const row = (id: string, over: Partial<Notification> = {}): Notification => ({
   ...over,
 });
 
-test('N2 check 12d: a window toasts only rows that arrived while it was visible, once', async () => {
+test('N2 check 12d: a window toasts only rows that arrived since it became visible, once', async () => {
   const r = (await loadWeb('notification-rules.ts')) as Rules;
+  const at = (iso: string) => ({ first_at: iso, last_at: iso });
   const pending = [
-    row('a'),
-    row('b'),
-    row('c', { mode: 'toast_only', severity: 'info' }),
-    row('d', { mode: 'inbox' }),
+    row('a', at('2026-11-17T00:00:00.000Z')), // arrived before the window became visible
+    row('b', at('2026-11-17T00:00:10.000Z')),
+    row('c', {
+      ...at('2026-11-17T00:00:10.000Z'),
+      mode: 'toast_only',
+      severity: 'info',
+    }),
+    row('d', { ...at('2026-11-17T00:00:10.000Z'), mode: 'inbox' }),
+    row('e', at('2026-11-17T00:00:05.000Z')), // arrived just as it showed (review L-4)
   ];
-  // "a" was waiting when the window became visible; "b" was already tried here.
+  const since = Date.parse('2026-11-17T00:00:05.000Z');
+  // "a" is older than the cutoff, "b" was already tried here, "d" is inbox only.
   assert.deepEqual(
-    r.toastCandidates(pending, new Set(['a']), new Set(['b'])).map((n) => n.id),
-    ['c'],
+    r.toastCandidates(pending, since, new Set(['b'])).map((n) => n.id),
+    ['c', 'e'],
+  );
+  // The server clock from a Date header: whole seconds, so half a second is added.
+  assert.equal(
+    r.serverOffsetMs(
+      'Tue, 17 Nov 2026 00:00:10 GMT',
+      Date.parse('2026-11-17T00:00:00.000Z'),
+      Date.parse('2026-11-17T00:00:00.200Z'),
+    ),
+    10_400,
+  );
+  assert.equal(r.serverOffsetMs(null, 0, 0), 0);
+  // Review N-1: a fifth toast pushes out the oldest that does not need you.
+  const needs = row('n1');
+  const infos = ['i1', 'i2', 'i3'].map((id) => row(id, { severity: 'info' }));
+  let shown = [needs, ...infos];
+  shown = r.withToast(shown, row('n2'));
+  assert.deepEqual(
+    shown.map((n) => n.id),
+    ['n1', 'i2', 'i3', 'n2'],
+  );
+  shown = r.withToast(shown, row('n2'));
+  assert.equal(shown.length, 4);
+  const all = ['x1', 'x2', 'x3', 'x4'].map((id) => row(id));
+  assert.deepEqual(
+    r.withToast(all, row('x5')).map((n) => n.id),
+    ['x2', 'x3', 'x4', 'x5'],
   );
   assert.equal(r.toastLifetimeMs({ severity: 'needs_you' }), null);
   assert.ok((r.toastLifetimeMs({ severity: 'info' }) ?? 0) > 0);
   assert.equal(r.unreadLabel(0), '');
   assert.equal(r.unreadLabel(7), '7');
   assert.equal(r.unreadLabel(100), '99+');
+});
+
+test('N2 review N-2: preferences that route a system row are refused', () => {
+  const ok = NotificationPreferencesBodySchema.safeParse({
+    ...DEFAULT_NOTIFICATION_PREFERENCES,
+    events: { 'build.ready': 'inbox' },
+  });
+  assert.ok(ok.success);
+  for (const key of ['studio.digest', 'studio.test'])
+    assert.equal(
+      NotificationPreferencesBodySchema.safeParse({
+        ...DEFAULT_NOTIFICATION_PREFERENCES,
+        events: { [key]: 'inbox' },
+      }).success,
+      false,
+    );
 });
 
 test('N2: Settings lists no system rows; a Standard group row keeps Advanced choices elsewhere', async () => {

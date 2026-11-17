@@ -9,9 +9,11 @@ import {
 } from '@creator/contracts';
 import { api, message } from './oversight.js';
 import {
+  serverOffsetMs,
   toastCandidates,
   toastLifetimeMs,
   unreadLabel,
+  withToast,
 } from './notification-rules.js';
 import './notifications.css';
 
@@ -50,30 +52,39 @@ export function useNotifications(csrf: string, enabled: boolean) {
   const [recent, setRecent] = useState<RecentNotifications | null>(null);
   const [error, setError] = useState('');
   const [toasts, setToasts] = useState<Notification[]>([]);
-  const baseline = useRef<Set<string> | null>(null);
+  /** When this window last became visible, by this browser's clock; null while hidden. */
+  const visibleAt = useRef<number | null>(null);
   const tried = useRef(new Set<string>());
   const seq = useRef(0);
 
   const load = useCallback(async () => {
     const mine = ++seq.current;
     try {
-      const [bell, pending] = await Promise.all([
+      const sentAt = Date.now();
+      const [bell, sent] = await Promise.all([
         api(RecentNotificationsSchema, 'notifications/recent'),
-        api(z.array(NotificationSchema), 'notifications/pending'),
+        fetch('/api/notifications/pending', {
+          signal: AbortSignal.timeout(5000),
+        }),
       ]);
+      const receivedAt = Date.now();
+      const body: unknown = await sent.json();
+      if (!sent.ok) {
+        const e = (body as { error?: { message?: string } } | null)?.error;
+        throw new Error(e?.message ?? `API error ${sent.status}`);
+      }
+      const pending = z.array(NotificationSchema).parse(body);
       if (mine !== seq.current) return;
       setRecent(bell);
       setError('');
-      if (document.hidden) return;
-      if (!baseline.current) {
-        baseline.current = new Set(pending.map((n) => n.id));
-        return;
-      }
-      for (const n of toastCandidates(
-        pending,
-        baseline.current,
-        tried.current,
-      )) {
+      if (document.hidden || visibleAt.current === null) return;
+      // Review L-4 of #235: the cutoff is the moment the window became visible, on the
+      // server's clock (one second of slack for the Date header's rounding).
+      const since =
+        visibleAt.current +
+        serverOffsetMs(sent.headers.get('date'), sentAt, receivedAt) -
+        1000;
+      for (const n of toastCandidates(pending, since, tried.current)) {
         tried.current.add(n.id);
         try {
           await api(NotificationClaimSchema, `notifications/${n.id}/claim`, {
@@ -81,9 +92,7 @@ export function useNotifications(csrf: string, enabled: boolean) {
             body: { via: 'toast' },
             quiet: true,
           });
-          setToasts((t) =>
-            t.some((x) => x.id === n.id) ? t : [...t, n].slice(-4),
-          );
+          setToasts((t) => withToast(t, n));
         } catch {
           // Another window (or the desktop app) showed it, or it stopped interrupting.
         }
@@ -94,11 +103,12 @@ export function useNotifications(csrf: string, enabled: boolean) {
   }, [csrf]);
 
   useEffect(() => {
-    // Hidden: forget what was waiting, so on return everything pending then is left alone.
+    // Hidden: nothing that arrives now is ever shown late; the cutoff restarts on return.
     if (!visible || !enabled) {
-      baseline.current = null;
+      visibleAt.current = null;
       return;
     }
+    visibleAt.current = Date.now();
     void load();
     const timer = window.setInterval(() => void load(), POLL_MS);
     window.addEventListener(NOTIFICATIONS_CHANGED, load);
@@ -245,12 +255,12 @@ export function NotificationBell({
     const close = (e: KeyboardEvent | MouseEvent) => {
       const d = ref.current;
       if (!d?.open) return;
-      if (
-        e instanceof KeyboardEvent
-          ? e.key === 'Escape'
-          : !d.contains(e.target as Node)
-      )
+      if (e instanceof KeyboardEvent) {
+        if (e.key !== 'Escape') return;
         d.open = false;
+        // Review N-4: back to the bell, so the keyboard is where it was.
+        d.querySelector('summary')?.focus();
+      } else if (!d.contains(e.target as Node)) d.open = false;
     };
     document.addEventListener('keydown', close);
     document.addEventListener('mousedown', close);
