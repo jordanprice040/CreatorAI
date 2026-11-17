@@ -61,19 +61,19 @@ export function useNotifications(csrf: string, enabled: boolean) {
     const mine = ++seq.current;
     try {
       const sentAt = Date.now();
-      const [bell, sent] = await Promise.all([
+      let receivedAt = sentAt;
+      let date: string | null = null;
+      const [bell, pending] = await Promise.all([
         api(RecentNotificationsSchema, 'notifications/recent'),
-        fetch('/api/notifications/pending', {
-          signal: AbortSignal.timeout(5000),
+        // Review 2 of #235: the shared helper, so a refusal keeps its code; the Date header
+        // (and when it arrived) sets the server-clock cutoff below.
+        api(z.array(NotificationSchema), 'notifications/pending', {
+          onHeaders: (h) => {
+            receivedAt = Date.now();
+            date = h.get('date');
+          },
         }),
       ]);
-      const receivedAt = Date.now();
-      const body: unknown = await sent.json();
-      if (!sent.ok) {
-        const e = (body as { error?: { message?: string } } | null)?.error;
-        throw new Error(e?.message ?? `API error ${sent.status}`);
-      }
-      const pending = z.array(NotificationSchema).parse(body);
       if (mine !== seq.current) return;
       setRecent(bell);
       setError('');
@@ -81,9 +81,7 @@ export function useNotifications(csrf: string, enabled: boolean) {
       // Review L-4 of #235: the cutoff is the moment the window became visible, on the
       // server's clock (one second of slack for the Date header's rounding).
       const since =
-        visibleAt.current +
-        serverOffsetMs(sent.headers.get('date'), sentAt, receivedAt) -
-        1000;
+        visibleAt.current + serverOffsetMs(date, sentAt, receivedAt) - 1000;
       for (const n of toastCandidates(pending, since, tried.current)) {
         tried.current.add(n.id);
         try {

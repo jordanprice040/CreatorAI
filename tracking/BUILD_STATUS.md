@@ -8,6 +8,8 @@ Checked in the cloud container on throwaway PostgreSQL 16 databases: `pnpm typec
 
 Review 1 (`/mnt/project-files/reviews/PR235_N2_TOASTS_REVIEW_2026-11-17.md`: 1 Medium, 5 Low, 6 nits) fixed: the digest follows mutes and "Inbox only" choices made after a hold (M-1), never holds toast-only rows and says "need you" only of rows that do (L-1), and drops refused runs that got going again (L-2); Standard Settings names Build ready as toast only (L-3); the toast cutoff is when the window became visible, on the server's clock (L-4); the pending list is the newest 50 (L-5); and the six nits. New tests: 3 more DB tests (21/21 with N1) and 1 more rules test (5/5); the walk now has 21 checks (Escape focus, the Builds wording), all passing. Full `pnpm test:db` after the fixes: 1487 tests, 1453 pass, 29 skipped, only the 5 known PowerShell-wrapper failures.
 
+Review 2 (2 nits) fixed: the bell's pending poll uses the shared `api()` helper (new `onHeaders` option), so refusals keep their error code; a new DB test covers an expired sign-in held in quiet hours and renewed before the summary (left out). Checks: typecheck and format pass, notification tests 27/27, walk 21/21, full `pnpm test:db` 1488 tests, 1454 pass, 29 skipped, only the 5 known PowerShell-wrapper failures.
+
 Not done: N3 Windows notifications (native poll, 90 s fallback, catch-up summary, hide details), so the Windows line in Settings says "not available yet". No device or installed-app walk.
 
 ## November 16 update — F12 term help (no migration or ADR)

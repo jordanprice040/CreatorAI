@@ -440,3 +440,82 @@ test('N2 review L-5: the pending list is the newest rows, so a backlog never hid
   assert.equal(pending.length, 50);
   assert.equal(pending[0]!.id, fresh.id);
 });
+
+test('N2 review 2: an expired sign-in held in quiet hours is left out of the digest once signed in again', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  await s.inbox.setNotificationPreferences(owner, {
+    expected_version: 0,
+    body: quietNow(),
+  });
+  const connection = async (label: string) => {
+    const id = randomUUID();
+    await s.db.pool.query(
+      `insert into plan_connections (id, workspace_id, fixture, version, label, settings,
+         settings_hash, ext_agent_host_id, sign_in, credits, eligibility, quota, created_by)
+       values ($1,$2,true,1,$3,'{}',$4,$5,'{"state":"expired"}','{}','{}','{}',$6)`,
+      [
+        id,
+        s.ws.id,
+        label,
+        'c'.repeat(64),
+        `urn:uuid:${randomUUID()}`,
+        owner.actorId,
+      ],
+    );
+    return id;
+  };
+  const back = await connection('Signed in again');
+  const still = await connection('Still expired');
+  const day = new Date().toISOString().slice(0, 10);
+  for (const id of [back, still]) {
+    const c = await s.db.pool.connect();
+    try {
+      await c.query('begin');
+      await notify(c, {
+        actorId: owner.actorId,
+        workspaceId: s.ws.id,
+        eventKey: 'connection.blocked',
+        title: 'Connection stopped work: its sign-in expired',
+        body: '',
+        link: `#/connections/models?ws=${s.ws.id}`,
+        subjectKind: 'plan_connection',
+        subjectId: id,
+        dedupeKey: `conn:${id}:sign_in:${day}`,
+        sourceKey: `planreq:${randomUUID()}:sign_in`,
+      });
+      await c.query('commit');
+    } finally {
+      c.release();
+    }
+  }
+  assert.deepEqual(
+    (
+      await s.rows(
+        `select interrupt_state from notifications where actor_id = $1`,
+        [owner.actorId],
+      )
+    ).map((r) => r.interrupt_state),
+    ['held_quiet', 'held_quiet'],
+  );
+  await s.db.pool.query(
+    `update plan_connections set sign_in = '{"state":"signed_in"}' where id = $1`,
+    [back],
+  );
+  assert.equal(
+    await s.inbox.releaseQuietDigests(new Date(Date.now() + 3 * 3_600_000)),
+    1,
+  );
+  const after = await s.rows(
+    `select subject_id, interrupt_state, interrupted_via, title from notifications
+      where actor_id = $1`,
+    [owner.actorId],
+  );
+  const of = (id: string) => after.find((r) => r.subject_id === id)!;
+  assert.equal(of(back).interrupt_state, 'none');
+  assert.equal(of(still).interrupted_via, 'digest');
+  const digest = after.find(
+    (r) => r.subject_id !== back && r.subject_id !== still,
+  )!;
+  assert.match(String(digest.title), /While quiet hours were on: 1 item/);
+});
