@@ -35,6 +35,8 @@ export const ANALYSIS_PLAN = {
   cost: 'Cost per accepted outcome counts every attempt (failures and retries). Undefined when nothing was accepted; a lower bound when billing is unknown or in flight.',
   exploratory:
     'Per-protocol completion (ran slots only) is exploratory and reported apart from the assigned-condition tables.',
+  measured_effort:
+    'Measured human time (study-effort-timer/1) is summed over every attempt from the raw exports, beside the reported figures and never replacing them; an attempt counts as completely timed only when its finish was timed and no step was left open. Nothing is imputed for an untimed attempt.',
 } as const;
 
 const digits = z.string().regex(/^(0|[1-9][0-9]{0,29})$/);
@@ -115,6 +117,24 @@ const KeySchema = z.looseObject({
     z.looseObject({ slot_id: z.string(), attempt_id: z.string() }),
   ),
 });
+/** ADR-0122/0129: optional, so exports made before the timer read as before. */
+const MeasuredEffortSchema = z.looseObject({
+  subject: z.string(),
+  steps: z.array(
+    z.looseObject({
+      measured: z
+        .looseObject({
+          // Absent in exports made before ADR-0129, when every measured step was an intervention.
+          ended_by: z.string().optional(),
+          active_ms: num.min(0),
+          wait_ms: num.min(0),
+          idle_ms: num.min(0),
+          away_ms: num.min(0),
+        })
+        .nullable(),
+    }),
+  ),
+});
 const ExportSchema = z.looseObject({
   schema_version: z.literal('study-export/1'),
   synthetic: z.boolean(),
@@ -125,6 +145,7 @@ const ExportSchema = z.looseObject({
       participant_code: z.string(),
       prior_familiarity: z.string().optional(),
       measurements: MeasurementsSchema,
+      measured_effort: MeasuredEffortSchema.optional(),
     }),
   ),
   raw_events: z.array(
@@ -632,11 +653,32 @@ export function analyze(input: AnalysisInput) {
     };
   });
 
+  // ADR-0129: measured time from the raw exports, by attempt id (each attempt is in exactly one
+  // export; the reconciliation checks that).
+  const measuredById = new Map(
+    exports.flatMap((e) =>
+      e.body.attempts.flatMap((a) =>
+        a.measured_effort ? [[a.id, a.measured_effort] as const] : [],
+      ),
+    ),
+  );
   const effortTable = groups.map((g) => {
     const at = attempts.filter((a) => groupKey(a.slot) === g);
     const reported = at.filter(
       (a) => a.measurements.human_active_minutes !== null,
     );
+    const measured = at.flatMap((a) => {
+      const m = measuredById.get(a.attempt_id);
+      return m ? [m] : [];
+    });
+    const timedSteps = measured.flatMap((m) =>
+      m.steps.flatMap((s) => (s.measured ? [s.measured] : [])),
+    );
+    const ms = (k: 'active_ms' | 'wait_ms' | 'idle_ms' | 'away_ms') =>
+      timedSteps.reduce((n, s) => n + s[k], 0);
+    const finishTimed = (m: (typeof measured)[number]) =>
+      m.steps.some((s) => s.measured?.ended_by === 'finish');
+    const subjects = [...new Set(measured.map((m) => m.subject))];
     const walls = inGroup(g)
       .map((f) => primaryAttempt.get(f.slot_id)?.measurements.wall_seconds)
       .filter((w): w is number => typeof w === 'number');
@@ -658,8 +700,32 @@ export function analyze(input: AnalysisInput) {
       wall_seconds_max: round(walls.length ? Math.max(...walls) : null),
       wall_seconds_n: walls.length,
       wall_seconds_missing: inGroup(g).length - walls.length,
+      measured_active_minutes: round(ms('active_ms') / 60_000),
+      measured_studio_wait_seconds: round(ms('wait_ms') / 1000),
+      measured_on_page_not_editing_minutes: round(ms('idle_ms') / 60_000),
+      measured_page_not_in_front_minutes: round(ms('away_ms') / 60_000),
+      measured_steps: timedSteps.length,
+      measured_unfinished_steps: measured.reduce(
+        (n, m) => n + m.steps.filter((s) => !s.measured).length,
+        0,
+      ),
+      measured_complete_attempts: measured.filter(
+        (m) => finishTimed(m) && m.steps.every((s) => s.measured),
+      ).length,
+      measured_untimed_attempts: at.filter(
+        (a) =>
+          !measuredById
+            .get(a.attempt_id)
+            ?.steps.some((s) => s.measured !== null),
+      ).length,
+      measured_subject:
+        subjects.length === 0
+          ? null
+          : subjects.length === 1
+            ? subjects[0]!
+            : 'mixed',
       source:
-        'Human minutes are participant-reported; wall time is server-observed.',
+        'Human minutes are participant-reported; measured_* come from the Study page timer (study-effort-timer/1) beside them, not the autonomous condition; wall time is server-observed.',
     };
   });
 

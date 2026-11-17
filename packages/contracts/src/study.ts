@@ -146,9 +146,14 @@ export const StudyInterventionSchema = z.strictObject({
   wait_seconds: counter.max(86400),
 });
 /**
- * ADR-0122 (F13): the study effort timer. In study mode only, the Study page times each
- * intervention step in the browser and sends the totals with the intervention it ends. It only
- * measures; it never names, describes or classifies the person.
+ * ADR-0122 (F13): the study effort timer. In study mode only, the Study page times the
+ * participant's steps in the browser and sends the totals with the record that ends each step.
+ * It only measures; it never names, describes or classifies the person.
+ *
+ * ADR-0129: steps now cover the human-only condition and the finish too. A step started since
+ * ADR-0129 is an `attempt` step: it runs while the participant has the attempt open and is ended
+ * by the next intervention, saved entry or finish (`ended_by`). Steps started under ADR-0122 are
+ * `intervention` steps and only an intervention ends them.
  */
 export const STUDY_EFFORT_TIMER_VERSION = 'study-effort-timer/1';
 /** Edits within this window keep a focused, visible page counted as active effort. */
@@ -178,15 +183,25 @@ export const StartStudyEffortStepSchema = z.strictObject({});
 export const StudyInterventionRequestSchema = StudyInterventionSchema.extend({
   effort: StudyEffortSchema.optional(),
 });
+/** ADR-0129: a saved entry may end the running step, like an intervention. */
+export const StudyArtifactRequestSchema = StudyArtifactSchema.extend({
+  effort: StudyEffortSchema.optional(),
+});
+/** Where a step began: under ADR-0122 at the intervention form, since ADR-0129 on the attempt. */
+export const STUDY_EFFORT_STEP_KINDS = ['intervention', 'attempt'] as const;
+/** The record that ended a measured step. */
+export const STUDY_EFFORT_ENDS = ['intervention', 'entry', 'finish'] as const;
+export type StudyEffortEnd = (typeof STUDY_EFFORT_ENDS)[number];
 export const StudyEffortStepSchema = z.strictObject({
   id,
   attempt_id: id,
-  step: z.literal('intervention'),
+  step: z.enum(STUDY_EFFORT_STEP_KINDS),
   synthetic: z.boolean(),
   started_at: timestamp,
   measured: z
     .strictObject({
       event_id: id,
+      ended_by: z.enum(STUDY_EFFORT_ENDS),
       timer_version: z.literal(STUDY_EFFORT_TIMER_VERSION),
       active_ms: effortMs,
       wait_ms: effortMs,
@@ -209,6 +224,10 @@ export const FinishStudyAttemptSchema = z.strictObject({
   summary: text,
   human_active_minutes: z.number().min(0).max(1440),
   human_wait_seconds: counter.max(86400),
+});
+/** ADR-0129: the finish may end the running step; its reported figures stay as they are. */
+export const FinishStudyAttemptRequestSchema = FinishStudyAttemptSchema.extend({
+  effort: StudyEffortSchema.optional(),
 });
 export const StudyAttemptSchema = z.strictObject({
   id,

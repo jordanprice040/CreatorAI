@@ -4065,6 +4065,23 @@ alter table autopilots add constraint autopilots_auto_resume_off_check
  check ((auto_resume_off_at is null) = (auto_resume_off_by is null));
 `,
   },
+  {
+    // ADR-0129: the study effort timer covers the human-only condition and the finish. New steps
+    // are 'attempt' steps, ended by the next intervention, saved entry or finish; each measure
+    // names the record that ended it. Rows measured under ADR-0122 were all ended by an
+    // intervention. Adding a column fires no row trigger, so both tables stay append-only.
+    // Numbers 75-77 are reserved for other milestones (F8 left 75 unused; F11, F4).
+    version: 78,
+    name: 'study_effort_attempt_steps',
+    sql: `
+alter table study_effort_steps drop constraint study_effort_steps_step_check;
+alter table study_effort_steps add constraint study_effort_steps_step_check
+ check (step in ('intervention', 'attempt'));
+alter table study_effort_measures add column ended_by text not null default 'intervention'
+ check (ended_by in ('intervention', 'entry', 'finish'));
+alter table study_effort_measures alter column ended_by drop default;
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {
