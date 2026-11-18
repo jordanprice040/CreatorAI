@@ -14,6 +14,7 @@ import {
   type GitHubConnection,
 } from '@creator/contracts';
 import { ContextStore, type CommandContext } from '@creator/db';
+import { classifyResponse } from '@creator/domain';
 import {
   GITHUB_APP_PERMISSIONS,
   GitHubAppSetupService,
@@ -21,6 +22,9 @@ import {
   MemoryVault,
   githubAppManifest,
   refusalWording,
+  appTokenWording,
+  githubAnswer,
+  LiveGitHub,
   parseConversion,
   startPage,
 } from '@creator/broker';
@@ -449,8 +453,8 @@ test('P32 review M-2: a refused repository creation on a personal account says w
     }) as unknown as GitHubConnection;
   const refused = {
     state: 'failed',
-    reason_code: 'github_403',
-    explanation: 'Resource not accessible by integration',
+    reason_code: 'permission_missing',
+    explanation: 'GitHub refused the request.',
   } as const;
   const res = { status: 403, headers: {}, data: null, message: '' };
   assert.match(
@@ -472,6 +476,23 @@ test('P32 review M-2: a refused repository creation on a personal account says w
     ['push', conn('app_vault', 'User')],
   ] as const)
     assert.equal(refusalWording(refused, kind, c, res), refused);
+  // P32 live trial: a rate limit or a refused App token keeps its own wording.
+  const limited = {
+    state: 'failed',
+    reason_code: 'provider_rate_limited',
+    explanation: 'GitHub rate limit.',
+  } as const;
+  assert.equal(
+    refusalWording(limited, 'repo_create', conn('app_vault', 'User'), res),
+    limited,
+  );
+  assert.equal(
+    refusalWording(refused, 'repo_create', conn('app_vault', 'User'), {
+      ...res,
+      stage: 'app_token',
+    }),
+    refused,
+  );
   assert.equal(
     refusalWording(refused, 'repo_create', conn('app_vault', 'User'), {
       ...res,
@@ -682,4 +703,109 @@ test('P32 review 2 N-1: a key that cannot be deleted does not fail a committed r
   const out = await service.revoke(owner, randomUUID(), randomUUID(), {});
   assert.equal(out.status, 'revoked');
   assert.equal(out.key_forget_failed, true);
+});
+
+test('P32 PR #244 review: a refused App token is kept as the token step and says the change was not sent', async () => {
+  const calls: string[] = [];
+  const gh = new LiveGitHub({
+    credential: {
+      kind: 'app_installation',
+      client_id: 'Iv23fixtureclient',
+      private_key: PEM,
+      installation_id: 42,
+    },
+    apiBase: 'http://127.0.0.1:9',
+    fetch: (async (url: string | URL) => {
+      calls.push(String(url));
+      return new Response(
+        JSON.stringify({ message: 'Resource not accessible by integration' }),
+        {
+          status: 403,
+          headers: { 'x-accepted-github-permissions': 'administration=write' },
+        },
+      );
+    }) as typeof fetch,
+  });
+  const res = await gh.createRepository(
+    { login: 'fixture-owner', type: 'User' },
+    'creator-agent-x',
+    '',
+  );
+  // Only the token request was made; the creation itself was never sent.
+  assert.deepEqual(calls, [
+    'http://127.0.0.1:9/app/installations/42/access_tokens',
+  ]);
+  assert.equal(res.stage, 'app_token');
+  assert.deepEqual(githubAnswer(res).github_answer, {
+    status: 403,
+    step: 'app_token',
+    message: 'Resource not accessible by integration',
+    rate_limit_remaining: null,
+    retry_after: null,
+    accepted_permissions: 'administration=write',
+  });
+  const cls = {
+    state: 'failed',
+    reason_code: 'permission_missing',
+    explanation: 'GitHub refused the request.',
+  } as const;
+  const worded = appTokenWording(cls, res);
+  assert.match(
+    (worded as { explanation: string }).explanation,
+    /refused an App token for this change \(403\), so the change was not sent/,
+  );
+  // A refusal of the call itself keeps the call's wording.
+  // Review 2 L-1: no token handed out (no answer, or the studio could not sign) means the
+  // change was never sent: failed, not unknown, so a retry needs no Reconcile.
+  const silent = await new LiveGitHub({
+    credential: {
+      kind: 'app_installation',
+      client_id: 'Iv23fixtureclient',
+      private_key: PEM,
+      installation_id: 42,
+    },
+    apiBase: 'http://127.0.0.1:9',
+    fetch: (async () => {
+      throw new Error('connection reset');
+    }) as typeof fetch,
+  }).createRepository(
+    { login: 'fixture-owner', type: 'User' },
+    'creator-agent-x',
+    '',
+  );
+  assert.equal(silent.stage, 'app_token');
+  assert.equal(classifyResponse(silent).state, 'unknown');
+  const notSent = appTokenWording(classifyResponse(silent), silent);
+  assert.equal(notSent.state, 'failed');
+  assert.equal(
+    (notSent as { reason_code: string }).reason_code,
+    'app_token_unavailable',
+  );
+  assert.match(
+    (notSent as { explanation: string }).explanation,
+    /did not hand out an App token \(no answer\), so the change was not sent/,
+  );
+  const unsigned = await new LiveGitHub({
+    credential: {
+      kind: 'app_installation',
+      client_id: 'Iv23fixtureclient',
+      private_key: 'not a key',
+      installation_id: 42,
+    },
+    apiBase: 'http://127.0.0.1:9',
+    fetch: (async () => {
+      throw new Error('never called');
+    }) as typeof fetch,
+  }).createRepository(
+    { login: 'fixture-owner', type: 'User' },
+    'creator-agent-x',
+    '',
+  );
+  assert.equal(unsigned.stage, 'studio');
+  assert.equal(
+    appTokenWording(classifyResponse(unsigned), unsigned).state,
+    'failed',
+  );
+  const { stage: _stage, ...call } = res;
+  assert.equal(appTokenWording(cls, call), cls);
 });

@@ -1128,7 +1128,9 @@ export class GitHubStore extends ArtifactStore {
             { status: 'access_lost', reason: outcome.explanation },
           );
       }
-      return this.#settle(c, ctx, op, outcome.state, outcome, null);
+      // P32 live trial: a failed or unknown operation keeps what GitHub answered (status,
+      // message, step, rate-limit headers), so the record can tell a refusal from a rate limit.
+      return this.#settle(c, ctx, op, outcome.state, outcome, data);
     });
   }
 
@@ -1197,6 +1199,9 @@ export class GitHubStore extends ArtifactStore {
           'INVALID_TRANSITION',
           `This operation is already ${op.state}.`,
         );
+      // Review 1 L-1 (PR #244): reconciling keeps what GitHub first answered.
+      const answer = op.result?.github_answer;
+      const kept = answer === undefined ? null : { github_answer: answer };
       if (found.exists) {
         await this.#applySuccess(c, ctx, op, found.data);
         return this.#settle(
@@ -1208,7 +1213,7 @@ export class GitHubStore extends ArtifactStore {
             reason_code: 'found_on_github',
             explanation: found.note,
           },
-          found.data,
+          kept ? { ...(found.data ?? {}), ...kept } : found.data,
         );
       }
       return this.#settle(
@@ -1220,7 +1225,7 @@ export class GitHubStore extends ArtifactStore {
           reason_code: 'absent_on_github',
           explanation: found.note,
         },
-        null,
+        kept,
       );
     });
   }

@@ -83,6 +83,62 @@ function createdRepository(d: Record<string, unknown> | null) {
 }
 
 /**
+ * P32 live trial (ADR-0132): what GitHub answered to an operation that did not succeed, kept on
+ * the operation so a refusal can be told from a rate limit afterwards. Status, GitHub's own
+ * message, which step answered (the App token step or the call) and the rate-limit and
+ * permission headers; never the body or a token.
+ */
+export function githubAnswer(res: GitHubResponse): Record<string, unknown> {
+  return {
+    github_answer: {
+      status: res.status,
+      step: res.stage ?? 'call',
+      message: res.message.slice(0, 300),
+      rate_limit_remaining: res.headers['x-ratelimit-remaining'] ?? null,
+      retry_after: res.headers['retry-after'] ?? null,
+      accepted_permissions:
+        res.headers['x-accepted-github-permissions'] ?? null,
+    },
+  };
+}
+
+/**
+ * Review 1 N-3 and review 2 L-1 (PR #244): when GitHub did not hand out the App token (it
+ * refused, did not answer, or the studio could not sign the request), the change itself was
+ * never sent. That is a plain failure, not an unknown outcome, so it says so and a retry needs
+ * no Reconcile first.
+ */
+export function appTokenWording(
+  cls: ResponseClass,
+  res: GitHubResponse,
+): ResponseClass {
+  if (res.stage === undefined || cls.state === 'succeeded') return cls;
+  const said = res.message ? ` GitHub said: ${res.message}` : '';
+  if (res.stage === 'studio')
+    return {
+      state: 'failed',
+      reason_code: 'app_token_unavailable',
+      explanation:
+        'The studio could not sign a GitHub App token request (check the App key), so the change was not sent.',
+    };
+  if (cls.state === 'unknown')
+    return {
+      state: 'failed',
+      reason_code: 'app_token_unavailable',
+      explanation: `GitHub did not hand out an App token (${res.status === null ? 'no answer' : res.status}), so the change was not sent. Try again later.${said}`,
+    };
+  return {
+    ...cls,
+    explanation:
+      cls.reason_code === 'provider_rate_limited'
+        ? `GitHub rate-limited the App token request, so the change was not sent. Try again later.${said}`
+        : res.status === 401
+          ? `GitHub did not accept the App's sign-in (App id or key), so the change was not sent.${said}`
+          : `GitHub refused an App token for this change (${res.status}), so the change was not sent: the App may lack a permission or no longer be installed on this repository.${said}`,
+  };
+}
+
+/**
  * Review M-2 (ADR-0132): GitHub may refuse an app installation token on `POST /user/repos`
  * (personal accounts). Say what to do instead of GitHub's bare "Resource not accessible".
  */
@@ -95,12 +151,16 @@ export function refusalWording(
   const app =
     conn.body.credential.kind === 'app_vault' ||
     conn.body.credential.kind === 'app_installation';
+  // P32 live trial: only a real permission refusal on the call itself, never a rate limit or a
+  // refused app token, gets the personal-account wording.
   if (
     kind !== 'repo_create' ||
     !app ||
     conn.body.owner.type !== 'User' ||
     res.status !== 403 ||
-    cls.state === 'succeeded'
+    res.stage !== undefined ||
+    cls.state !== 'failed' ||
+    cls.reason_code !== 'permission_missing'
   )
     return cls;
   return {
@@ -295,10 +355,8 @@ export class GitHubService {
         message: (e as Error).message.slice(0, 200),
       };
     }
-    const cls = refusalWording(
-      classifyResponse(res),
-      p.kind,
-      begun.connection,
+    const cls = appTokenWording(
+      refusalWording(classifyResponse(res), p.kind, begun.connection, res),
       res,
     );
     const data =
@@ -306,7 +364,7 @@ export class GitHubService {
         ? p.kind === 'repo_create'
           ? createdRepository(res.data)
           : res.data
-        : null;
+        : githubAnswer(res);
     return this.store.finishGitHubOperation(ctx, ws, op.id, cls, data);
   }
   #ref(repo: GitHubRepository | null, obs: GitHubObservations): RepoRef | null {
