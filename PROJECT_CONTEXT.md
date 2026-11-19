@@ -108,7 +108,7 @@ verified entries supersede conflicting status claims without rewriting history.
 
 The separate CIS4914 C++ market-data system is not Creator Agent. Its strategy engine, database choices, PRs, and November 19 presentation are not requirements or deadlines for this thesis.
 
-A week-of-November-30 defense was a proposed timeline window, not a confirmed appointment. Applicable UF/CISE deadlines and defense timing require confirmation. Do not use an uncertain Monday-of-exam-week assumption to override an earlier official deadline.
+A week-of-November-30 defense was a proposed timeline window. On November 19, 2026 Jordan confirmed the thesis defense on December 2, 2026 and submission on December 7, 2026 (see context/ROADMAP.md); defense time, location and formatting requirements are still unrecorded. Do not use an uncertain Monday-of-exam-week assumption to override an earlier official deadline.
 
 ## Detailed documents
 

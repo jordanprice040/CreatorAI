@@ -1,5 +1,14 @@
 # Decision log
 
+## Owner decisions recorded November 19, 2026 (no ADR, no migration)
+
+Recorded from Jordan's messages in the project on November 19, 2026, during the status-docs refresh.
+
+- **Thesis dates.** The thesis defense is on **December 2, 2026** and the submission deadline is **December 7, 2026**. This answers the open question in `context/DECISIONS_AND_OPEN_QUESTIONS.md` and supersedes the week-of-November-30 window in `context/ROADMAP.md`. Defense time, location and formatting requirements are still unrecorded. Consequence: the thesis track (protocol freeze, T15, T16, T18) has 13 days to the defense, and any reduced scope is the owner's explicit choice, not a quiet omission (roadmap scope rule).
+- **Installer default.** The installer's "Already Installed" page defaults to "Do not uninstall" (decided November 19, built in #245, seen on the real page in the F4 rerun 2; ADR-0128 amendments). Any change to the installer keeps this default.
+- **Updates never restart the PC by themselves.** No update needs a restart today; the restart in the F4 rerun 2 came from the trial's own watcher. If an update ever needs one, the app says so first and offers "Restart now" or a later option, never restarting on its own (also in `tracking/evidence/f4-live-trial-2026-11-17/README.md`). Applies to ADR-0128 and every later update change.
+- **Release numbering.** The installed app on Jordan's PC is the trial build 0.1.8, so the next real release is 0.1.9 or higher. The deliberately broken test release `v0.1.7` in the private releases repository is deleted before 0.1.9 ships (Jordan deletes it; nothing here deletes releases).
+
 ## ADR-0132 — P32: create and install the GitHub App from the studio, key in the protected vault (November 17, 2026; migration 79)
 
 **P32 "Simpler GitHub connection"** ([fix plan](../docs/FIX_PLAN_INSTALLED_WALK_2026-11-11.md) item 24; next after N3 in the notifications plan). Jordan asked for a browser sign-in like the plan connections instead of a hand-made token in the environment, and approved starting P32 on November 17. ADR-0132 and migration 79 are the next free numbers (75–77 stay reserved; F4 takes the next ones).
