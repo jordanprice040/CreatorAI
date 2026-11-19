@@ -14,6 +14,7 @@ import {
   ContractError,
   RECIPE_BENCHMARK_IDS,
   RECIPE_BENCHMARK_INFO,
+  AI_RUN_TASK_IDS,
   RECIPE_BENCHMARKS,
   RecipeBenchmarkOffersSchema,
   recipePasses,
@@ -1103,13 +1104,17 @@ test('ADR-0115: v6 differs from v5 only in its name, notes and answer form', () 
       answer_wrapping: 'x',
     },
   );
-  // Jordan chose (2026-11-15) that p14-xl-v1 accepts the same answer form as v6.
+  // Jordan chose (2026-11-15) that p14-xl-v1 accepts the same answer form as v6;
+  // the thesis AI-only run tasks (ADR-0133) use it too, matching the qualified route.
+  const v6Form = new Set<string>([
+    'p14-larger-ledgercheck-v6',
+    'p14-xl-v1',
+    ...AI_RUN_TASK_IDS,
+  ]);
   for (const id of RECIPE_BENCHMARK_IDS)
     assert.equal(
       RECIPE_BENCHMARK_INFO[id].answer_wrapping,
-      id === 'p14-larger-ledgercheck-v6' || id === 'p14-xl-v1'
-        ? 'invoke_lines_then_json_fence'
-        : 'one_json_fence',
+      v6Form.has(id) ? 'invoke_lines_then_json_fence' : 'one_json_fence',
       id,
     );
 });
