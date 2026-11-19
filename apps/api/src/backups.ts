@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import {
   mkdir,
@@ -34,6 +34,7 @@ import {
   migrations,
   pruneDailyBackups,
   restoreBackup,
+  sha256File,
 } from '@creator/db';
 
 /** How often the daily backup checks whether today's has been taken (and once at start). */
@@ -311,9 +312,10 @@ export function createBackups(o: {
       const m = JSON.parse(
         await readFile(join(dir, 'backup-manifest.json'), 'utf8'),
       ) as { database: { sha256: string } };
-      const dump = await readFile(join(dir, 'database.dump'));
+      // Audit 2026-11-19 L-3: streamed, never read into memory whole.
       const ok =
-        createHash('sha256').update(dump).digest('hex') === m.database.sha256;
+        (await sha256File(join(dir, 'database.dump'))).sha256 ===
+        m.database.sha256;
       return ok
         ? { ok, files: 1 }
         : { ok, problem: 'database.dump does not match the backup manifest.' };
@@ -366,6 +368,14 @@ export function createBackups(o: {
         () => true,
         () => false,
       ));
+      // Audit 2026-11-19 L-4: restore also accepts an existing folder holding no files; if it
+      // fails, what it copied there is removed again so the next attempt is not refused.
+      const wasEmpty =
+        !madeFolder &&
+        (await readdir(target, { recursive: true, withFileTypes: true }).then(
+          (list) => list.every((d) => d.isDirectory()),
+          () => false,
+        ));
       await checkTarget(url, input.database_name);
       const madeDb = await createDatabase(url, input.database_name);
       try {
@@ -407,14 +417,27 @@ export function createBackups(o: {
           : null;
         const dirGone = madeFolder
           ? await ok(rm(target, { recursive: true, force: true }))
-          : null;
+          : wasEmpty
+            ? await ok(
+                readdir(target).then((names) =>
+                  Promise.all(
+                    names.map((n) =>
+                      rm(join(target, n), { recursive: true, force: true }),
+                    ),
+                  ),
+                ),
+              )
+            : null;
+        const dirText = madeFolder
+          ? `folder ${target}`
+          : `files copied into folder ${target}`;
         const removed = [
           dbGone === true && `database ${input.database_name}`,
-          dirGone === true && `folder ${target}`,
+          dirGone === true && dirText,
         ].filter(Boolean);
         const left = [
           dbGone === false && `database ${input.database_name}`,
-          dirGone === false && `folder ${target}`,
+          dirGone === false && dirText,
         ].filter(Boolean);
         throw new ContractError(
           e instanceof ContractError ? e.code : 'STORAGE_UNAVAILABLE',

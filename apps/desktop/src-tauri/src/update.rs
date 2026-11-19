@@ -190,15 +190,20 @@ pub fn valid_repository(r: &str) -> Result<(), String> {
     }
 }
 
-/// A GitHub token as GitHub issues them (fine-grained or classic); never logged or shown.
+/// A GitHub token as GitHub issues them; never logged or shown. Audit 2026-11-19 L-2: a
+/// classic personal token (`ghp_`) or an OAuth app token (`gho_`) cannot be limited to the
+/// release repository, so it would carry access to every repository; it is refused for a
+/// fine-grained token (`github_pat_`) limited to that one repository (invariant 4).
 pub fn valid_token(t: &str) -> Result<(), String> {
     let ok =
         (20..=255).contains(&t.len()) && t.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
-    if ok {
-        Ok(())
-    } else {
-        Err("That does not look like a GitHub token (letters, digits and _ only)".into())
+    if !ok {
+        return Err("That does not look like a GitHub token (letters, digits and _ only)".into());
     }
+    if t.starts_with("ghp_") || t.starts_with("gho_") {
+        return Err("That is a classic GitHub token, which reaches every repository you can. Create a fine-grained token (it starts with github_pat_) limited to the release repository, with read-only Contents.".into());
+    }
+    Ok(())
 }
 
 pub struct Paths {
@@ -367,6 +372,41 @@ pub struct Available {
     /// GitHub's own `sha256:` digest of the installer asset, when it gave one.
     pub github_digest: Option<String>,
     pub checked_at: String,
+}
+
+/// The saved check result, with `newer` worked out again against `current` (audit
+/// 2026-11-19 M-1). The file keeps what was true when the check ran; after an update the
+/// running version may already be that release, so the stored flag is never trusted.
+pub fn load_available(paths: &Paths, current: Version) -> Result<Option<Available>, String> {
+    let mut a: Option<Available> = read_json(&paths.available())?;
+    if let Some(a) = a.as_mut() {
+        a.newer = Version::parse(&a.version).is_ok_and(|v| v > current);
+    }
+    Ok(a)
+}
+
+/// Folders a rollback set aside beside `install_dir` (`<name>.failed-update-<hex>`, holding the
+/// failed version's files; audit 2026-11-19 N-3).
+pub fn aside_folders(install_dir: &Path) -> Vec<PathBuf> {
+    let (Some(parent), Some(name)) = (install_dir.parent(), install_dir.file_name()) else {
+        return vec![];
+    };
+    let prefix = format!("{}.failed-update-", name.to_string_lossy());
+    let Ok(entries) = std::fs::read_dir(parent) else {
+        return vec![];
+    };
+    let mut found: Vec<PathBuf> = entries
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
+        .filter(|e| {
+            let n = e.file_name().to_string_lossy().to_string();
+            n.strip_prefix(&prefix)
+                .is_some_and(|h| h.len() == 8 && hex(h, 8))
+        })
+        .map(|e| e.path())
+        .collect();
+    found.sort();
+    found
 }
 
 fn client(timeout: Duration) -> Result<reqwest::blocking::Client, String> {
@@ -1096,7 +1136,14 @@ mod tests {
     fn versions_compare_numerically_and_refuse_odd_forms() {
         assert!(Version::parse("0.10.0").unwrap() > Version::parse("0.9.9").unwrap());
         assert!(Version::parse("1.0.0").unwrap() > Version::parse("0.99.99").unwrap());
-        assert_eq!(Version::parse("0.1.0").unwrap(), current_version());
+        // Audit 2026-11-19 N-5: the package version and the bundle's version agree (a release
+        // bump edits both files), whatever that version is.
+        let conf: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        assert_eq!(
+            Version::parse(conf["version"].as_str().unwrap()).unwrap(),
+            current_version()
+        );
         for bad in [
             "1.2",
             "1.2.3.4",
@@ -1190,6 +1237,11 @@ mod tests {
         valid_token(&format!("github_pat_{}", "A1_".repeat(20))).unwrap();
         assert!(valid_token("short").is_err());
         assert!(valid_token(&format!("ghp_{} x", "a".repeat(30))).is_err());
+        // Audit 2026-11-19 L-2: classic and OAuth tokens cannot be limited to one repository.
+        for classic in ["ghp_", "gho_"] {
+            let e = valid_token(&format!("{classic}{}", "a".repeat(36))).unwrap_err();
+            assert!(e.contains("fine-grained"), "{e}");
+        }
     }
 
     #[test]
@@ -1317,6 +1369,80 @@ mod tests {
         ));
         std::fs::create_dir_all(&d).unwrap();
         d
+    }
+
+    #[test]
+    fn a_saved_check_is_judged_against_the_running_version() {
+        // Audit 2026-11-19 M-1: 0.1.6 checked and saved 0.1.8 as newer; once 0.1.8 runs,
+        // the same file must not offer 0.1.8 again.
+        let home = tmp("available");
+        let paths = Paths::new(&home);
+        assert!(load_available(&paths, Version(0, 1, 6)).unwrap().is_none());
+        let a = Available {
+            version: "0.1.8".into(),
+            newer: true,
+            tag: "v0.1.8".into(),
+            release_url: String::new(),
+            published_at: String::new(),
+            manifest: manifest(b"MZ", "0.1.8"),
+            manifest_sha256: "a".repeat(64),
+            installer_asset: 1,
+            github_digest: None,
+            checked_at: String::new(),
+        };
+        write_json_atomic(&paths.available(), &a).unwrap();
+        assert!(
+            load_available(&paths, Version(0, 1, 6))
+                .unwrap()
+                .unwrap()
+                .newer
+        );
+        assert!(
+            !load_available(&paths, Version(0, 1, 8))
+                .unwrap()
+                .unwrap()
+                .newer
+        );
+        assert!(
+            !load_available(&paths, Version(0, 2, 0))
+                .unwrap()
+                .unwrap()
+                .newer
+        );
+        // A file saved as "not newer" by an older build is judged afresh too.
+        write_json_atomic(&paths.available(), &Available { newer: false, ..a }).unwrap();
+        assert!(
+            load_available(&paths, Version(0, 1, 6))
+                .unwrap()
+                .unwrap()
+                .newer
+        );
+        std::fs::remove_dir_all(&home).unwrap();
+    }
+
+    #[test]
+    fn only_folders_a_rollback_set_aside_are_found() {
+        let root = tmp("aside");
+        let install = root.join("Creator Agent");
+        for d in [
+            "Creator Agent",
+            "Creator Agent.failed-update-0a1b2c3d",
+            "Creator Agent.failed-update-ffffffff",
+            "Creator Agent.failed-update-short",
+            "Other.failed-update-0a1b2c3d",
+            "Creator Agent.failed-update-0a1b2c3d9",
+        ] {
+            std::fs::create_dir_all(root.join(d)).unwrap();
+        }
+        std::fs::write(root.join("Creator Agent.failed-update-12345678"), b"file").unwrap();
+        assert_eq!(
+            aside_folders(&install),
+            vec![
+                root.join("Creator Agent.failed-update-0a1b2c3d"),
+                root.join("Creator Agent.failed-update-ffffffff"),
+            ]
+        );
+        std::fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]

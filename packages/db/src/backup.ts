@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
+import { createReadStream } from 'node:fs';
 import { promisify } from 'node:util';
 import {
   copyFile,
@@ -32,6 +33,21 @@ export const BACKUP_FORMAT = 'creator-backup/1';
 const run = promisify(execFile);
 const sha256 = (b: Buffer | string) =>
   createHash('sha256').update(b).digest('hex');
+/**
+ * SHA-256 and size of a file read as a stream (audit 2026-11-19 L-3): a database dump can be
+ * gigabytes, so it is never loaded into memory whole.
+ */
+export async function sha256File(
+  path: string,
+): Promise<{ sha256: string; bytes: number }> {
+  const h = createHash('sha256');
+  let bytes = 0;
+  for await (const chunk of createReadStream(path) as AsyncIterable<Buffer>) {
+    h.update(chunk);
+    bytes += chunk.length;
+  }
+  return { sha256: h.digest('hex'), bytes };
+}
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export type BackupFile = { path: string; sha256: string; bytes: number };
@@ -341,15 +357,15 @@ export async function createBackup(o: {
       await writeFile(to, bytes, { flag: 'wx' });
       products.push({ path: rel, sha256: sha256(bytes), bytes: bytes.length });
     }
-    const dumpBytes = await readFile(dump);
+    const dumpHash = await sha256File(dump);
     const manifest: BackupManifest = {
       format: BACKUP_FORMAT,
       created_at: new Date().toISOString(),
       schema_version: schema,
       database: {
         file: 'database.dump',
-        sha256: sha256(dumpBytes),
-        bytes: dumpBytes.length,
+        sha256: dumpHash.sha256,
+        bytes: dumpHash.bytes,
       },
       products,
       counts: snapshotCounts,
@@ -387,8 +403,8 @@ export async function checkBackup(
       'INVALID_CONFIG',
       `The backup is at schema ${manifest.schema_version}; this code expects ${latest}. Restore with the matching code version.`,
     );
-  const dump = await readFile(join(dir, 'database.dump'));
-  if (sha256(dump) !== manifest.database.sha256)
+  const dump = await sha256File(join(dir, 'database.dump'));
+  if (dump.sha256 !== manifest.database.sha256)
     throw new ContractError(
       'EVIDENCE_MISMATCH',
       'database.dump does not match the backup manifest.',
@@ -460,7 +476,7 @@ export async function restoreBackup(o: {
   // Review N-3: what was restored is hashed again, so a file swapped after the first check
   // is caught.
   if (
-    sha256(await readFile(join(o.backupDir, 'database.dump'))) !==
+    (await sha256File(join(o.backupDir, 'database.dump'))).sha256 !==
     manifest.database.sha256
   )
     throw new ContractError(

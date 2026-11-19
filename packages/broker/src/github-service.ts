@@ -27,7 +27,7 @@ import {
   type RepoObservation,
   type RepoRef,
 } from './github.js';
-import { changedPaths } from './github-git.js';
+import { changedPaths, TooManyPathsError } from './github-git.js';
 
 export interface GitHubServiceOptions {
   /** API process environment: CREATOR_GITHUB=live and the credential variables live here. */
@@ -319,10 +319,12 @@ export class GitHubService {
         source = await this.opts.pushSource(p.product_id, ws);
         try {
           paths = await changedPaths(source, p.base_sha, p.sha);
-        } catch {
+        } catch (e) {
           throw new ContractError(
             'EVIDENCE_MISMATCH',
-            'The commit or its base is not in the product’s local repository.',
+            e instanceof TooManyPathsError
+              ? `${e.message} Split it into smaller pushes.`
+              : 'The commit or its base is not in the product’s local repository.',
           );
         }
         obs.remote_head = await a.branchSha(ref, p.branch);

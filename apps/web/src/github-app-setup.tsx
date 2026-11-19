@@ -9,6 +9,7 @@ import {
 import { api } from './oversight.js';
 import { AddConnection, type Act } from './github.js';
 import { pollsGitHub, setupStep } from './github-app-setup-rules.js';
+import { useOnShow, usePoll } from './page-active.js';
 
 const POLL_MS = 3000;
 
@@ -47,13 +48,12 @@ export function GitHubAppSetupPanel({
       live = false;
     };
   }, [base, tick]);
-  // While GitHub has the browser (creating, then installing), look again every few seconds.
-  useEffect(() => {
-    if (!pollsGitHub(step)) return;
-    const t = window.setInterval(() => setTick((n) => n + 1), POLL_MS);
-    return () => window.clearInterval(t);
-  }, [step]);
   const reload = () => setTick((n) => n + 1);
+  // While GitHub has the browser (creating, then installing), look again every few seconds,
+  // but only while this page is shown and the window is visible (audit 2026-11-19 L-5); on
+  // return it reads at once.
+  usePoll(reload, POLL_MS, pollsGitHub(step));
+  useOnShow(reload);
   const post = <T,>(schema: z.ZodType<T>, path: string, body: unknown = {}) =>
     api(schema, `${base}/github-app-setups${path}`, {
       csrf: session.csrf_token,

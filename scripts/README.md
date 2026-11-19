@@ -1,0 +1,51 @@
+# scripts/
+
+About 200 files live here. Most are records of finished qualification and upgrade packets;
+a few are the tools used day to day. This page says which is which (audit 2026-11-19 N-7).
+
+The finished-packet scripts are **not moved** into an archive folder on purpose. Frozen
+benchmark configs (`config/repo-benchmarks/**`, `config/connections/benchmarks/*.json`),
+other packet scripts, tests and the tracking records name them by their `scripts/...` path,
+and some packets bind those files by hash. Moving them would break those records (invariant 9:
+frozen conditions stay as they ran). Treat the finished groups below as read-only history.
+
+## Live tools
+
+| Script                                                                                | What it is for                                                                                               |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `dev.mjs`                                                                             | `pnpm dev`: start the development studio with agreed ports (ADR-0108).                                       |
+| `dev-status.mjs`, `runtime.mjs`                                                       | Helpers `dev.mjs` uses: the inference notice and the supported Node versions.                                |
+| `require-test-db.mjs`                                                                 | Guard for `pnpm test:db`: refuses to run without `CREATOR_TEST_DATABASE_URL`, so a skipped gate cannot pass. |
+| `smoke.mjs`                                                                           | `pnpm smoke`: a short end-to-end check of a built studio.                                                    |
+| `dev-artifact-retention.mjs`                                                          | Bounded retention for synthetic test artifacts under `.verification`.                                        |
+| `release-archive.mjs`                                                                 | `pnpm release-archive`: the X10 reproducibility package for one commit.                                      |
+| `start-local-studio.ps1`                                                              | Start the local studio on Windows.                                                                           |
+| `verify-clean.ps1`                                                                    | Install, build and test a clean copy under `.verification` (Windows).                                        |
+| `move-out-of-onedrive.ps1`                                                            | Move a checkout and its private data out of OneDrive (never deletes).                                        |
+| `install-codex-wsl.sh`                                                                | Install the pinned Codex CLI in WSL (ADR-0042).                                                              |
+| `brand-derived-assets.ps1`                                                            | Regenerate the web and desktop icons from the brand pack.                                                    |
+| `verify-development-tools.py`                                                         | Check the project's MCP discovery and browser launch without paid calls.                                     |
+| `executor-crash-worker.mjs`, `verify-executor.mjs`                                    | Acceptance helpers for the WSL executor.                                                                     |
+| `verify-study.mjs`                                                                    | Study checks against the disposable fixture API only.                                                        |
+| `ux-sweep.mjs`                                                                        | Final UX pass screenshots of every tab of a running studio.                                                  |
+| `verify-*.playwright.js`                                                              | Browser checks with intercepted fixture APIs.                                                                |
+| `t19-archive.mjs`, `t19-rehearsal.mjs`                                                | T19 archive and rehearsal checks.                                                                            |
+| `p14-benchmark.mjs`, `p15-web-benchmark.mjs`, `recipe-benchmarks.mjs`                 | Run or check the repo, web and in-app recipe benchmarks.                                                     |
+| `p16-runbook-example.mjs`                                                             | Write or verify the committed P16 synthetic runbook bundle.                                                  |
+| `assessment-benchmark.mjs`, `spec-cases-benchmark.mjs`, `web-discovery-benchmark.mjs` | Write the current benchmark files (earlier versions stay frozen).                                            |
+| `author-*-benchmark*.mjs`                                                             | Author benchmark copies (ADR-0048, ADR-0110, ADR-0115); keep with the benchmarks they wrote.                 |
+
+## Finished packets (history; do not edit)
+
+| Family                                       | Files                                                                                                                                                                                                                                                                                                                                                         |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Theme intent v1–v4                           | `*theme-intent*`, `theme-intent-*` fixtures, `run-theme-intent-v*-tests.mjs`, `serve-theme-intent-verification.mjs`                                                                                                                                                                                                                                           |
+| Discovery qualification v1–v5 and follow-ups | `prepare-discovery-*`, `qualify-plan-discovery*`, `qualify-discovery-*`, `inspect-discovery-*`, `inspect-v4-*`, `inspect-v5-*`, `record-discovery-*`, `record-v5-*`, `review-discovery-*`, `author-discovery-v*`, `reconcile-approved-v4-timeout.*`, `prepare-v5-capacity-amendment.mjs`, `qualify-v5-approved-capacity.*`, `adjust-approved-v5-test-slots.*` |
+| Discovery follow-up                          | `*followup*`, `discovery-followup-core.mjs`                                                                                                                                                                                                                                                                                                                   |
+| Research14                                   | `*research14*`, `discovery-research-core.mjs`, `check-discovery-research-runner.mjs`, `prepare-discovery-research-runner.mjs`                                                                                                                                                                                                                                 |
+| Semantics                                    | `*semantics*`, `audit-discovery-*`, `bind-discovery-semantics-v2-package.mjs`                                                                                                                                                                                                                                                                                 |
+| Availability and transport                   | `*availability*`, `finalize-availability-recheck.mjs`, `*transport*`, `accept-approved-discovery-settings.*`, `execute-approved-discovery-upgrade.*`, `inspect-plan-stream-recovery.*`                                                                                                                                                                        |
+| Plan summarization                           | `qualify-plan-summarization.*`                                                                                                                                                                                                                                                                                                                                |
+| C54 readiness                                | `audit-c54-readiness.mjs`                                                                                                                                                                                                                                                                                                                                     |
+
+A `.ps1` beside an `.mjs` of the same name is its Windows wrapper.

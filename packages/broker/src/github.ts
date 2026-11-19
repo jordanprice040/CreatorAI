@@ -5,12 +5,7 @@ import {
   type GitHubIdentity,
   type PullObservation,
 } from '@creator/contracts';
-import {
-  changedPaths,
-  commitExists,
-  isAncestor,
-  studioGit,
-} from './github-git.js';
+import { commitExists, isAncestor, studioGit } from './github-git.js';
 
 // X04 GitHub adapters: a deterministic fixture and a REST/Git adapter. Adapters only perform
 // and observe; the store and GitHubService decide what may run and how outcomes settle.
@@ -867,10 +862,19 @@ export class LiveGitHub implements GitHubAdapter {
       ],
       { config, secret: basic, timeoutMs: this.#timeout * 3 },
     );
-    const out = r.output.split(token).join('***');
     if (r.code === 0) return ok(200, { ref: `refs/heads/${branch}`, sha });
     if (r.code === null) return err(null, 'git push did not finish');
-    if (/non-fast-forward|\[rejected\]|fetch first/i.test(out))
+    // Porcelain ref status is on stdout ("!\t<ref>\t[rejected] (reason)" for a local refusal,
+    // "[remote rejected] (reason)" for the server's); Git's own messages are on stderr. The
+    // non-fast-forward test reads the status line itself, not any text that mentions it.
+    const status = r.stdout.split(token).join('***');
+    const out = [status.trim(), r.stderr.split(token).join('***')]
+      .filter(Boolean)
+      .join('\n');
+    if (
+      /^!\t[^\t]*\t\[rejected\]/m.test(status) ||
+      /non-fast-forward|fetch first/i.test(r.stderr)
+    )
       return err(409, 'non-fast-forward');
     if (/workflow/i.test(out) && /refusing|permission/i.test(out))
       return err(403, 'refusing workflow change without workflows permission');
@@ -1060,4 +1064,9 @@ export function liveGitHubFromEnv(
       })
     : null;
 }
-export { changedPaths };
+export {
+  changedPaths,
+  MAX_PUSH_PATHS,
+  studioGit,
+  TooManyPathsError,
+} from './github-git.js';
