@@ -437,7 +437,19 @@ test('X04 owner verification, scope limits, push, review, checks and exact-head 
   gh.setCheck(repo.github_id, c3, 'ci', 'success');
   // The head moving between our read and GitHub's merge is refused by GitHub's sha check (409).
   gh.failNext('merge', 409);
-  assert.equal(state(await merge(c3)), 'failed:stale_head');
+  const staleMerge = await merge(c3);
+  assert.equal(state(staleMerge), 'failed:stale_head');
+  // P32 live trial: a failed operation keeps what GitHub answered.
+  assert.deepEqual(
+    (staleMerge.result as { github_answer: Record<string, unknown> })
+      .github_answer.status,
+    409,
+  );
+  assert.equal(
+    (staleMerge.result as { github_answer: Record<string, unknown> })
+      .github_answer.step,
+    'call',
+  );
   const merged = await merge(c3);
   assert.equal(state(merged), 'succeeded:succeeded');
   assert.equal((merged.gate?.pull as { head_sha: string }).head_sha, c3);
@@ -520,6 +532,10 @@ test('X04 uncertain effects reconcile from GitHub; no retry while unknown', asyn
   );
   const adopted = await svc.reconcile(agent, ws, lost.id);
   assert.equal(state(adopted), 'reconciled_succeeded:found_on_github');
+  assert.equal(
+    (adopted.result?.github_answer as { message: string }).message,
+    'timeout after send',
+  );
   const [repo] = await store.listGitHubRepositories(owner, ws);
   assert.equal(repo?.created_operation_id, lost.id);
   assert.equal(repo?.status, 'active');
@@ -537,10 +553,21 @@ test('X04 uncertain effects reconcile from GitHub; no retry while unknown', asyn
   };
   const unsent = await svc.operate(agent, ws, op(conn, run, push));
   assert.equal(state(unsent), 'unknown:no_response');
-  assert.equal(
-    state(await svc.reconcile(agent, ws, unsent.id)),
-    'reconciled_absent:absent_on_github',
-  );
+  // PR #244: an unknown operation keeps what GitHub (did not) answer, and reconciling keeps it.
+  const answerOf = (o: GitHubOperation) =>
+    (o.result as { github_answer?: Record<string, unknown> } | null)
+      ?.github_answer;
+  assert.deepEqual(answerOf(unsent), {
+    status: null,
+    step: 'call',
+    message: 'connection reset',
+    rate_limit_remaining: null,
+    retry_after: null,
+    accepted_permissions: null,
+  });
+  const absent = await svc.reconcile(agent, ws, unsent.id);
+  assert.equal(state(absent), 'reconciled_absent:absent_on_github');
+  assert.deepEqual(answerOf(absent), answerOf(unsent));
   assert.equal(
     state(await svc.operate(agent, ws, op(conn, run, push))),
     'succeeded:succeeded',

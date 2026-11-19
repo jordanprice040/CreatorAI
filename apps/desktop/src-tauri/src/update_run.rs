@@ -133,7 +133,9 @@ fn resume_rollback(sup: &Supervisor, paths: &Paths, id: &str) {
     );
     let r = save_stage(paths, &mut p, "resuming_rollback", &going_back).and_then(|_| {
         let mut cmd = Command::new(&helper);
-        cmd.arg("--resume-rollback").arg(id);
+        cmd.arg("--resume-rollback")
+            .arg(id)
+            .current_dir(&sup.home.root);
         spawn_detached(&mut cmd)
             .map(|_| ())
             .map_err(|_| format!("Could not start {}", helper.display()))
@@ -191,6 +193,12 @@ pub fn state(sup: &Supervisor, busy: bool, schema_version: Option<i64>) -> Value
             .ok()
             .flatten()
             .map(|f| f.highest_failed),
+        // Live trial findings: a release at or below a rolled-back version is not offered, and
+        // the saved copy a failed rollback runs says so instead of offering updates.
+        "available_blocked": available
+            .as_ref()
+            .is_some_and(|a| update::check_not_blocked(&paths, &a.version).is_err()),
+        "saved_copy": running_from_saved_copy(&paths).then_some(SAVED_COPY_TEXT),
     })
 }
 
@@ -353,6 +361,11 @@ pub fn install(sup: &Shared) -> Result<Value, String> {
         );
     }
     let paths = Paths::new(&sup.home.root);
+    // Live trial finding: the copy a failed rollback runs takes its own folder for the
+    // install folder, so an update started from it would install and save in the wrong place.
+    if running_from_saved_copy(&paths) {
+        return Err(SAVED_COPY_TEXT.into());
+    }
     let a: Available = update::read_json(&paths.available())?.ok_or("Check for updates first")?;
     if !a.newer {
         return Err(format!("{} is not newer than this version", a.version));
@@ -433,7 +446,9 @@ pub fn install(sup: &Shared) -> Result<Value, String> {
             std::fs::copy(rollback_dir.join(&exe_name), &helper)
                 .map_err(|_| "Could not prepare the update step")?;
             let mut cmd = Command::new(&helper);
-            cmd.arg("--apply-update").arg(&id);
+            cmd.arg("--apply-update")
+                .arg(&id)
+                .current_dir(&sup.home.root);
             spawn_detached(&mut cmd).map_err(|_| "Could not start the update step")?;
             Ok(())
         };
@@ -449,6 +464,47 @@ pub fn install(sup: &Shared) -> Result<Value, String> {
     sup.note("update: handing over to the saved copy and quitting");
     sup.quit();
     Ok(json!({"to_version": pending.to_version, "backup_dir": pending.backup_dir}))
+}
+
+const SAVED_COPY_TEXT: &str = "This is the saved copy of the earlier version that a rollback started, not the installed app. Quit, reinstall Creator Agent by hand with an installer newer than the failed version, then update from the installed app.";
+
+/// Live trial part 2: a rollback renames the failed program to `<name>.exe.failed`; when the
+/// files cannot be put back, that file stays in the install folder, and a later install over
+/// it (or the saved copy made from it) keeps it. The installed app removes it at start.
+pub fn tidy_install_folder(paths: &Paths) {
+    if running_from_saved_copy(paths) {
+        return;
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        let mut stale = exe.into_os_string();
+        stale.push(".failed");
+        let stale = PathBuf::from(stale);
+        if stale.is_file() && std::fs::remove_file(&stale).is_ok() {
+            update::record(
+                paths,
+                "stale_failed_program_removed",
+                json!({"path": stale.display().to_string()}),
+            );
+        }
+    }
+}
+
+/// True when this program runs from `updates/rollback` (a rollback could not put its files
+/// back into the install folder).
+fn running_from_saved_copy(paths: &Paths) -> bool {
+    std::env::current_exe()
+        .ok()
+        .is_some_and(|exe| is_inside(&exe, &paths.rollback()))
+}
+
+pub fn is_inside(path: &Path, dir: &Path) -> bool {
+    let norm = |p: &Path| {
+        p.components()
+            .map(|c| c.as_os_str().to_string_lossy().to_lowercase())
+            .collect::<Vec<_>>()
+    };
+    let (p, d) = (norm(path), norm(dir));
+    p.len() > d.len() && p[..d.len()] == d[..]
 }
 
 /// The helper's own file name. The installer closes running copies of the app's program
@@ -585,7 +641,8 @@ impl RealSteps {
         Ok((c, url))
     }
     fn spawn(&mut self, exe: &Path) -> Result<Child, String> {
-        spawn_detached(&mut Command::new(exe))
+        // Live trial part 2: never in the install folder, which a rollback renames.
+        spawn_detached(Command::new(exe).current_dir(&self.home.root))
             .map_err(|_| format!("Could not start {}", exe.display()))
     }
 }
@@ -617,6 +674,7 @@ impl Steps for RealSteps {
         // NSIS silent install for the current user; it never asks for administrator rights.
         let mut child = Command::new(installer)
             .arg("/S")
+            .current_dir(&self.home.root)
             .spawn()
             .map_err(|_| "the installer could not be started".to_string())?;
         let deadline = Instant::now() + Duration::from_secs(15 * 60);
@@ -745,19 +803,41 @@ impl Steps for RealSteps {
         Ok(names("dropped"))
     }
     fn restore_files(&mut self, from: &Path, install_dir: &Path) -> Result<(), String> {
-        let aside = install_dir.with_file_name(format!(
-            "{}.failed-update-{}",
-            install_dir
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_default(),
-            random_hex(4)?
-        ));
-        std::fs::rename(install_dir, &aside)
-            .map_err(|_| "the new version's files are in use".to_string())?;
-        crate::studio::copy_verified_as(from, install_dir, "app")?;
+        // Review of #243, N-1: a folder left by an earlier failed copy is removed instead of
+        // being moved aside again, so only one aside folder holds the new version's files.
+        if install_dir.exists() {
+            let aside = install_dir.with_file_name(format!(
+                "{}.failed-update-{}",
+                install_dir
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_default(),
+                random_hex(4)?
+            ));
+            std::fs::rename(install_dir, &aside)
+                .map_err(|_| "the new version's files are in use".to_string())?;
+        }
+        if let Err(e) = crate::studio::copy_verified_as(from, install_dir, "app") {
+            let _ = std::fs::remove_dir_all(install_dir);
+            return Err(format!("the earlier files could not be copied back ({e})"));
+        }
         let _ = std::fs::remove_file(install_dir.join(HELPER_EXE));
         Ok(())
+    }
+    fn disable_failed_version(&mut self, exe: &Path) -> Result<(), String> {
+        let mut to = exe.as_os_str().to_owned();
+        to.push(".failed");
+        std::fs::rename(exe, PathBuf::from(to)).map_err(|e| e.to_string())
+    }
+    fn studio_running(&mut self) -> bool {
+        #[cfg(windows)]
+        {
+            crate::winsys::studio_running(&Home::key_for(&self.home.root))
+        }
+        #[cfg(not(windows))]
+        {
+            false
+        }
     }
     fn start_previous(&mut self, exe: &Path) -> Result<(), String> {
         self.spawn(exe).map(|_| ())
@@ -856,6 +936,17 @@ mod tests {
         let long = restored_name(&"a".repeat(63), "20261117101500");
         assert!(long.len() <= 63);
         crate::home::valid_ident(&long).unwrap();
+    }
+    #[test]
+    fn the_saved_copy_is_recognised_by_its_folder() {
+        let rb = Path::new("/home/updates/rollback");
+        assert!(is_inside(&rb.join("0.1.0").join("creator-desktop.exe"), rb));
+        assert!(!is_inside(Path::new("/app/creator-desktop.exe"), rb));
+        assert!(!is_inside(rb, rb));
+        assert!(!is_inside(
+            Path::new("/home/updates/rollback-old/x.exe"),
+            rb
+        ));
     }
     #[test]
     fn restored_labels_name_the_restored_database() {

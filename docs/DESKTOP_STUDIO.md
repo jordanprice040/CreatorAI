@@ -174,6 +174,12 @@ node node_modules/@tauri-apps/cli/tauri.js build --config src-tauri/tauri.local-
 manifest (`bundle-manifest.json`, including the source commit and whether it was dirty).
 The installer is unsigned; it is a local review artifact, not a public release.
 
+The installer uses a copy of Tauri's own NSIS template (`src-tauri/nsis/installer.nsi`, from
+the pinned `@tauri-apps/cli` 2.12.3) with one change: when an older version is installed, the
+"Already Installed" page picks **Do not uninstall** by default (owner decision, November 19,
+2026), which keeps the app's data folder out of the uninstaller's reach. When the CLI is
+upgraded, take that version's template and make the same change; a test fails until then.
+
 Checks: `node --test tests/dist/studio-service.test.js` (set `CREATOR_TEST_DATABASE_URL`,
 `CREATOR_PG_BIN`; `CREATOR_TEST_STUDIO_BUNDLE` runs it against an installed bundle),
 `cargo test` in `apps/desktop/src-tauri`, and the scripted installed-app run
@@ -189,6 +195,11 @@ Checks: `node --test tests/dist/studio-service.test.js` (set `CREATOR_TEST_DATAB
   refused or rolled back stays in `updates\downloads\` until you delete it. A rollback's
   `products-rb-*` folder and the kept upgraded database are never removed automatically. A
   restart while the installer itself runs is not resumed (the status window shows the stage).
+  While a rollback waits for the files, the failed version's program is renamed, so the Start
+  menu shortcut does nothing for up to 3 minutes. If the earlier files still cannot be put
+  back, the earlier version runs from its saved copy in `updates\rollback\`; it offers no
+  updates there, and the shortcut stays broken. Quit it and install a version newer than the
+  failed one by hand.
   Neither is a restart during the rollback itself: the stage stays "Going back to the earlier
   version" and its lock (`updates\rollback-<id>.lock`) stays, so reinstall the earlier version
   and restore the backup the status window names by hand. A rolled-back update keeps its
