@@ -468,6 +468,27 @@ pub fn install(sup: &Shared) -> Result<Value, String> {
 
 const SAVED_COPY_TEXT: &str = "This is the saved copy of the earlier version that a rollback started, not the installed app. Quit, reinstall Creator Agent by hand with an installer newer than the failed version, then update from the installed app.";
 
+/// Live trial part 2: a rollback renames the failed program to `<name>.exe.failed`; when the
+/// files cannot be put back, that file stays in the install folder, and a later install over
+/// it (or the saved copy made from it) keeps it. The installed app removes it at start.
+pub fn tidy_install_folder(paths: &Paths) {
+    if running_from_saved_copy(paths) {
+        return;
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        let mut stale = exe.into_os_string();
+        stale.push(".failed");
+        let stale = PathBuf::from(stale);
+        if stale.is_file() && std::fs::remove_file(&stale).is_ok() {
+            update::record(
+                paths,
+                "stale_failed_program_removed",
+                json!({"path": stale.display().to_string()}),
+            );
+        }
+    }
+}
+
 /// True when this program runs from `updates/rollback` (a rollback could not put its files
 /// back into the install folder).
 fn running_from_saved_copy(paths: &Paths) -> bool {

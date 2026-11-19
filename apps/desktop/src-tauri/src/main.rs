@@ -649,6 +649,9 @@ fn main() {
     let home = root.map(|r| r.and_then(home::Home::new));
     if let Some(Ok(h)) = &home {
         leave_install_folder(&h.root);
+        if !cfg!(debug_assertions) {
+            update_run::tidy_install_folder(&update::Paths::new(&h.root));
+        }
     }
     // A studio folder that cannot be used (e.g. redirected into another app's package by an
     // MSIX container, pilot F14) is refused here in words, before any window or service.
