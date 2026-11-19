@@ -131,3 +131,7 @@ docs/SEARCH_API_COMPARISON_2026-11-10.md
 config/recipe-benchmarks/
 # B3 frozen repair benchmark: repair-v1/FREEZE.json binds these bytes.
 config/repo-benchmarks/repair-v1/
+
+# Copies of live autopilot reports cited by thesis draft 2; their SHA-256 values are
+# recorded in tracking/evidence/thesis-draft-2-2026-11-19/README.md. Keep bytes unchanged.
+tracking/evidence/thesis-draft-2-2026-11-19/autopilot-live-reports/

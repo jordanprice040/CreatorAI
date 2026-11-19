@@ -1,17 +1,15 @@
-# T18 committee review packet
+# Thesis packet
 
-Jordan Price · October 18, 2026 · Draft 1, missing-data route
+Jordan Price · November 19, 2026 · Draft 2, engineering thesis on executed evidence
 
-Start with [thesis draft](THESIS_DRAFT.md), then [committee decisions and revision log](COMMITTEE_REVIEW.md) and [defense and demonstration](DEMONSTRATION.md). [Evidence register](EVIDENCE.md) identifies source versions and verification limits.
+Start with the [thesis draft](THESIS_DRAFT.md), then the [committee checklist and revision log](COMMITTEE_REVIEW.md) and the [defense and demonstration notes](DEMONSTRATION.md). The [evidence register](EVIDENCE.md) names every record the draft cites and says which primary records are still only on Jordan's PC.
 
-T19 adds the [reproducibility and acceptance record](T19_ACCEPTANCE.md), with the final archive contents, exclusions, verification evidence and remaining acceptance work. Historical T18 results below retain their original scope.
+Scope (Jordan, November 19, 2026): an engineering thesis built on executed evidence (tests, live qualifications on frozen held-out benchmarks, live trials), plus one small frozen AI-only run reported on its own, not as a comparison. The three-condition study of autonomous, assisted and human-only work becomes proposed future work, and RQ1–RQ3 stay unanswered. The AI-only run is being designed separately; the draft holds a marked placeholder for it (Section 6, evidence ID E19) and no results.
 
-This is a reviewable engineering thesis draft, not a submitted or committee-approved thesis. T15 final evaluation and T16 empirical analysis remain incomplete. The comparative study is proposed and unfrozen. Empirical results are unavailable. T18 uses the express missing-data allowance in PROMPT_LIBRARY.md; it does not waive any research gate.
+Draft 2 describes main `b9270db` (November 19, 2026). Draft 1 (October 18, 2026, source `3e9026f`, missing-data route) is in the repository history; its evidence entries E1–E9 and the [T19 reproducibility record](T19_ACCEPTANCE.md) keep their original scope. This is a reviewable draft, not a submitted or committee-approved thesis. No email, invitation, submission, publication, paid call or participant recruitment was performed.
 
-Source snapshot: upstream `3e9026f` (T16 merge); local working HEAD `38b3e46` predates T15/T16. Upstream files were inspected and built in `.verification/t18-source`, without merging over existing local edits. Immutable source links are in the register. The demonstration instructions explicitly use that snapshot. No email, invitation, submission, publication, paid call or participant recruitment was performed.
-
-Jordan confirmed on November 19, 2026: the defense is on December 2, 2026 and the submission deadline is December 7, 2026. Defense time and location, committee review turnaround and university formatting requirements are still unrecorded. The historical week-of-November-30 suggestion is superseded. The separate CIS4914 presentation is not a thesis deadline.
+Jordan confirmed on November 19, 2026: the defense is on December 2, 2026 and the submission deadline is December 7, 2026. Defense time and location, committee review turnaround and university formatting requirements are still unrecorded. The separate CIS4914 presentation is not a thesis deadline.
 
 **Thesis scope (Jordan, November 19, 2026):** an engineering thesis on executed evidence, plus one small autonomous-only run on six held-out build tasks, frozen before any run and reported as the AI arm alone, not as a comparison. Its frozen protocol is [AI_ONLY_RUN_PROTOCOL.md](AI_ONLY_RUN_PROTOCOL.md) (ADR-0133). It has not been run; the live run needs Jordan's typed OK.
 
-Next eligible prompt: T19, only on a new request and with these missing-data limits retained; it cannot honestly claim final thesis acceptance or a completed participant study. The empirical branch instead requires recorded research decisions, adopted freeze, verified live prerequisites, final runs and independent ratings before T15/T16 can be completed.
+Next: the AI-only run's execution under its frozen protocol (with Jordan's typed OK for the live run); committing the PC-only autopilot evidence named in E13; related work and formatting; committee review; defense rehearsal.
