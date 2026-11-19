@@ -690,10 +690,17 @@ pub fn check_not_blocked(p: &Paths, v: &str) -> Result<(), String> {
     let Some(f) = read_json::<Failed>(&failed_path(p))? else {
         return Ok(());
     };
-    if Version::parse(v)? <= Version::parse(&f.highest_failed)? {
+    // Live trial part 2: "0.1.7 is not above 0.1.7" read badly; say what happened instead.
+    let failed = f.highest_failed.as_str();
+    let (want, bad) = (Version::parse(v)?, Version::parse(failed)?);
+    if want == bad {
         return Err(format!(
-            "Version {v} is not above {}, which did not start earlier and is still recorded by Windows, so its installer would refuse. Publish a version above {}.",
-            f.highest_failed, f.highest_failed
+            "Version {v} did not start earlier and was rolled back. Windows still lists it as installed, so its installer would refuse. Publish a version above {v}."
+        ));
+    }
+    if want < bad {
+        return Err(format!(
+            "Version {v} is older than {failed}, which did not start earlier and is still listed by Windows, so its installer would refuse. Publish a version above {failed}."
         ));
     }
     Ok(())
@@ -1989,10 +1996,16 @@ mod tests {
         check_not_blocked(&paths, "0.1.1").unwrap();
         block_version(&paths, "0.2.0").unwrap();
         block_version(&paths, "0.1.5").unwrap();
-        for v in ["0.1.1", "0.2.0"] {
-            let e = check_not_blocked(&paths, v).unwrap_err();
-            assert!(e.contains("not above 0.2.0"), "{e}");
-        }
+        let e = check_not_blocked(&paths, "0.1.1").unwrap_err();
+        assert!(e.contains("0.1.1 is older than 0.2.0"), "{e}");
+        assert!(e.contains("Publish a version above 0.2.0"), "{e}");
+        // Live trial part 2: the failed version itself says what happened to it.
+        let e = check_not_blocked(&paths, "0.2.0").unwrap_err();
+        assert!(
+            e.starts_with("Version 0.2.0 did not start earlier and was rolled back"),
+            "{e}"
+        );
+        assert!(!e.contains("not above"), "{e}");
         check_not_blocked(&paths, "0.2.1").unwrap();
         let _ = std::fs::remove_dir_all(dir);
     }

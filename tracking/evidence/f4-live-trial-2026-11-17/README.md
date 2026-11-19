@@ -48,3 +48,31 @@ Set-up: Jordan typed "OK F4 rerun" (2026-11-18 08:06 UTC). Backup `C:\CreatorAge
 Cause (confirmed by reading each process's working folder): the update helper (pid 9832) and the `cmd.exe` wrapper `pg_ctl` left for PostgreSQL (pid 19876) both had `C:\Users\jorda\AppData\Local\Creator Agent\` as their working folder, inherited from the Start menu launch; Windows does not rename a folder that is a running program's working folder. Fixed in the follow-up PR (working folder moved to the studio folder at every launch, and set explicitly on every program the app starts).
 
 Recovery (Nov 19, 00:04 UTC): Jordan quit the saved copy and installed 0.1.5 by hand ("Do not uninstall"); it runs from the install folder, health ok, layout 79, saved copy and helper gone. `v0.1.5` was never published. The restart-during-update step waits for the fix. The rerun starts from a build that has it, because the helper is a copy of the version updated from: 0.1.6 installed by hand, a broken 0.1.7, then a good 0.1.8 with the restart.
+
+## Rerun 2 (November 19), with #245: all checks passed
+
+Jordan typed "OK F4 rerun 2" (00:49 UTC). Backup `C:\CreatorAgentBackups\installed-pre-f4rerun2-20261119T005300Z` (all 2,180 database files match, dump SHA-256 `9F96F70F…6560B1`, restore list OK, layout 79, both workspaces, 606 audit events). Trial builds, local only, from main `3524994`: 0.1.6 `50a9be05` (`106757cb…49c89f323`, 28,193,190 bytes), 0.1.7 `d9059cdc` with planted migration 999 (`ded75d48…2dbca0b7`, 28,197,016 bytes), 0.1.8 `00616391` (`848a7c43…2024d38e`, 28,202,399 bytes).
+
+- **Installer default.** Running the 0.1.6 installer over 0.1.5, "Do not uninstall" was already selected (Jordan, 01:12 UTC); the generated `installer.nsi` carried the change.
+- **Working folders (the fix).** 0.1.6 started 00:59:16 from the install folder; `creator-desktop` worked in `…\com.creatoragent.studio\`, the Node service in the same folder, and the `pg_ctl` wrapper in `…\com.creatoragent.studio\postgres\`. None was under the install folder.
+
+| Time (UTC, Nov 19) | Deliberate rollback (0.1.7)                                                                                                                                |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01:09:02           | Download kept, SHA-256 as built                                                                                                                            |
+| 01:09:16           | Install approved from 0.1.6, layout 79, backup `pre-upgrade-v79-2026-11-19T01-09-07-375Z-s3b135828`                                                        |
+| 01:09:17           | Helper (from `updates\rollback\0.1.6`) took over; its working folder was the studio folder                                                                 |
+| 01:09:27           | 0.1.7's rehearsal on a copy failed on the planted migration; the real database was not changed                                                             |
+| 01:09:38           | **rolled_back**: `restore_attempts` 1, `restore_wait_seconds` 0 (part 2: 61 attempts, 180 s, failed)                                                       |
+| 01:09:39           | 0.1.6 ran from the install folder again, health ok, layout 79, the same 4 databases as in the backup; `failed.json` = 0.1.7; Check no longer offered 0.1.7 |
+
+| Time (UTC, Nov 19) | Restart during the update (0.1.8)                                                                                                                                  |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 01:15:25           | Download kept, SHA-256 as built                                                                                                                                    |
+| 01:15:36           | Install approved from 0.1.6, backup `pre-upgrade-v79-2026-11-19T01-15-27-551Z-s3b135828`                                                                           |
+| 01:15:39–41        | Installer wrote 0.1.8; 0.1.8 started; `pending.json` reached `starting`, and the trial's watcher forced a Windows restart (`Restart-Computer -Force`)              |
+| 01:16:19           | Windows booted                                                                                                                                                     |
+| 01:19:02–05        | Jordan opened Creator Agent; 0.1.8 ran and recorded **update_confirmed** with `helper_gone: true`; pending `confirmed`; health ok, layout 79, the same 4 databases |
+
+The restart came from the trial's one-off watcher (scheduled task, deleted afterwards), not from the app; no update needs a restart. Owner decision (Jordan, November 19): if an update ever needs one, the app must say so first and offer "Restart now" or "Later", never restart on its own.
+
+Leftover found: `creator-desktop.exe.failed` from part 2 survived the hand installs and the saved copy made from that folder. The installed app now removes it at start (follow-up PR), and the "0.1.7 is not above 0.1.7" wording is replaced by "Version 0.1.7 did not start earlier and was rolled back…". Releases `v0.1.7` and `v0.1.8` remain published in the private repository; the installed app is the trial build 0.1.8, so the next real release must be 0.1.9 or higher.
