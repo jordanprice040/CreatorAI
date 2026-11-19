@@ -133,7 +133,9 @@ fn resume_rollback(sup: &Supervisor, paths: &Paths, id: &str) {
     );
     let r = save_stage(paths, &mut p, "resuming_rollback", &going_back).and_then(|_| {
         let mut cmd = Command::new(&helper);
-        cmd.arg("--resume-rollback").arg(id);
+        cmd.arg("--resume-rollback")
+            .arg(id)
+            .current_dir(&sup.home.root);
         spawn_detached(&mut cmd)
             .map(|_| ())
             .map_err(|_| format!("Could not start {}", helper.display()))
@@ -444,7 +446,9 @@ pub fn install(sup: &Shared) -> Result<Value, String> {
             std::fs::copy(rollback_dir.join(&exe_name), &helper)
                 .map_err(|_| "Could not prepare the update step")?;
             let mut cmd = Command::new(&helper);
-            cmd.arg("--apply-update").arg(&id);
+            cmd.arg("--apply-update")
+                .arg(&id)
+                .current_dir(&sup.home.root);
             spawn_detached(&mut cmd).map_err(|_| "Could not start the update step")?;
             Ok(())
         };
@@ -616,7 +620,8 @@ impl RealSteps {
         Ok((c, url))
     }
     fn spawn(&mut self, exe: &Path) -> Result<Child, String> {
-        spawn_detached(&mut Command::new(exe))
+        // Live trial part 2: never in the install folder, which a rollback renames.
+        spawn_detached(Command::new(exe).current_dir(&self.home.root))
             .map_err(|_| format!("Could not start {}", exe.display()))
     }
 }
@@ -648,6 +653,7 @@ impl Steps for RealSteps {
         // NSIS silent install for the current user; it never asks for administrator rights.
         let mut child = Command::new(installer)
             .arg("/S")
+            .current_dir(&self.home.root)
             .spawn()
             .map_err(|_| "the installer could not be started".to_string())?;
         let deadline = Instant::now() + Duration::from_secs(15 * 60);

@@ -211,6 +211,35 @@ impl Probes {
     }
 }
 
+/// F4 live trial part 2 (November 18): Windows refuses to rename a folder that is any running
+/// program's working folder, and a rollback renames the install folder. A Start menu launch
+/// starts in the install folder, and every child inherited it: the update helper, the new
+/// version and the wrapper pg_ctl leaves running beside PostgreSQL. So each launch first moves
+/// to the studio's own folder (or the temp folder if that sits inside the install folder).
+fn work_dir(root: &std::path::Path, exe_dir: Option<&std::path::Path>) -> std::path::PathBuf {
+    match exe_dir {
+        Some(d)
+            if update_run::is_inside(root, d) || {
+                let n = |p: &std::path::Path| p.to_string_lossy().to_lowercase();
+                n(root) == n(d)
+            } =>
+        {
+            std::env::temp_dir()
+        }
+        _ => root.to_path_buf(),
+    }
+}
+
+fn leave_install_folder(root: &std::path::Path) {
+    let exe_dir = std::env::current_exe()
+        .ok()
+        .and_then(|e| e.parent().map(std::path::Path::to_path_buf));
+    let dir = work_dir(root, exe_dir.as_deref());
+    if std::env::set_current_dir(&dir).is_err() {
+        let _ = std::env::set_current_dir(std::env::temp_dir());
+    }
+}
+
 fn studio_root() -> Result<std::path::PathBuf, String> {
     Ok(match std::env::var("CREATOR_STUDIO_HOME") {
         Ok(p) if !p.is_empty() => std::path::PathBuf::from(p),
@@ -569,7 +598,10 @@ fn main() {
         let resume = args[i] == "--resume-rollback";
         let id = args.get(i + 1).cloned().unwrap_or_default();
         let r = if id.len() == 16 && id.chars().all(|c| c.is_ascii_hexdigit()) {
-            studio_root().and_then(|root| update_run::helper(root, &id, resume))
+            studio_root().and_then(|root| {
+                leave_install_folder(&root);
+                update_run::helper(root, &id, resume)
+            })
         } else {
             Err("Malformed update id".into())
         };
@@ -615,6 +647,9 @@ fn main() {
         }
     }
     let home = root.map(|r| r.and_then(home::Home::new));
+    if let Some(Ok(h)) = &home {
+        leave_install_folder(&h.root);
+    }
     // A studio folder that cannot be used (e.g. redirected into another app's package by an
     // MSIX container, pilot F14) is refused here in words, before any window or service.
     #[cfg(windows)]
@@ -753,6 +788,50 @@ fn main() {
 }
 #[cfg(test)]
 mod tests {
+    // F4 live trial part 2: the working folder is never the install folder or inside it.
+    #[test]
+    fn work_folder_is_the_studio_folder_never_the_install_folder() {
+        let p = std::path::Path::new;
+        let (root, app) = (
+            p("/u/local/com.creatoragent.studio"),
+            p("/u/local/Creator Agent"),
+        );
+        assert_eq!(work_dir(root, Some(app)), root);
+        assert_eq!(work_dir(root, None), root);
+        for odd in [
+            p("/u/local/Creator Agent"),
+            p("/u/local/creator agent/data"),
+        ] {
+            assert_eq!(
+                work_dir(odd, Some(app)),
+                std::env::temp_dir(),
+                "{}",
+                odd.display()
+            );
+        }
+    }
+    // Owner decision (November 19): the installer's "already installed" page picks "Do not
+    // uninstall" for an upgrade. The template is Tauri's own for the pinned CLI, so a CLI
+    // upgrade must bring a fresh copy of it.
+    #[test]
+    fn the_installer_keeps_the_installed_version_by_default() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let read = |p: &str| std::fs::read_to_string(dir.join(p)).unwrap();
+        let conf: serde_json::Value =
+            serde_json::from_str(&read("tauri.local-bundle.conf.json")).unwrap();
+        assert_eq!(
+            conf["bundle"]["windows"]["nsis"]["template"],
+            "nsis/installer.nsi"
+        );
+        let nsi = read("nsis/installer.nsi");
+        assert!(nsi.contains("tauri-cli v2.12.3"));
+        assert!(nsi.contains("StrCpy $ReinstallPageCheck 2"));
+        let pkg: serde_json::Value = serde_json::from_str(&read("../package.json")).unwrap();
+        assert_eq!(
+            pkg["devDependencies"]["@tauri-apps/cli"], "2.12.3",
+            "a new Tauri CLI needs its own copy of the installer template"
+        );
+    }
     use super::*;
     #[test]
     fn navigation_refuses_other_origins_and_credentials() {

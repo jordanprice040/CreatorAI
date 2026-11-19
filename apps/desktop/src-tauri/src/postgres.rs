@@ -87,6 +87,11 @@ impl Cluster {
     fn pg_ctl(&self) -> Command {
         let mut c = Command::new(self.bin.join("pg_ctl.exe"));
         quiet(&mut c);
+        // F4 live trial part 2: the wrapper pg_ctl leaves running beside the server keeps this
+        // working folder; never the app's install folder, which a rollback renames.
+        if let Some(parent) = self.data.parent().filter(|p| p.is_dir()) {
+            c.current_dir(parent);
+        }
         // pg_ctl's server inherits handles; null stdio keeps it from holding our pipes.
         c.stdin(Stdio::null())
             .stdout(Stdio::null())
