@@ -61,6 +61,10 @@ thesis needs an owner decision now, given the December 2 defense: a reduced-scop
 empirical study. Do not automatically install, publish, run a live provider or advance the pilot or thesis. Accepted
 owner decisions and existing scoped grants remain authoritative.
 
+## November 19 handoff — thesis draft 2 (docs only, no migration or ADR)
+
+`docs/thesis/` draft 2 describes main `b9270db` under Jordan's November 19 scope: an engineering thesis on executed evidence, plus a small frozen AI-only run reported alone (placeholder Section 6 / E19, no results), with the three-arm study as future work. Evidence E10–E19 are added; the live autopilot reports are copied with hashes into `tracking/evidence/thesis-draft-2-2026-11-19/`, together with a full `pnpm test:db` log (1,527 tests, 1,490 pass, 32 skipped, only the 5 known PowerShell-wrapper failures). Next for the thesis: fill Section 6 from the AI-only run's frozen protocol and records only; commit the PC-only P13 autopilot evidence (E13); write related work; format the draft; get committee review; rehearse the defense.
+
 ## November 17 handoff — seed commands take a workspace name (no migration or ADR)
 
 Branch `claude/project-thread-68dx3w`. `apps/cli/src/index.ts`: `seedDiscovery(call, name)` was already parameterised; `seedSelection(call, name)` now takes a name too, and the `seed-discovery` / `seed-selection` cases pass `seedName(rest)`: one argument (trimmed; empty falls back to the default name), more than one refused with a quoting hint (review 1 L-2). Usage text and `docs/LOCAL_DEVELOPMENT.md` updated. `tests/src/studio-builds.test.ts` covers the name and the refusal (review 1 L-1). The meeting demo studio on Jordan's PC (`C:\dev\creator_agent_demo`, database `creator_demo`, start with `Start-Demo.cmd`) can be removed on Jordan's say-so. Next free numbers unchanged: ADR-0132, migration 79.
