@@ -825,7 +825,13 @@ mod tests {
         );
         let nsi = read("nsis/installer.nsi");
         assert!(nsi.contains("tauri-cli v2.12.3"));
-        assert!(nsi.contains("StrCpy $ReinstallPageCheck 2"));
+        // The marked block, not Tauri's own `StrCpy $ReinstallPageCheck 2` elsewhere.
+        assert!(
+            nsi.contains(
+                "    ; version by default (\"Do not uninstall\"), as the in-app update does.\n    ${If} $ReinstallPageCheck == \"\"\n      StrCpy $ReinstallPageCheck 2\n    ${EndIf}"
+            ),
+            "the installer's upgrade page must default to Do not uninstall"
+        );
         let pkg: serde_json::Value = serde_json::from_str(&read("../package.json")).unwrap();
         assert_eq!(
             pkg["devDependencies"]["@tauri-apps/cli"], "2.12.3",
