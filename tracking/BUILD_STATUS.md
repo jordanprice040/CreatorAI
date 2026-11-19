@@ -67,6 +67,8 @@ What now works: `docs/thesis/` draft 2 describes main `b9270db` under Jordan's N
 
 Checked in the cloud container: every relative link in `docs/thesis/` resolves; `prettier --check docs` passes. Full `pnpm test:db` on main `b9270db` (PostgreSQL 16 throwaway server): 1,527 tests, 1,490 pass, 32 skipped, only the 5 known PowerShell-wrapper failures (441, 459, 889, 893, 988); log in the evidence folder.
 
+Review 1 (2 High, 4 Medium, 8 Low, 8 nits; `/mnt/project-files/reviews/PR248_THESIS_DRAFT2_REVIEW_1_2026-11-19.md`) fixed: the draft now reports the routine-approval defect of the first autopilot runs, ADR-0115 and the relaxed answer form `p14-xl-v1` was graded under, the live repairs of packet A4, `p14-xl-v1`'s raised caps and 6 benchmark requests, the studio-side causes of the ledger v2/v3 failures, the autopilot stops that came from defects, where each typed approval is recorded, the manual reinstalls after the failed rollbacks, and the nits. The 5 backup tests skipped for an unset `CREATOR_PG_BIN` were rerun with it set: `studio-service.test.js` 15/15.
+
 Not done: the AI-only run (designed separately; its live run needs Jordan's typed OK); the P13 autopilot primary records on Jordan's PC (E13, Needed); related work, formatting, committee review and the defense rehearsal.
 
 ## November 17 update — sample seed commands take a workspace name (no migration or ADR)

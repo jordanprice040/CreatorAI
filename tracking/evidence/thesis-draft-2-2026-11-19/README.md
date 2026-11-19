@@ -18,6 +18,17 @@ which need PowerShell, not installed in the container. Because `pnpm test` stopp
 `pnpm test:dev-safety` did not run. The skips are tests whose prerequisites are absent here (for example the
 real WSL2 worker on Windows). No Windows, Rust desktop or real-worker test ran.
 
+The log itself does not record the commit; the commit above comes from `git rev-parse HEAD` taken just
+before the run (review 1 N-5). Later logs in this folder start with that line.
+
+Review 1 L-8: 5 of the 32 skips were the backup and upgrade-rehearsal tests in `studio-service.test.js`
+("CREATOR_PG_BIN not set: pg_dump needed"), a configuration skip, not a missing prerequisite. Rerun on
+November 19 at about 02:18 UTC with `CREATOR_PG_BIN=/usr/lib/postgresql/16/bin` on the same code (this PR changes
+no code): [backup-tests-pg-bin.log](backup-tests-pg-bin.log), 15 tests, 15 pass, 0 skipped, including all 5
+(verified backup before upgrade, adoption through a verified backup, failed rehearsal leaves the database
+unchanged, rehearsal refuses fewer rows or a broken audit chain, backup then restore for a rollback).
+SHA-256 `62c78d873ef9f6105922ba2296024918db30a453e8f1d16e43701e4c88f944ed`.
+
 ## Live autopilot reports (E13)
 
 `autopilot-live-reports/` holds byte-for-byte copies of the four run reports written at the time of the

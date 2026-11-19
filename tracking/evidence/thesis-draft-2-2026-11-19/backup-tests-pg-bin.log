@@ -1,0 +1,102 @@
+HEAD 804b969a834eac6964560016e2e6b964d38ade94 (code identical to b9270db; this PR changes docs only)
+CREATOR_PG_BIN=/usr/lib/postgresql/16/bin
+TAP version 13
+# Subtest: studio input refuses relative paths, unknown fields and a wrong protocol
+ok 1 - studio input refuses relative paths, unknown fields and a wrong protocol
+  ---
+  duration_ms: 2.663565
+  type: 'test'
+  ...
+# Subtest: studio input starts the live adapter and approves only owner-named host names
+ok 2 - studio input starts the live adapter and approves only owner-named host names
+  ---
+  duration_ms: 2.837194
+  type: 'test'
+  ...
+# Subtest: UI origin serves the built app, falls back for routes and refuses traversal and foreign hosts
+ok 3 - UI origin serves the built app, falls back for routes and refuses traversal and foreign hosts
+  ---
+  duration_ms: 51.754447
+  type: 'test'
+  ...
+# Subtest: installed studio: new studio, serve, sign in, record survives quit and relaunch
+ok 4 - installed studio: new studio, serve, sign in, record survives quit and relaunch
+  ---
+  duration_ms: 2914.587824
+  type: 'test'
+  ...
+# Subtest: an occupied port is reported, never shared, and nothing else starts serving
+ok 5 - an occupied port is reported, never shared, and nothing else starts serving
+  ---
+  duration_ms: 1081.423517
+  type: 'test'
+  ...
+# Subtest: a database another studio holds is refused before any port is taken (ADR-0108)
+ok 6 - a database another studio holds is refused before any port is taken (ADR-0108)
+  ---
+  duration_ms: 1244.473583
+  type: 'test'
+  ...
+# Subtest: a serving studio stops if another studio takes its database while its lock connection is down (review 2 L-1)
+ok 7 - a serving studio stops if another studio takes its database while its lock connection is down (review 2 L-1)
+  ---
+  duration_ms: 1154.190057
+  type: 'test'
+  ...
+# Subtest: unreachable database is an actionable error, not a crash loop
+ok 8 - unreachable database is an actionable error, not a crash loop
+  ---
+  duration_ms: 348.296276
+  type: 'test'
+  ...
+# Subtest: upgrade takes a verified backup first, then migrates under the lock
+ok 9 - upgrade takes a verified backup first, then migrates under the lock
+  ---
+  duration_ms: 3677.316124
+  type: 'test'
+  ...
+# Subtest: adoption copies a studio through a verified backup and leaves the source untouched
+ok 10 - adoption copies a studio through a verified backup and leaves the source untouched
+  ---
+  duration_ms: 2917.551228
+  type: 'test'
+  ...
+# Subtest: inspectDatabase compares the set of applied migrations, not only the highest
+ok 11 - inspectDatabase compares the set of applied migrations, not only the highest
+  ---
+  duration_ms: 774.484606
+  type: 'test'
+  ...
+# Subtest: a failed rehearsal leaves the real database unchanged and drops the copy
+ok 12 - a failed rehearsal leaves the real database unchanged and drops the copy
+  ---
+  duration_ms: 4014.555885
+  type: 'test'
+  ...
+# Subtest: the rehearsal refuses a copy with fewer rows or a broken audit chain
+ok 13 - the rehearsal refuses a copy with fewer rows or a broken audit chain
+  ---
+  duration_ms: 5629.748015
+  type: 'test'
+  ...
+# Subtest: drop-rehearsals removes only leftover rehearsal copies of this database
+ok 14 - drop-rehearsals removes only leftover rehearsal copies of this database
+  ---
+  duration_ms: 1752.386993
+  type: 'test'
+  ...
+# Subtest: backup then restore puts a verified copy into a new database for a rollback
+ok 15 - backup then restore puts a verified copy into a new database for a rollback
+  ---
+  duration_ms: 4208.337861
+  type: 'test'
+  ...
+1..15
+# tests 15
+# suites 0
+# pass 15
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 30160.930082
