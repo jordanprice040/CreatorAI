@@ -4,5 +4,5 @@
   "request_timeout_ms": 600000,
   "context_tokens": null,
   "models": [],
-  "note": "ADR-0127 (F11 first slice). No model is pinned: downloading a model and checking this computer's hardware are device steps that need Jordan's typed OK. To pin one later, add {\"name\", \"digest\"} exactly as `GET /api/tags` lists them. Cloud models are refused. Not wired into any route yet."
+  "note": "ADR-0127 (F11 first slice). Address, timeout, context size and no pinned model confirmed by Jordan on 2026-11-17. No model is pinned: downloading a model and checking this computer's hardware are device steps that need Jordan's typed OK. To pin one later, add {\"name\", \"digest\"} exactly as `GET /api/tags` lists them. Cloud models are refused. Not wired into any route yet."
 }
