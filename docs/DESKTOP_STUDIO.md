@@ -191,7 +191,7 @@ upgraded, take that version's template and make the same changes; a test fails u
 Checks: `node --test tests/dist/studio-service.test.js` (set `CREATOR_TEST_DATABASE_URL`,
 `CREATOR_PG_BIN`; `CREATOR_TEST_STUDIO_BUNDLE` runs it against an installed bundle),
 `cargo test` in `apps/desktop/src-tauri` (outside Windows it also needs the GTK and WebKitGTK
-development packages; `icons/icon.png` is committed for it), and the scripted installed-app run
+development packages; `icons/icon.png`, the 64 px frame of `icons/icon.ico`, is committed for it and is not made by `scripts/brand-derived-assets.ps1`, so update it by hand when the icon changes), and the scripted installed-app run
 `node apps/desktop/studio-acceptance.mjs --pg-bin C:\pgsql18\pgsql\bin [--adopt-env <file>]`.
 
 ## Not covered

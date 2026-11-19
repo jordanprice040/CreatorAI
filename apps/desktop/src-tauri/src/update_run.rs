@@ -277,6 +277,11 @@ fn source(sup: &Shared) -> Result<Source, String> {
         .secrets
         .load(TOKEN)?
         .ok_or("Save a GitHub token with read access to the release repository first")?;
+    // Review of #250, nit 1: a classic token saved before the save-time check is refused here,
+    // so Check and Download say so instead of using it.
+    if update::classic_token(&token) {
+        return Err("The saved token is a classic GitHub token, which reaches every repository you can. Replace it with a fine-grained token (it starts with github_pat_) limited to the release repository, with read-only Contents.".into());
+    }
     Ok(Source::github(&s.repository, &token))
 }
 

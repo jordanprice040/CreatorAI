@@ -369,13 +369,17 @@ export function createBackups(o: {
         () => false,
       ));
       // Audit 2026-11-19 L-4: restore also accepts an existing folder holding no files; if it
-      // fails, what it copied there is removed again so the next attempt is not refused.
-      const wasEmpty =
-        !madeFolder &&
-        (await readdir(target, { recursive: true, withFileTypes: true }).then(
-          (list) => list.every((d) => d.isDirectory()),
-          () => false,
-        ));
+      // fails, what it copied there is removed again so the next attempt is not refused. The
+      // empty folders the person had made there stay (review of #250, nit 2).
+      const before = madeFolder
+        ? null
+        : await readdir(target, { recursive: true, withFileTypes: true }).then(
+            (list) =>
+              list.every((d) => d.isDirectory())
+                ? new Set(list.map((d) => join(d.parentPath, d.name)))
+                : null,
+            () => null,
+          );
       await checkTarget(url, input.database_name);
       const madeDb = await createDatabase(url, input.database_name);
       try {
@@ -417,14 +421,18 @@ export function createBackups(o: {
           : null;
         const dirGone = madeFolder
           ? await ok(rm(target, { recursive: true, force: true }))
-          : wasEmpty
+          : before
             ? await ok(
-                readdir(target).then((names) =>
-                  Promise.all(
-                    names.map((n) =>
-                      rm(join(target, n), { recursive: true, force: true }),
-                    ),
-                  ),
+                readdir(target, { recursive: true, withFileTypes: true }).then(
+                  async (list) => {
+                    // Shallowest first: removing a new folder takes what is inside it.
+                    const added = list
+                      .map((d) => join(d.parentPath, d.name))
+                      .filter((p) => !before.has(p))
+                      .sort((a, b) => a.length - b.length);
+                    for (const p of added)
+                      await rm(p, { recursive: true, force: true });
+                  },
                 ),
               )
             : null;

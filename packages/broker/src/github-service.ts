@@ -323,7 +323,7 @@ export class GitHubService {
           throw new ContractError(
             'EVIDENCE_MISMATCH',
             e instanceof TooManyPathsError
-              ? `${e.message} Split it into smaller pushes.`
+              ? `${e.message} Push fewer changes at a time; a new branch lists every file it holds, so push a large repository's first commit outside the studio.`
               : 'The commit or its base is not in the product’s local repository.',
           );
         }

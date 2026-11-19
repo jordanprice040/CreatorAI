@@ -190,6 +190,12 @@ pub fn valid_repository(r: &str) -> Result<(), String> {
     }
 }
 
+/// A classic personal token (`ghp_`) or an OAuth app token (`gho_`): neither can be limited to
+/// one repository.
+pub fn classic_token(t: &str) -> bool {
+    t.starts_with("ghp_") || t.starts_with("gho_")
+}
+
 /// A GitHub token as GitHub issues them; never logged or shown. Audit 2026-11-19 L-2: a
 /// classic personal token (`ghp_`) or an OAuth app token (`gho_`) cannot be limited to the
 /// release repository, so it would carry access to every repository; it is refused for a
@@ -200,7 +206,7 @@ pub fn valid_token(t: &str) -> Result<(), String> {
     if !ok {
         return Err("That does not look like a GitHub token (letters, digits and _ only)".into());
     }
-    if t.starts_with("ghp_") || t.starts_with("gho_") {
+    if classic_token(t) {
         return Err("That is a classic GitHub token, which reaches every repository you can. Create a fine-grained token (it starts with github_pat_) limited to the release repository, with read-only Contents.".into());
     }
     Ok(())
@@ -1238,6 +1244,7 @@ mod tests {
         assert!(valid_token("short").is_err());
         assert!(valid_token(&format!("ghp_{} x", "a".repeat(30))).is_err());
         // Audit 2026-11-19 L-2: classic and OAuth tokens cannot be limited to one repository.
+        assert!(!classic_token(&format!("github_pat_{}", "a".repeat(30))));
         for classic in ["ghp_", "gho_"] {
             let e = valid_token(&format!("{classic}{}", "a".repeat(36))).unwrap_err();
             assert!(e.contains("fine-grained"), "{e}");

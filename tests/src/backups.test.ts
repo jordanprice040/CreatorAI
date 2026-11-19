@@ -420,7 +420,8 @@ test('F1-1: owner backs up from Settings (same manifest as pnpm backup), checks 
       kept.error ?? '',
       /files copied into folder .* were removed\./,
     );
-    assert.deepEqual(await readdir(keptFolder), []);
+    assert.deepEqual(await readdir(keptFolder), ['empty-sub']);
+    assert.deepEqual(await readdir(join(keptFolder, 'empty-sub')), []);
   }
 });
 
