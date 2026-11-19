@@ -45,3 +45,7 @@ Academic: obtain review and required revisions, add source-checked scholarly rel
 Operational: this is a local prototype with documented threat-model limits, not a production security certification or full product parity. A source archive is not an installer. External deployment, public release and outbound distribution require their own scoped authorization.
 
 Next eligible work is the specific unresolved acceptance or research item the owner chooses. There is no automatic next milestone or extension activation.
+
+## November 19, 2026 addendum (draft 2)
+
+This record still describes the October 18 candidate `3e9026f` and its archive; nothing in it is re-run or re-hashed. The studio has changed a great deal since (main `b9270db`, schema 79), and several items listed above as outside the acceptance claim now have later evidence: remote GitHub workflows (live token and GitHub App trials, partly tested), native Windows desktop operation (installed app with in-app updates proven live on November 19), and qualified model roles (live qualifications on frozen held-out benchmarks). That evidence is in [E10–E18](EVIDENCE.md) and is not part of this archive. A new archive for the draft 2 candidate has not been built. Academic acceptance, committee review and the research items above remain open; the comparative study is now proposed future work under the owner's November 19 scope.
