@@ -12,4 +12,6 @@ Source snapshot: upstream `3e9026f` (T16 merge); local working HEAD `38b3e46` pr
 
 Jordan confirmed on November 19, 2026: the defense is on December 2, 2026 and the submission deadline is December 7, 2026. Defense time and location, committee review turnaround and university formatting requirements are still unrecorded. The historical week-of-November-30 suggestion is superseded. The separate CIS4914 presentation is not a thesis deadline.
 
+**Thesis scope (Jordan, November 19, 2026):** an engineering thesis on executed evidence, plus one small autonomous-only run on six held-out build tasks, frozen before any run and reported as the AI arm alone, not as a comparison. Its frozen protocol is [AI_ONLY_RUN_PROTOCOL.md](AI_ONLY_RUN_PROTOCOL.md) (ADR-0133). It has not been run; the live run needs Jordan's typed OK.
+
 Next eligible prompt: T19, only on a new request and with these missing-data limits retained; it cannot honestly claim final thesis acceptance or a completed participant study. The empirical branch instead requires recorded research decisions, adopted freeze, verified live prerequisites, final runs and independent ratings before T15/T16 can be completed.

@@ -1,0 +1,11 @@
+{
+  "format": "recipe-benchmark-freeze/1",
+  "benchmark_id": "ai-run-shifts-v1",
+  "files": {
+    "expectations.json": "af6c57b6f3554eb737207318a17d70f1272daa2b316e749e86f5257848ced8f0",
+    "extended-cases.json": "2a4da870ee9a7bbb1308c31f06c4a6705536a29fc823b63d76a7b300e38bab5b",
+    "reference/src/main.py": "38da14c6358d1cfe18afde3898a7aef9a4455f5ecc461f653bb997be092b7b10",
+    "spec.json": "05967da0b5e869fba5cad60b1f6e2b2db1530a6aaa875d61f16b97c04ecf0e8f",
+    "scorer:recipe-scoring.ts": "2ea55f832b7b8ae7422f87191a48568393572fba51548d08b5ff00bbbc2fbd28"
+  }
+}

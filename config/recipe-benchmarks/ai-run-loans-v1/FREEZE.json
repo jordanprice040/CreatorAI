@@ -1,0 +1,18 @@
+{
+  "format": "recipe-benchmark-freeze/1",
+  "benchmark_id": "ai-run-loans-v1",
+  "files": {
+    "expectations.json": "420415d4b57e19ce47588742f1934c5cf93a378fb7eeac8cb18912cd54395a14",
+    "extended-cases.json": "3a36ca91fd762a57cdb066531f3e1fe0b922d3485344240bb51bb0dc35be1a06",
+    "reference/src/loans/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "reference/src/loans/cli.py": "6c9c466b5246aacaee225afc715c15900c96e4749d40d3336054893902241f6b",
+    "reference/src/loans/desk.py": "61a9fa424c3596182c42615c054e70719a33ca0f97c5f8b5c32183ea0dc5bbdb",
+    "reference/src/loans/money.py": "f27d81ce7288bc84fa25bce160a72ea0f4972aeab14cb9552c0d3de0d72b8b84",
+    "reference/src/loans/report.py": "f8bd7d4e067746ab424f2914b369a624cb8c0dac8597a16914f2b9c381bef86b",
+    "reference/src/loans/script.py": "8e9259be81ed8009145cd46ee4ce0c83c0090e7a1a7ac616abc9fb70e819ed2a",
+    "reference/src/main.py": "f661e41df7faf6efb719d405b93d308b84178ada1bcb95d7747fac38d31441b3",
+    "spec.json": "d5d1bf9c5f7e8f21473ba4c39e2e5d96c1b8694151dcca7305473edcdbee362d",
+    "scorer:recipe-scoring.ts": "2ea55f832b7b8ae7422f87191a48568393572fba51548d08b5ff00bbbc2fbd28",
+    "scorer:recipe-structure.ts": "ce27c67a46ebdc9234295dd1e80303b4ac0ea20b8dde5b320d24777113899d31"
+  }
+}

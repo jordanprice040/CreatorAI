@@ -1,0 +1,258 @@
+{
+  "format": "p14-benchmark-spec/1",
+  "benchmark_id": "ai-run-grades-v1",
+  "scale": "small",
+  "title": "Weighted gradebook (AI-only run task S3)",
+  "content": {
+    "audience": "Synthetic study task for the thesis AI-only run: a teacher computing final grades",
+    "problem_statement": "Compute each student's weighted final grade from a CSV of quiz, exam and project scores, with the lowest quiz dropped, exact half-up rounding, letter grades, an optional curve and the class average. This is a frozen synthetic task for the thesis AI-only run, not a customer product.",
+    "user_flows": [
+      {
+        "key": "F1",
+        "name": "Final grades",
+        "steps": [
+          "Pipe the score CSV into the CLI",
+          "Read each student's final grade and letter, best first, and the class average"
+        ]
+      },
+      {
+        "key": "F2",
+        "name": "Curve",
+        "steps": [
+          "Run with --curve N",
+          "Read the grades with N points added"
+        ]
+      },
+      {
+        "key": "F3",
+        "name": "Bad CSV",
+        "steps": [
+          "Pipe a CSV with a wrong header or row",
+          "Read the error naming the line and exit status 1"
+        ]
+      },
+      {
+        "key": "F4",
+        "name": "Bad arguments",
+        "steps": [
+          "Run with an argument the CLI does not accept",
+          "Read invalid arguments and exit status 2"
+        ]
+      }
+    ],
+    "scope": [
+      "Python 3.8+ standard library only, entry point src/main.py, all code under src",
+      "Read all of stdin and split it into lines on \\n, numbered from 1. If the text ends with \\n, the empty piece after it is not a line",
+      "Line 1 must be the header student,kind,score (leading and trailing whitespace ignored); otherwise, or when there is no line at all, print exactly: error: line 1 and exit 1",
+      "Each later line, trimmed, is skipped when empty",
+      "Otherwise it has exactly three comma-separated cells, each trimmed: student (a lowercase letter followed by up to 19 lowercase letters, digits or underscores), kind (quiz, exam or project) and score (an integer 0 to 100 written without leading zeros or sign)",
+      "A bad row prints exactly: error: line N (N its line number), prints nothing else, and exits 1. Only the first bad line is reported",
+      "For each student and kind, the kind's score is the mean of that student's scores of that kind. If a student has 3 or more quiz scores, drop exactly one lowest quiz score before taking the quiz mean",
+      "The final grade is 0.3 x quiz + 0.5 x exam + 0.2 x project, computed exactly. A kind with no scores counts as 0 and the student is incomplete",
+      "Round the final grade half up to one decimal place, exactly (for example 84.25 becomes 84.3 and 84.249 becomes 84.2). Do not use binary floating point for this",
+      "--curve N (an integer 0 to 10) adds N to every rounded final grade, at most 100.0. Without it N is 0",
+      "The letter comes from the curved grade: A at 90.0 or above, B at 80.0, C at 70.0, D at 60.0, otherwise F",
+      "Print one line per student: student, space, curved grade with exactly one decimal, space, letter, and the word incomplete after one more space if incomplete. Order by curved grade descending, then student name ascending (plain string order)",
+      "Then print class average X, where X is the mean of the printed curved grades rounded half up to one decimal. With a header but no data rows print exactly: no students. Each output line ends with \\n. Exit 0",
+      "Arguments are either none or exactly --curve N. Anything else prints exactly: invalid arguments, then \\n, and exits 2",
+      "No files, network, environment variables or third-party packages"
+    ],
+    "non_goals": [
+      "Other weights or kinds",
+      "Quoted CSV cells",
+      "Reading files",
+      "Web UI",
+      "Public release"
+    ],
+    "data_contracts": [
+      {
+        "name": "grades/1",
+        "description": "Synthetic score CSV on stdin; plain text grades on stdout",
+        "data_class": "synthetic"
+      }
+    ],
+    "acceptance_checks": [
+      {
+        "key": "A1",
+        "flow": "F1",
+        "statement": "Final grades, letters, order and class average follow the weighting and rounding rules",
+        "measure": "Exact output and exit status",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [],
+            "stdin": "student,kind,score\nana,quiz,80\nana,exam,90\nana,project,70\nbo,quiz,100\nbo,exam,60\nbo,project,100\n",
+            "stdout": "ana 83.0 B\nbo 80.0 B\nclass average 81.5\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "student,kind,score\ncy,quiz,50\ncy,quiz,100\ncy,quiz,90\ncy,exam,80\ncy,project,85\n",
+            "stdout": "cy 85.5 B\nclass average 85.5\n",
+            "exit_code": 0,
+            "held_out": true
+          },
+          {
+            "args": [],
+            "stdin": "student,kind,score\ndee,exam,95\ndee,quiz,90\n",
+            "stdout": "dee 74.5 C incomplete\nclass average 74.5\n",
+            "exit_code": 0,
+            "held_out": true
+          },
+          {
+            "args": [],
+            "stdin": "student,kind,score\neve,quiz,75\neve,exam,85\neve,project,90\nfay,quiz,85\nfay,exam,79\nfay,project,90\n",
+            "stdout": "eve 83.0 B\nfay 83.0 B\nclass average 83.0\n",
+            "exit_code": 0,
+            "held_out": true
+          },
+          {
+            "args": [],
+            "stdin": "student,kind,score\ngil,quiz,81\ngil,quiz,82\ngil,exam,80\ngil,project,80\n",
+            "stdout": "gil 80.5 B\nclass average 80.5\n",
+            "exit_code": 0,
+            "held_out": true
+          },
+          {
+            "args": [],
+            "stdin": "student,kind,score\nhal,quiz,60\nhal,quiz,60\nhal,quiz,90\nhal,exam,70\nhal,project,70\n",
+            "stdout": "hal 71.5 C\nclass average 71.5\n",
+            "exit_code": 0,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A2",
+        "flow": "F2",
+        "statement": "--curve adds points before the letter, capped at 100.0",
+        "measure": "Exact output and exit status",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [
+              "--curve",
+              "5"
+            ],
+            "stdin": "student,kind,score\nana,quiz,80\nana,exam,90\nana,project,80\n",
+            "stdout": "ana 90.0 A\nclass average 90.0\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": [
+              "--curve",
+              "10"
+            ],
+            "stdin": "student,kind,score\nbo,quiz,95\nbo,exam,96\nbo,project,99\ncy,quiz,40\ncy,exam,50\ncy,project,60\n",
+            "stdout": "bo 100.0 A\ncy 59.0 F\nclass average 79.5\n",
+            "exit_code": 0,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A3",
+        "flow": "F3",
+        "statement": "A wrong header or bad row prints the error for the first bad line and exits 1",
+        "measure": "Exact output and exit status",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [],
+            "stdin": "name,kind,score\nana,quiz,80\n",
+            "stdout": "error: line 1\n",
+            "exit_code": 1,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "student,kind,score\nana,quiz,80\n\nbo,test,90\n",
+            "stdout": "error: line 4\n",
+            "exit_code": 1,
+            "held_out": true
+          },
+          {
+            "args": [],
+            "stdin": "student,kind,score\nana,quiz,080\n",
+            "stdout": "error: line 2\n",
+            "exit_code": 1,
+            "held_out": true
+          },
+          {
+            "args": [],
+            "stdin": "",
+            "stdout": "error: line 1\n",
+            "exit_code": 1,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A4",
+        "flow": "F4",
+        "statement": "Invalid arguments print invalid arguments and exit 2",
+        "measure": "Exact output and exit status",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [
+              "--curve",
+              "11"
+            ],
+            "stdin": "student,kind,score\n",
+            "stdout": "invalid arguments\n",
+            "exit_code": 2,
+            "held_out": false
+          },
+          {
+            "args": [
+              "--bonus",
+              "1"
+            ],
+            "stdin": "student,kind,score\n",
+            "stdout": "invalid arguments\n",
+            "exit_code": 2,
+            "held_out": true
+          }
+        ]
+      }
+    ],
+    "risks": [
+      {
+        "risk": "Six tasks written by one author do not establish general build quality",
+        "mitigation": "Report results only for these frozen tasks, this route, model and role prompts, as the AI-only arm alone"
+      },
+      {
+        "risk": "Held-out cases leak to the builder",
+        "mitigation": "The studio hides held-out studio cases from builder and reviewer; extended cases are never entered into the studio; the repository copy is never sent to runtime roles"
+      }
+    ],
+    "maintenance": {
+      "owner": "Jordan (study owner)",
+      "obligations": [
+        "Keep this frozen version unchanged; a change needs a new version and is reported as a deviation"
+      ],
+      "review_interval": "Not reviewed during the run; frozen until the thesis is submitted"
+    },
+    "tasks": [
+      {
+        "key": "T1",
+        "title": "Implement the gradebook CLI",
+        "role": "builder",
+        "file_scope": [
+          "src"
+        ],
+        "depends_on": [],
+        "acceptance": [
+          "A1",
+          "A2",
+          "A3",
+          "A4"
+        ],
+        "deliverable": "src/main.py that passes every acceptance check"
+      }
+    ]
+  }
+}

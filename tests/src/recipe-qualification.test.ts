@@ -133,7 +133,8 @@ test('ADR-0105: each v5 benchmark is frozen, intact and loads with the studio li
     );
     assert.equal(
       recipeQualificationMaxRequests(b.info),
-      6 * b.info.caps.max_calls,
+      // ADR-0133: the thesis run's tasks have one attempt each.
+      2 * b.info.attempts * b.info.caps.max_calls,
     );
   }
   const offers = RecipeBenchmarkOffersSchema.parse(

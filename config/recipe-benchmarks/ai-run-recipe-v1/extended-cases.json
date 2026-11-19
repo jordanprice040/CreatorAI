@@ -1,0 +1,166 @@
+{
+  "benchmark_id": "ai-run-recipe-v1",
+  "cases": [
+    {
+      "id": "E1",
+      "args": [
+        "--scale",
+        "1/2"
+      ],
+      "stdin": "1 pc egg\n",
+      "stdout": "1/2 pc egg\n1 ingredient\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E2",
+      "args": [
+        "--scale",
+        "6"
+      ],
+      "stdin": "2 tsp salt\n",
+      "stdout": "4 tbsp salt\n1 ingredient\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E3",
+      "args": [
+        "--scale",
+        "2"
+      ],
+      "stdin": "999 g flour\n",
+      "stdout": "1 499/500 kg flour\n1 ingredient\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E4",
+      "args": [
+        "--scale",
+        "4"
+      ],
+      "stdin": "250 ml cream\n3 g yeast\n",
+      "stdout": "1 l cream\n12 g yeast\n2 ingredients\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E5",
+      "args": [
+        "--scale",
+        "2/3"
+      ],
+      "stdin": "3 tbsp honey\n",
+      "stdout": "2 tbsp honey\n1 ingredient\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E6",
+      "args": [
+        "--scale",
+        "12"
+      ],
+      "stdin": "4 tbsp cocoa\n",
+      "stdout": "3 cup cocoa\n1 ingredient\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E7",
+      "args": [
+        "--scale",
+        "5/2"
+      ],
+      "stdin": "1 1/5 cup oats\n",
+      "stdout": "3 cup oats\n1 ingredient\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E8",
+      "args": [],
+      "stdin": "0 cup flour\n",
+      "stdout": "invalid line 1\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E9",
+      "args": [],
+      "stdin": "01 cup flour\n",
+      "stdout": "invalid line 1\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E10",
+      "args": [],
+      "stdin": "1 cup Flour\n",
+      "stdout": "invalid line 1\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E11",
+      "args": [],
+      "stdin": "1 cup brown--sugar\n",
+      "stdout": "invalid line 1\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E12",
+      "args": [],
+      "stdin": "1 cup flour extra\n",
+      "stdout": "invalid line 1\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E13",
+      "args": [],
+      "stdin": "1 1 cup flour\n",
+      "stdout": "invalid line 1\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E14",
+      "args": [
+        "--scale",
+        "2",
+        "--scale",
+        "2"
+      ],
+      "stdin": "1 cup flour\n",
+      "stdout": "invalid arguments\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E15",
+      "args": [
+        "--scale",
+        "1/2"
+      ],
+      "stdin": "\n\n",
+      "stdout": "no ingredients\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E16",
+      "args": [],
+      "stdin": "  3  tsp   ground-black-pepper  \n",
+      "stdout": "1 tbsp ground-black-pepper\n1 ingredient\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E17",
+      "args": [
+        "--scale",
+        "9999"
+      ],
+      "stdin": "9999 kg rice\n",
+      "stdout": "99980001 kg rice\n1 ingredient\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E18",
+      "args": [
+        "--scale",
+        "2"
+      ],
+      "stdin": "1/2 l stock\n",
+      "stdout": "1 l stock\n1 ingredient\n",
+      "exit_code": 0
+    }
+  ]
+}

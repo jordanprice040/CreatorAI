@@ -1,0 +1,262 @@
+{
+  "format": "p14-benchmark-spec/1",
+  "benchmark_id": "ai-run-loans-v1",
+  "scale": "larger",
+  "title": "Library loans desk (AI-only run task L1)",
+  "content": {
+    "audience": "Synthetic study task for the thesis AI-only run: a small library replaying a day-by-day desk log",
+    "problem_statement": "Replay a library desk log of books, members, loans, returns, reservations and payments; refuse commands the rules do not allow, charge late fines, hold returned books for the next reservation, and print the final state as text or JSON. This is a frozen synthetic task for the thesis AI-only run, not a customer product.",
+    "user_flows": [
+      {
+        "key": "F1",
+        "name": "Replay a log",
+        "steps": [
+          "Pipe the desk log into the CLI",
+          "Read the refused commands and the final state of every book and member"
+        ]
+      },
+      {
+        "key": "F2",
+        "name": "Fines and payments",
+        "steps": [
+          "Return books late and pay fines",
+          "Read each member's balance"
+        ]
+      },
+      {
+        "key": "F3",
+        "name": "Reservations",
+        "steps": [
+          "Reserve a book that is out",
+          "Read that the returned book is held for the first reserver"
+        ]
+      },
+      {
+        "key": "F4",
+        "name": "JSON report",
+        "steps": [
+          "Run with --json",
+          "Read the same state as JSON"
+        ]
+      },
+      {
+        "key": "F5",
+        "name": "Bad input",
+        "steps": [
+          "Pipe a malformed line or pass a bad argument",
+          "Read the error and the exit status"
+        ]
+      }
+    ],
+    "scope": [
+      "Python 3.8+ standard library only, entry point src/main.py, all code under src. No files, network, environment variables or third-party packages. Amounts are exact cents, never floating point",
+      "Required structure: a package src/loans with __init__.py and the modules money, script, desk, report and cli, each with at least one top-level function (a def at module level; a def only inside a class does not count)",
+      "src/main.py imports from loans, and each module is imported by main.py or by another module of the package. Run as python3 -I src/main.py, which does not put src on the import path: main.py must add its own directory to sys.path before importing loans",
+      "Read all of stdin and split it into lines on \\n, numbered from 1 counting every line. Split each line into whitespace-separated fields; skip a line with no fields or whose first field starts with #",
+      "Commands (exact field counts): BOOK ID TITLE... (TITLE is every later field joined by single spaces, at least one), MEMBER ID NAME, DAY N, LEND BOOK MEMBER, RETURN BOOK, RESERVE BOOK MEMBER, PAY MEMBER AMOUNT",
+      "Book ids are B followed by 1 to 4 digits not starting with 0; member ids are M followed by 1 to 4 digits not starting with 0; NAME is 1 to 20 ASCII letters; N is 1 to 4 digits not starting with 0; AMOUNT is digits (0, or up to 6 digits not starting with 0), a dot and exactly 2 digits",
+      "Any other line (unknown command, wrong field count, a bad id, name, number or amount) is malformed: print exactly error: line N: malformed for the first one, print nothing else, and exit 1. The whole log is checked before anything is applied",
+      "Commands apply in order. A refused command changes nothing and is recorded with its line number and reason. Reasons are checked in the order listed for each command, and the first that applies is used",
+      "The day starts at 1. BOOK: duplicate if the book id exists; else the book is added, available. MEMBER: duplicate if the member id exists; else added, owing 0.00. DAY N: day-backwards if N is less than the current day; else the day becomes N",
+      "LEND: unknown-book, unknown-member, not-available (the book is on loan), held (the book is held for a different member), limit (the member already has 3 books on loan), owes-fines (the member owes more than 5.00)",
+      "A LEND that is not refused puts the book on loan to the member, due on the current day plus 14, and any hold on the book ends",
+      "RETURN: unknown-book, not-on-loan. Else the borrower is fined 0.25 for each day the current day is past the due day, at most 5.00 per return, added to what they owe",
+      "After a RETURN the book is no longer on loan; if its reservation queue is not empty, the first member in it is removed from the queue and the book is held for them. Holds never expire",
+      "RESERVE: unknown-book, unknown-member, not-on-loan (the book is neither on loan nor held), already-yours (the member is its borrower or the member it is held for), duplicate (the member is already in its queue). Else the member joins the end of the queue",
+      "PAY: unknown-member, overpay (the amount is more than the member owes). Else the amount is subtracted from what they owe. Arguments are none or exactly --json; anything else prints exactly invalid arguments, then \\n, and exits 2",
+      "Text report (no arguments): first one line per refused command, in order: line N: refused: REASON. Then day D. Then one line per book in order of the number in its id (see the next item), then one line per member in the same order",
+      "Book line: ID TITLE: available, or ID TITLE: held for MEMBER, or ID TITLE: on loan to MEMBER due DUE, followed by (overdue K) when the current day is K > 0 days past the due day. If its queue is not empty, add ; queue and the queued member ids in order, separated by comma and space",
+      "Member line: ID NAME: loans L, owes X.XX. Each output line ends with \\n. Exit 0. --json prints instead one JSON value, exactly as Python's json.dumps(value, indent=2) writes it, then \\n: an object with keys day, books, members, refused in that order",
+      "JSON books: in report order, objects with keys id, title, status (available, held or on_loan), member (the borrower, or the member it is held for, else null), due (a number while on loan, else null), queue (a list of member ids)",
+      "JSON members: objects with keys id, name, loans (a number), owes (a string such as 0.75), in report order. JSON refused: objects with keys line and reason, in order"
+    ],
+    "non_goals": [
+      "Hold expiry",
+      "Several copies of one book",
+      "Reading files",
+      "Persistence",
+      "Web UI",
+      "Public release"
+    ],
+    "data_contracts": [
+      {
+        "name": "loans/1",
+        "description": "Synthetic desk log on stdin; text or JSON report on stdout",
+        "data_class": "synthetic"
+      }
+    ],
+    "acceptance_checks": [
+      {
+        "key": "A1",
+        "flow": "F1",
+        "statement": "Loans, refusals and the report follow the rules",
+        "measure": "Exact output and exit status",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [],
+            "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\nLEND B1 M1\nLEND B1 M2\nLEND B9 M1\nDAY 3\nLEND B2 M1\n",
+            "stdout": "line 8: refused: not-available\nline 9: refused: unknown-book\nday 3\nB1 Dune: on loan to M1 due 15\nB2 Emma Woodhouse: on loan to M1 due 17\nB10 Kindred: available\nM1 Ana: loans 2, owes 0.00\nM2 Ben: loans 0, owes 0.00\nM3 Cy: loans 0, owes 0.00\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\n# books\nBOOK B1 Copy\nMEMBER M1 Again\nLEND B10 M9\nDAY 5\nDAY 2\nRETURN B2\n",
+            "stdout": "line 8: refused: duplicate\nline 9: refused: duplicate\nline 10: refused: unknown-member\nline 12: refused: day-backwards\nline 13: refused: not-on-loan\nday 5\nB1 Dune: available\nB2 Emma Woodhouse: available\nB10 Kindred: available\nM1 Ana: loans 0, owes 0.00\nM2 Ben: loans 0, owes 0.00\nM3 Cy: loans 0, owes 0.00\n",
+            "exit_code": 0,
+            "held_out": true
+          },
+          {
+            "args": [],
+            "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\nBOOK B4 D\nLEND B1 M1\nLEND B2 M1\nLEND B10 M1\nLEND B4 M1\nRETURN B2\nLEND B4 M1\n",
+            "stdout": "line 11: refused: limit\nday 1\nB1 Dune: on loan to M1 due 15\nB2 Emma Woodhouse: available\nB4 D: on loan to M1 due 15\nB10 Kindred: on loan to M1 due 15\nM1 Ana: loans 3, owes 0.00\nM2 Ben: loans 0, owes 0.00\nM3 Cy: loans 0, owes 0.00\n",
+            "exit_code": 0,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A2",
+        "flow": "F2",
+        "statement": "Late returns are fined 0.25 a day up to 5.00 and payments reduce what is owed",
+        "measure": "Exact output and exit status",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [],
+            "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\nLEND B1 M1\nDAY 18\nRETURN B1\nPAY M1 0.50\n",
+            "stdout": "day 18\nB1 Dune: available\nB2 Emma Woodhouse: available\nB10 Kindred: available\nM1 Ana: loans 0, owes 0.25\nM2 Ben: loans 0, owes 0.00\nM3 Cy: loans 0, owes 0.00\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\nLEND B1 M1\nLEND B2 M1\nDAY 60\nRETURN B1\nRETURN B2\nLEND B10 M1\nPAY M1 5.01\nPAY M1 4.00\nLEND B10 M1\n",
+            "stdout": "line 12: refused: owes-fines\nday 60\nB1 Dune: available\nB2 Emma Woodhouse: available\nB10 Kindred: on loan to M1 due 74\nM1 Ana: loans 1, owes 0.99\nM2 Ben: loans 0, owes 0.00\nM3 Cy: loans 0, owes 0.00\n",
+            "exit_code": 0,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A3",
+        "flow": "F3",
+        "statement": "Reservations queue, and a returned book is held for the first in the queue",
+        "measure": "Exact output and exit status",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [],
+            "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\nLEND B1 M1\nRESERVE B1 M2\nRESERVE B1 M3\nDAY 10\nRETURN B1\nLEND B1 M3\n",
+            "stdout": "line 12: refused: held\nday 10\nB1 Dune: held for M2; queue M3\nB2 Emma Woodhouse: available\nB10 Kindred: available\nM1 Ana: loans 0, owes 0.00\nM2 Ben: loans 0, owes 0.00\nM3 Cy: loans 0, owes 0.00\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\nRESERVE B1 M2\nLEND B1 M1\nRESERVE B1 M1\nRESERVE B1 M2\nRESERVE B1 M2\nRETURN B1\nRESERVE B1 M2\nLEND B1 M2\n",
+            "stdout": "line 7: refused: not-on-loan\nline 9: refused: already-yours\nline 11: refused: duplicate\nline 13: refused: already-yours\nday 1\nB1 Dune: on loan to M2 due 15\nB2 Emma Woodhouse: available\nB10 Kindred: available\nM1 Ana: loans 0, owes 0.00\nM2 Ben: loans 1, owes 0.00\nM3 Cy: loans 0, owes 0.00\n",
+            "exit_code": 0,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A4",
+        "flow": "F4",
+        "statement": "--json prints the same state in the frozen JSON shape",
+        "measure": "Exact output and exit status",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [
+              "--json"
+            ],
+            "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\nLEND B2 M1\nRESERVE B2 M3\nLEND B9 M1\n",
+            "stdout": "{\n  \"day\": 1,\n  \"books\": [\n    {\n      \"id\": \"B1\",\n      \"title\": \"Dune\",\n      \"status\": \"available\",\n      \"member\": null,\n      \"due\": null,\n      \"queue\": []\n    },\n    {\n      \"id\": \"B2\",\n      \"title\": \"Emma Woodhouse\",\n      \"status\": \"on_loan\",\n      \"member\": \"M1\",\n      \"due\": 15,\n      \"queue\": [\n        \"M3\"\n      ]\n    },\n    {\n      \"id\": \"B10\",\n      \"title\": \"Kindred\",\n      \"status\": \"available\",\n      \"member\": null,\n      \"due\": null,\n      \"queue\": []\n    }\n  ],\n  \"members\": [\n    {\n      \"id\": \"M1\",\n      \"name\": \"Ana\",\n      \"loans\": 1,\n      \"owes\": \"0.00\"\n    },\n    {\n      \"id\": \"M2\",\n      \"name\": \"Ben\",\n      \"loans\": 0,\n      \"owes\": \"0.00\"\n    },\n    {\n      \"id\": \"M3\",\n      \"name\": \"Cy\",\n      \"loans\": 0,\n      \"owes\": \"0.00\"\n    }\n  ],\n  \"refused\": [\n    {\n      \"line\": 9,\n      \"reason\": \"unknown-book\"\n    }\n  ]\n}\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": [
+              "--json"
+            ],
+            "stdin": "MEMBER M7 Zoe\n",
+            "stdout": "{\n  \"day\": 1,\n  \"books\": [],\n  \"members\": [\n    {\n      \"id\": \"M7\",\n      \"name\": \"Zoe\",\n      \"loans\": 0,\n      \"owes\": \"0.00\"\n    }\n  ],\n  \"refused\": []\n}\n",
+            "exit_code": 0,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A5",
+        "flow": "F5",
+        "statement": "A malformed line or bad argument prints the error and exits 1 or 2",
+        "measure": "Exact output and exit status",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [],
+            "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\nLEND B1\n",
+            "stdout": "error: line 7: malformed\n",
+            "exit_code": 1,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\nDAY 3\n\nlend B1 M1\nFOO\n",
+            "stdout": "error: line 9: malformed\n",
+            "exit_code": 1,
+            "held_out": true
+          },
+          {
+            "args": [
+              "--text"
+            ],
+            "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\n",
+            "stdout": "invalid arguments\n",
+            "exit_code": 2,
+            "held_out": true
+          }
+        ]
+      }
+    ],
+    "risks": [
+      {
+        "risk": "Six tasks written by one author do not establish general build quality",
+        "mitigation": "Report results only for these frozen tasks, this route, model and role prompts, as the AI-only arm alone"
+      },
+      {
+        "risk": "Held-out cases leak to the builder",
+        "mitigation": "The studio hides held-out studio cases from builder and reviewer; extended cases are never entered into the studio; the repository copy is never sent to runtime roles"
+      }
+    ],
+    "maintenance": {
+      "owner": "Jordan (study owner)",
+      "obligations": [
+        "Keep this frozen version unchanged; a change needs a new version and is reported as a deviation"
+      ],
+      "review_interval": "Not reviewed during the run; frozen until the thesis is submitted"
+    },
+    "tasks": [
+      {
+        "key": "T1",
+        "title": "Implement the library loans desk CLI as the loans package",
+        "role": "builder",
+        "file_scope": [
+          "src"
+        ],
+        "depends_on": [],
+        "acceptance": [
+          "A1",
+          "A2",
+          "A3",
+          "A4",
+          "A5"
+        ],
+        "deliverable": "src/main.py and the src/loans package, passing every acceptance check"
+      }
+    ]
+  }
+}

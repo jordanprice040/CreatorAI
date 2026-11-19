@@ -2,6 +2,8 @@
 
 Draft v1.0 • Proposed research design, not an approved study or executed experiment.
 
+November 19, 2026: for the December thesis, Jordan chose to run only condition A on the implementation stratum, as one small frozen run reported alone ([AI-only run protocol](../docs/thesis/AI_ONLY_RUN_PROTOCOL.md), ADR-0133). The full design below stays proposed and unfrozen.
+
 ## Questions and priority
 
 Preserve two comparisons: the October 8 autonomy comparison and the earlier structured-versus-open-ended discovery comparison. Build support for both; finalize primary outcomes, workload, reviewer availability, and sample size with Jordan/committee after a pilot.

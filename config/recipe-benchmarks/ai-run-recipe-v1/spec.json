@@ -1,0 +1,258 @@
+{
+  "format": "p14-benchmark-spec/1",
+  "benchmark_id": "ai-run-recipe-v1",
+  "scale": "small",
+  "title": "Recipe scaler with exact fractions (AI-only run task S2)",
+  "content": {
+    "audience": "Synthetic study task for the thesis AI-only run: a cook scaling a recipe",
+    "problem_statement": "Scale a recipe's ingredient list by a whole number or fraction, keep every quantity exact, move to the larger unit when a quantity grows past it, and print the result. This is a frozen synthetic task for the thesis AI-only run, not a customer product.",
+    "user_flows": [
+      {
+        "key": "F1",
+        "name": "List as written",
+        "steps": [
+          "Pipe an ingredient list into the CLI with no arguments",
+          "Read each ingredient with its quantity written in lowest terms and the count"
+        ]
+      },
+      {
+        "key": "F2",
+        "name": "Scale",
+        "steps": [
+          "Run with --scale F",
+          "Read the scaled quantities, moved to larger units where the rules say"
+        ]
+      },
+      {
+        "key": "F3",
+        "name": "Bad line",
+        "steps": [
+          "Pipe a list with a line the CLI cannot read",
+          "Read invalid line N and exit status 1"
+        ]
+      },
+      {
+        "key": "F4",
+        "name": "Bad arguments",
+        "steps": [
+          "Run with an argument the CLI does not accept",
+          "Read invalid arguments and exit status 2"
+        ]
+      }
+    ],
+    "scope": [
+      "Python 3.8+ standard library only, entry point src/main.py, all code under src",
+      "Read all of stdin as text and split it into lines on \\n, numbered from 1 counting every line. Split each line into whitespace-separated tokens; a line with no tokens is skipped",
+      "A WHOLE is 1 to 4 digits not starting with 0 (1 to 9999). A FRACTION is WHOLE/WHOLE, for example 3/4 or 5/2. A quantity is a WHOLE, a FRACTION, or a mixed number: a WHOLE token followed by a FRACTION token whose value is less than 1, for example 1 1/2",
+      "An ingredient line is a quantity, then UNIT, then NAME, and nothing else. UNIT is one of tsp, tbsp, cup, g, kg, ml, l, pc. NAME is lowercase ASCII words a-z joined by single hyphens, such as olive-oil",
+      "When a WHOLE is followed by a FRACTION token, the two always form a mixed number; if that fraction is 1 or more the line is invalid",
+      "--scale F multiplies every quantity, where F is a WHOLE or a FRACTION (not a mixed number). Without arguments the scale is 1. Arithmetic is exact (no floating point)",
+      "After scaling, convert to larger units in this order: tsp to tbsp (3 tsp = 1 tbsp), then tbsp to cup (16 tbsp = 1 cup), g to kg (1000 g = 1 kg), ml to l (1000 ml = 1 l). Each step applies when the quantity in the current unit is at least that many; so 48 tsp becomes 1 cup",
+      "Never convert to a smaller unit; pc is never converted",
+      "Print each ingredient in input order as QTY UNIT NAME. QTY is written in lowest terms: a whole number such as 2, a proper fraction such as 3/4, or a whole number, one space and a proper fraction such as 1 1/2",
+      "After the ingredients print N ingredients (or 1 ingredient when N is 1). With no ingredient lines print exactly: no ingredients. Each output line ends with \\n. Exit 0",
+      "If any line is invalid print exactly: invalid line N, where N is the number of the first invalid line, print nothing else, and exit 1",
+      "Arguments are either none or exactly --scale F. Anything else prints exactly: invalid arguments, then \\n, and exits 2",
+      "No files, network, environment variables or third-party packages"
+    ],
+    "non_goals": [
+      "Converting to smaller units",
+      "Decimal quantities",
+      "Merging repeated ingredients",
+      "Reading files",
+      "Web UI",
+      "Public release"
+    ],
+    "data_contracts": [
+      {
+        "name": "recipe/1",
+        "description": "Synthetic ingredient lines on stdin; plain text list on stdout",
+        "data_class": "synthetic"
+      }
+    ],
+    "acceptance_checks": [
+      {
+        "key": "A1",
+        "flow": "F1",
+        "statement": "Without arguments print each ingredient in lowest terms and the count",
+        "measure": "Exact output and exit status",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [],
+            "stdin": "2 cup flour\n1 1/2 tsp salt\n",
+            "stdout": "2 cup flour\n1 1/2 tsp salt\n2 ingredients\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "4/6 cup sugar\n\n3/2 tbsp olive-oil\n",
+            "stdout": "2/3 cup sugar\n1 1/2 tbsp olive-oil\n2 ingredients\n",
+            "exit_code": 0,
+            "held_out": true
+          },
+          {
+            "args": [],
+            "stdin": "",
+            "stdout": "no ingredients\n",
+            "exit_code": 0,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A2",
+        "flow": "F2",
+        "statement": "--scale multiplies exactly and moves quantities to larger units by the stated rules",
+        "measure": "Exact output and exit status",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [
+              "--scale",
+              "2"
+            ],
+            "stdin": "1 1/2 tsp salt\n500 g butter\n3 pc egg\n",
+            "stdout": "1 tbsp salt\n1 kg butter\n6 pc egg\n3 ingredients\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": [
+              "--scale",
+              "3/4"
+            ],
+            "stdin": "2 cup milk\n1 pc lemon\n",
+            "stdout": "1 1/2 cup milk\n3/4 pc lemon\n2 ingredients\n",
+            "exit_code": 0,
+            "held_out": true
+          },
+          {
+            "args": [
+              "--scale",
+              "16"
+            ],
+            "stdin": "3 tsp vanilla\n",
+            "stdout": "1 cup vanilla\n1 ingredient\n",
+            "exit_code": 0,
+            "held_out": true
+          },
+          {
+            "args": [
+              "--scale",
+              "3"
+            ],
+            "stdin": "1 1/3 tsp baking-soda\n400 ml water\n",
+            "stdout": "1 1/3 tbsp baking-soda\n1 1/5 l water\n2 ingredients\n",
+            "exit_code": 0,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A3",
+        "flow": "F3",
+        "statement": "A line that cannot be read prints invalid line N for the first one and exits 1",
+        "measure": "Exact output and exit status",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [],
+            "stdin": "2 cup flour\n2 cups sugar\n",
+            "stdout": "invalid line 2\n",
+            "exit_code": 1,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "\n1 3/2 cup flour\n",
+            "stdout": "invalid line 2\n",
+            "exit_code": 1,
+            "held_out": true
+          },
+          {
+            "args": [],
+            "stdin": "1/0 cup flour\n",
+            "stdout": "invalid line 1\n",
+            "exit_code": 1,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A4",
+        "flow": "F4",
+        "statement": "Invalid arguments print invalid arguments and exit 2",
+        "measure": "Exact output and exit status",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [
+              "--scale",
+              "0"
+            ],
+            "stdin": "1 cup flour\n",
+            "stdout": "invalid arguments\n",
+            "exit_code": 2,
+            "held_out": false
+          },
+          {
+            "args": [
+              "--scale"
+            ],
+            "stdin": "1 cup flour\n",
+            "stdout": "invalid arguments\n",
+            "exit_code": 2,
+            "held_out": true
+          },
+          {
+            "args": [
+              "--scale",
+              "1 1/2"
+            ],
+            "stdin": "1 cup flour\n",
+            "stdout": "invalid arguments\n",
+            "exit_code": 2,
+            "held_out": true
+          }
+        ]
+      }
+    ],
+    "risks": [
+      {
+        "risk": "Six tasks written by one author do not establish general build quality",
+        "mitigation": "Report results only for these frozen tasks, this route, model and role prompts, as the AI-only arm alone"
+      },
+      {
+        "risk": "Held-out cases leak to the builder",
+        "mitigation": "The studio hides held-out studio cases from builder and reviewer; extended cases are never entered into the studio; the repository copy is never sent to runtime roles"
+      }
+    ],
+    "maintenance": {
+      "owner": "Jordan (study owner)",
+      "obligations": [
+        "Keep this frozen version unchanged; a change needs a new version and is reported as a deviation"
+      ],
+      "review_interval": "Not reviewed during the run; frozen until the thesis is submitted"
+    },
+    "tasks": [
+      {
+        "key": "T1",
+        "title": "Implement the recipe scaler CLI",
+        "role": "builder",
+        "file_scope": [
+          "src"
+        ],
+        "depends_on": [],
+        "acceptance": [
+          "A1",
+          "A2",
+          "A3",
+          "A4"
+        ],
+        "deliverable": "src/main.py that passes every acceptance check"
+      }
+    ]
+  }
+}

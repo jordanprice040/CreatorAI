@@ -1,0 +1,19 @@
+{
+  "format": "recipe-benchmark-freeze/1",
+  "benchmark_id": "ai-run-tickets-v1",
+  "files": {
+    "expectations.json": "7a2f44391868fa15516e4b6f8962a49ae125e2e880904a18bc7af28e8802552a",
+    "extended-cases.json": "575876ae058a7bdb3bd4cb8239afa61df01b5e00c1226c37de527c5e3ce59760",
+    "reference/src/main.py": "ac285c3800609d35ef787285078d8e937b50d3fea43e173fd376552d315383f9",
+    "reference/src/sla/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "reference/src/sla/cli.py": "f933dadce9308bc03cf6914dc3ab5ea8d268bf9ce65f1751c2c324166a2ea9f0",
+    "reference/src/sla/clock.py": "a4268258f56cd2fbbdfbcffa617ab8562ff8e476bdd1b7004fd5cfd4debef006",
+    "reference/src/sla/events.py": "b2099eac721504f10c9d9c43d0ac09eac09d6c03d3a1e7baf13cfb97a4c2b844",
+    "reference/src/sla/policy.py": "6f91375168dd6a8b9b32bbb0cc878cd88504ab05768717d409e419eb532180aa",
+    "reference/src/sla/report.py": "f37720ac05995a4492c94d6110eecf273f564ebbc22e79edd772ceebe6e5f90d",
+    "reference/src/sla/tickets.py": "07b266b20fb6a1bdf127d3c29e4369efac054c8a3267b124f77e8409fdf66105",
+    "spec.json": "3fc4075bed8f5ebc102452e02e2b637004fe6d8f0599ea70da581321220f4e2e",
+    "scorer:recipe-scoring.ts": "2ea55f832b7b8ae7422f87191a48568393572fba51548d08b5ff00bbbc2fbd28",
+    "scorer:recipe-structure.ts": "ce27c67a46ebdc9234295dd1e80303b4ac0ea20b8dde5b320d24777113899d31"
+  }
+}

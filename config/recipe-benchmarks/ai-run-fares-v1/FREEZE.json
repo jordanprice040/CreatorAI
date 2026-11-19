@@ -1,0 +1,19 @@
+{
+  "format": "recipe-benchmark-freeze/1",
+  "benchmark_id": "ai-run-fares-v1",
+  "files": {
+    "expectations.json": "c927a802e064eb46d9d88d48c0a3b67bb4586e91b7d0462cdbd1cc0600f3ca63",
+    "extended-cases.json": "876c388483f4255ea8c1c0e837abc84df23e0ee3485e27f5143823dfe493d68b",
+    "reference/src/fares/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "reference/src/fares/caps.py": "4a27da7a6b2dee9ef9ffbd2ca426477750274c98e43781a27777ff06c1fdd7a1",
+    "reference/src/fares/cli.py": "a701c934032a53beaa292e22552e0a0089d1953581d728dd6a671289bfbb8a78",
+    "reference/src/fares/network.py": "1802df8f0d4523a06712183408fe49bc0b3e0c4164743fb407744d521e48fdd7",
+    "reference/src/fares/pricing.py": "999896639befa93ea7981bfbb70b73310eb40b66f54385104bd4c29dc9dec914",
+    "reference/src/fares/report.py": "9ca2bfd91815524768a249c82e8c4160402f872f3a0ff3385d558a5d1f9ee629",
+    "reference/src/fares/taps.py": "5e92bdbaa13d9420ef4b2f60180430d5187298599565101e87d311dc990933a4",
+    "reference/src/main.py": "793bc39fd4c36a6cae8c4cb630c764edea5f2fc3638883f1fd677a9f75b53da5",
+    "spec.json": "984c4742bd0c11ea918fce5c95bf7651c4f50af52a4dd7f4800f03d1e4a7e0e9",
+    "scorer:recipe-scoring.ts": "2ea55f832b7b8ae7422f87191a48568393572fba51548d08b5ff00bbbc2fbd28",
+    "scorer:recipe-structure.ts": "ce27c67a46ebdc9234295dd1e80303b4ac0ea20b8dde5b320d24777113899d31"
+  }
+}

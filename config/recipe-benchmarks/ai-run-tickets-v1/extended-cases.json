@@ -1,0 +1,185 @@
+{
+  "benchmark_id": "ai-run-tickets-v1",
+  "cases": [
+    {
+      "id": "E1",
+      "args": [],
+      "stdin": "",
+      "stdout": "no tickets\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E2",
+      "args": [],
+      "stdin": "# nothing\n\n",
+      "stdout": "no tickets\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E3",
+      "args": [],
+      "stdin": "T1 1.08:00 open p1\nT1 1.09:59 respond\n",
+      "stdout": "T1 p1 response 59/60 met, resolution 59/480 pending\ntickets 1, breached 0\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E4",
+      "args": [],
+      "stdin": "T1 1.08:00 open p1\nT1 1.10:01 respond\n",
+      "stdout": "T1 p1 response 61/60 breached, resolution 61/480 pending\ntickets 1, breached 1\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E5",
+      "args": [],
+      "stdin": "T1 1.16:59 open p1\nT1 2.09:00 close\n",
+      "stdout": "T1 p1 response 1/60 met, resolution 1/480 met\ntickets 1, breached 0\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E6",
+      "args": [],
+      "stdin": "T1 5.09:00 open p3\nT1 12.09:00 close\n",
+      "stdout": "T1 p3 response 2400/480 breached, resolution 2400/2880 met\ntickets 1, breached 1\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E7",
+      "args": [],
+      "stdin": "T1 1.09:00 open p2\nT1 1.09:00 respond\nT1 1.09:00 close\n",
+      "stdout": "T1 p2 response 0/240 met, resolution 0/1440 met\ntickets 1, breached 0\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E8",
+      "args": [],
+      "stdin": "T1 1.09:00 open p2\nT1 1.12:00 escalate p1\n",
+      "stdout": "T1 p1 response 180/60 breached, resolution 180/480 pending\ntickets 1, breached 1\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E9",
+      "args": [],
+      "stdin": "T1 1.09:00 open p2\nT1 1.09:30 respond\nT1 1.09:40 respond\nT1 1.10:00 escalate p1\nT1 1.10:30 close\n",
+      "stdout": "T1 p1 response 30/60 met, resolution 90/480 met\ntickets 1, breached 0\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E10",
+      "args": [],
+      "stdin": "T1 1.09:00 open p1\nT1 1.09:00 open p1\n",
+      "stdout": "error: line 2\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E11",
+      "args": [],
+      "stdin": "T9 1.09:00 close\n",
+      "stdout": "error: line 1\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E12",
+      "args": [],
+      "stdin": "T1 1.09:00 open P1\n",
+      "stdout": "error: line 1\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E13",
+      "args": [],
+      "stdin": "T1 1.9:00 open p1\n",
+      "stdout": "error: line 1\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E14",
+      "args": [],
+      "stdin": "T1 0.09:00 open p1\n",
+      "stdout": "error: line 1\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E15",
+      "args": [],
+      "stdin": "T01 1.09:00 open p1\n",
+      "stdout": "error: line 1\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E16",
+      "args": [],
+      "stdin": "T1 1.09:00 respond now\n",
+      "stdout": "error: line 1\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E17",
+      "args": [
+        "--at"
+      ],
+      "stdin": "",
+      "stdout": "invalid arguments\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E18",
+      "args": [
+        "--at",
+        "1.09:00",
+        "--at",
+        "1.10:00"
+      ],
+      "stdin": "",
+      "stdout": "invalid arguments\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E19",
+      "args": [
+        "--at",
+        "1.24:00"
+      ],
+      "stdin": "",
+      "stdout": "invalid arguments\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E20",
+      "args": [
+        "--priority",
+        "p2"
+      ],
+      "stdin": "T1 1.09:00 open p1\n",
+      "stdout": "tickets 0, breached 0\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E21",
+      "args": [
+        "--at",
+        "99.23:59"
+      ],
+      "stdin": "T10 1.09:00 open p3\nT2 1.09:00 open p2\nT2 1.09:01 respond\n",
+      "stdout": "T2 p2 response 1/240 met, resolution 34080/1440 breached\nT10 p3 response 34080/480 breached, resolution 34080/2880 breached\ntickets 2, breached 2\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E22",
+      "args": [],
+      "stdin": "T1 7.20:00 open p2\nT1 8.12:59 respond\nT1 8.13:00 close\n",
+      "stdout": "T1 p2 response 239/240 met, resolution 240/1440 met\ntickets 1, breached 0\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E23",
+      "args": [
+        "--at",
+        "1.17:00"
+      ],
+      "stdin": "T1 1.09:00 open p1\nT1 1.09:59 respond\n",
+      "stdout": "T1 p1 response 59/60 met, resolution 480/480 pending\ntickets 1, breached 0\n",
+      "exit_code": 0
+    }
+  ]
+}

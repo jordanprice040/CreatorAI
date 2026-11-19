@@ -47,6 +47,8 @@ Open items:
 - **F11 slice 2:** a read-only hardware and Ollama check on the PC. Needs Jordan's typed OK.
 - **Release 0.1.9:** the first real release through the updater, after `v0.1.7` is deleted (and after checking that
   `v0.1.4` is gone).
+- **Thesis AI-only run (ADR-0133):** frozen; the six tasks run live on the dev studio after Jordan's typed OK, by
+  November 27 (protocol section 6).
 - **Uncommitted PC evidence:** the `p14-xl-v1` live qualification and the P13 second-run note.
 - **Optional, Jordan's:** the B3 desktop preview look; the ChatGPT web requalification OK.
 - **The web qualification record** lives in source against the dev studio's connection id, so it may not apply to
@@ -57,9 +59,13 @@ Open items:
 Docs and owner decisions are current as of November 19. Next, in order: the loose ends above that need Jordan's PC
 or typed OK (P32 rerun, N3 check 13 with `cargo test`, F11 slice 2); delete `v0.1.7` and ship 0.1.9 through the
 updater; then the owner's choice between a short P17 acceptance walk and build phase 2 (B5 PyPI packages first). The
-thesis needs an owner decision now, given the December 2 defense: a reduced-scope thesis on these dates or a later
-empirical study. Do not automatically install, publish, run a live provider or advance the pilot or thesis. Accepted
+thesis scope is decided (Jordan, November 19: executed evidence plus the frozen AI-only run, ADR-0133); its live run
+needs Jordan's typed OK and comes first, by November 27. Do not automatically install, publish, run a live provider or advance the pilot or thesis. Accepted
 owner decisions and existing scoped grants remain authoritative.
+
+## November 19 update — thesis AI-only run frozen before any run (ADR-0133, no migration)
+
+Six new held-out build tasks (`config/recipe-benchmarks/ai-run-*-v1`, 3 small and 3 larger) and the frozen protocol [`docs/thesis/AI_ONLY_RUN_PROTOCOL.md`](../docs/thesis/AI_ONLY_RUN_PROTOCOL.md), held by `config/thesis-ai-run/PROTOCOL.json` (anchor `985b9ecf…6dd0`) and checked by `node scripts/ai-run-analysis.mjs verify`. Each task runs once through Qualify building on the dev studio's ChatGPT plan connection with `gpt-6-astra`, $0 metered, by November 27; the result is reported as the AI arm alone. Checks run in the cloud: `tests/src/ai-run-tasks.test.ts` (8 tests, all pass) and the existing suite (see the PR). **Not run live**: needs Jordan's typed OK on his PC.
 
 ## November 17 update — sample seed commands take a workspace name (no migration or ADR)
 

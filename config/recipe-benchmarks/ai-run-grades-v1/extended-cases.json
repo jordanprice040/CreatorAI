@@ -1,0 +1,141 @@
+{
+  "benchmark_id": "ai-run-grades-v1",
+  "cases": [
+    {
+      "id": "E1",
+      "args": [],
+      "stdin": "student,kind,score\n",
+      "stdout": "no students\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E2",
+      "args": [],
+      "stdin": "student,kind,score\nana,quiz,0\nana,exam,0\nana,project,0\n",
+      "stdout": "ana 0.0 F\nclass average 0.0\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E3",
+      "args": [],
+      "stdin": "student,kind,score\nana,quiz,85\nana,exam,84\nana,project,84\n",
+      "stdout": "ana 84.3 B\nclass average 84.3\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E4",
+      "args": [],
+      "stdin": "student,kind,score\nana,quiz,81\nana,quiz,82\nana,exam,80\nana,project,80\n",
+      "stdout": "ana 80.5 B\nclass average 80.5\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E5",
+      "args": [],
+      "stdin": "student,kind,score\nana,quiz,10\nana,quiz,20\nana,quiz,30\nana,quiz,30\nana,exam,70\nana,project,70\n",
+      "stdout": "ana 57.0 F\nclass average 57.0\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E6",
+      "args": [],
+      "stdin": "student,kind,score\nbo,exam,100\nab,exam,100\n",
+      "stdout": "ab 50.0 F incomplete\nbo 50.0 F incomplete\nclass average 50.0\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E7",
+      "args": [],
+      "stdin": "student,kind,score\n ana , quiz , 90 \nana,exam,90\nana,project,90\n",
+      "stdout": "ana 90.0 A\nclass average 90.0\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E8",
+      "args": [],
+      "stdin": " student,kind,score \r\nana,exam,90\r\n",
+      "stdout": "ana 45.0 F incomplete\nclass average 45.0\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E9",
+      "args": [],
+      "stdin": "student,kind,score\nAna,exam,90\n",
+      "stdout": "error: line 2\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E10",
+      "args": [],
+      "stdin": "student,kind,score\nana,exam,101\n",
+      "stdout": "error: line 2\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E11",
+      "args": [],
+      "stdin": "student,kind,score\nana,exam,90,1\n",
+      "stdout": "error: line 2\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E12",
+      "args": [],
+      "stdin": "student,kind,score\nana,exam\n",
+      "stdout": "error: line 2\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E13",
+      "args": [
+        "--curve",
+        "3",
+        "--curve",
+        "3"
+      ],
+      "stdin": "student,kind,score\n",
+      "stdout": "invalid arguments\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E14",
+      "args": [
+        "--curve"
+      ],
+      "stdin": "student,kind,score\n",
+      "stdout": "invalid arguments\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E15",
+      "args": [
+        "--curve",
+        "0"
+      ],
+      "stdin": "student,kind,score\nana,quiz,59\nana,exam,60\nana,project,61\n",
+      "stdout": "ana 59.9 F\nclass average 59.9\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E16",
+      "args": [],
+      "stdin": "student,kind,score\na,exam,67\nb,exam,68\nc,exam,69\n",
+      "stdout": "c 34.5 F incomplete\nb 34.0 F incomplete\na 33.5 F incomplete\nclass average 34.0\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E17",
+      "args": [],
+      "stdin": "student,kind,score\ngil,quiz,81\ngil,quiz,82\ngil,exam,80\ngil,project,80\nivy,exam,100\nivy,quiz,100\nivy,project,50\n",
+      "stdout": "ivy 90.0 A\ngil 80.5 B\nclass average 85.3\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E18",
+      "args": [],
+      "stdin": "student,kind,score\nzed,quiz,33\nzed,exam,33\nzed,project,34\nann,quiz,33\nann,exam,34\nann,project,33\n",
+      "stdout": "ann 33.5 F\nzed 33.2 F\nclass average 33.4\n",
+      "exit_code": 0
+    }
+  ]
+}

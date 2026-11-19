@@ -1,0 +1,11 @@
+{
+  "format": "recipe-benchmark-freeze/1",
+  "benchmark_id": "ai-run-grades-v1",
+  "files": {
+    "expectations.json": "c6443294b44871d49a8bcd4ac05046ce73ec25da1c4d23fe4493e2250e785fb9",
+    "extended-cases.json": "343667f56801162f0572feac2be8ce315066ab5629d18744f14f920b9ec1f7d8",
+    "reference/src/main.py": "b669e5559f20dff3534b3b9e786587c811c1ed2b75c5842ce8c32425a68eee3c",
+    "spec.json": "e4128a4a4b17bd468dfc869d146006182b9c5f764f1916b67a0cdd061ed75290",
+    "scorer:recipe-scoring.ts": "2ea55f832b7b8ae7422f87191a48568393572fba51548d08b5ff00bbbc2fbd28"
+  }
+}
