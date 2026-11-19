@@ -10,6 +10,6 @@ This is a reviewable engineering thesis draft, not a submitted or committee-appr
 
 Source snapshot: upstream `3e9026f` (T16 merge); local working HEAD `38b3e46` predates T15/T16. Upstream files were inspected and built in `.verification/t18-source`, without merging over existing local edits. Immutable source links are in the register. The demonstration instructions explicitly use that snapshot. No email, invitation, submission, publication, paid call or participant recruitment was performed.
 
-Academic submission deadline, defense date/time/location, committee review turnaround and university formatting requirements remain unconfirmed. The historical week-of-November-30 suggestion is not an appointment. The separate CIS4914 presentation is not a thesis deadline.
+Jordan confirmed on November 19, 2026: the defense is on December 2, 2026 and the submission deadline is December 7, 2026. Defense time and location, committee review turnaround and university formatting requirements are still unrecorded. The historical week-of-November-30 suggestion is superseded. The separate CIS4914 presentation is not a thesis deadline.
 
 Next eligible prompt: T19, only on a new request and with these missing-data limits retained; it cannot honestly claim final thesis acceptance or a completed participant study. The empirical branch instead requires recorded research decisions, adopted freeze, verified live prerequisites, final runs and independent ratings before T15/T16 can be completed.

@@ -1,4 +1,65 @@
-# Session handoff — November 10, 2026
+# Session handoff — November 19, 2026
+
+Current source: main `561cb09` (PR #240, November 19), which includes every merged PR through #246. Schema **79**
+(migrations 42, 71, 75, 76 and 77 are unused; 76 stays reserved for later F11 slices). Next free migration **80**,
+next ADR **0133**. On Jordan's PC the installed app is the **trial build 0.1.8** (schema 79) from the F4 live
+trial, so the next real release must be **0.1.9 or higher**; the dev studio runs from the worktree
+`C:\dev\creator_agent_mainrun` at main `ae6c42e1` (schema 79). This top section was rewritten on November 19 from
+the project state review of that morning (report in the project files,
+`reviews/PROJECT_STATE_REVIEW_2026-11-19.md`) and a fresh look at main; the November 10 version it replaced
+is in the repository history (main `561cb09`). Dated sections below are the record of each package and are
+appended to, not rewritten.
+
+## Current state (November 19, 2026)
+
+| Area                                                        | State on main                                                                                                                                                                                                                                                                                                                         |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| November 5 plan P00–P10, P14, P16, P18–P22                  | Merged (see the November 10 table in history); P22 live checks passed November 10–11                                                                                                                                                                                                                                                  |
+| P11 committee staging                                       | Design and tester accounts merged; deploy waits on owner decisions D1–D9                                                                                                                                                                                                                                                              |
+| P12 online discovery                                        | Merged (ADR-0086); Search the web ran live on the dev studio at $0                                                                                                                                                                                                                                                                    |
+| P13 autopilot, P33 automation levels                        | Merged (ADR-0092, ADR-0099, ADR-0100, ADR-0111); three live reruns on the dev studio; software still stops at the spec                                                                                                                                                                                                                |
+| P15 larger software / build plan phase 1 (B1–B4)            | Merged: in-app build qualification (ADR-0105), model-drafted specs (ADR-0107), Build page timeline, builder/2 (ADR-0109). GPT-6 Astra qualified as builder; it passed `p14-xl-v1` 3/3 on November 17 ($0; evidence still only on the PC; by owner decision it lifts no trial label). Claude route: small builds only (ADR-0112)       |
+| Build plan phase 2 (B5–B9) and phase 3 (B10–B13)            | Not started                                                                                                                                                                                                                                                                                                                           |
+| P17 integrated acceptance                                   | Not started (open notes: first-run "No workspace yet" card; ADR-0071 L-4/L-5 blocker text)                                                                                                                                                                                                                                            |
+| P23–P34 installed-walk fixes, final and whole-app UX passes | Merged; P32 listed below                                                                                                                                                                                                                                                                                                              |
+| S0 studio spending manager                                  | Merged (ADR-0113)                                                                                                                                                                                                                                                                                                                     |
+| Feature ideas F1–F13                                        | All merged; F4 proven live; F11 only slice 1 (design, ADR-0127; defaults confirmed November 17)                                                                                                                                                                                                                                       |
+| Notifications N1–N3                                         | Merged (ADR-0116, ADR-0130, ADR-0131); N3 not yet seen on Windows                                                                                                                                                                                                                                                                     |
+| P32 GitHub App                                              | Merged (ADR-0132). Live trial November 17: create, install, verify, branch and issue passed; push, pull request and checks untested; repository creation got a 403 whose cause is unproven                                                                                                                                            |
+| F4 in-app updates                                           | Merged (ADR-0128, #239, #243, #245, #246). **Proven live on Jordan's PC on November 19** (rerun 2): a broken 0.1.7 rolled back on the first attempt; a forced Windows restart during the 0.1.8 update ended `update_confirmed`; the installer preselected "Do not uninstall". Evidence: `tracking/evidence/f4-live-trial-2026-11-17/` |
+| Demo seed names (#240)                                      | Merged November 19                                                                                                                                                                                                                                                                                                                    |
+| Thesis (T14–T19)                                            | Not moved since October: protocol not frozen, no final T15/T16 run, T18 draft has no empirical results. **Defense December 2, submission December 7** (Jordan, November 19); see `context/ROADMAP.md`                                                                                                                                 |
+
+Owner rules recorded November 19 (`tracking/DECISIONS.md`): the installer defaults to "Do not uninstall"; an update
+never restarts the PC by itself (if one ever needs a restart, the app asks first and offers a later option); the
+deliberately broken test release `v0.1.7` in the private releases repository is deleted before 0.1.9 ships.
+
+Checks: GitHub Actions is still refused for billing, so every PR is checked in the cloud on Linux only (typecheck,
+format, `pnpm test:db` on a throwaway PostgreSQL, with the 5 known PowerShell-wrapper failures). Rust desktop tests
+have not run on Windows since F4 and N3 landed.
+
+Open items:
+
+- **P32 live rerun:** repository creation, push, pull request and checks on a new private test repository (dev
+  studio). Needs Jordan's typed OK. Turning live GitHub on in the installed app is a separate owner decision.
+- **N3 on Windows:** check 13 (tray notification, click from the pop-up and from Action Center) and `cargo test` on
+  Windows. Needs a build Jordan installs and launches.
+- **F11 slice 2:** a read-only hardware and Ollama check on the PC. Needs Jordan's typed OK.
+- **Release 0.1.9:** the first real release through the updater, after `v0.1.7` is deleted (and after checking that
+  `v0.1.4` is gone).
+- **Uncommitted PC evidence:** the `p14-xl-v1` live qualification and the P13 second-run note.
+- **Optional, Jordan's:** the B3 desktop preview look; the ChatGPT web requalification OK.
+- **The web qualification record** lives in source against the dev studio's connection id, so it may not apply to
+  the installed app's connection.
+
+## Next eligible prompt
+
+Docs and owner decisions are current as of November 19. Next, in order: the loose ends above that need Jordan's PC
+or typed OK (P32 rerun, N3 check 13 with `cargo test`, F11 slice 2); delete `v0.1.7` and ship 0.1.9 through the
+updater; then the owner's choice between a short P17 acceptance walk and build phase 2 (B5 PyPI packages first). The
+thesis needs an owner decision now, given the December 2 defense: a reduced-scope thesis on these dates or a later
+empirical study. Do not automatically install, publish, run a live provider or advance the pilot or thesis. Accepted
+owner decisions and existing scoped grants remain authoritative.
 
 ## November 17 handoff — seed commands take a workspace name (no migration or ADR)
 
@@ -386,65 +447,6 @@ Docs only. [FIX_PLAN_INSTALLED_WALK_2026-11-11.md](../docs/FIX_PLAN_INSTALLED_WA
 
 The [identity folder](../assets/creator-agent/README.md) includes the mark, theme variants, cover and a usage guide; `SHA256SUMS.txt` binds its bytes. The web shell, desktop status window, Windows icon and NSIS installer images now use it. The installed desktop app picks this up only at Jordan's next upgrade, which is also the first on-screen check of the installer header and sidebar bitmaps. Next eligible product prompt is the P12 discovery follow-up once Jordan selects its scope.
 
-Current source: main `e08e0a4` (PR #150, November 6). Schema **49** (migration 42 is intentionally
-unused, see ADR-0070). No open pull requests on November 10. The installed app is still `f6e2ba0`,
-schema **41** (upgraded November 4); the dev studio on Jordan's PC runs from the worktree
-`C:\dev\creator_agent_p15` at `b73bd95`. This top section was rewritten on November 10 by the state
-review ([report](https://claude.ai/artifact/7KiojJQSaz5Mf1p3DTpFcA)); the November 4 text it replaced
-is kept verbatim below under "November 4 top section (superseded)". Dated sections further down are
-the record of each package and are appended to, not rewritten.
-
-## Current state (November 10, 2026)
-
-[November 5 plan](../docs/CREATOR_AGENT_IMPLEMENTATION_PLAN_2026-11-05.md) packages:
-
-| Package                                    | State on main                                                                                                                         |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| P00 candidate and repair closure           | Done (PR #135; F1/F2 recheck passed)                                                                                                  |
-| P01 activity links, P02 sorting and paging | Merged (PR #138)                                                                                                                      |
-| P03 chat context                           | Merged (PR #136, fixes #139; ADR-0070, migration 43)                                                                                  |
-| P04 guided Discover                        | Merged (PR #140; ADR-0071)                                                                                                            |
-| P05 workspace files                        | Merged (PR #141; ADR-0072, migration 45)                                                                                              |
-| P06 named notes                            | Merged (PR #142; ADR-0073, migration 46)                                                                                              |
-| P07 previews until stopped                 | Merged (PR #137; ADR-0069, migration 44)                                                                                              |
-| P08 automatic assessments                  | Merged (PR #144; ADR-0074, migration 47)                                                                                              |
-| P09 why this response, proposals           | Merged (PR #148; ADR-0077, migration 49)                                                                                              |
-| P10 scoped routine approvals               | Merged (PR #153; ADR-0079, migration 50); no evidence-admission stage yet (P12)                                                       |
-| P11 committee staging                      | Design and tester accounts merged (PRs #135, #143; ADR-0075, migration 48); deploy waits on D1–D9                                     |
-| P12 online discovery                       | Built (ADR-0086, migration 54): Search the web through the plan connection's own web search; live qualification waits for Jordan's OK |
-| P13 unattended workflow                    | Not started; needs P10 and P12                                                                                                        |
-| P14 capability inventory and benchmarks    | Merged (PRs #135, #145, #146; ADR-0076)                                                                                               |
-| P15 larger software                        | Slice 1 `static-web/1` merged and recorded qualified on one route (PRs #149, #150; ADR-0078); later slices not started                |
-| P16 external runbook export                | Merged (PR #152; ADR-0080, no migration); wording follow-up merged (PR #163)                                                          |
-| P17 integrated acceptance                  | Not started                                                                                                                           |
-| P18 collapsible options, shorter pages     | Merged (PR #162; no migration or ADR)                                                                                                 |
-| P19 Standard/Advanced across the app       | Merged (PR #164; ADR-0082, migration 52); Decide and Proposals folds follow-up on branch `claude/project-thread-qc6o5z`               |
-| P20 whole process from Chat                | Merged (PR #165; ADR-0083 amending ADR-0057/0070, migration 53)                                                                       |
-| P21 quick model switch                     | Merged (PR #161; ADR-0081, migration 51)                                                                                              |
-| P22 live API and GitHub checks             | Merged (PR #160); live checks passed November 10–11 (R24, R25)                                                                        |
-
-Checks on main `e08e0a4`, November 10 (cloud container, PostgreSQL 16): TypeScript, web typecheck and
-formatting pass; `pnpm test:db` 867 tests, 833 pass, 29 skips, 5 fail (the known wrapper tests that need
-`pwsh`); standalone safety 22 tests, 19 pass, 2 skips, 1 fail (a Windows-only test that did not skip on
-Linux; fixed in the November 10 cleanup). `pnpm audit` reports no known vulnerabilities. GitHub Actions
-is out of minutes (every run since about November 3 fails in seconds), so the Windows CI job has not run
-for PRs #132–#150.
-
-Open items:
-
-- **Web recipe record (PR #150 review M-1):** resolved November 10. Jordan opened the previews of attempts
-  2 and 3 and both showed the page, so the frozen per-attempt bar is met for 3 of 3.
-- **Installed app** is eight schema versions behind main; migrations 43–49 are not rehearsed on a copy of
-  the installed database, and the web preview frame is not observed in the desktop window.
-- **Windows verification:** no full Windows run of main since CI stopped.
-- **Owner pilot:** finished. Jordan marked it finished on November 10 (PR #155); its window ended
-  November 6.
-- **Older review items still open:** PR #150 N-1..N-3 (#128 N-6 and #129 N-4 fixed November 12). Health reports configuration,
-  not live state; the preview cookie-host limit remains. (#75 L-1 was repaired earlier; #77 L-1, the first point of #90 N-4
-  and PR #148 N-I are fixed by the November 10 cleanup; the second point of #90 N-4, a stale poll error, on November 12.)
-- **The web qualification record** lives in source against the dev studio's connection id, so it does not
-  apply to the installed app's connection.
-
 ## P20 review fixes (November 11, PR #165, ADR-0083 amendment, migration 53 unreleased)
 
 Review: `/mnt/project-files/reviews/P20_PR165_REVIEW.md` (0 High, 1 Medium, 5 Low, 6 nits), all fixed:
@@ -459,18 +461,6 @@ model answer; N-1 placeholders fill whole values and path segments only; N-2 no 
 Re-review (`/mnt/project-files/reviews/P20_PR165_REREVIEW.md`): L-6 refusal-only events no longer make a card
 `partial`; N-7 walk script updated and re-run; N-8 "Send again" on a fetch card reuses its run; N-9 new-run question
 reworded. Second re-review clean (0 Low+); nits N-10 and N-11 fixed. Ready for Jordan to merge after #164.
-
-## Next eligible prompt
-
-P10 and P16 merged on November 10 (main `cb12eeb`; next free migration 51, ADR-0081). Jordan's 25 revision notes
-were checked against main on November 10 (12 done, 7 partial, 6 not done; 14 done, 6 partial, 5 not done after P22's
-live checks; table in the
-[plan's November 10 section](../docs/CREATOR_AGENT_IMPLEMENTATION_PLAN_2026-11-05.md#november-10-check-of-jordans-revision-notes-and-added-packages-p18p22)),
-which added P18–P22. Next: P18 and P21 (small, UI only, can run in parallel); P22 (live tests approved November 10);
-then P19; P12 once Jordan picks the next step from the search route investigation (PR #157, merged); P13; P20; later P15 slices; P17.
-The installed-app upgrade stays owner-gated (rehearse 41 to current on a copy first). Do not automatically install,
-publish, run a live provider or advance the pilot or thesis. Accepted owner decisions and existing scoped grants
-remain authoritative.
 
 ## Previous sessions
 

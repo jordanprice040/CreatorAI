@@ -36,7 +36,7 @@ The tables below retain historical context; do not reopen settled preferences.
 | Are RQ1 and RQ2 both required as full experiments, and which is primary? | T14 freeze | Support both conditions, instrumentation, provisional pilot |
 | What institutional review/consent requirements apply to the proposed participants? | Before recruitment/data collection | Technical build, synthetic evaluation, committee-ready protocol |
 | What are the final sample counts, caps, primary measures and analysis rules? | Final collection | Pilot with separately versioned data |
-| What exact academic submission and defense dates apply? | Calendar commitments/T18 | Drafting, weekly goals and review materials |
+| What exact academic submission and defense dates apply? Answered November 19, 2026: defense December 2, submission December 7; time, location and formatting rules still open | Calendar commitments/T18 | Drafting, weekly goals and review materials |
 | Which public/GitHub/payment/campaign targets are authorized? | Relevant extension activation | Local work, fixtures, adapter checks, concrete reviewable actions |
 
 Do not turn this table into an initial questionnaire. Resolve each question only when it would change the next action. Record actual owner decisions in tracking/DECISIONS.md with date, source, rationale, consequences, and affected requirement/protocol versions.
