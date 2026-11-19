@@ -85,6 +85,9 @@ pnpm cli seed-selection
 ```
 
 Seed commands create labelled synthetic workspaces. Select one in the web UI.
+`seed-discovery` and `seed-selection` take an optional workspace name, for example
+`pnpm cli seed-selection "Demo workspace"` (quote a name with spaces; extra words are
+refused). Without one they use their default names.
 The studio has six pages. It opens on **Chat**: ask "what's next?" or "why is it
 blocked?", paste a web address, or "save this idea: …". Conversations are saved per
 workspace; studio replies come from your records by fixed rules, and their buttons only

@@ -1,5 +1,9 @@
 # Session handoff — November 10, 2026
 
+## November 17 handoff — seed commands take a workspace name (no migration or ADR)
+
+Branch `claude/project-thread-68dx3w`. `apps/cli/src/index.ts`: `seedDiscovery(call, name)` was already parameterised; `seedSelection(call, name)` now takes a name too, and the `seed-discovery` / `seed-selection` cases pass `seedName(rest)`: one argument (trimmed; empty falls back to the default name), more than one refused with a quoting hint (review 1 L-2). Usage text and `docs/LOCAL_DEVELOPMENT.md` updated. `tests/src/studio-builds.test.ts` covers the name and the refusal (review 1 L-1). The meeting demo studio on Jordan's PC (`C:\dev\creator_agent_demo`, database `creator_demo`, start with `Start-Demo.cmd`) can be removed on Jordan's say-so. Next free numbers unchanged: ADR-0132, migration 79.
+
 ## November 17 handoff — P32 live trial results (ADR-0132 amendment, no migration)
 
 Branch `claude/project-thread-bqpf48` from main 1300b36 (after #241). `githubAnswer` in `github-service.ts` (kept as the failed or unknown operation's `result`); `finishGitHubOperation` stores it; `refusalWording` only for `permission_missing` on the call itself (not `stage`); web `answerText` in `github.tsx`. Review 1 fixes: `reconcileGitHubOperation` carries `github_answer` forward; `appTokenWording` in `github-service.ts`; tests for both. Tests in `github.test.ts` (409 merge keeps `github_answer`) and `github-app-setup.test.ts`. Trial results in `docs/LIVE_CONNECTION_CHECKS.md` and ADR-0132. Next: Jordan's OK for a short rerun of check 5 with a new app (and push/pull request if a product is available); Jordan's decision on live GitHub in the installed app. Next free numbers: check main (ADR-0133 was offered to F4), migration 80.
