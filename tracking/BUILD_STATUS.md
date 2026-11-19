@@ -61,6 +61,14 @@ thesis needs an owner decision now, given the December 2 defense: a reduced-scop
 empirical study. Do not automatically install, publish, run a live provider or advance the pilot or thesis. Accepted
 owner decisions and existing scoped grants remain authoritative.
 
+## November 19 update — thesis draft 2 (docs only, no migration or ADR)
+
+What now works: `docs/thesis/` draft 2 describes main `b9270db` under Jordan's November 19 thesis scope (recorded in `tracking/DECISIONS.md`): an engineering thesis on executed evidence, one small frozen AI-only run reported on its own (Section 6 and evidence ID E19 are a marked placeholder, with no results), and the three-arm study as future work. The draft covers engineering questions EQ1–EQ4, the system as built, the live qualifications (including `p14-xl-v1` 3/3), six live autopilots, the GitHub token and App trials, the F4 update trial, and the failures. The evidence register adds E10–E19. The four live autopilot run reports are copied with hashes into `tracking/evidence/thesis-draft-2-2026-11-19/`. The `p14-xl-v1` evidence was already committed (`1c73302`); the status lines that said it was only on the PC are corrected.
+
+Checked in the cloud container: every relative link in `docs/thesis/` resolves; `prettier --check docs` passes. Full `pnpm test:db` on main `b9270db` (PostgreSQL 16 throwaway server): 1,527 tests, 1,490 pass, 32 skipped, only the 5 known PowerShell-wrapper failures (441, 459, 889, 893, 988); log in the evidence folder.
+
+Not done: the AI-only run (designed separately; its live run needs Jordan's typed OK); the P13 autopilot primary records on Jordan's PC (E13, Needed); related work, formatting, committee review and the defense rehearsal.
+
 ## November 17 update — sample seed commands take a workspace name (no migration or ADR)
 
 What now works: `pnpm cli seed-discovery [workspace-name]` and `pnpm cli seed-selection [workspace-name]` create their synthetic fixture workspace under the given name; without one they keep the old names. The name is one argument: extra unquoted words (`seed-selection Demo workspace`) are refused before anything is created, with a hint to quote the name. CLI only: no API, web or database change. Used to build the "Demo" workspace for Jordan's 2026-11-17 meeting in a separate demo studio on his PC (throwaway database `creator_demo`, ports 5193/4350/4360, worktree `C:\dev\creator_agent_demo`); real studios untouched. `docs/LOCAL_DEVELOPMENT.md` mentions the name argument.

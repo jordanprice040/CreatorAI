@@ -5,7 +5,18 @@ database (installed app, dev studio) was touched, no model was called and nothin
 
 ## Full test run on main `b9270db` (E11)
 
-TEST-RUN-PENDING
+Run on November 19, 2026, 01:47–02:09 UTC, in the cloud container on main
+`b9270db1ee90e7178744935a343e6cf3dbeab538` (before this PR's documentation changes; none of them is read by a
+test). Node 22.23.5, pnpm 11.25.0, PostgreSQL 16.15 on loopback with a throwaway role that may create
+databases; the tests created and dropped their own databases. Command:
+`CREATOR_TEST_DATABASE_URL=postgres://…@127.0.0.1:5432/postgres corepack pnpm test:db`.
+
+Result ([test-db.log](test-db.log), SHA-256 `4f2002bd159f378ad0ba3de3647e9f1a63925b925553fa50f6c2bdc59024e3b0`): **1,527 tests, 1,490 pass, 5 fail,
+32 skipped**, 0 cancelled, in 1,254 s. The 5 failures are the known PowerShell-wrapper tests (441, 459, 889,
+893, 988: "real PowerShell wrapper rejects wrong home…" and "actual wrapper refuses old combined approval…"),
+which need PowerShell, not installed in the container. Because `pnpm test` stopped on those failures,
+`pnpm test:dev-safety` did not run. The skips are tests whose prerequisites are absent here (for example the
+real WSL2 worker on Windows). No Windows, Rust desktop or real-worker test ran.
 
 ## Live autopilot reports (E13)
 

@@ -74,7 +74,7 @@ Rules applied throughout: a pass is bound to its connection, model, prompt hashe
 
 ### 5.1 Test suite
 
-<!-- TEST-RESULT -->
+For this draft the full database suite ran on main `b9270db` in the cloud container (Linux, Node 22, PostgreSQL 16, a throwaway server): **1,527 tests, 1,490 passed, 32 skipped, 5 failed**. The 5 failures are the known PowerShell-wrapper tests, which need PowerShell and fail wherever it is not installed. The skips need prerequisites that are not in the container, such as the real WSL2 worker. The development-safety checks did not run after those failures. No Windows, Rust desktop or real-worker test ran. [E11](EVIDENCE.md)
 
 Earlier counts are for different snapshots and environments and must not be summed: October 18 (T19, `3e9026f`): 187 tests, 185 pass, 1 fail (a recovery timing check, repaired and passed alone), 1 expected skip [E9](EVIDENCE.md); November 17 (checked for the #240 change): 1,526 tests, 1,489 pass, 32 skipped, the same 5 PowerShell-wrapper failures [E10](EVIDENCE.md). GitHub Actions is unavailable for billing reasons, so changes were checked this way in the cloud on Linux before merging. The Rust desktop tests have not run on Windows since F4 and N3 landed.
 
