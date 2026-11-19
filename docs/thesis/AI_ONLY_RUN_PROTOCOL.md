@@ -11,7 +11,9 @@ Nothing here is an empirical result.
 
 The freeze is held by [`config/thesis-ai-run/PROTOCOL.json`](../../config/thesis-ai-run/PROTOCOL.json),
 which names the SHA-256 of this file, of the analysis script and of every task's `FREEZE.json`.
-`node scripts/ai-run-analysis.mjs verify` fails on any change, and a test runs it. The anchor is
+`node scripts/ai-run-analysis.mjs verify` fails when any of these changes, or when any file a
+task's `FREEZE.json` names (spec, expectations, cases, reference, scorer code) changes or a file is
+added to a task folder; a test runs it. The anchor is
 the SHA-256 of `PROTOCOL.json` itself, recorded in ADR-0133 with the commit that froze it. A change
 after the freeze is a new protocol version (v2) with its reason, never an edit, and any run made
 under v1 stays reported under v1.
@@ -45,7 +47,7 @@ was written for the full three-arm study, which is not being run. For this run:
 | Decision                          | How it applies here                                                                                                                                                                                                |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | RD1, RD2 (questions and outcomes) | RD2's implementation outcome (frozen and held-out acceptance results) is this run's primary outcome. No RQ is answered                                                                                             |
-| RD3 to RD5 (people)               | Not needed: no participants and no human raters. No committee or IRB ruling is claimed or needed for this run. The committee should still be told what the thesis evaluation now is                                |
+| RD3 to RD5 (people)               | No participants and no human raters are involved. No committee or IRB ruling is claimed; whether any review applies is for the committee, which should be told what the thesis evaluation now is                   |
 | RD6 (model and cap)               | Preferred model GPT-6 Astra; the $20 T15 cap is untouched because the route is the ChatGPT plan connection ($0 metered). See section 5                                                                             |
 | RD7 (counts)                      | Replaced for this run by 6 implementation tasks, 1 attempt each (section 3)                                                                                                                                        |
 | RD8 (final tasks)                 | Not NAE-derived: these are synthetic, low-risk CLI tasks written new for this run (section 3). Jordan approves them by approving the pull request that freezes them, before any run                                |
@@ -79,12 +81,17 @@ test proves that every one of them fails at least one named case. The same test 
 reference against all its cases with `python3 -I`, and the structure bar passes each larger
 reference.
 
-**Difficulty was chosen knowing earlier results.** GPT-6 Astra on this route has passed the
-earlier small, larger and extra-large build benchmarks 3 of 3 each (November 6 and 17). These
-tasks were deliberately set at the small and larger scales those benchmarks cover, with rules
-that are stated but easy to miss (exact rounding, boundaries, ordering, precedence of refusals).
-They were not tuned against any model output: no model has seen them. A high completion rate is
-therefore the expected result, and the thesis says so.
+**Difficulty was chosen knowing earlier results.** GPT-6 Astra on this route has passed earlier
+small, larger and extra-large build benchmarks 3 of 3 each (November 6 and 17; the November 6
+passes were under the earlier builder/1 prompt). Not every earlier result on this route was a
+pass: on November 6 the larger `p14-larger-ledgercheck-v2` ended 0 of 3 (the studio then refused
+the package's `__init__.py` path) and its v3 re-cut failed (the reviewer packet was over the
+connection's then 24,000-character input cap). Both causes were on the studio side and were fixed
+afterwards (`tracking/evidence/p14-benchmarks/`). These tasks were deliberately
+set at the small and larger scales those benchmarks cover, with rules that are stated but easy to
+miss (exact rounding, boundaries, ordering, precedence of refusals). They were not tuned against
+any model output: no model has seen them. A high completion rate is the expected result, and the
+thesis says so, together with the earlier failures.
 
 **Held-out discipline.** Held-out studio cases run in QA but are never shown to the builder or the
 reviewer (the studio's rule). Extended cases are never entered into the studio; they run only on
@@ -133,9 +140,12 @@ synthetic data; the plan route's answer form `invoke_lines_then_json_fence` (ADR
   first, on the existing qualification benchmarks, and is reported as setup, not as a result.
   If it fails, the run is not executed and the thesis says so.
 - **Budget:** $0 metered. The plan route makes no budget reservation; the $20 T15 cap and the $20
-  studio ceiling are untouched, and no metered route, API key or fallback may be used. Requests:
-  at most 2 x `max_calls` per task including one replaced attempt (12 small, 16 larger), so at
-  most 84 for the six tasks, plus at most one restart per task. Typical use is about 2 per task.
+  studio ceiling are untouched, and no metered route, API key or fallback may be used. The $0
+  holds only while the ChatGPT account cannot buy usage beyond the plan, so plan credits and
+  extra usage must be confirmed off before the run (section 6, step 3); if they are on, the run
+  does not start. Requests: one record is at most 2 x `max_calls` including one replaced attempt
+  (12 small, 16 larger), 84 for the six tasks; with the one allowed restart per task the worst
+  case is 168 plan requests, spread over days by the daily cap. Typical use is about 2 per task.
   The connection's input cap must be at least 60,000 characters (Start enforces it); its daily
   cap is 100 and per-run cap 30 (qualification requests belong to no run). A task is started only
   when the connection has at least that task's maximum left today; otherwise it waits for the
@@ -148,36 +158,50 @@ synthetic data; the plan route's answer form `invoke_lines_then_json_fence` (ADR
    `node scripts/ai-run-analysis.mjs verify` still passes there and Qualify building shows the
    frozen role-prompt hashes), and run `verify`. Record the commit, schema and verify output.
 3. Check the connection: verified, build roles and synthetic data allowed, input cap at least
-   60,000, no request with an unknown outcome, no other request running. Do not use the
-   connection for anything else until the run ends.
+   60,000, no request with an unknown outcome, no other request running. Confirm on the ChatGPT
+   account that plan credits and extra usage are off, and record how it was checked and when; if
+   they are on or cannot be confirmed, stop. Record the connection id and the window opening
+   (the time the freeze merged into main, from `git log -1 --format=%cI` on that merge commit).
+   Do not use the connection for anything else until the run ends.
 4. For each task in the order of section 3: Start with model `gpt-6-astra`, wait for the record
    to finish, save its JSON (the record the studio returns) as `recipe-qualification-<id>.json`.
    Do not stop a running attempt except for an outside emergency, which is a deviation.
 5. After the sixth record, read the plan requests and budget reservations made since the run
    started from the database (as in the p14-xl evidence) and save them.
-6. Commit the records and the outputs of `analyze` to `tracking/evidence/thesis-ai-run-<date>/`.
+6. Save every record of the six task benchmarks the studio holds, not a selection, and run
+   `node scripts/ai-run-analysis.mjs analyze <dir> --opened <window opening> --connection <id>`
+   (and again with `--markdown`). Commit the records, the step 2 and 3 notes and both outputs to
+   `tracking/evidence/thesis-ai-run-<date>/`.
 
-Window: from the merge of this freeze until **November 27, 2026**. Tasks not run by then are
+Nobody starts these six benchmarks except in this run, on any studio or connection (they appear
+under Qualify building everywhere, the installed app included). A record made anyway is reported
+as a deviation, never as a result.
+
+Window: from the merge of this freeze into main until the end of **November 27, 2026** anywhere
+on Earth (UTC-12, so 2026-11-28 11:59:59 UTC). Tasks with no record started in the window are
 `not_run`, and the thesis reports the run as incomplete with those tasks named.
 
 ## 7. Outcome coding (frozen; implemented in `scripts/ai-run-analysis.mjs`)
 
-Records are checked first. A record for another benchmark, on a fixture connection, not run in the
-app, with a different freeze hash, more than one attempt, an input cap under 60,000, another model,
-role prompts other than the frozen pair, or still running is a protocol problem, and nothing is
-scored until it is resolved. All records must share one connection.
+Records of the six tasks started outside the window or on a connection other than the recorded
+run connection are not part of the run: each is reported as a deviation and not scored. The
+remaining records are checked. A record for another benchmark, on a fixture connection, not run in
+the app, with a different freeze hash, more than one attempt, a missing input cap or one under
+60,000, another model, role prompts other than the frozen pair (or two pairs across the run), or
+still running is a protocol problem, and nothing is scored until it is resolved.
 
-Per task, records are taken in start order. A record is **decided** when one of its attempts
-passed or failed (a verdict on the roles' work). The first decided record is the task's result:
+Per task, records are taken in start order and only the first two count: the first start and the
+one allowed restart. A record is **decided** when one of its attempts passed or failed (a verdict
+on the roles' work). The first decided record among those two is the task's result:
 
 - `completed`: the record is qualified (its one attempt met every bar).
 - `not_completed`: it is not qualified. The first failed bar and the build reason are reported.
 - `no_verdict`: records exist but none was decided (each stopped on an infrastructure fault).
 - `not_run`: no record.
 
-A record without a verdict may be followed by one restart of that task. More restarts, or any
-record started after the decided one, are deviations: they are reported and ignored for the
-outcome. A failed attempt is never re-run to replace it.
+A record without a verdict may be followed by one restart of that task. A third record (a second
+restart), or any record started after the decided one, is a deviation: it is reported and ignored
+for the outcome, even if it passed. A failed attempt is never re-run to replace it.
 
 **Primary outcome:** the number of the six tasks `completed`, with the small and larger counts
 beside it. `no_verdict` and `not_run` count as not completed (every assigned task stays in the

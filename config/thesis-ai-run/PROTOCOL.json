@@ -4,8 +4,8 @@
   "adr": "ADR-0133",
   "frozen_on": "2026-11-19",
   "files": {
-    "docs/thesis/AI_ONLY_RUN_PROTOCOL.md": "a04e60a29ce171202dbe30e66cfdd5451386035ae524be48e7d5ef985042e731",
-    "scripts/ai-run-analysis.mjs": "b66a694a807bb11967006be086253661de4770c508fc0c3f1fcec8d7555199eb"
+    "docs/thesis/AI_ONLY_RUN_PROTOCOL.md": "4490b99e391f605d7a4d85e537b7fe231b995e15b9e5a95eececa3598bdaed79",
+    "scripts/ai-run-analysis.mjs": "0f4c6b421d3e4c9c51d8349c244a2b718c90ece44432dcd0c740193afa6323af"
   },
   "tasks": [
     {
@@ -47,5 +47,6 @@
     "reviewer_prompt_sha256": "9e1cc6b4184526512d4cafa6f0f7f450579935c0bacaa3f17c558b1d2908f99c",
     "metered_usd": "0.00"
   },
-  "run_window_ends": "2026-11-27"
+  "run_window_ends": "2026-11-27",
+  "run_window_note": "Opens when this freeze merges into main; closes at the end of run_window_ends anywhere on Earth (UTC-12)."
 }

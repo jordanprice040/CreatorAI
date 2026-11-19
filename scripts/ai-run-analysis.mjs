@@ -3,30 +3,84 @@
 //
 //   node scripts/ai-run-analysis.mjs verify
 //       Checks that the protocol manifest (config/thesis-ai-run/PROTOCOL.json) still names the
-//       protocol text and every task freeze exactly as they are now. Exit 1 on any difference.
+//       protocol text and every task freeze exactly as they are now, and that every file each
+//       task's FREEZE.json names (spec, expectations, cases, reference, scorer code) still has its
+//       frozen hash, with no file added or removed. Exit 1 on any difference.
 //
 //   node scripts/ai-run-analysis.mjs freeze
 //       Writes the manifest once (refuses to overwrite): the protocol text, this script, every
 //       task's FREEZE.json and the build role prompts current in apps/api/dist (run pnpm
 //       build:code first). A change after the freeze is a new protocol version.
 //
-//   node scripts/ai-run-analysis.mjs analyze <records-dir> [--markdown]
+//   node scripts/ai-run-analysis.mjs analyze <records-dir> --opened <ISO time> --connection <id> [--markdown]
 //       Reads every *.json file in <records-dir> as one studio build qualification record (the
 //       JSON the studio returns for GET .../recipe-qualifications, one record per file), checks the
-//       records against the frozen protocol, and prints the frozen outcome table. Exit 1 when the
+//       records against the frozen protocol, and prints the frozen outcome table. --opened is the
+//       time the freeze merged into main (the window opens then) and --connection the run's
+//       connection id, both recorded in the evidence before the first task. Exit 1 when the
 //       records break the protocol (the problems are printed, and nothing is scored).
 //
 // The coding rules below are part of the frozen protocol: changing this file after the freeze
 // changes its hash in PROTOCOL.json, and `verify` then fails. Nothing here runs a model or a build.
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import {
+  existsSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const MANIFEST = join(ROOT, 'config/thesis-ai-run/PROTOCOL.json');
 const sha = (b) => createHash('sha256').update(b).digest('hex');
 const fileSha = (rel) => sha(readFileSync(join(ROOT, rel)));
+
+// The code files a task freeze names besides its own folder (scripts/recipe-benchmarks.mjs).
+const SCORER_FILES = {
+  'scorer:recipe-scoring.ts': 'packages/executor/src/recipe-scoring.ts',
+  'scorer:recipe-structure.ts': 'packages/executor/src/recipe-structure.ts',
+};
+const ignoredFile = (n) => n === '__pycache__' || n.startsWith('.');
+const walk = (d) =>
+  readdirSync(d)
+    .filter((n) => !ignoredFile(n))
+    .sort()
+    .flatMap((n) =>
+      statSync(join(d, n)).isDirectory() ? walk(join(d, n)) : [join(d, n)],
+    );
+
+/** Review 1 L-6: every file a task's FREEZE.json names still has its hash, and no file was added. */
+export function verifyTaskFiles(id, root = ROOT) {
+  const problems = [];
+  const base = join(root, 'config/recipe-benchmarks', id);
+  const freeze = JSON.parse(readFileSync(join(base, 'FREEZE.json'), 'utf8'));
+  if (freeze.benchmark_id !== id)
+    problems.push(`${id}/FREEZE.json names ${freeze.benchmark_id}`);
+  for (const [key, want] of Object.entries(freeze.files)) {
+    const rel = SCORER_FILES[key] ?? `config/recipe-benchmarks/${id}/${key}`;
+    if (key.includes(':') && !SCORER_FILES[key]) {
+      problems.push(`${id}: unknown frozen file ${key}`);
+      continue;
+    }
+    let got = null;
+    try {
+      got = sha(readFileSync(join(root, rel)));
+    } catch {
+      problems.push(`${rel} is missing`);
+      continue;
+    }
+    if (got !== want) problems.push(`${rel} changed since the freeze`);
+  }
+  for (const f of walk(base)) {
+    const rel = relative(base, f).replaceAll('\\', '/');
+    if (rel !== 'FREEZE.json' && !(rel in freeze.files))
+      problems.push(`config/recipe-benchmarks/${id}/${rel} is not frozen`);
+  }
+  return problems;
+}
 
 export function loadManifest() {
   return JSON.parse(readFileSync(MANIFEST, 'utf8'));
@@ -56,8 +110,11 @@ export function verifyManifest(m = loadManifest()) {
       problems.push(`${rel} is missing`);
       continue;
     }
-    if (got !== t.freeze_sha256)
+    if (got !== t.freeze_sha256) {
       problems.push(`${rel} changed since the freeze`);
+      continue;
+    }
+    problems.push(...verifyTaskFiles(t.id));
   }
   return problems;
 }
@@ -65,25 +122,26 @@ export function verifyManifest(m = loadManifest()) {
 /**
  * The frozen coding of one task's records (see the protocol, "Outcome coding").
  * A record is decided when one of its attempts passed or failed (a verdict on the roles' work).
- * The first decided record is the task's result. A record with no decided attempt (stopped on an
- * infrastructure fault, or never got that far) counts toward the one allowed restart.
+ * Only the first two records count: the first start and the one allowed restart after a record
+ * without a verdict. The first decided record among them is the task's result. Any later record
+ * (a second restart, or a start after the decided record) is a deviation and is ignored.
  */
+const MAX_COUNTED_RECORDS = 2;
 function codeTask(task, records) {
   const mine = records
     .filter((r) => r.benchmark_id === task.id)
-    .sort((a, b) => a.created_at.localeCompare(b.created_at));
+    .sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
   const decided = (r) =>
     r.attempts.some((a) => a.state === 'passed' || a.state === 'failed');
   const deviations = [];
-  const first = mine.findIndex(decided);
-  const before = first === -1 ? mine : mine.slice(0, first);
-  if (before.length > 2)
+  const counted = mine.slice(0, MAX_COUNTED_RECORDS);
+  const first = counted.findIndex(decided);
+  const used = first === -1 ? counted.length : first + 1;
+  if (mine.length > used)
     deviations.push(
-      `${task.id}: ${before.length} records without a verdict; the protocol allows one restart`,
-    );
-  if (first !== -1 && mine.length > first + 1)
-    deviations.push(
-      `${task.id}: ${mine.length - first - 1} record(s) started after the decided one were ignored`,
+      first === -1
+        ? `${task.id}: ${mine.length - used} record(s) after the one allowed restart were ignored`
+        : `${task.id}: ${mine.length - used} record(s) started after the decided one were ignored`,
     );
   if (first === -1) {
     return {
@@ -91,12 +149,12 @@ function codeTask(task, records) {
       scale: task.scale,
       outcome: mine.length ? 'no_verdict' : 'not_run',
       completed: false,
-      record_id: mine.at(-1)?.id ?? null,
-      reason: mine.at(-1)?.reason ?? null,
+      record_id: counted.at(-1)?.id ?? null,
+      reason: counted.at(-1)?.reason ?? null,
       deviations,
     };
   }
-  const r = mine[first];
+  const r = counted[first];
   const a = r.attempts.find(
     (x) => x.state === 'passed' || x.state === 'failed',
   );
@@ -123,16 +181,58 @@ function codeTask(task, records) {
   };
 }
 
-/** Checks the records against the frozen run, then codes every task. */
-export function analyze(records, m = loadManifest()) {
+/** The instant the run window closes: the end of the manifest's last day anywhere on Earth (UTC-12). */
+export function windowCloses(m) {
+  return Date.parse(`${m.run_window_ends}T23:59:59.999-12:00`);
+}
+
+/**
+ * Checks the records against the frozen run, then codes every task.
+ * `opened` is the ISO time the freeze merged into main; `connection` is the run's connection id.
+ * Review 1 M-3 and L-7: a record of a run task made outside the window, or on another connection,
+ * is not part of the run. It is reported as a deviation and not scored, so a task with no record
+ * inside the run is `not_run`.
+ */
+export function analyze(
+  records,
+  { opened, connection } = {},
+  m = loadManifest(),
+) {
   const problems = [];
+  const opens = Date.parse(opened ?? '');
+  if (!Number.isFinite(opens) || !/(Z|[+-]\d\d:\d\d)$/.test(opened))
+    problems.push(
+      'the window opening (--opened) must be an ISO time with a zone',
+    );
+  if (typeof connection !== 'string' || connection === '')
+    problems.push('the run connection (--connection) is required');
+  if (problems.length) return { ok: false, problems };
+  const closes = windowCloses(m);
   const ids = new Set(m.tasks.map((t) => t.id));
-  const run = records.filter((r) => ids.has(r.benchmark_id));
+  const excluded = [];
   for (const r of records)
     if (!ids.has(r.benchmark_id))
       problems.push(
         `record ${r.id} is for ${r.benchmark_id}, not a task of this run`,
       );
+  const run = [];
+  for (const r of records.filter((x) => ids.has(x.benchmark_id))) {
+    const at = Date.parse(r.created_at);
+    if (!Number.isFinite(at)) problems.push(`record ${r.id} has no start time`);
+    else if (r.connection_id !== connection)
+      excluded.push(
+        `${r.benchmark_id}: record ${r.id} on connection ${r.connection_id} is not part of the run and was ignored`,
+      );
+    else if (at < opens)
+      excluded.push(
+        `${r.benchmark_id}: record ${r.id} started ${r.created_at}, before the window opened, and was ignored`,
+      );
+    else if (at > closes)
+      excluded.push(
+        `${r.benchmark_id}: record ${r.id} started ${r.created_at}, after the window closed (${m.run_window_ends}), and was ignored`,
+      );
+    else run.push(r);
+  }
   for (const r of run) {
     const task = m.tasks.find((t) => t.id === r.benchmark_id);
     if (r.freeze_sha256 !== task.freeze_sha256)
@@ -149,11 +249,11 @@ export function analyze(records, m = loadManifest()) {
         `record ${r.id}: ${r.attempts_needed} attempts, the run has 1`,
       );
     if (
-      r.max_input_chars !== null &&
+      typeof r.max_input_chars !== 'number' ||
       r.max_input_chars < m.route.min_input_chars
     )
       problems.push(
-        `record ${r.id}: input cap ${r.max_input_chars} below ${m.route.min_input_chars}`,
+        `record ${r.id}: input cap ${r.max_input_chars} is not at least ${m.route.min_input_chars}`,
       );
     if (r.model_id !== m.route.model_id)
       problems.push(
@@ -164,12 +264,8 @@ export function analyze(records, m = loadManifest()) {
       if (r[key] !== m.route[key])
         problems.push(`record ${r.id}: ${key} is not the frozen role prompt`);
   }
-  // One connection and one pair of role prompts for the whole run.
-  for (const key of [
-    'connection_id',
-    'builder_prompt_sha256',
-    'reviewer_prompt_sha256',
-  ]) {
+  // One pair of role prompts for the whole run (the connection is fixed above).
+  for (const key of ['builder_prompt_sha256', 'reviewer_prompt_sha256']) {
     const values = new Set(run.map((r) => r[key]));
     if (values.size > 1)
       problems.push(`records differ in ${key}: ${[...values].join(', ')}`);
@@ -208,9 +304,13 @@ export function analyze(records, m = loadManifest()) {
       },
     },
     tasks,
-    deviations: tasks.flatMap((t) => t.deviations),
+    deviations: [...excluded, ...tasks.flatMap((t) => t.deviations)],
+    window: {
+      opened: new Date(opens).toISOString(),
+      closes: new Date(closes).toISOString(),
+    },
     route: {
-      connection_id: run[0]?.connection_id ?? null,
+      connection_id: connection,
       model_id: run[0]?.model_id ?? null,
       builder_prompt_sha256: run[0]?.builder_prompt_sha256 ?? null,
       reviewer_prompt_sha256: run[0]?.reviewer_prompt_sha256 ?? null,
@@ -242,6 +342,9 @@ export function markdown(res) {
       `${res.secondary.extended_cases.passed}/${res.secondary.extended_cases.total} over ` +
       `${res.secondary.extended_cases.tasks_with_package} packages.`,
   );
+  lines.push(
+    `Window: records started ${res.window.opened} to ${res.window.closes}, connection ${res.route.connection_id}.`,
+  );
   if (res.deviations.length)
     lines.push('', 'Deviations:', ...res.deviations.map((d) => `- ${d}`));
   return lines.join('\n') + '\n';
@@ -251,8 +354,17 @@ if (
   process.argv[1] &&
   resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
-  const [cmd, dir, flag] = process.argv.slice(2);
-  if (cmd === 'freeze' && !dir) {
+  const [cmd, dir, ...rest] = process.argv.slice(2);
+  const opts = {};
+  let bad = false;
+  for (let i = 0; i < rest.length; i++) {
+    if (rest[i] === '--markdown') opts.markdown = true;
+    else if (rest[i] === '--opened' && rest[i + 1]) opts.opened = rest[++i];
+    else if (rest[i] === '--connection' && rest[i + 1])
+      opts.connection = rest[++i];
+    else bad = true;
+  }
+  if (cmd === 'freeze' && !dir && !rest.length) {
     if (existsSync(MANIFEST))
       throw new Error('Already frozen; write a new protocol version');
     const { currentRolePromptHashes } = await import(
@@ -286,16 +398,18 @@ if (
         metered_usd: '0.00',
       },
       run_window_ends: '2026-11-27',
+      run_window_note:
+        'Opens when this freeze merges into main; closes at the end of run_window_ends anywhere on Earth (UTC-12).',
     };
     writeFileSync(MANIFEST, JSON.stringify(manifest, null, 2) + '\n');
     console.log(JSON.stringify({ frozen: manifest.protocol_id }));
-  } else if (cmd === 'verify' && !dir) {
+  } else if (cmd === 'verify' && !dir && !rest.length) {
     const problems = verifyManifest();
     console.log(
       JSON.stringify({ frozen: problems.length === 0, problems }, null, 2),
     );
     process.exit(problems.length ? 1 : 0);
-  } else if (cmd === 'analyze' && dir && (!flag || flag === '--markdown')) {
+  } else if (cmd === 'analyze' && dir && !bad) {
     const problems = verifyManifest();
     if (problems.length) {
       console.log(JSON.stringify({ ok: false, problems }, null, 2));
@@ -305,17 +419,17 @@ if (
       .filter((f) => f.endsWith('.json'))
       .sort()
       .map((f) => JSON.parse(readFileSync(join(dir, f), 'utf8')));
-    const res = analyze(records);
+    const res = analyze(records, opts);
     if (!res.ok) {
       console.log(JSON.stringify(res, null, 2));
       process.exit(1);
     }
     process.stdout.write(
-      flag ? markdown(res) : JSON.stringify(res, null, 2) + '\n',
+      opts.markdown ? markdown(res) : JSON.stringify(res, null, 2) + '\n',
     );
   } else {
     console.error(
-      'usage: freeze | verify | analyze <records-dir> [--markdown]',
+      'usage: freeze | verify | analyze <records-dir> --opened <ISO time> --connection <id> [--markdown]',
     );
     process.exit(2);
   }

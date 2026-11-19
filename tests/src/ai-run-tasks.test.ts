@@ -232,6 +232,9 @@ test('ADR-0133: the structure bar passes the larger references and fails a missi
 // ---- The protocol manifest and the frozen outcome coding ---------------------------------
 
 const SCRIPT = at('scripts/ai-run-analysis.mjs');
+const { verifyTaskFiles } = (await import(
+  new URL('../../scripts/ai-run-analysis.mjs', import.meta.url).href
+)) as { verifyTaskFiles: (id: string, root?: string) => string[] };
 const manifest = json('config/thesis-ai-run/PROTOCOL.json') as {
   tasks: { id: string; scale: string; freeze_sha256: string }[];
   route: {
@@ -285,7 +288,7 @@ function record(
   return {
     id: uuid(),
     workspace_id: uuid(),
-    connection_id: 'c0000000-0000-4000-8000-000000000001',
+    connection_id: RUN_CONNECTION,
     recipe: 'python-build/1',
     benchmark_id: id,
     model_id: 'gpt-6-astra',
@@ -340,7 +343,13 @@ function record(
     ...extra,
   };
 }
-function analyze(records: unknown[], markdown = false) {
+const RUN_CONNECTION = 'c0000000-0000-4000-8000-000000000001';
+const OPENED = '2026-11-19T12:00:00Z';
+function analyze(
+  records: unknown[],
+  markdown = false,
+  args: string[] = ['--opened', OPENED, '--connection', RUN_CONNECTION],
+) {
   const dir = mkdtempSync(join(tmpdir(), 'ai-run-records-'));
   try {
     records.forEach((r, i) =>
@@ -351,7 +360,7 @@ function analyze(records: unknown[], markdown = false) {
     );
     const r = spawnSync(
       'node',
-      [SCRIPT, 'analyze', dir, ...(markdown ? ['--markdown'] : [])],
+      [SCRIPT, 'analyze', dir, ...args, ...(markdown ? ['--markdown'] : [])],
       {
         encoding: 'utf8',
       },
@@ -440,6 +449,8 @@ test('ADR-0133: records that break the protocol are refused before anything is s
     [{ model_id: 'another-model' }, /model another-model/],
     [{ attempts_needed: 3 }, /3 attempts/],
     [{ max_input_chars: 24000 }, /input cap 24000/],
+    // Review 1 L-5: an in-app record always carries a cap; a missing one is a problem.
+    [{ max_input_chars: null }, /input cap null/],
     [
       { builder_prompt_sha256: 'b'.repeat(64) },
       /builder_prompt_sha256 is not the frozen/,
@@ -451,12 +462,138 @@ test('ADR-0133: records that break the protocol are refused before anything is s
     assert.equal(r.status, 1, JSON.stringify(extra));
     assert.match(r.out, problem);
   }
-  const two = analyze([
+  const prompts = analyze([
     record(id, 'qualified', 'passed'),
     record(manifest.tasks[1]!.id, 'qualified', 'passed', {
-      connection_id: 'c0000000-0000-4000-8000-000000000002',
+      reviewer_prompt_sha256: 'c'.repeat(64),
     }),
   ]);
-  assert.equal(two.status, 1);
-  assert.match(two.out, /records differ in connection_id/);
+  assert.equal(prompts.status, 1);
+  assert.match(prompts.out, /reviewer_prompt_sha256 is not the frozen/);
+  // The window opening and the run connection are required, and the opening needs a zone.
+  for (const args of [
+    ['--connection', RUN_CONNECTION],
+    ['--opened', OPENED],
+    ['--opened', '2026-11-19T12:00:00', '--connection', RUN_CONNECTION],
+  ]) {
+    const r = analyze([record(id, 'qualified', 'passed')], false, args);
+    assert.equal(r.status, 1, args.join(' '));
+    assert.match(r.out, /--opened|--connection/);
+  }
+});
+
+type Coded = {
+  primary: { completed: number };
+  tasks: { id: string; outcome: string; restarts?: number }[];
+  deviations: string[];
+};
+
+test('ADR-0133 review 1 M-1: one restart only; a second restart is ignored, even when it passes', () => {
+  const id = manifest.tasks[3]!.id;
+  const at = (h: number) => ({
+    created_at: `2026-11-21T${String(h).padStart(2, '0')}:00:00.000Z`,
+  });
+  const twoRestarts = analyze([
+    record(id, 'stopped', 'invalid', at(9)),
+    record(id, 'stopped', null, at(10)),
+    record(id, 'qualified', 'passed', at(11)),
+  ]);
+  assert.equal(twoRestarts.status, 0, twoRestarts.out);
+  const a = JSON.parse(twoRestarts.out) as Coded;
+  assert.equal(a.tasks[3]!.outcome, 'no_verdict');
+  assert.equal(a.primary.completed, 0);
+  assert.deepEqual(a.deviations, [
+    `${id}: 1 record(s) after the one allowed restart were ignored`,
+  ]);
+  const threeStops = JSON.parse(
+    analyze([
+      record(id, 'stopped', null, at(9)),
+      record(id, 'stopped', null, at(10)),
+      record(id, 'stopped', null, at(11)),
+    ]).out,
+  ) as Coded;
+  assert.equal(threeStops.tasks[3]!.outcome, 'no_verdict');
+  assert.equal(threeStops.deviations.length, 1);
+  // One restart is allowed and is not a deviation.
+  const one = JSON.parse(
+    analyze([
+      record(id, 'stopped', null, at(9)),
+      record(id, 'not_qualified', 'failed', at(10)),
+    ]).out,
+  ) as Coded;
+  assert.equal(one.tasks[3]!.outcome, 'not_completed');
+  assert.equal(one.tasks[3]!.restarts, 1);
+  assert.deepEqual(one.deviations, []);
+});
+
+test('ADR-0133 review 1 M-3 and L-7: records outside the window or on another connection are not part of the run', () => {
+  const [loans, tickets, fares, shifts] = manifest.tasks.map((t) => t.id);
+  const r = analyze([
+    // Before the freeze merged: ignored, so loans counts from its in-window record.
+    record(loans!, 'not_qualified', 'failed', {
+      created_at: '2026-11-19T11:59:59.000Z',
+    }),
+    record(loans!, 'qualified', 'passed', {
+      created_at: '2026-11-19T12:00:00.000Z',
+    }),
+    // The last instant of November 27 anywhere on Earth is still inside.
+    record(tickets!, 'qualified', 'passed', {
+      created_at: '2026-11-28T11:59:59.000Z',
+    }),
+    // After the window: ignored, so the task is not run.
+    record(fares!, 'qualified', 'passed', {
+      created_at: '2026-12-25T10:00:00.000Z',
+    }),
+    // A start on another connection (a test on the installed app, say): ignored.
+    record(shifts!, 'qualified', 'passed', {
+      connection_id: 'c0000000-0000-4000-8000-000000000002',
+      model_id: 'another-model',
+    }),
+  ]);
+  assert.equal(r.status, 0, r.out);
+  const res = JSON.parse(r.out) as Coded;
+  assert.deepEqual(
+    res.tasks.slice(0, 4).map((t) => t.outcome),
+    ['completed', 'completed', 'not_run', 'not_run'],
+  );
+  assert.equal(res.primary.completed, 2);
+  assert.equal(res.deviations.length, 3);
+  assert.match(res.deviations.join('\n'), /before the window opened/);
+  assert.match(res.deviations.join('\n'), /after the window closed/);
+  assert.match(res.deviations.join('\n'), /is not part of the run/);
+});
+
+test('ADR-0133 review 1 L-6: verify checks every frozen task file and refuses added ones', () => {
+  const id = manifest.tasks[5]!.id;
+  const root = mkdtempSync(join(tmpdir(), 'ai-run-verify-'));
+  try {
+    cpSync(
+      join(ROOT, 'config/recipe-benchmarks', id),
+      join(root, 'config/recipe-benchmarks', id),
+      { recursive: true },
+    );
+    cpSync(
+      join(ROOT, 'packages/executor/src'),
+      join(root, 'packages/executor/src'),
+      { recursive: true },
+    );
+    assert.deepEqual(verifyTaskFiles(id, root), []);
+    const spec = join(root, 'config/recipe-benchmarks', id, 'spec.json');
+    writeFileSync(spec, readFileSync(spec, 'utf8') + ' ');
+    writeFileSync(
+      join(root, 'config/recipe-benchmarks', id, 'reference/extra.py'),
+      '',
+    );
+    const problems = verifyTaskFiles(id, root);
+    assert.ok(
+      problems.some((p) => /spec\.json changed/.test(p)),
+      problems.join(),
+    );
+    assert.ok(
+      problems.some((p) => /extra\.py is not frozen/.test(p)),
+      problems.join(),
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
