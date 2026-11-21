@@ -71,6 +71,39 @@ Protocol `docs/thesis/AI_ONLY_RUN_PROTOCOL.md`, manifest `config/thesis-ai-run/P
 
 `docs/thesis/` draft 2 describes main `b9270db` under Jordan's November 19 scope: an engineering thesis on executed evidence, plus a small frozen AI-only run reported alone (placeholder Section 6 / E19, no results), with the three-arm study as future work. Evidence E10–E19 are added; the live autopilot reports are copied with hashes into `tracking/evidence/thesis-draft-2-2026-11-19/`, together with a full `pnpm test:db` log (1,527 tests, 1,490 pass, 32 skipped, only the 5 known PowerShell-wrapper failures). Next for the thesis: fill Section 6 from the AI-only run's frozen protocol and records only; commit the PC-only P13 autopilot evidence (E13); write related work; format the draft; get committee review; rehearse the defense.
 
+## November 19 handoff — audit 2026-11-19 fixes (no migration or ADR)
+
+Fixes every finding of `/mnt/project-files/audits/2026-11-19-codebase-audit.md` (audit of main `2edd06f`) on
+branch `claude/project-thread-sy2kkg`, one PR.
+
+- **H-1 (push paths).** `studioGit` keeps stdout and stderr apart (`stdout` is never cut; it is refused past 8 MiB),
+  and `changedPaths` reads stdout only, with `--no-renames` so a workflow moved out of `.github/` still lists its old
+  path. A list over 20,000 paths is refused (`EVIDENCE_MISMATCH`) instead of cut; the message says to push fewer changes, or to push a large repository's first commit outside the studio.
+  The push result reads the porcelain status line for a local rejection (N-2).
+- **M-1 (update offered again).** `update::load_available` works out `newer` against the running version in the
+  status window, Download and Install; a confirmed update also deletes `updates/available.json`.
+- **M-2 (uninstaller).** The "Delete the application data" box and its `RmDir /r` of the studio home are removed
+  (owner decision, `tracking/DECISIONS.md`); the template test pins it.
+- **Lows.** L-1 docs drift was already fixed by #247. L-2: classic `ghp_`/`gho_` update tokens are refused. L-3:
+  backup dumps are hashed as a stream (`sha256File`) when made, checked (both formats) and restored. L-4: a failed
+  restore into an existing folder that held no files removes what it copied there. L-5: the GitHub App setup poll
+  uses `usePoll`/`useOnShow`.
+- **Nits.** N-1 migration comments (71, 75 and 77 permanently unused; 76 stays reserved for F11). N-3: a rollback's
+  `<install>.failed-update-<hex>` folder is named in the history and removed by the next confirmed update. N-4: the
+  installer's hash is checked inside the update lock. N-5: the Rust version test pins `Cargo.toml` to
+  `tauri.conf.json` instead of 0.1.0. N-6: no change; pdf.js 6.5.438 has no `isEvalSupported` option and no eval
+  path (comment added). N-7: `scripts/README.md` separates live tools from finished packets; files are not moved
+  because frozen configs and packets name them by path. N-8: `icons/icon.png` (64 px, from `icon.ico`) is
+  committed so `cargo test` compiles on a fresh checkout; `brand-derived-assets.ps1` does not make it, so redo it by
+  hand from `icon.ico` when the icon changes.
+- **Review of #250 (3 nits).** A classic token saved before the save-time check is refused by Check and Download
+  with its own message. A failed restore into an existing folder keeps the empty folders the person had made there.
+  The too-many-paths message no longer only says to split the push.
+
+Checks (cloud, Linux): see the PR. Not checked: a Windows build of the installer (the NSIS change and the uninstaller
+page are unbuilt), Windows `cargo test`, and the updater on the PC. Next free numbers unchanged: migration 80,
+ADR-0133.
+
 ## November 17 handoff — seed commands take a workspace name (no migration or ADR)
 
 Branch `claude/project-thread-68dx3w`. `apps/cli/src/index.ts`: `seedDiscovery(call, name)` was already parameterised; `seedSelection(call, name)` now takes a name too, and the `seed-discovery` / `seed-selection` cases pass `seedName(rest)`: one argument (trimmed; empty falls back to the default name), more than one refused with a quoting hint (review 1 L-2). Usage text and `docs/LOCAL_DEVELOPMENT.md` updated. `tests/src/studio-builds.test.ts` covers the name and the refusal (review 1 L-1). The meeting demo studio on Jordan's PC (`C:\dev\creator_agent_demo`, database `creator_demo`, start with `Start-Demo.cmd`) can be removed on Jordan's say-so. Next free numbers unchanged: ADR-0132, migration 79.

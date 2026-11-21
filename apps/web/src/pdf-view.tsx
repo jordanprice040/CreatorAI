@@ -171,6 +171,8 @@ export function PdfView({ bytes, name }: { bytes: ArrayBuffer; name: string }) {
       wasmUrl: `${assets}wasm/`,
       iccUrl: `${assets}iccs/`,
       enableXfa: false,
+      // Audit 2026-11-19 N-6: no `isEvalSupported` here because pdf.js 6.5 has no such option;
+      // it no longer compiles font code with eval or `new Function` at all (CVE-2024-4367).
       useSystemFonts: false,
       stopAtErrors: false,
     });

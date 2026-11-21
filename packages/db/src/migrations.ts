@@ -3966,7 +3966,7 @@ create table notification_sources (
   {
     // ADR-0122 (F13): the study effort timer. A step starts on the server clock; its browser
     // totals arrive once, with the intervention that ends it. Both rows are append-only, and an
-    // unfinished step stays visible. Versions 70-71 are reserved by other milestones.
+    // unfinished step stays visible. (Number 71 is permanently unused: audit 2026-11-19 N-1.)
     version: 72,
     name: 'study_effort_timer',
     sql: `
@@ -4051,7 +4051,7 @@ create trigger backup_runs_outcome before update or delete on backup_runs
     // ADR-0124 (F2): an autopilot that opted in (its config's resume_after_limit) continues by
     // itself after a usage limit. These record how many automatic continues it made (bounded)
     // and when the owner turned that off; turning it on again is not offered (start a new one).
-    // Numbers 70, 71 and 73 are reserved for other milestones (N1, F10, F1).
+    // Number 71 is permanently unused (audit 2026-11-19 N-1).
     version: 74,
     name: 'autopilot_auto_resume',
     sql: `
@@ -4070,7 +4070,8 @@ alter table autopilots add constraint autopilots_auto_resume_off_check
     // are 'attempt' steps, ended by the next intervention, saved entry or finish; each measure
     // names the record that ended it. Rows measured under ADR-0122 were all ended by an
     // intervention. Adding a column fires no row trigger, so both tables stay append-only.
-    // Numbers 75-77 are reserved for other milestones (F8 left 75 unused; F11, F4).
+    // Numbers 75 and 77 are permanently unused (F8 and F4 shipped without migrations); 76 stays
+    // reserved for later F11 slices (audit 2026-11-19 N-1).
     version: 78,
     name: 'study_effort_attempt_steps',
     sql: `

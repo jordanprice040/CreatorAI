@@ -835,6 +835,24 @@ mod tests {
             ),
             "the installer's upgrade page must default to Do not uninstall"
         );
+        // Audit 2026-11-19 M-2 (owner decision): no "Delete the application data" box, and
+        // nothing in the uninstaller removes the studio home or the roaming app folder.
+        // NSIS commands ignore case, so the check does too.
+        let lower = nsi.to_ascii_lowercase();
+        for gone in ["$(deleteappdata)", "deleteappdatacheckbox"] {
+            assert!(
+                !lower.contains(gone),
+                "the uninstaller must not have {gone}"
+            );
+        }
+        for line in lower.lines().map(str::trim) {
+            if line.starts_with("rmdir") || line.starts_with("delete ") {
+                assert!(
+                    !line.contains("appdata") && !line.contains("${bundleid}"),
+                    "the uninstaller must not remove app data: {line}"
+                );
+            }
+        }
         let pkg: serde_json::Value = serde_json::from_str(&read("../package.json")).unwrap();
         assert_eq!(
             pkg["devDependencies"]["@tauri-apps/cli"], "2.12.3",

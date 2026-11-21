@@ -1,5 +1,5 @@
 ; Creator Agent: Tauri's NSIS template from tauri-cli v2.12.3 (crates/tauri-bundler/src/bundle/
-; windows/nsis/installer.nsi, sha256 8ae02c66f8adb4a0d15d97f984fbacd2b44262d8a4d03fefaf6177f67f7008e5), with two changes marked "Creator Agent".
+; windows/nsis/installer.nsi, sha256 8ae02c66f8adb4a0d15d97f984fbacd2b44262d8a4d03fefaf6177f67f7008e5), with the changes marked "Creator Agent".
 ; When @tauri-apps/cli is upgraded, start again from that version's template.
 Unicode true
 ManifestDPIAware true
@@ -441,43 +441,10 @@ FunctionEnd
 
 ; Uninstaller Pages
 ; 1. Confirm uninstall page
-Var DeleteAppDataCheckbox
-Var DeleteAppDataCheckboxState
-!define /ifndef WS_EX_LAYOUTRTL         0x00400000
-!define MUI_PAGE_CUSTOMFUNCTION_SHOW un.ConfirmShow
-Function un.ConfirmShow ; Add add a `Delete app data` check box
-  ; $1 inner dialog HWND
-  ; $2 window DPI
-  ; $3 style
-  ; $4 x
-  ; $5 y
-  ; $6 width
-  ; $7 height
-  FindWindow $1 "#32770" "" $HWNDPARENT ; Find inner dialog
-  System::Call "user32::GetDpiForWindow(p r1) i .r2"
-  ${If} $(^RTL) = 1
-    StrCpy $3 "${__NSD_CheckBox_EXSTYLE} | ${WS_EX_LAYOUTRTL}"
-    IntOp $4 50 * $2
-  ${Else}
-    StrCpy $3 "${__NSD_CheckBox_EXSTYLE}"
-    IntOp $4 0 * $2
-  ${EndIf}
-  IntOp $5 100 * $2
-  IntOp $6 400 * $2
-  IntOp $7 25 * $2
-  IntOp $4 $4 / 96
-  IntOp $5 $5 / 96
-  IntOp $6 $6 / 96
-  IntOp $7 $7 / 96
-  System::Call 'user32::CreateWindowEx(i r3, w "${__NSD_CheckBox_CLASS}", w "$(deleteAppData)", i ${__NSD_CheckBox_STYLE}, i r4, i r5, i r6, i r7, p r1, i0, i0, i0) i .s'
-  Pop $DeleteAppDataCheckbox
-  SendMessage $HWNDPARENT ${WM_GETFONT} 0 0 $1
-  SendMessage $DeleteAppDataCheckbox ${WM_SETFONT} $1 1
-FunctionEnd
-!define MUI_PAGE_CUSTOMFUNCTION_LEAVE un.ConfirmLeave
-Function un.ConfirmLeave
-  SendMessage $DeleteAppDataCheckbox ${BM_GETCHECK} 0 0 $DeleteAppDataCheckboxState
-FunctionEnd
+; Creator Agent (owner decision, November 19, 2026; audit 2026-11-19 M-2): Tauri's
+; "Delete the application data" check box is removed. Ticking it ran RmDir /r on the studio
+; home (app-managed PostgreSQL data, product files, the default backups folder and the saved
+; secrets). Uninstalling now removes only the program; the studio's data stays.
 !define MUI_PAGE_CUSTOMFUNCTION_PRE un.SkipIfPassive
 !insertmacro MUI_UNPAGE_CONFIRM
 
@@ -890,23 +857,8 @@ Section Uninstall
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${PRODUCTNAME}"
   ${EndIf}
 
-  ; Delete app data if the checkbox is selected
-  ; and if not updating
-  ${If} $DeleteAppDataCheckboxState = 1
-  ${AndIf} $UpdateMode <> 1
-    ; Clear the install location $INSTDIR from registry
-    DeleteRegKey SHCTX "${MANUPRODUCTKEY}"
-    DeleteRegKey /ifempty SHCTX "${MANUKEY}"
-
-    ; Clear the install language from registry
-    DeleteRegValue HKCU "${MANUPRODUCTKEY}" "Installer Language"
-    DeleteRegKey /ifempty HKCU "${MANUPRODUCTKEY}"
-    DeleteRegKey /ifempty HKCU "${MANUKEY}"
-
-    SetShellVarContext current
-    RmDir /r "$APPDATA\${BUNDLEID}"
-    RmDir /r "$LOCALAPPDATA\${BUNDLEID}"
-  ${EndIf}
+  ; Creator Agent: no "Delete app data" step (see the confirm page above); the studio home
+  ; in $LOCALAPPDATA and anything in $APPDATA are never removed by the uninstaller.
 
   !ifmacrodef NSIS_HOOK_POSTUNINSTALL
     !insertmacro NSIS_HOOK_POSTUNINSTALL

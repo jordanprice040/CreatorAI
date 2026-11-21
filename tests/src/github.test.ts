@@ -322,6 +322,29 @@ test('X04 owner verification, scope limits, push, review, checks and exact-head 
     c1,
   );
   local.run('reset', '-q', '--hard', before);
+  // Audit 2026-11-19 H-1: a push of 200 long paths that sort before ".github" still lists
+  // the workflow file, so it is asked for as a workflow change, not an ordinary write.
+  for (let i = 0; i < 200; i++) {
+    const path = join(local.dir, '-gen', 'x'.repeat(60), `f${i}.txt`);
+    mkdirSync(join(path, '..'), { recursive: true });
+    writeFileSync(path, `v${i}`);
+  }
+  const hidden = local.commit('.github/workflows/zz.yml', 'on: push');
+  const big = await svc.operate(
+    agent,
+    ws,
+    op(conn, run, {
+      kind: 'push',
+      repository_id: repo.id,
+      branch: 'creator/feature',
+      product_id: randomUUID(),
+      sha: hidden,
+      base_sha: c1,
+    }),
+  );
+  assert.equal(big.action_type, 'github.workflow_change');
+  assert.equal(state(big), 'refused:admission_waiting_human');
+  local.run('reset', '-q', '--hard', before);
   // A stale base is refused instead of overwriting the remote branch.
   const c2 = local.commit('src/app.txt', 'v2');
   const stale = await svc.operate(

@@ -106,13 +106,17 @@ A failed setup removes only what it created and saves nothing.
 ## In-app updates
 
 The status window's **Updates** section installs new versions from a private GitHub repository's
-releases. Set it up once: the repository (`owner/name`) and a fine-grained GitHub token with
-read-only access to that repository's contents (stored with Windows protection, never shown again).
+releases. Set it up once: the repository (`owner/name`) and a fine-grained GitHub token
+(`github_pat_…`) with read-only access to that repository's contents (stored with Windows
+protection, never shown again). A classic token (`ghp_…`) or an OAuth token (`gho_…`) is refused:
+it cannot be limited to one repository. One saved before this check keeps working until replaced.
 Nothing is checked until both are saved; checking at each start is opt-in.
 
 1. **Check for updates** reads the latest release and its `creator-agent-update.json`. It is refused
    if the manifest, the release tag, the installer's size or GitHub's own digest disagree.
 2. **Download** saves the installer and keeps it only if its size and SHA-256 match the manifest.
+   Whether a release is newer is always judged against the version running now, so after an
+   update the status window no longer offers the version just installed.
 3. **Back up and install** (one confirmation) saves a verified backup, keeps a copy of this version,
    quits, installs the update silently and starts the new version. A database upgrade the new
    version needs runs without asking again, rehearsed on a copy first.
@@ -175,14 +179,19 @@ manifest (`bundle-manifest.json`, including the source commit and whether it was
 The installer is unsigned; it is a local review artifact, not a public release.
 
 The installer uses a copy of Tauri's own NSIS template (`src-tauri/nsis/installer.nsi`, from
-the pinned `@tauri-apps/cli` 2.12.3) with one change: when an older version is installed, the
-"Already Installed" page picks **Do not uninstall** by default (owner decision, November 19,
-2026), which keeps the app's data folder out of the uninstaller's reach. When the CLI is
-upgraded, take that version's template and make the same change; a test fails until then.
+the pinned `@tauri-apps/cli` 2.12.3) with the changes marked "Creator Agent" in it: when an older
+version is installed, the "Already Installed" page picks **Do not uninstall** by default (owner
+decision, November 19, 2026), and the uninstaller has **no "Delete the application data" box**
+(owner decision, November 19, 2026; audit 2026-11-19 M-2). Uninstalling, from the installer or
+from Windows Settings › Apps, removes only the program: the studio home in
+`%LOCALAPPDATA%\com.creatoragent.studio` (app-managed database, product files, default backups
+and saved secrets) stays. Delete that folder by hand if you really want it gone. When the CLI is
+upgraded, take that version's template and make the same changes; a test fails until then.
 
 Checks: `node --test tests/dist/studio-service.test.js` (set `CREATOR_TEST_DATABASE_URL`,
 `CREATOR_PG_BIN`; `CREATOR_TEST_STUDIO_BUNDLE` runs it against an installed bundle),
-`cargo test` in `apps/desktop/src-tauri`, and the scripted installed-app run
+`cargo test` in `apps/desktop/src-tauri` (outside Windows it also needs the GTK and WebKitGTK
+development packages; `icons/icon.png`, the 64 px frame of `icons/icon.ico`, is committed for it and is not made by `scripts/brand-derived-assets.ps1`, so update it by hand when the icon changes), and the scripted installed-app run
 `node apps/desktop/studio-acceptance.mjs --pg-bin C:\pgsql18\pgsql\bin [--adopt-env <file>]`.
 
 ## Not covered
@@ -205,3 +214,6 @@ Checks: `node --test tests/dist/studio-service.test.js` (set `CREATOR_TEST_DATAB
   and restore the backup the status window names by hand. A rolled-back update keeps its
   `studio-before-<id>.json`, `outcome-<id>.json` and lock for inspection, and `failed.json`
   keeps the highest rolled-back version on purpose; a confirmed update removes its own files.
+  When a rollback puts the earlier files back, the failed version's files are set aside beside
+  the install folder as `<install folder>.failed-update-<hex>` (the update history names it);
+  the next confirmed update removes them.

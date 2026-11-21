@@ -397,6 +397,32 @@ test('F1-1: owner backs up from Settings (same manifest as pnpm backup), checks 
   assert.match(badRun.error ?? '', /were removed\./);
   assert.equal(await exists(badName), false);
   await assert.rejects(readdir(badFolder), /ENOENT/);
+
+  // Audit 2026-11-19 L-4: a folder that existed and held no files is accepted; when the
+  // restore fails, the files it copied there are removed, the folder stays, and a retry is
+  // not refused as "not empty".
+  const keptFolder = join(dir, 'kept');
+  await mkdir(join(keptFolder, 'empty-sub'), { recursive: true });
+  for (const attempt of [1, 2]) {
+    assert.equal(
+      (
+        await post(`/${broken.name}/restore`, {
+          database_name: `${own}_bad${attempt}`,
+          products_root: keptFolder,
+        })
+      ).status,
+      202,
+    );
+    const kept = (await settle()).runs[0]!;
+    assert.equal(kept.status, 'failed');
+    assert.match(kept.error ?? '', /audit history did not verify/);
+    assert.match(
+      kept.error ?? '',
+      /files copied into folder .* were removed\./,
+    );
+    assert.deepEqual(await readdir(keptFolder), ['empty-sub']);
+    assert.deepEqual(await readdir(join(keptFolder, 'empty-sub')), []);
+  }
 });
 
 test('F1-4: a product file Windows cannot hold is refused when the backup is made (re-review L-1)', async (t) => {

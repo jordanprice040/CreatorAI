@@ -107,17 +107,29 @@ fn confirm_without_helper(sup: &Supervisor, paths: &Paths, id: &str) {
         "update_confirmed",
         json!({"id": id, "version": p.to_version, "helper_gone": true}),
     );
-    finish_confirmed(paths, id);
+    finish_confirmed(paths, id, Path::new(&p.install_dir));
     sup.note("update: this version runs; the installer had stopped, so it confirmed itself");
 }
 
 /// After a confirmed update: the installer and this update's own files are no longer needed
-/// (review 2 N-B). A rolled-back update keeps them for inspection.
-fn finish_confirmed(paths: &Paths, id: &str) {
+/// (review 2 N-B). A rolled-back update keeps them for inspection. The saved check result is
+/// removed too (audit 2026-11-19 M-1): it names the release now installed. Files an earlier
+/// rollback set aside beside the install folder go now that a newer version runs (N-3).
+fn finish_confirmed(paths: &Paths, id: &str, install_dir: &Path) {
     let _ = std::fs::remove_dir_all(paths.downloads());
     let _ = std::fs::remove_file(update::heartbeat(paths, id));
     let _ = std::fs::remove_file(paths.outcome(id));
     let _ = std::fs::remove_file(paths.settings_copy(id));
+    let _ = std::fs::remove_file(paths.available());
+    for aside in update::aside_folders(install_dir) {
+        if std::fs::remove_dir_all(&aside).is_ok() {
+            update::record(
+                paths,
+                "failed_files_removed",
+                json!({"path": aside.display().to_string()}),
+            );
+        }
+    }
 }
 
 /// The new version does not start and nobody is watching: hand the rollback to the saved copy
@@ -165,7 +177,9 @@ fn resume_rollback(sup: &Supervisor, paths: &Paths, id: &str) {
 pub fn state(sup: &Supervisor, busy: bool, schema_version: Option<i64>) -> Value {
     let paths = Paths::new(&sup.home.root);
     let settings = Settings::load(&paths);
-    let available: Option<Available> = update::read_json(&paths.available()).ok().flatten();
+    let available = update::load_available(&paths, update::current_version())
+        .ok()
+        .flatten();
     let downloaded = available
         .as_ref()
         .map(|a| download_path(&paths, a))
@@ -263,6 +277,11 @@ fn source(sup: &Shared) -> Result<Source, String> {
         .secrets
         .load(TOKEN)?
         .ok_or("Save a GitHub token with read access to the release repository first")?;
+    // Review of #250, nit 1: a classic token saved before the save-time check is refused here,
+    // so Check and Download say so instead of using it.
+    if update::classic_token(&token) {
+        return Err("The saved token is a classic GitHub token, which reaches every repository you can. Replace it with a fine-grained token (it starts with github_pat_) limited to the release repository, with read-only Contents.".into());
+    }
     Ok(Source::github(&s.repository, &token))
 }
 
@@ -321,8 +340,8 @@ pub fn release_layout_allowed(release: u32, current: Option<i64>) -> Result<(), 
 pub fn download(sup: &Shared) -> Result<Value, String> {
     guarded(sup, || {
         let paths = Paths::new(&sup.home.root);
-        let a: Available =
-            update::read_json(&paths.available())?.ok_or("Check for updates first")?;
+        let a = update::load_available(&paths, update::current_version())?
+            .ok_or("Check for updates first")?;
         if !a.newer {
             return Err(format!("{} is not newer than this version", a.version));
         }
@@ -366,13 +385,13 @@ pub fn install(sup: &Shared) -> Result<Value, String> {
     if running_from_saved_copy(&paths) {
         return Err(SAVED_COPY_TEXT.into());
     }
-    let a: Available = update::read_json(&paths.available())?.ok_or("Check for updates first")?;
+    let a = update::load_available(&paths, update::current_version())?
+        .ok_or("Check for updates first")?;
     if !a.newer {
         return Err(format!("{} is not newer than this version", a.version));
     }
     release_allowed(sup, &paths, &a)?;
     let installer = download_path(&paths, &a);
-    update::verify_download(&installer, &a.manifest.installer)?;
     let exe = std::env::current_exe().map_err(|_| "Could not find this app's program file")?;
     let install_dir = exe
         .parent()
@@ -385,6 +404,9 @@ pub fn install(sup: &Shared) -> Result<Value, String> {
         .to_string();
     let config = sup.home.load()?.ok_or("Run setup first")?;
     let pending = guarded(sup, || {
+        // Audit 2026-11-19 N-4: checked under the update lock, so a Download cannot replace
+        // the file between this check and the install.
+        update::verify_download(&installer, &a.manifest.installer)?;
         sup.note(&format!(
             "update: saving a backup before installing {}",
             a.version
@@ -816,6 +838,13 @@ impl Steps for RealSteps {
             ));
             std::fs::rename(install_dir, &aside)
                 .map_err(|_| "the new version's files are in use".to_string())?;
+            // Audit 2026-11-19 N-3: the history says where they are; the next confirmed
+            // update removes them.
+            update::record(
+                &self.paths,
+                "failed_files_set_aside",
+                json!({"path": aside.display().to_string()}),
+            );
         }
         if let Err(e) = crate::studio::copy_verified_as(from, install_dir, "app") {
             let _ = std::fs::remove_dir_all(install_dir);
@@ -913,7 +942,7 @@ pub fn helper(root: PathBuf, id: &str, resume: bool) -> Result<(), String> {
         update::apply(&mut steps, p)
     };
     if out.stage == "confirmed" {
-        finish_confirmed(&steps.paths, id);
+        finish_confirmed(&steps.paths, id, Path::new(&out.install_dir));
     }
     let _ = std::fs::remove_file(update::heartbeat(&steps.paths, id));
     // Only an update that ended badly here says so; one another process is rolling back
