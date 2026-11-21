@@ -1,0 +1,52 @@
+{
+  "format": "thesis-ai-run-protocol/1",
+  "protocol_id": "thesis-ai-only-run-v1",
+  "adr": "ADR-0133",
+  "frozen_on": "2026-11-19",
+  "files": {
+    "docs/thesis/AI_ONLY_RUN_PROTOCOL.md": "4490b99e391f605d7a4d85e537b7fe231b995e15b9e5a95eececa3598bdaed79",
+    "scripts/ai-run-analysis.mjs": "0f4c6b421d3e4c9c51d8349c244a2b718c90ece44432dcd0c740193afa6323af"
+  },
+  "tasks": [
+    {
+      "id": "ai-run-loans-v1",
+      "scale": "larger",
+      "freeze_sha256": "db3e400512cfce568e097a3948da31fddc719abade5ba2512e463844f914e553"
+    },
+    {
+      "id": "ai-run-tickets-v1",
+      "scale": "larger",
+      "freeze_sha256": "f2926e7613e5937db8ccf8c41e1ebe361de10f980e350bfa1129b1273690b77b"
+    },
+    {
+      "id": "ai-run-fares-v1",
+      "scale": "larger",
+      "freeze_sha256": "f3fe1086f20ff073e9aaa9492fd5cd0a58caff1aa23e11b52dde3e0ab26efc95"
+    },
+    {
+      "id": "ai-run-shifts-v1",
+      "scale": "small",
+      "freeze_sha256": "c75705976ddfadef58578a4371b35ee36bf422749739a4de9be9d90e2ac1fc45"
+    },
+    {
+      "id": "ai-run-grades-v1",
+      "scale": "small",
+      "freeze_sha256": "3fd11a85538b2d8bd202dfd00bc3739e37d56b9323ad4345b1723f111a06ebe3"
+    },
+    {
+      "id": "ai-run-recipe-v1",
+      "scale": "small",
+      "freeze_sha256": "7571e2ab2811ac93d18e5fc3828b596498d62e9babbda831e8f97a5ca96262d8"
+    }
+  ],
+  "route": {
+    "where": "dev studio (creator_studio), Models > ChatGPT plan connection > Qualify building",
+    "model_id": "gpt-6-astra",
+    "min_input_chars": 60000,
+    "builder_prompt_sha256": "1417735c421c97fa9c5626f6fe027fbf9fc8893a0f76dc5b5031c3de23d9bb7e",
+    "reviewer_prompt_sha256": "9e1cc6b4184526512d4cafa6f0f7f450579935c0bacaa3f17c558b1d2908f99c",
+    "metered_usd": "0.00"
+  },
+  "run_window_ends": "2026-11-27",
+  "run_window_note": "Opens when this freeze merges into main; closes at the end of run_window_ends anywhere on Earth (UTC-12)."
+}

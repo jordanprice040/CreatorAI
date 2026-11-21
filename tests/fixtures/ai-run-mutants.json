@@ -1,0 +1,431 @@
+{
+  "note": "ADR-0133: one mutant of each AI-only run task's reference per listed known failure (exact edits: file under src, text, replacement). Used only by tests/src/ai-run-tasks.test.ts",
+  "tasks": {
+    "ai-run-shifts-v1": {
+      "end-inclusive": [
+        [
+          "main.py",
+          "update(range(start, end))",
+          "update(range(start, end + 1))"
+        ]
+      ],
+      "person-counted-twice": [
+        [
+          "main.py",
+          "count = sum(1 for mins in staff.values() if minute in mins)",
+          "count = sum(1 for (n, s, e) in shifts if s <= minute < e)"
+        ],
+        [
+          "main.py",
+          "staff.setdefault(parts[0], set()).update(range(start, end))",
+          "staff.setdefault(parts[0], set()).update(range(start, end)); shifts.append((parts[0], start, end))"
+        ],
+        ["main.py", "    staff = {}\n", "    staff = {}\n    shifts = []\n"]
+      ],
+      "skip-numbering": [
+        [
+          "main.py",
+          "for number, line in enumerate(sys.stdin.read().split('\\n'), start=1):\n        text = line.strip()\n        if not text or text.startswith('#'):\n            continue",
+          "number = 0\n    for line in sys.stdin.read().split('\\n'):\n        text = line.strip()\n        if not text or text.startswith('#'):\n            continue\n        number += 1"
+        ]
+      ],
+      "gap-end-last-minute": [
+        [
+          "main.py",
+          "(clock(start), clock(end), end - start)",
+          "(clock(start), clock(end - 1), end - start)"
+        ]
+      ],
+      "no-gaps-line-missing": [
+        [
+          "main.py",
+          "        sys.stdout.write('no gaps\\n')\n",
+          "        pass\n"
+        ]
+      ],
+      "open-equal-close-accepted": [
+        [
+          "main.py",
+          "if opts['--open'] >= opts['--close']:",
+          "if opts['--open'] > opts['--close']:"
+        ]
+      ],
+      "repeated-option-accepted": [
+        [
+          "main.py",
+          "if flag not in opts or flag in seen or i + 1 >= len(argv):",
+          "if flag not in opts or i + 1 >= len(argv):"
+        ]
+      ],
+      "loose-time-format": [
+        [
+          "main.py",
+          "TIME = re.compile(r'([01][0-9]|2[0-3]):([0-5][0-9])')",
+          "TIME = re.compile(r'([0-9]{1,2}):([0-9]{2})')"
+        ]
+      ]
+    },
+    "ai-run-recipe-v1": {
+      "not-reduced": [
+        [
+          "main.py",
+          "return '%d/%d' % (rest.numerator, rest.denominator)",
+          "return '%d/%d' % (rest.numerator * 2, rest.denominator * 2)"
+        ]
+      ],
+      "strict-threshold": [
+        [
+          "main.py",
+          "if unit == frm and value >= size:",
+          "if unit == frm and value > size:"
+        ]
+      ],
+      "no-chained-upgrade": [
+        [
+          "main.py",
+          "        for frm, to, size in UPGRADES:\n            if unit == frm and value >= size:\n                value, unit = value / size, to",
+          "        for frm, to, size in UPGRADES:\n            if unit == frm and value >= size:\n                value, unit = value / size, to\n                break"
+        ]
+      ],
+      "upgrade-on-whole-only": [
+        [
+          "main.py",
+          "if unit == frm and value >= size:",
+          "if unit == frm and value >= size and (value / size).denominator == 1:"
+        ]
+      ],
+      "improper-mixed-accepted": [
+        [
+          "main.py",
+          "            if part >= 1:\n                return None\n",
+          ""
+        ]
+      ],
+      "singular-count-missing": [
+        ["main.py", "'' if len(out) == 1 else 's'", "'s'"]
+      ],
+      "mixed-scale-accepted": [
+        [
+          "main.py",
+          "    got = quantity([argv[1]])",
+          "    got = quantity(argv[1].split())"
+        ]
+      ],
+      "no-ingredients-line-missing": [
+        [
+          "main.py",
+          "        sys.stdout.write('no ingredients\\n')\n",
+          "        sys.stdout.write('0 ingredients\\n')\n"
+        ]
+      ]
+    },
+    "ai-run-grades-v1": {
+      "float-rounding": [
+        [
+          "main.py",
+          "        final = tenths(total)",
+          "        final = int(round(float(total) * 10))"
+        ]
+      ],
+      "drop-all-lowest": [
+        [
+          "main.py",
+          "                got = got[1:]",
+          "                got = [g for g in got if g != got[0]] or got[1:]"
+        ]
+      ],
+      "drop-on-two-quizzes": [
+        [
+          "main.py",
+          "if kind == 'quiz' and len(got) >= 3:",
+          "if kind == 'quiz' and len(got) >= 2:"
+        ]
+      ],
+      "renormalize-missing": [
+        [
+          "main.py",
+          "        final = tenths(total)",
+          "        present = sum(w for k, w in WEIGHTS.items() if k in kinds)\n        final = tenths(total / present)"
+        ]
+      ],
+      "letter-before-curve": [
+        [
+          "main.py",
+          "letter = next((l for floor, l in LETTERS if curved >= floor * 10), 'F')",
+          "letter = next((l for floor, l in LETTERS if final >= floor * 10), 'F')"
+        ]
+      ],
+      "curve-uncapped": [
+        [
+          "main.py",
+          "curved = min(final + curve * 10, 1000)",
+          "curved = final + curve * 10"
+        ]
+      ],
+      "tie-by-input-order": [
+        [
+          "main.py",
+          "rows.sort(key=lambda r: (-r[0], r[1]))",
+          "rows.sort(key=lambda r: -r[0])"
+        ]
+      ],
+      "average-of-unrounded": [
+        [
+          "main.py",
+          "        rows.append((final, student, incomplete))",
+          "        rows.append((final, student, incomplete, total))"
+        ],
+        [
+          "main.py",
+          "    for final, student, incomplete in rows:",
+          "    for final, student, incomplete, _ in rows:"
+        ],
+        [
+          "main.py",
+          "average = tenths(Fraction(sum(min(r[0] + curve * 10, 1000) for r in rows), 10 * len(rows)))",
+          "average = tenths(sum(min(r[3] + curve, 100) for r in rows) / len(rows))"
+        ]
+      ],
+      "leading-zero-accepted": [
+        [
+          "main.py",
+          "SCORE = re.compile(r'0|[1-9][0-9]?|100')",
+          "SCORE = re.compile(r'[0-9]{1,3}')"
+        ]
+      ]
+    },
+    "ai-run-loans-v1": {
+      "no-sys-path": [
+        [
+          "main.py",
+          "sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))",
+          ""
+        ]
+      ],
+      "fine-uncapped": [
+        [
+          "loans/money.py",
+          "return min(max(0, day - due) * FINE_PER_DAY, FINE_CAP)",
+          "return max(0, day - due) * FINE_PER_DAY"
+        ]
+      ],
+      "owes-at-limit-refused": [
+        [
+          "loans/desk.py",
+          "if self.members[member]['owes'] > OWES_LIMIT:",
+          "if self.members[member]['owes'] >= OWES_LIMIT:"
+        ]
+      ],
+      "limit-before-held": [
+        [
+          "loans/desk.py",
+          "        if b['held'] is not None and b['held'] != member:\n            return 'held'\n        if self.loans(member) >= LOAN_LIMIT:\n            return 'limit'\n",
+          "        if self.loans(member) >= LOAN_LIMIT:\n            return 'limit'\n        if b['held'] is not None and b['held'] != member:\n            return 'held'\n"
+        ]
+      ],
+      "hold-ignored": [
+        [
+          "loans/desk.py",
+          "        if b['held'] is not None and b['held'] != member:\n            return 'held'\n",
+          ""
+        ]
+      ],
+      "queue-lifo": [
+        [
+          "loans/desk.py",
+          "b['held'] = b['queue'].pop(0)",
+          "b['held'] = b['queue'].pop()"
+        ]
+      ],
+      "string-id-order": [
+        [
+          "loans/report.py",
+          "return sorted(ids, key=lambda i: int(i[1:]))",
+          "return sorted(ids)"
+        ]
+      ],
+      "apply-before-check": [
+        [
+          "loans/cli.py",
+          "        commands = parse_script(text)\n    except Malformed as e:\n        out.write('error: line %d: malformed\\n' % e.line)\n        return 1",
+          "        commands = parse_script(text)\n    except Malformed as e:\n        out.write('day 1\\n')\n        out.write('error: line %d: malformed\\n' % e.line)\n        return 1"
+        ]
+      ],
+      "overdue-on-due-day": [
+        [
+          "loans/report.py",
+          "if desk.day > b['due']:",
+          "if desk.day >= b['due']:"
+        ]
+      ],
+      "json-member-borrower-only": [
+        [
+          "loans/report.py",
+          "'member': desk.books[book]['member'] or desk.books[book]['held'],",
+          "'member': desk.books[book]['member'],"
+        ]
+      ],
+      "reserve-available-allowed": [
+        [
+          "loans/desk.py",
+          "        if b['member'] is None and b['held'] is None:\n            return 'not-on-loan'\n",
+          ""
+        ]
+      ]
+    },
+    "ai-run-tickets-v1": {
+      "no-sys-path": [
+        [
+          "main.py",
+          "sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))",
+          ""
+        ]
+      ],
+      "wall-clock-minutes": [
+        [
+          "sla/report.py",
+          "r_elapsed = business_minutes(t['opened'], r_end)",
+          "r_elapsed = r_end - t['opened']"
+        ],
+        [
+          "sla/report.py",
+          "c_elapsed = business_minutes(t['opened'], c_end)",
+          "c_elapsed = c_end - t['opened']"
+        ]
+      ],
+      "weekends-counted": [
+        ["sla/clock.py", "        if day % 7 < 5:\n", "        if True:\n"]
+      ],
+      "latest-priority": [
+        [
+          "sla/policy.py",
+          "    return min(priorities)",
+          "    return priorities[-1]"
+        ]
+      ],
+      "close-not-response": [
+        [
+          "sla/tickets.py",
+          "            t['closed'] = when\n            if t['responded'] is None:\n                t['responded'] = when",
+          "            t['closed'] = when"
+        ]
+      ],
+      "last-response": [
+        [
+          "sla/tickets.py",
+          "            if t['responded'] is None:\n                t['responded'] = when\n        else:",
+          "            t['responded'] = when\n        else:"
+        ]
+      ],
+      "breach-at-target": [
+        ["sla/policy.py", "if elapsed > target:", "if elapsed >= target:"]
+      ],
+      "string-id-order": [
+        [
+          "sla/report.py",
+          "for ticket in sorted(tickets, key=lambda i: int(i[1:])):",
+          "for ticket in sorted(tickets):"
+        ]
+      ],
+      "order-not-checked": [
+        [
+          "sla/events.py",
+          "if when is None or (last is not None and when < last):",
+          "if when is None:"
+        ]
+      ],
+      "at-before-last-allowed": [
+        ["sla/cli.py", "    if at < last:\n", "    if False:\n"]
+      ],
+      "events-after-close-allowed": [
+        [
+          "sla/tickets.py",
+          "if t is None or t['closed'] is not None:",
+          "if t is None:"
+        ]
+      ],
+      "filter-counts-all": [
+        [
+          "sla/report.py",
+          "        if only is not None and most_urgent(t['priorities']) != only:\n            continue\n        line, bad = ticket_line(ticket, t, at)\n        out.append(line)",
+          "        line, bad = ticket_line(ticket, t, at)\n        if only is None or most_urgent(t['priorities']) == only:\n            out.append(line)"
+        ]
+      ]
+    },
+    "ai-run-fares-v1": {
+      "no-sys-path": [
+        [
+          "main.py",
+          "sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))",
+          ""
+        ]
+      ],
+      "concession-round-down": [
+        [
+          "fares/pricing.py",
+          "    return (cents + 1) // 2",
+          "    return cents // 2"
+        ]
+      ],
+      "surcharge-in-cap": [
+        [
+          "fares/report.py",
+          "        part = caps.charge(card, trip['day'], fare)\n        extra = surcharge(trip)",
+          "        extra = surcharge(trip)\n        part = caps.charge(card, trip['day'], fare + extra) - extra"
+        ]
+      ],
+      "transfer-chains": [
+        [
+          "fares/report.py",
+          "        if not transfer:\n            windows[card] = (trip['day'], trip['minute'])",
+          "        windows[card] = (trip['day'], trip['minute'])"
+        ]
+      ],
+      "transfer-window-exclusive": [
+        [
+          "fares/pricing.py",
+          "trip['minute'] - window_start[1] <= TRANSFER_WINDOW",
+          "trip['minute'] - window_start[1] < TRANSFER_WINDOW"
+        ]
+      ],
+      "transfer-across-days": [
+        [
+          "fares/pricing.py",
+          "return (window_start is not None and window_start[0] == trip['day']\n            and trip['minute'] - window_start[1] <= TRANSFER_WINDOW)",
+          "return (window_start is not None\n            and (trip['day'] - window_start[0]) * 1440 + trip['minute'] - window_start[1] <= TRANSFER_WINDOW)"
+        ]
+      ],
+      "no-weekly-cap": [
+        [
+          "fares/caps.py",
+          "                   WEEKLY // divisor - self.weekly.get(w_key, 0))",
+          "                   10 ** 9)"
+        ]
+      ],
+      "concession-full-caps": [
+        [
+          "fares/caps.py",
+          "        divisor = 2 if concession(card) else 1",
+          "        divisor = 1"
+        ]
+      ],
+      "transfer-window-global": [
+        [
+          "fares/report.py",
+          "        transfer = is_transfer(trip, windows.get(card))\n        if not transfer:\n            windows[card] = (trip['day'], trip['minute'])",
+          "        transfer = is_transfer(trip, windows.get('all'))\n        if not transfer:\n            windows['all'] = (trip['day'], trip['minute'])"
+        ]
+      ],
+      "singular-trips": [
+        ["fares/report.py", "'' if len(rows) == 1 else 's'", "'s'"]
+      ],
+      "order-not-checked": [
+        [
+          "fares/taps.py",
+          "        if last is not None and (day, minute) < last:\n            raise BadLine(number)\n",
+          ""
+        ]
+      ]
+    }
+  }
+}

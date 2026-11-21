@@ -1,0 +1,173 @@
+{
+  "benchmark_id": "ai-run-loans-v1",
+  "cases": [
+    {
+      "id": "E1",
+      "args": [],
+      "stdin": "",
+      "stdout": "day 1\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E2",
+      "args": [],
+      "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\nDAY 15\nLEND B1 M1\nDAY 29\nRETURN B1\n",
+      "stdout": "day 29\nB1 Dune: available\nB2 Emma Woodhouse: available\nB10 Kindred: available\nM1 Ana: loans 0, owes 0.00\nM2 Ben: loans 0, owes 0.00\nM3 Cy: loans 0, owes 0.00\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E3",
+      "args": [],
+      "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\nLEND B1 M1\nDAY 16\n",
+      "stdout": "day 16\nB1 Dune: on loan to M1 due 15 (overdue 1)\nB2 Emma Woodhouse: available\nB10 Kindred: available\nM1 Ana: loans 1, owes 0.00\nM2 Ben: loans 0, owes 0.00\nM3 Cy: loans 0, owes 0.00\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E4",
+      "args": [],
+      "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\nLEND B1 M1\nDAY 35\nRETURN B1\n",
+      "stdout": "day 35\nB1 Dune: available\nB2 Emma Woodhouse: available\nB10 Kindred: available\nM1 Ana: loans 0, owes 5.00\nM2 Ben: loans 0, owes 0.00\nM3 Cy: loans 0, owes 0.00\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E5",
+      "args": [],
+      "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\nLEND B1 M1\nDAY 36\nRETURN B1\nLEND B2 M1\nPAY M1 0.25\nLEND B2 M1\n",
+      "stdout": "line 12: refused: not-available\nday 36\nB1 Dune: available\nB2 Emma Woodhouse: on loan to M1 due 50\nB10 Kindred: available\nM1 Ana: loans 1, owes 4.75\nM2 Ben: loans 0, owes 0.00\nM3 Cy: loans 0, owes 0.00\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E6",
+      "args": [],
+      "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\nLEND B1 M1\nDAY 37\nRETURN B1\nPAY M1 0.25\nLEND B2 M1\n",
+      "stdout": "day 37\nB1 Dune: available\nB2 Emma Woodhouse: on loan to M1 due 51\nB10 Kindred: available\nM1 Ana: loans 1, owes 4.75\nM2 Ben: loans 0, owes 0.00\nM3 Cy: loans 0, owes 0.00\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E7",
+      "args": [],
+      "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\nLEND B1 M1\nRESERVE B1 M2\nRESERVE B1 M3\nRETURN B1\nLEND B1 M2\nRETURN B1\n",
+      "stdout": "day 1\nB1 Dune: held for M3\nB2 Emma Woodhouse: available\nB10 Kindred: available\nM1 Ana: loans 0, owes 0.00\nM2 Ben: loans 0, owes 0.00\nM3 Cy: loans 0, owes 0.00\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E8",
+      "args": [],
+      "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\nLEND B1 M1\nRESERVE B1 M2\nRETURN B1\nRESERVE B1 M2\nRESERVE B1 M3\nLEND B1 M1\n",
+      "stdout": "line 10: refused: already-yours\nline 12: refused: held\nday 1\nB1 Dune: held for M2; queue M3\nB2 Emma Woodhouse: available\nB10 Kindred: available\nM1 Ana: loans 0, owes 0.00\nM2 Ben: loans 0, owes 0.00\nM3 Cy: loans 0, owes 0.00\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E9",
+      "args": [],
+      "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\nRESERVE B9 M1\nRESERVE B1 M9\nPAY M9 1.00\nRETURN B9\nLEND B1 M9\n",
+      "stdout": "line 7: refused: unknown-book\nline 8: refused: unknown-member\nline 9: refused: unknown-member\nline 10: refused: unknown-book\nline 11: refused: unknown-member\nday 1\nB1 Dune: available\nB2 Emma Woodhouse: available\nB10 Kindred: available\nM1 Ana: loans 0, owes 0.00\nM2 Ben: loans 0, owes 0.00\nM3 Cy: loans 0, owes 0.00\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E10",
+      "args": [],
+      "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\nPAY M1 0.00\nPAY M1 0.01\n",
+      "stdout": "line 8: refused: overpay\nday 1\nB1 Dune: available\nB2 Emma Woodhouse: available\nB10 Kindred: available\nM1 Ana: loans 0, owes 0.00\nM2 Ben: loans 0, owes 0.00\nM3 Cy: loans 0, owes 0.00\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E11",
+      "args": [],
+      "stdin": "BOOK B3 The   Left  Hand\nBOOK B20 Z\nBOOK B100 Y\nMEMBER M2 Bo\nMEMBER M10 Al\n",
+      "stdout": "day 1\nB3 The Left Hand: available\nB20 Z: available\nB100 Y: available\nM2 Bo: loans 0, owes 0.00\nM10 Al: loans 0, owes 0.00\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E12",
+      "args": [],
+      "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\nDAY 0\n",
+      "stdout": "error: line 7: malformed\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E13",
+      "args": [],
+      "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\nDAY 03\n",
+      "stdout": "error: line 7: malformed\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E14",
+      "args": [],
+      "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\nPAY M1 1.5\n",
+      "stdout": "error: line 7: malformed\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E15",
+      "args": [],
+      "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\nMEMBER M4 Ann-Marie\n",
+      "stdout": "error: line 7: malformed\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E16",
+      "args": [],
+      "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\nBOOK B5\n",
+      "stdout": "error: line 7: malformed\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E17",
+      "args": [],
+      "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\nRETURN B1 M1\n",
+      "stdout": "error: line 7: malformed\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E18",
+      "args": [
+        "--json",
+        "--json"
+      ],
+      "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\n",
+      "stdout": "invalid arguments\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E19",
+      "args": [
+        "--json"
+      ],
+      "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\nLEND B1 M1\nDAY 20\nRESERVE B1 M2\nRETURN B1\nRESERVE B1 M3\nBOOK B1 Again\n",
+      "stdout": "{\n  \"day\": 20,\n  \"books\": [\n    {\n      \"id\": \"B1\",\n      \"title\": \"Dune\",\n      \"status\": \"held\",\n      \"member\": \"M2\",\n      \"due\": null,\n      \"queue\": [\n        \"M3\"\n      ]\n    },\n    {\n      \"id\": \"B2\",\n      \"title\": \"Emma Woodhouse\",\n      \"status\": \"available\",\n      \"member\": null,\n      \"due\": null,\n      \"queue\": []\n    },\n    {\n      \"id\": \"B10\",\n      \"title\": \"Kindred\",\n      \"status\": \"available\",\n      \"member\": null,\n      \"due\": null,\n      \"queue\": []\n    }\n  ],\n  \"members\": [\n    {\n      \"id\": \"M1\",\n      \"name\": \"Ana\",\n      \"loans\": 0,\n      \"owes\": \"1.25\"\n    },\n    {\n      \"id\": \"M2\",\n      \"name\": \"Ben\",\n      \"loans\": 0,\n      \"owes\": \"0.00\"\n    },\n    {\n      \"id\": \"M3\",\n      \"name\": \"Cy\",\n      \"loans\": 0,\n      \"owes\": \"0.00\"\n    }\n  ],\n  \"refused\": [\n    {\n      \"line\": 12,\n      \"reason\": \"duplicate\"\n    }\n  ]\n}\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E20",
+      "args": [
+        "--json"
+      ],
+      "stdin": "",
+      "stdout": "{\n  \"day\": 1,\n  \"books\": [],\n  \"members\": [],\n  \"refused\": []\n}\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E21",
+      "args": [],
+      "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\nDAY 5\nDAY 5\nLEND B1 M1\nDAY 19\nRETURN B1\nDAY 19\n",
+      "stdout": "day 19\nB1 Dune: available\nB2 Emma Woodhouse: available\nB10 Kindred: available\nM1 Ana: loans 0, owes 0.00\nM2 Ben: loans 0, owes 0.00\nM3 Cy: loans 0, owes 0.00\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E22",
+      "args": [],
+      "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\nLEND B1 M1\nLEND B2 M2\nLEND B10 M3\nRESERVE B2 M1\nRESERVE B10 M1\nRETURN B2\nRETURN B10\nLEND B2 M1\nLEND B10 M1\n",
+      "stdout": "day 1\nB1 Dune: on loan to M1 due 15\nB2 Emma Woodhouse: on loan to M1 due 15\nB10 Kindred: on loan to M1 due 15\nM1 Ana: loans 3, owes 0.00\nM2 Ben: loans 0, owes 0.00\nM3 Cy: loans 0, owes 0.00\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E23",
+      "args": [],
+      "stdin": "BOOK B1 Dune\nBOOK B2 Emma Woodhouse\nBOOK B10 Kindred\nMEMBER M1 Ana\nMEMBER M2 Ben\nMEMBER M3 Cy\nBOOK B4 D\nLEND B1 M1\nLEND B2 M1\nLEND B10 M1\nLEND B4 M2\nRESERVE B4 M3\nRETURN B4\nLEND B4 M1\nDAY 15\n",
+      "stdout": "line 14: refused: held\nday 15\nB1 Dune: on loan to M1 due 15\nB2 Emma Woodhouse: on loan to M1 due 15\nB4 D: held for M3\nB10 Kindred: on loan to M1 due 15\nM1 Ana: loans 3, owes 0.00\nM2 Ben: loans 0, owes 0.00\nM3 Cy: loans 0, owes 0.00\n",
+      "exit_code": 0
+    }
+  ]
+}

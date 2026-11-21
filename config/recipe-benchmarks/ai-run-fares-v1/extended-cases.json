@@ -1,0 +1,185 @@
+{
+  "benchmark_id": "ai-run-fares-v1",
+  "cases": [
+    {
+      "id": "E1",
+      "args": [],
+      "stdin": "",
+      "stdout": "no trips\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E2",
+      "args": [],
+      "stdin": "A101 1 08:00 central market\n",
+      "stdout": "A101: 1 trip, total 2.00\n  1 08:00 central>market 2.00\ncards 1, total 2.00\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E3",
+      "args": [],
+      "stdin": "A101 1 08:00 central north\nA101 1 09:00 north central\n",
+      "stdout": "A101: 2 trips, total 2.75\n  1 08:00 central>north 2.75\n  1 09:00 north>central 0.00 transfer\ncards 1, total 2.75\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E4",
+      "args": [],
+      "stdin": "A101 1 08:00 central north\nA101 1 09:01 north central\n",
+      "stdout": "A101: 2 trips, total 5.50\n  1 08:00 central>north 2.75\n  1 09:01 north>central 2.75\ncards 1, total 5.50\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E5",
+      "args": [],
+      "stdin": "A101 1 23:30 central north\nA101 2 00:10 north central\n",
+      "stdout": "A101: 2 trips, total 5.50\n  1 23:30 central>north 2.75\n  2 00:10 north>central 2.75\ncards 1, total 5.50\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E6",
+      "args": [],
+      "stdin": "A101 1 08:00 central north\nA102 1 08:30 north central\nA101 1 08:30 north east\n",
+      "stdout": "A101: 2 trips, total 2.75\n  1 08:00 central>north 2.75\n  1 08:30 north>east 0.00 transfer\nA102: 1 trip, total 2.75\n  1 08:30 north>central 2.75\ncards 2, total 5.50\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E7",
+      "args": [],
+      "stdin": "C101 1 08:00 central lakeside\nC101 1 08:00 lakeside central\n",
+      "stdout": "C101: 2 trips, total 1.75\n  1 08:00 central>lakeside 1.75\n  1 08:00 lakeside>central 0.00 transfer\ncards 1, total 1.75\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E8",
+      "args": [],
+      "stdin": "C101 1 08:00 ridge airport\n",
+      "stdout": "C101: 1 trip, total 2.88\n  1 08:00 ridge>airport 2.88 airport\ncards 1, total 2.88\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E9",
+      "args": [],
+      "stdin": "A200 5 08:00 central ridge\nA200 5 12:00 ridge central\nA200 5 17:00 central ridge\nA200 6 08:00 central ridge\nA200 6 12:00 ridge central\nA200 6 17:00 central ridge\nA200 7 08:00 central ridge\nA200 7 12:00 ridge central\nA200 7 17:00 central ridge\nA200 8 08:00 central ridge\nA200 8 12:00 ridge central\nA200 8 17:00 central ridge\nA200 9 08:00 central ridge\nA200 9 12:00 ridge central\nA200 9 17:00 central ridge\n",
+      "stdout": "A200: 15 trips, total 35.00\n  5 08:00 central>ridge 4.25\n  5 12:00 ridge>central 2.75 capped\n  5 17:00 central>ridge 0.00 capped\n  6 08:00 central>ridge 4.25\n  6 12:00 ridge>central 2.75 capped\n  6 17:00 central>ridge 0.00 capped\n  7 08:00 central>ridge 4.25\n  7 12:00 ridge>central 2.75 capped\n  7 17:00 central>ridge 0.00 capped\n  8 08:00 central>ridge 4.25\n  8 12:00 ridge>central 2.75 capped\n  8 17:00 central>ridge 0.00 capped\n  9 08:00 central>ridge 4.25\n  9 12:00 ridge>central 2.75 capped\n  9 17:00 central>ridge 0.00 capped\ncards 1, total 35.00\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E10",
+      "args": [],
+      "stdin": "C400 1 08:00 central ridge\nC400 1 12:00 ridge central\nC400 2 08:00 central ridge\nC400 2 12:00 ridge central\nC400 3 08:00 central ridge\nC400 3 12:00 ridge central\nC400 4 08:00 central ridge\nC400 4 12:00 ridge central\nC400 5 08:00 central ridge\nC400 5 12:00 ridge central\nC400 6 08:00 central ridge\nC400 6 12:00 ridge central\nC400 6 18:00 central airport\n",
+      "stdout": "C400: 13 trips, total 14.00\n  1 08:00 central>ridge 2.13\n  1 12:00 ridge>central 1.37 capped\n  2 08:00 central>ridge 2.13\n  2 12:00 ridge>central 1.37 capped\n  3 08:00 central>ridge 2.13\n  3 12:00 ridge>central 1.37 capped\n  4 08:00 central>ridge 2.00 capped\n  4 12:00 ridge>central 0.00 capped\n  5 08:00 central>ridge 0.00 capped\n  5 12:00 ridge>central 0.00 capped\n  6 08:00 central>ridge 0.00 capped\n  6 12:00 ridge>central 0.00 capped\n  6 18:00 central>airport 1.50 capped airport\ncards 1, total 14.00\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E11",
+      "args": [],
+      "stdin": "A101 1 08:00 airport central\nA101 1 08:30 central airport\nA101 1 09:30 airport ridge\n",
+      "stdout": "A101: 3 trips, total 10.75\n  1 08:00 airport>central 5.00 airport\n  1 08:30 central>airport 1.50 transfer airport\n  1 09:30 airport>ridge 4.25 airport\ncards 1, total 10.75\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E12",
+      "args": [],
+      "stdin": "A101 28 23:59 ridge harbor\n",
+      "stdout": "A101: 1 trip, total 4.25\n  28 23:59 ridge>harbor 4.25\ncards 1, total 4.25\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E13",
+      "args": [],
+      "stdin": "A101 29 08:00 central north\n",
+      "stdout": "error: line 1\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E14",
+      "args": [],
+      "stdin": "A101 01 08:00 central north\n",
+      "stdout": "error: line 1\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E15",
+      "args": [],
+      "stdin": "A101 1 8:00 central north\n",
+      "stdout": "error: line 1\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E16",
+      "args": [],
+      "stdin": "A1011 1 08:00 central north\n",
+      "stdout": "error: line 1\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E17",
+      "args": [],
+      "stdin": "a101 1 08:00 central north\n",
+      "stdout": "error: line 1\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E18",
+      "args": [],
+      "stdin": "A101 1 08:00 central north extra\n",
+      "stdout": "error: line 1\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E19",
+      "args": [],
+      "stdin": "A101 1 08:00 Central north\n",
+      "stdout": "error: line 1\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E20",
+      "args": [
+        "--card"
+      ],
+      "stdin": "",
+      "stdout": "invalid arguments\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E21",
+      "args": [
+        "--card",
+        "A101",
+        "--card",
+        "A101"
+      ],
+      "stdin": "",
+      "stdout": "invalid arguments\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E22",
+      "args": [
+        "--json"
+      ],
+      "stdin": "",
+      "stdout": "invalid arguments\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E23",
+      "args": [
+        "--card",
+        "C202"
+      ],
+      "stdin": "C202 1 08:00 central north\nC202 1 08:30 north airport\nA101 1 09:00 central north\n",
+      "stdout": "C202: 2 trips, total 2.88\n  1 08:00 central>north 1.38\n  1 08:30 north>airport 1.50 transfer airport\ncards 1, total 2.88\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E24",
+      "args": [],
+      "stdin": "B101 1 08:00 central north\n",
+      "stdout": "error: line 1\n",
+      "exit_code": 1
+    }
+  ]
+}

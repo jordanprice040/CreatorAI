@@ -1,0 +1,244 @@
+{
+  "format": "p14-benchmark-spec/1",
+  "benchmark_id": "ai-run-fares-v1",
+  "scale": "larger",
+  "title": "Transit fare calculator with caps (AI-only run task L3)",
+  "content": {
+    "audience": "Synthetic study task for the thesis AI-only run: a transit agency checking card charges",
+    "problem_statement": "Charge a list of transit trips by card: zone fares, free transfers, concession fares, daily and weekly caps and an airport surcharge outside the caps, then print each card's trips and totals. This is a frozen synthetic task for the thesis AI-only run, not a customer product.",
+    "user_flows": [
+      {
+        "key": "F1",
+        "name": "Charge trips",
+        "steps": [
+          "Pipe the trip list into the CLI",
+          "Read each card's charged trips and totals"
+        ]
+      },
+      {
+        "key": "F2",
+        "name": "Transfers and caps",
+        "steps": [
+          "Take several trips in a day and a week",
+          "Read which trips were transfers or capped"
+        ]
+      },
+      {
+        "key": "F3",
+        "name": "One card",
+        "steps": [
+          "Run with --card ID",
+          "Read only that card"
+        ]
+      },
+      {
+        "key": "F4",
+        "name": "Bad input",
+        "steps": [
+          "Pipe a bad line or pass a bad argument",
+          "Read the error and the exit status"
+        ]
+      }
+    ],
+    "scope": [
+      "Python 3.8+ standard library only, entry point src/main.py, all code under src",
+      "Required structure: a package src/fares with __init__.py and the modules network, taps, pricing, caps, report and cli, each with at least one top-level function (a def at module level; a def only inside a class does not count)",
+      "src/main.py imports from fares and each module is imported by main.py or by another module of the package",
+      "Run as python3 -I src/main.py, which does not put src on the import path: main.py must add its own directory to sys.path before importing fares",
+      "Stations and zones: central, market and harbor are zone 1; north, east and mill zone 2; airport and lakeside zone 3; ridge zone 4",
+      "Read all of stdin and split it into lines on \\n, numbered from 1 counting every line. Split each line into whitespace-separated fields; skip a line with no fields or whose first field starts with #",
+      "Each other line is a trip: CARD DAY HH:MM FROM TO, exactly five fields. CARD is A or C followed by exactly 3 digits (C cards are concession cards). DAY is 1 to 28 without leading zeros. HH:MM has two-digit hours 00 to 23 and minutes 00 to 59. FROM and TO are different known stations",
+      "Trips must be in non-decreasing (DAY, HH:MM) order across the whole list. For the first line that breaks a rule print exactly error: line N, print nothing else, and exit 1",
+      "Fare: 2.00 plus 0.75 for each zone between FROM and TO (the difference of their zone numbers). A concession card pays half of that, rounded half up to the cent (for example 2.75 becomes 1.38)",
+      "Transfer: a trip is a transfer, and its fare is 0.00, when the same card's latest non-transfer trip was on the same day and started at most 60 minutes before it. A transfer never starts a new 60-minute window",
+      "Caps: per card, the fares charged on one day add up to at most 7.00, and in one week at most 25.00, where days 1-7 are week 1, 8-14 week 2, 15-21 week 3 and 22-28 week 4. A concession card's caps are 3.50 and 12.50. A trip is charged the smallest of its fare and what is left of each cap",
+      "Airport surcharge: a trip from or to airport costs 1.50 more, the same for every card. The surcharge is charged even when the caps are reached and does not count toward them",
+      "A trip's charge is its capped fare plus any surcharge. A trip is marked capped when its capped fare is less than its fare (so never when the fare is 0.00)",
+      "Output per card, cards in plain string order: CARD: N trips, total X.XX (1 trip when N is 1), then one line per trip in input order: two spaces, DAY HH:MM FROM>TO X.XX, followed by any of the words transfer, capped, airport that apply, in that order, each after one space",
+      "Then a last line: cards N, total X.XX over the cards printed. With no trip lines print exactly: no trips. Each output line ends with \\n. Amounts have exactly two decimals. Exit 0",
+      "--card ID (a valid card id) prints only that card's lines and counts only that card in the last line; every input line is still checked. Any other arguments print exactly: invalid arguments, then \\n, and exit 2",
+      "All money is exact cents; no floating point. No files, network, environment variables or third-party packages"
+    ],
+    "non_goals": [
+      "Refunds or missing taps",
+      "Monthly caps",
+      "Reading files",
+      "Persistence",
+      "Web UI",
+      "Public release"
+    ],
+    "data_contracts": [
+      {
+        "name": "fares/1",
+        "description": "Synthetic trip lines on stdin; plain text charges on stdout",
+        "data_class": "synthetic"
+      }
+    ],
+    "acceptance_checks": [
+      {
+        "key": "A1",
+        "flow": "F1",
+        "statement": "Zone fares, concession halves, the airport surcharge and the report format",
+        "measure": "Exact output and exit status",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [],
+            "stdin": "A101 1 08:00 central north\nC202 1 08:10 market ridge\nA101 1 12:00 airport central\n",
+            "stdout": "A101: 2 trips, total 7.75\n  1 08:00 central>north 2.75\n  1 12:00 airport>central 5.00 airport\nC202: 1 trip, total 2.13\n  1 08:10 market>ridge 2.13\ncards 2, total 9.88\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "C900 1 07:00 harbor east\nA100 2 07:00 north mill\n",
+            "stdout": "A100: 1 trip, total 2.00\n  2 07:00 north>mill 2.00\nC900: 1 trip, total 1.38\n  1 07:00 harbor>east 1.38\ncards 2, total 3.38\n",
+            "exit_code": 0,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A2",
+        "flow": "F2",
+        "statement": "Transfers within 60 minutes of the last non-transfer trip are free, and caps limit what is charged",
+        "measure": "Exact output and exit status",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [],
+            "stdin": "A101 1 08:00 central ridge\nA101 1 08:30 ridge airport\nA101 1 09:10 airport central\nA101 1 17:00 central ridge\nA101 1 18:00 ridge north\n",
+            "stdout": "A101: 5 trips, total 10.00\n  1 08:00 central>ridge 4.25\n  1 08:30 ridge>airport 1.50 transfer airport\n  1 09:10 airport>central 4.25 capped airport\n  1 17:00 central>ridge 0.00 capped\n  1 18:00 ridge>north 0.00 transfer\ncards 1, total 10.00\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "A101 1 08:00 central north\nA101 1 08:40 north east\nA101 1 09:00 east mill\nA101 1 09:01 mill ridge\n",
+            "stdout": "A101: 4 trips, total 6.25\n  1 08:00 central>north 2.75\n  1 08:40 north>east 0.00 transfer\n  1 09:00 east>mill 0.00 transfer\n  1 09:01 mill>ridge 3.50\ncards 1, total 6.25\n",
+            "exit_code": 0,
+            "held_out": true
+          },
+          {
+            "args": [],
+            "stdin": "A111 1 08:00 central north\nA111 1 08:00 central ridge\nA111 1 18:00 ridge central\nA111 2 08:00 central ridge\nA111 2 18:00 ridge central\nA111 3 08:00 central ridge\nA111 3 18:00 ridge central\nA111 4 08:00 central ridge\nA111 4 18:00 ridge central\nA111 5 08:00 central ridge\nA111 5 18:00 ridge central\n",
+            "stdout": "A111: 11 trips, total 25.00\n  1 08:00 central>north 2.75\n  1 08:00 central>ridge 0.00 transfer\n  1 18:00 ridge>central 4.25\n  2 08:00 central>ridge 4.25\n  2 18:00 ridge>central 2.75 capped\n  3 08:00 central>ridge 4.25\n  3 18:00 ridge>central 2.75 capped\n  4 08:00 central>ridge 4.00 capped\n  4 18:00 ridge>central 0.00 capped\n  5 08:00 central>ridge 0.00 capped\n  5 18:00 ridge>central 0.00 capped\ncards 1, total 25.00\n",
+            "exit_code": 0,
+            "held_out": true
+          },
+          {
+            "args": [],
+            "stdin": "C300 3 07:00 central ridge\nC300 3 12:00 ridge central\nC300 3 17:00 central airport\n",
+            "stdout": "C300: 3 trips, total 5.00\n  3 07:00 central>ridge 2.13\n  3 12:00 ridge>central 1.37 capped\n  3 17:00 central>airport 1.50 capped airport\ncards 1, total 5.00\n",
+            "exit_code": 0,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A3",
+        "flow": "F3",
+        "statement": "--card shows only that card and counts it alone",
+        "measure": "Exact output and exit status",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [
+              "--card",
+              "A101"
+            ],
+            "stdin": "A101 1 08:00 central north\nC202 1 08:10 market ridge\n",
+            "stdout": "A101: 1 trip, total 2.75\n  1 08:00 central>north 2.75\ncards 1, total 2.75\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": [
+              "--card",
+              "A999"
+            ],
+            "stdin": "A101 1 08:00 central north\n",
+            "stdout": "cards 0, total 0.00\n",
+            "exit_code": 0,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A4",
+        "flow": "F4",
+        "statement": "Bad lines and bad arguments print the error and exit 1 or 2",
+        "measure": "Exact output and exit status",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [],
+            "stdin": "A101 2 08:00 central north\nA101 1 09:00 north central\n",
+            "stdout": "error: line 2\n",
+            "exit_code": 1,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "# trips\n\nA101 1 08:00 central central\n",
+            "stdout": "error: line 3\n",
+            "exit_code": 1,
+            "held_out": true
+          },
+          {
+            "args": [
+              "--card",
+              "B101"
+            ],
+            "stdin": "A101 1 08:00 central north\n",
+            "stdout": "invalid arguments\n",
+            "exit_code": 2,
+            "held_out": true
+          },
+          {
+            "args": [],
+            "stdin": "A101 1 08:00 central moon\n",
+            "stdout": "error: line 1\n",
+            "exit_code": 1,
+            "held_out": true
+          }
+        ]
+      }
+    ],
+    "risks": [
+      {
+        "risk": "Six tasks written by one author do not establish general build quality",
+        "mitigation": "Report results only for these frozen tasks, this route, model and role prompts, as the AI-only arm alone"
+      },
+      {
+        "risk": "Held-out cases leak to the builder",
+        "mitigation": "The studio hides held-out studio cases from builder and reviewer; extended cases are never entered into the studio; the repository copy is never sent to runtime roles"
+      }
+    ],
+    "maintenance": {
+      "owner": "Jordan (study owner)",
+      "obligations": [
+        "Keep this frozen version unchanged; a change needs a new version and is reported as a deviation"
+      ],
+      "review_interval": "Not reviewed during the run; frozen until the thesis is submitted"
+    },
+    "tasks": [
+      {
+        "key": "T1",
+        "title": "Implement the fare calculator CLI as the fares package",
+        "role": "builder",
+        "file_scope": [
+          "src"
+        ],
+        "depends_on": [],
+        "acceptance": [
+          "A1",
+          "A2",
+          "A3",
+          "A4"
+        ],
+        "deliverable": "src/main.py and the src/fares package, passing every acceptance check"
+      }
+    ]
+  }
+}

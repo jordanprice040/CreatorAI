@@ -16,12 +16,30 @@ import { BuildRecipeSchema, type RecipeQualification } from './web-recipe.js';
  * same task, spec, cases and reference as the November 6 versions they copy, with pass bars the
  * studio checks itself. Frozen files are never edited; a change is a new version.
  */
+/**
+ * ADR-0133: the six held-out build tasks of the thesis AI-only run (protocol
+ * docs/thesis/AI_ONLY_RUN_PROTOCOL.md), written new and frozen before any run. Each runs once,
+ * as a one-attempt record in this harness; a pass lifts no build label (they are not in
+ * RECIPE_BENCHMARKS). Listed in the protocol's frozen run order (ascending SHA-256 of the id).
+ */
+const AI_RUN_TASK_IDS_LIST = [
+  'ai-run-loans-v1',
+  'ai-run-tickets-v1',
+  'ai-run-fares-v1',
+  'ai-run-shifts-v1',
+  'ai-run-grades-v1',
+  'ai-run-recipe-v1',
+] as const;
+export const AI_RUN_TASK_IDS: readonly (typeof AI_RUN_TASK_IDS_LIST)[number][] =
+  AI_RUN_TASK_IDS_LIST;
+
 export const RECIPE_BENCHMARK_IDS = [
   'p15-small-signup-v5',
   'p14-small-wordtally-v5',
   'p14-larger-ledgercheck-v5',
   'p14-larger-ledgercheck-v6',
   'p14-xl-v1',
+  ...AI_RUN_TASK_IDS_LIST,
 ] as const;
 export const RecipeBenchmarkIdSchema = z.enum(RECIPE_BENCHMARK_IDS);
 export type RecipeBenchmarkId = z.infer<typeof RecipeBenchmarkIdSchema>;
@@ -166,6 +184,127 @@ export const RECIPE_BENCHMARK_INFO: Readonly<
     extended_cases: 37,
     attempt_deadline_ms: 2 * 60 * 60_000,
     min_input_chars: 120_000,
+    answer_wrapping: 'invoke_lines_then_json_fence',
+  },
+  // ADR-0133: the thesis AI-only run's held-out tasks, written new; one attempt each.
+  'ai-run-shifts-v1': {
+    id: 'ai-run-shifts-v1',
+    recipe: 'python-build/1',
+    scale: 'small',
+    label:
+      'Thesis AI-only run, small: shift coverage gaps (one file, 30 checks)',
+    copied_from: null,
+    attempts: 1,
+    caps: {
+      max_repairs: 2,
+      max_calls: 6,
+      max_output_tokens: 8000,
+      timeout_ms: 120000,
+    },
+    typical_requests: 2,
+    extended_cases: 17,
+    attempt_deadline_ms: RECIPE_ATTEMPT_DEADLINE_MS,
+    min_input_chars: 60_000,
+    answer_wrapping: 'invoke_lines_then_json_fence',
+  },
+  'ai-run-recipe-v1': {
+    id: 'ai-run-recipe-v1',
+    recipe: 'python-build/1',
+    scale: 'small',
+    label:
+      'Thesis AI-only run, small: recipe scaler with fractions (one file, 31 checks)',
+    copied_from: null,
+    attempts: 1,
+    caps: {
+      max_repairs: 2,
+      max_calls: 6,
+      max_output_tokens: 8000,
+      timeout_ms: 120000,
+    },
+    typical_requests: 2,
+    extended_cases: 18,
+    attempt_deadline_ms: RECIPE_ATTEMPT_DEADLINE_MS,
+    min_input_chars: 60_000,
+    answer_wrapping: 'invoke_lines_then_json_fence',
+  },
+  'ai-run-grades-v1': {
+    id: 'ai-run-grades-v1',
+    recipe: 'python-build/1',
+    scale: 'small',
+    label:
+      'Thesis AI-only run, small: weighted gradebook (one file, 32 checks)',
+    copied_from: null,
+    attempts: 1,
+    caps: {
+      max_repairs: 2,
+      max_calls: 6,
+      max_output_tokens: 8000,
+      timeout_ms: 120000,
+    },
+    typical_requests: 2,
+    extended_cases: 18,
+    attempt_deadline_ms: RECIPE_ATTEMPT_DEADLINE_MS,
+    min_input_chars: 60_000,
+    answer_wrapping: 'invoke_lines_then_json_fence',
+  },
+  'ai-run-loans-v1': {
+    id: 'ai-run-loans-v1',
+    recipe: 'python-build/1',
+    scale: 'larger',
+    label:
+      'Thesis AI-only run, larger: library loans desk (7 files, 35 checks and a structure check)',
+    copied_from: null,
+    attempts: 1,
+    caps: {
+      max_repairs: 2,
+      max_calls: 8,
+      max_output_tokens: 16000,
+      timeout_ms: 120000,
+    },
+    typical_requests: 2,
+    extended_cases: 23,
+    attempt_deadline_ms: 2 * 60 * 60_000,
+    min_input_chars: 60_000,
+    answer_wrapping: 'invoke_lines_then_json_fence',
+  },
+  'ai-run-tickets-v1': {
+    id: 'ai-run-tickets-v1',
+    recipe: 'python-build/1',
+    scale: 'larger',
+    label:
+      'Thesis AI-only run, larger: support ticket SLA checker (8 files, 35 checks and a structure check)',
+    copied_from: null,
+    attempts: 1,
+    caps: {
+      max_repairs: 2,
+      max_calls: 8,
+      max_output_tokens: 16000,
+      timeout_ms: 120000,
+    },
+    typical_requests: 2,
+    extended_cases: 23,
+    attempt_deadline_ms: 2 * 60 * 60_000,
+    min_input_chars: 60_000,
+    answer_wrapping: 'invoke_lines_then_json_fence',
+  },
+  'ai-run-fares-v1': {
+    id: 'ai-run-fares-v1',
+    recipe: 'python-build/1',
+    scale: 'larger',
+    label:
+      'Thesis AI-only run, larger: transit fares with caps (8 files, 36 checks and a structure check)',
+    copied_from: null,
+    attempts: 1,
+    caps: {
+      max_repairs: 2,
+      max_calls: 8,
+      max_output_tokens: 16000,
+      timeout_ms: 120000,
+    },
+    typical_requests: 2,
+    extended_cases: 24,
+    attempt_deadline_ms: 2 * 60 * 60_000,
+    min_input_chars: 60_000,
     answer_wrapping: 'invoke_lines_then_json_fence',
   },
 };

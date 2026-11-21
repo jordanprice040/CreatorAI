@@ -1,0 +1,155 @@
+{
+  "benchmark_id": "ai-run-shifts-v1",
+  "cases": [
+    {
+      "id": "E1",
+      "args": [],
+      "stdin": "ana 09:00 17:00\n",
+      "stdout": "no gaps\ncovered 480 of 480 min\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E2",
+      "args": [],
+      "stdin": "ana 09:00 09:01\nbo 16:59 17:00\n",
+      "stdout": "gap 09:01-16:59 (478 min)\ncovered 2 of 480 min\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E3",
+      "args": [
+        "--open",
+        "00:00",
+        "--close",
+        "23:59"
+      ],
+      "stdin": "ana 00:00 23:59\n",
+      "stdout": "no gaps\ncovered 1439 of 1439 min\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E4",
+      "args": [
+        "--min-staff",
+        "3"
+      ],
+      "stdin": "ana 09:00 17:00\nbo 09:00 17:00\nana 10:00 11:00\n",
+      "stdout": "gap 09:00-17:00 (480 min)\ncovered 0 of 480 min\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E5",
+      "args": [
+        "--min-staff",
+        "2",
+        "--open",
+        "08:00"
+      ],
+      "stdin": "ana 07:00 10:00\nbo 08:30 09:30\ncy 09:15 11:00\n",
+      "stdout": "gap 08:00-08:30 (30 min)\ngap 10:00-17:00 (420 min)\ncovered 90 of 540 min\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E6",
+      "args": [],
+      "stdin": "ana 09:00 10:00\r\nbo 10:00 11:00\r\n",
+      "stdout": "gap 11:00-17:00 (360 min)\ncovered 120 of 480 min\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E7",
+      "args": [],
+      "stdin": "ana 09:00 12:00 extra\n",
+      "stdout": "error: line 1: invalid shift\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E8",
+      "args": [],
+      "stdin": "ana 09:00 09:00\n",
+      "stdout": "error: line 1: invalid shift\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E9",
+      "args": [],
+      "stdin": "thisnameiswaytoolongx 09:00 10:00\n",
+      "stdout": "error: line 1: invalid shift\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E10",
+      "args": [],
+      "stdin": "ana 09:00 10:60\n",
+      "stdout": "error: line 1: invalid shift\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E11",
+      "args": [
+        "--open",
+        "09:00",
+        "--open",
+        "10:00"
+      ],
+      "stdin": "",
+      "stdout": "invalid arguments\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E12",
+      "args": [
+        "--min-staff"
+      ],
+      "stdin": "",
+      "stdout": "invalid arguments\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E13",
+      "args": [
+        "--min-staff",
+        "10"
+      ],
+      "stdin": "ana 09:00 17:00\n",
+      "stdout": "invalid arguments\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E14",
+      "args": [],
+      "stdin": "ana 18:00 20:00\n",
+      "stdout": "gap 09:00-17:00 (480 min)\ncovered 0 of 480 min\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E15",
+      "args": [],
+      "stdin": "ana 09:00 12:00\nbo 12:00 17:00\n",
+      "stdout": "no gaps\ncovered 480 of 480 min\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E16",
+      "args": [
+        "--close",
+        "24:00"
+      ],
+      "stdin": "",
+      "stdout": "invalid arguments\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E17",
+      "args": [
+        "--open",
+        "10:00",
+        "--close",
+        "10:00"
+      ],
+      "stdin": "",
+      "stdout": "invalid arguments\n",
+      "exit_code": 2
+    }
+  ]
+}

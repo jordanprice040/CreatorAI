@@ -1,0 +1,251 @@
+{
+  "format": "p14-benchmark-spec/1",
+  "benchmark_id": "ai-run-tickets-v1",
+  "scale": "larger",
+  "title": "Support ticket SLA checker (AI-only run task L2)",
+  "content": {
+    "audience": "Synthetic study task for the thesis AI-only run: a support lead checking response and resolution targets",
+    "problem_statement": "Read a support ticket event log and report, for each ticket, how many business minutes its first response and resolution took against the targets of its most urgent priority, and whether each target was met, is pending or was breached. This is a frozen synthetic task for the thesis AI-only run, not a customer product.",
+    "user_flows": [
+      {
+        "key": "F1",
+        "name": "Check targets",
+        "steps": [
+          "Pipe the event log into the CLI",
+          "Read each ticket's response and resolution against its targets and the breach count"
+        ]
+      },
+      {
+        "key": "F2",
+        "name": "Business hours",
+        "steps": [
+          "Log tickets across evenings and weekends",
+          "Read times counted in business minutes only"
+        ]
+      },
+      {
+        "key": "F3",
+        "name": "As of a time and by priority",
+        "steps": [
+          "Run with --at TIME or --priority P",
+          "Read open tickets measured to that time, or only tickets of that priority"
+        ]
+      },
+      {
+        "key": "F4",
+        "name": "Bad input",
+        "steps": [
+          "Pipe a bad or out-of-order line, or pass a bad argument",
+          "Read the error and the exit status"
+        ]
+      }
+    ],
+    "scope": [
+      "Python 3.8+ standard library only, entry point src/main.py, all code under src",
+      "Required structure: a package src/sla with __init__.py and the modules clock, policy, events, tickets, report and cli, each with at least one top-level function (a def at module level; a def only inside a class does not count)",
+      "src/main.py imports from sla and each module is imported by main.py or by another module of the package",
+      "Run as python3 -I src/main.py, which does not put src on the import path: main.py must add its own directory to sys.path before importing sla",
+      "A TIME is D.HH:MM: D is the day number 1 to 99 (one or two digits, not starting with 0), HH 00 to 23 and MM 00 to 59, two digits each. Day 1 is a Monday, so day 6 is a Saturday, day 7 a Sunday and day 8 a Monday again",
+      "Business hours are Monday to Friday from 09:00 up to 17:00. The business minutes from time A to time B are the minutes from A up to but not including B that fall in business hours",
+      "Read all of stdin and split it into lines on \\n, numbered from 1 counting every line. Split each line into whitespace-separated fields; skip a line with no fields or whose first field starts with #",
+      "Each other line is an event: TICKET TIME open P, TICKET TIME escalate P, TICKET TIME respond, or TICKET TIME close, with exactly those fields. TICKET is T followed by 1 to 4 digits not starting with 0; P is p1, p2 or p3. Events must be in non-decreasing time order",
+      "A line is bad when it does not have that form, its time is earlier than the previous event's, it opens a ticket that was already opened, or it is any other event for a ticket that was never opened or is already closed",
+      "For the first bad line print exactly error: line N, print nothing else, and exit 1",
+      "Targets in business minutes: first response p1 60, p2 240, p3 480; resolution p1 480, p2 1440, p3 2880. Both are measured from the open event",
+      "escalate changes the priority; a ticket's targets are those of the most urgent priority it has had (p1 most urgent), even after a later escalate to a less urgent one",
+      "The first response is the first respond event. A close with no respond before it also counts as the first response, at the close time. Later respond events change nothing",
+      "The report time is --at TIME if given, else the time of the last event. If --at is earlier than the last event, print exactly error: --at is before the last event and exit 1",
+      "For each target: elapsed is the business minutes from open to the response (or close), or to the report time if it has not happened. Status is breached if elapsed is greater than the target, else met if it happened, else pending",
+      "Print one line per ticket, in order of the number in its id: TICKET P response E/T STATUS, resolution E/T STATUS, where P is the most urgent priority. Then tickets N, breached M, where N is the number of tickets printed and M how many of them have at least one breached target",
+      "--priority P prints only tickets whose most urgent priority is P (the counts cover only those). If no ticket was opened print exactly: no tickets. Each output line ends with \\n. Exit 0",
+      "Arguments in any order, each at most once: --at TIME and --priority P. Any other argument, a missing or invalid value or a repeated option prints exactly: invalid arguments, then \\n, and exits 2",
+      "No files, network, environment variables, time zones, clocks or third-party packages"
+    ],
+    "non_goals": [
+      "Holidays",
+      "Reopening tickets",
+      "Reading files",
+      "Persistence",
+      "Web UI",
+      "Public release"
+    ],
+    "data_contracts": [
+      {
+        "name": "sla/1",
+        "description": "Synthetic ticket event lines on stdin; plain text report on stdout",
+        "data_class": "synthetic"
+      }
+    ],
+    "acceptance_checks": [
+      {
+        "key": "A1",
+        "flow": "F1",
+        "statement": "Response and resolution are measured against the targets of the most urgent priority",
+        "measure": "Exact output and exit status",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [],
+            "stdin": "T1 1.09:00 open p2\nT1 1.10:30 respond\nT2 1.11:00 open p3\nT1 1.15:00 close\nT2 2.16:00 respond\n",
+            "stdout": "T1 p2 response 90/240 met, resolution 360/1440 met\nT2 p3 response 780/480 breached, resolution 780/2880 pending\ntickets 2, breached 1\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "T1 1.09:00 open p3\nT1 1.09:30 escalate p1\nT1 1.11:00 escalate p3\nT1 1.11:00 respond\nT1 2.10:00 close\n",
+            "stdout": "T1 p1 response 120/60 breached, resolution 540/480 breached\ntickets 1, breached 1\n",
+            "exit_code": 0,
+            "held_out": true
+          },
+          {
+            "args": [],
+            "stdin": "T5 1.09:00 open p1\nT5 1.09:45 close\nT5x\n",
+            "stdout": "error: line 3\n",
+            "exit_code": 1,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A2",
+        "flow": "F2",
+        "statement": "Only business minutes count",
+        "measure": "Exact output and exit status",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [],
+            "stdin": "T1 5.16:30 open p1\nT1 8.09:30 respond\nT1 8.13:00 close\n",
+            "stdout": "T1 p1 response 60/60 met, resolution 270/480 met\ntickets 1, breached 0\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "T7 6.10:00 open p2\nT7 7.23:00 respond\nT7 8.09:10 close\n",
+            "stdout": "T7 p2 response 0/240 met, resolution 10/1440 met\ntickets 1, breached 0\n",
+            "exit_code": 0,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A3",
+        "flow": "F3",
+        "statement": "--at measures open tickets to that time and --priority filters",
+        "measure": "Exact output and exit status",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [
+              "--at",
+              "2.09:00"
+            ],
+            "stdin": "T1 1.09:00 open p1\nT2 1.10:00 open p3\nT2 1.10:15 respond\n",
+            "stdout": "T1 p1 response 480/60 breached, resolution 480/480 pending\nT2 p3 response 15/480 met, resolution 420/2880 pending\ntickets 2, breached 1\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": [
+              "--priority",
+              "p1",
+              "--at",
+              "3.12:00"
+            ],
+            "stdin": "T1 1.09:00 open p2\nT2 1.09:00 open p1\nT1 1.09:05 escalate p1\nT3 1.12:00 open p3\n",
+            "stdout": "T1 p1 response 1140/60 breached, resolution 1140/480 breached\nT2 p1 response 1140/60 breached, resolution 1140/480 breached\ntickets 2, breached 2\n",
+            "exit_code": 0,
+            "held_out": true
+          },
+          {
+            "args": [
+              "--at",
+              "1.09:00"
+            ],
+            "stdin": "T1 1.10:00 open p2\n",
+            "stdout": "error: --at is before the last event\n",
+            "exit_code": 1,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A4",
+        "flow": "F4",
+        "statement": "Bad lines and bad arguments print the error and exit 1 or 2",
+        "measure": "Exact output and exit status",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [],
+            "stdin": "T1 1.10:00 open p1\nT2 1.09:00 open p2\n",
+            "stdout": "error: line 2\n",
+            "exit_code": 1,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "# log\nT1 1.09:00 open p1\nT1 1.09:30 close\nT1 1.10:00 respond\n",
+            "stdout": "error: line 4\n",
+            "exit_code": 1,
+            "held_out": true
+          },
+          {
+            "args": [
+              "--priority",
+              "p4"
+            ],
+            "stdin": "T1 1.09:00 open p1\n",
+            "stdout": "invalid arguments\n",
+            "exit_code": 2,
+            "held_out": true
+          },
+          {
+            "args": [],
+            "stdin": "T1 1.09:00 respond\n",
+            "stdout": "error: line 1\n",
+            "exit_code": 1,
+            "held_out": true
+          }
+        ]
+      }
+    ],
+    "risks": [
+      {
+        "risk": "Six tasks written by one author do not establish general build quality",
+        "mitigation": "Report results only for these frozen tasks, this route, model and role prompts, as the AI-only arm alone"
+      },
+      {
+        "risk": "Held-out cases leak to the builder",
+        "mitigation": "The studio hides held-out studio cases from builder and reviewer; extended cases are never entered into the studio; the repository copy is never sent to runtime roles"
+      }
+    ],
+    "maintenance": {
+      "owner": "Jordan (study owner)",
+      "obligations": [
+        "Keep this frozen version unchanged; a change needs a new version and is reported as a deviation"
+      ],
+      "review_interval": "Not reviewed during the run; frozen until the thesis is submitted"
+    },
+    "tasks": [
+      {
+        "key": "T1",
+        "title": "Implement the SLA checker CLI as the sla package",
+        "role": "builder",
+        "file_scope": [
+          "src"
+        ],
+        "depends_on": [],
+        "acceptance": [
+          "A1",
+          "A2",
+          "A3",
+          "A4"
+        ],
+        "deliverable": "src/main.py and the src/sla package, passing every acceptance check"
+      }
+    ]
+  }
+}

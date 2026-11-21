@@ -135,7 +135,7 @@ Kept in view, not discarded: failed qualifications (web-discovery-v1; larger-bui
 
 ## 6. AI-only frozen run (placeholder)
 
-> **PLACEHOLDER — no results yet.** This section will report one small frozen AI-only run on held-out tasks, designed in a separate piece of work. Until its protocol is frozen and the run is executed with the owner's typed approval, nothing here is a result. Do not fill this section from fixture runs, pilot outputs or the qualifications above.
+> **PLACEHOLDER — no results yet.** This section will report one small frozen AI-only run on six held-out build tasks. Its protocol is frozen before any run: [AI_ONLY_RUN_PROTOCOL.md](AI_ONLY_RUN_PROTOCOL.md) (ADR-0133), held by `config/thesis-ai-run/PROTOCOL.json`, whose SHA-256 anchor is `193f12624926d257c2b49e8ada1fa57b54d4b524111e7a020b880cc0c87583fc`. Until the run is executed with the owner's typed approval, nothing here is a result. Do not fill this section from fixture runs, pilot outputs or the qualifications above.
 >
 > To be filled from the frozen protocol and its records:
 >

@@ -10,4 +10,6 @@ Draft 2 describes main `b9270db` (November 19, 2026). Draft 1 (October 18, 2026,
 
 Jordan confirmed on November 19, 2026: the defense is on December 2, 2026 and the submission deadline is December 7, 2026. Defense time and location, committee review turnaround and university formatting requirements are still unrecorded. The separate CIS4914 presentation is not a thesis deadline.
 
-Next: the AI-only run's frozen protocol and execution (with Jordan's typed OK for the live run); committing the PC-only autopilot evidence named in E13; related work and formatting; committee review; defense rehearsal.
+**Thesis scope (Jordan, November 19, 2026):** an engineering thesis on executed evidence, plus one small autonomous-only run on six held-out build tasks, frozen before any run and reported as the AI arm alone, not as a comparison. Its frozen protocol is [AI_ONLY_RUN_PROTOCOL.md](AI_ONLY_RUN_PROTOCOL.md) (ADR-0133). It has not been run; the live run needs Jordan's typed OK.
+
+Next: the AI-only run's execution under its frozen protocol (with Jordan's typed OK for the live run); committing the PC-only autopilot evidence named in E13; related work and formatting; committee review; defense rehearsal.

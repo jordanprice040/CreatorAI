@@ -14,6 +14,7 @@ import {
   ContractError,
   RECIPE_BENCHMARK_IDS,
   RECIPE_BENCHMARK_INFO,
+  AI_RUN_TASK_IDS,
   RECIPE_BENCHMARKS,
   RecipeBenchmarkOffersSchema,
   recipePasses,
@@ -133,7 +134,8 @@ test('ADR-0105: each v5 benchmark is frozen, intact and loads with the studio li
     );
     assert.equal(
       recipeQualificationMaxRequests(b.info),
-      6 * b.info.caps.max_calls,
+      // ADR-0133: the thesis run's tasks have one attempt each.
+      2 * b.info.attempts * b.info.caps.max_calls,
     );
   }
   const offers = RecipeBenchmarkOffersSchema.parse(
@@ -1033,6 +1035,72 @@ test('ADR-0114: p14-xl-v1 needs a 120,000 input cap, runs in parts with its 2-ho
   }
 });
 
+test('ADR-0133 review 1 L-4: a one-attempt thesis run task records one pass, one fail, or one replaced invalid attempt', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  await s.qualifyRoles();
+  s.answer.invokePreamble = true;
+  s.answer.partChars = 6000;
+  await setInputCap(s, 60_000);
+  const [larger, , , small] = AI_RUN_TASK_IDS;
+
+  // A pass: one attempt is the whole record, with every bar, the structure bar included.
+  s.answer.id = larger!;
+  const q = await s.start(larger!);
+  assert.equal(q.attempts_needed, 1);
+  const pass = await s.run(q.id);
+  assert.deepEqual(s.errors, []);
+  assert.equal(pass.state, 'qualified', pass.reason ?? '');
+  assert.equal(pass.passed, 1);
+  assert.equal(pass.attempts.length, 1);
+  assert.equal(pass.max_input_chars, 60_000);
+  assert.deepEqual(
+    pass.attempts[0]!.result!.bars.map((b) => [b.key, b.passed]),
+    [
+      ['build_verified', true],
+      ['requests_within_cap', true],
+      ['package_verified', true],
+      ['extended_cases', true],
+      ['structure', true],
+    ],
+  );
+  assert.equal(pass.attempts[0]!.request_limit, 8);
+
+  // A fail: the reviewer blocks; the record ends not qualified after its one attempt.
+  s.answer.id = small!;
+  s.answer.reviewer = 'block';
+  const fail = await s.run((await s.start(small!)).id);
+  assert.deepEqual(s.errors, []);
+  assert.equal(fail.state, 'not_qualified', fail.reason ?? '');
+  assert.deepEqual(
+    fail.attempts.map((a) => a.state),
+    ['failed'],
+  );
+
+  // An invalid attempt (lost lease) is replaced once in the same slot, then the replacement
+  // decides the record.
+  s.answer.reviewer = 'approve';
+  const q3 = await s.start(small!);
+  assert.equal((await s.store.leaseRecipeQualification('a', 1))?.id, q3.id);
+  const first = await s.store.nextRecipeAttempt(q3.id, 'a', 4);
+  assert.equal(first.kind, 'attempt');
+  await new Promise((r) => setTimeout(r, 30));
+  const replaced = await s.run(q3.id);
+  assert.deepEqual(s.errors, []);
+  assert.equal(replaced.state, 'qualified', replaced.reason ?? '');
+  assert.deepEqual(
+    replaced.attempts.map((a) => [a.slot, a.state]),
+    [
+      [1, 'invalid'],
+      [1, 'passed'],
+    ],
+  );
+  assert.equal(
+    replaced.attempts[1]!.replaces,
+    (first as { attempt_id: string }).attempt_id,
+  );
+});
+
 test('ADR-0115: leading invented tool-call lines fail a v5 attempt as they ran, and pass on v6', async (t) => {
   const s = await setup(t);
   if (!s) return;
@@ -1102,13 +1170,17 @@ test('ADR-0115: v6 differs from v5 only in its name, notes and answer form', () 
       answer_wrapping: 'x',
     },
   );
-  // Jordan chose (2026-11-15) that p14-xl-v1 accepts the same answer form as v6.
+  // Jordan chose (2026-11-15) that p14-xl-v1 accepts the same answer form as v6;
+  // the thesis AI-only run tasks (ADR-0133) use it too, matching the qualified route.
+  const v6Form = new Set<string>([
+    'p14-larger-ledgercheck-v6',
+    'p14-xl-v1',
+    ...AI_RUN_TASK_IDS,
+  ]);
   for (const id of RECIPE_BENCHMARK_IDS)
     assert.equal(
       RECIPE_BENCHMARK_INFO[id].answer_wrapping,
-      id === 'p14-larger-ledgercheck-v6' || id === 'p14-xl-v1'
-        ? 'invoke_lines_then_json_fence'
-        : 'one_json_fence',
+      v6Form.has(id) ? 'invoke_lines_then_json_fence' : 'one_json_fence',
       id,
     );
 });

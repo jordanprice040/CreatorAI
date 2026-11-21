@@ -1,0 +1,119 @@
+{
+  "format": "recipe-benchmark-expectations/1",
+  "benchmark_id": "ai-run-recipe-v1",
+  "study": "thesis-ai-only-run-v1",
+  "scale": "small",
+  "recipe": "python-build/1",
+  "declared_scale": "One module (src/main.py), one builder task, 13 frozen studio cases of which 9 are held out, plus 18 extended held-out cases run after the build",
+  "authored": "Written new on 2026-11-19 for the thesis AI-only run (ADR-0133), before any run of any kind. Not a copy of an earlier benchmark. The expected outputs were produced by the reference solution and checked by hand against the spec; a test runs the reference against every case and each known failure against the cases that catch it",
+  "build_plan_caps": {
+    "max_repairs": 2,
+    "max_calls": 6,
+    "max_output_tokens": 8000,
+    "timeout_ms": 120000,
+    "data_class": "synthetic"
+  },
+  "expected_requests": {
+    "typical": 2,
+    "maximum": 6,
+    "note": "Each round is one builder request (or one per part when the builder answers in parts) and one reviewer request; repair rounds and parts are measured, not required"
+  },
+  "expected_cost_usd": "0.00 on a plan-backed route (plan_roles). Any metered route is out of this run",
+  "attempts": 1,
+  "one_build_per_attempt": "The single attempt is its own product and build in the studio qualification harness, from this spec.json content exactly (no catalog run, selection or spec is created)",
+  "qualified_at_declared_scale_when": "In this run the qualification harness records the task outcome: qualified means the single attempt met every pass bar (the task is completed); not_qualified means it did not. Nothing is re-run to replace a failure. A pass here lifts no build label",
+  "invalid_attempt_when": "An infrastructure fault outside the roles stops the attempt before a verdict: a role request that got no answer (network, provider, rate or usage limit, sign-in, token or timeout), a request the studio refused for a reason the roles' work did not cause (an earlier request with an unknown outcome, another request still running past a 4-minute wait, the daily cap, a lost sign-in, a connection setting changed during the run), a worker that did not finish a case, or a studio restart. It is recorded with its cause, and each attempt may be replaced at most once. A role answer the role itself caused to end without the contract (output too long or incomplete, out of turns, a model other than the one asked for, or a refusal to serve the model asked for, on any route) is a failed attempt, not an infrastructure fault; so is a request refused because the roles' own output made its input larger than the per-request input cap recorded at Start, or because the attempt used its request limit. An input-cap refusal of an attempt's first request (the roles wrote nothing yet), or after the cap was lowered since Start, is an infrastructure fault",
+  "pass_bar_per_attempt": [
+    "Studio build reaches verified_candidate: QA passes every frozen studio case, held-out ones included, in the isolation worker, and the reviewer approves with no findings (the studio's own rule)",
+    "Requests used are at most the plan's max_calls (6)",
+    "The exported package is verified by the studio: every frozen case re-run on the extracted archive in the isolation worker",
+    "All 18 extended cases pass on the exported package, run by the studio in the isolation worker with the studio case rule (exact output and exit status)"
+  ],
+  "min_input_chars": 60000,
+  "min_input_chars_note": "Start refuses a connection whose per-request input cap is below 60,000 characters (the dev studio's recorded cap, ADR-0062), so an attempt cannot fail on a cap smaller than the one the run is planned for",
+  "attempt_deadline_ms": 3600000,
+  "answer_wrapping": "invoke_lines_then_json_fence",
+  "answer_wrapping_note": "The same answer form p14-xl-v1 and p14-larger-ledgercheck-v6 accept (ADR-0115): one json code fence, optionally preceded by at most 8 whole-line invoke tags, which are dropped unread and counted",
+  "measure_and_record": [
+    "requests used, builder parts per round and repair rounds used",
+    "wall time from start to verdict",
+    "reviewer verdict and findings, and the build reason",
+    "studio case results (development and held out) as the record keeps them",
+    "package manifest SHA-256 and archive SHA-256",
+    "extended case results"
+  ],
+  "known_failure_cases": [
+    {
+      "id": "not-reduced",
+      "description": "Fractions are not written in lowest terms",
+      "caught_by": [
+        "A1.2",
+        "A2.2",
+        "E1"
+      ]
+    },
+    {
+      "id": "strict-threshold",
+      "description": "A unit is converted only above the threshold, not at it",
+      "caught_by": [
+        "A2.1",
+        "A2.3",
+        "E4",
+        "E16"
+      ]
+    },
+    {
+      "id": "no-chained-upgrade",
+      "description": "Only one conversion step applies (48 tsp stays 16 tbsp)",
+      "caught_by": [
+        "A2.3"
+      ]
+    },
+    {
+      "id": "upgrade-on-whole-only",
+      "description": "A unit is converted only when the result is a whole number",
+      "caught_by": [
+        "A2.4",
+        "E3"
+      ]
+    },
+    {
+      "id": "improper-mixed-accepted",
+      "description": "A mixed number whose fraction is 1 or more is accepted",
+      "caught_by": [
+        "A3.2"
+      ]
+    },
+    {
+      "id": "singular-count-missing",
+      "description": "The count says 1 ingredients",
+      "caught_by": [
+        "A2.3",
+        "E1",
+        "E2",
+        "E3",
+        "E5",
+        "E6",
+        "E7",
+        "E16",
+        "E17",
+        "E18"
+      ]
+    },
+    {
+      "id": "mixed-scale-accepted",
+      "description": "A mixed number is accepted as --scale",
+      "caught_by": [
+        "A4.3"
+      ]
+    },
+    {
+      "id": "no-ingredients-line-missing",
+      "description": "An empty list prints 0 ingredients instead of no ingredients",
+      "caught_by": [
+        "A1.3",
+        "E15"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,261 @@
+{
+  "format": "p14-benchmark-spec/1",
+  "benchmark_id": "ai-run-shifts-v1",
+  "scale": "small",
+  "title": "Shift coverage gaps (AI-only run task S1)",
+  "content": {
+    "audience": "Synthetic study task for the thesis AI-only run: a shop manager checking staff coverage",
+    "problem_statement": "Find the times in one day when too few people are on shift. Shifts are read from stdin; the program reports every gap inside opening hours and how many minutes were covered. This is a frozen synthetic task for the thesis AI-only run, not a customer product.",
+    "user_flows": [
+      {
+        "key": "F1",
+        "name": "Find gaps",
+        "steps": [
+          "Pipe a list of shifts into the CLI",
+          "Read each gap and the covered minutes"
+        ]
+      },
+      {
+        "key": "F2",
+        "name": "Change the hours or staffing",
+        "steps": [
+          "Run with --open, --close or --min-staff",
+          "Read the gaps for those settings"
+        ]
+      },
+      {
+        "key": "F3",
+        "name": "Bad shift line",
+        "steps": [
+          "Pipe a list with a malformed or impossible shift",
+          "Read the error naming the first bad line and exit status 1"
+        ]
+      },
+      {
+        "key": "F4",
+        "name": "Bad arguments",
+        "steps": [
+          "Run with an argument the CLI does not accept",
+          "Read invalid arguments and exit status 2"
+        ]
+      }
+    ],
+    "scope": [
+      "Python 3.8+ standard library only, entry point src/main.py, all code under src",
+      "Read all of stdin as text and split it into lines on \\n. Lines are numbered from 1, counting every line, including blank and comment lines. Leading and trailing whitespace on a line is ignored",
+      "A line that is empty after trimming, or whose trimmed text starts with #, is skipped",
+      "Every other line is a shift: exactly three whitespace-separated fields NAME START END. NAME is 1 to 20 lowercase ASCII letters a-z. START and END are HH:MM with two-digit hours 00 to 23 and two-digit minutes 00 to 59, and START is earlier than END",
+      "A shift covers the minutes from START up to but not including END. The same person may have several shifts; a person counts at most once in any minute",
+      "Only the minutes from the opening time up to but not including the closing time matter. Opening is 09:00 and closing 17:00 unless set by arguments",
+      "A minute is covered when at least K different people are on shift in it. K is 1 unless set by --min-staff",
+      "Output: each gap (a maximal run of uncovered minutes inside opening hours) in time order as: gap HH:MM-HH:MM (N min) where the times are its first minute and the minute after its last, and N its length. If there is no gap print exactly: no gaps",
+      "After the gaps (or no gaps) print: covered C of T min, where C is the number of covered minutes and T the number of minutes between opening and closing. Each output line ends with \\n. Exit 0",
+      "If any shift line is invalid, print exactly: error: line N: invalid shift (N the number of the first invalid line), print nothing else, and exit 1",
+      "Arguments, in any order, each at most once: --open HH:MM, --close HH:MM (same time format as shifts) and --min-staff K (one digit 1 to 9). Opening must be earlier than closing",
+      "Any other argument, a missing or invalid value, a repeated option, or an opening not earlier than closing prints exactly: invalid arguments, then \\n, and exits 2. Arguments are checked before stdin is read for errors",
+      "No files, network, environment variables or third-party packages"
+    ],
+    "non_goals": [
+      "Several days or overnight shifts",
+      "Reading files",
+      "Persistence",
+      "Web UI",
+      "Public release"
+    ],
+    "data_contracts": [
+      {
+        "name": "shifts/1",
+        "description": "Synthetic shift lines on stdin; plain text report on stdout",
+        "data_class": "synthetic"
+      }
+    ],
+    "acceptance_checks": [
+      {
+        "key": "A1",
+        "flow": "F1",
+        "statement": "Report gaps and covered minutes with the default hours and one person needed",
+        "measure": "Exact output and exit status",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [
+              "--open",
+              "09:00"
+            ],
+            "stdin": "ana 09:00 12:00\nbo 13:00 17:00\n",
+            "stdout": "gap 12:00-13:00 (60 min)\ncovered 420 of 480 min\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "",
+            "stdout": "gap 09:00-17:00 (480 min)\ncovered 0 of 480 min\n",
+            "exit_code": 0,
+            "held_out": true
+          },
+          {
+            "args": [],
+            "stdin": "# morning\nana 08:00 10:30\n\n  bo 10:00 18:00  \n",
+            "stdout": "no gaps\ncovered 480 of 480 min\n",
+            "exit_code": 0,
+            "held_out": true
+          },
+          {
+            "args": [],
+            "stdin": "ana 09:00 11:00\nana 10:00 12:00\nbo 12:30 16:59\n",
+            "stdout": "gap 12:00-12:30 (30 min)\ngap 16:59-17:00 (1 min)\ncovered 449 of 480 min\n",
+            "exit_code": 0,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A2",
+        "flow": "F2",
+        "statement": "--open, --close and --min-staff change the hours and the people needed",
+        "measure": "Exact output and exit status",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [
+              "--min-staff",
+              "2"
+            ],
+            "stdin": "ana 09:00 17:00\nbo 09:00 12:00\ncy 11:00 15:00\n",
+            "stdout": "gap 15:00-17:00 (120 min)\ncovered 360 of 480 min\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": [
+              "--close",
+              "12:00",
+              "--open",
+              "10:15"
+            ],
+            "stdin": "ana 09:00 11:00\n",
+            "stdout": "gap 11:00-12:00 (60 min)\ncovered 45 of 105 min\n",
+            "exit_code": 0,
+            "held_out": true
+          },
+          {
+            "args": [
+              "--min-staff",
+              "2"
+            ],
+            "stdin": "ana 09:00 13:00\nana 12:00 17:00\nbo 15:00 17:00\n",
+            "stdout": "gap 09:00-15:00 (360 min)\ncovered 120 of 480 min\n",
+            "exit_code": 0,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A3",
+        "flow": "F3",
+        "statement": "An invalid shift line prints the error for the first one and exits 1",
+        "measure": "Exact output and exit status",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [],
+            "stdin": "ana 09:00 12:00\nbo 12:00 09:00\n",
+            "stdout": "error: line 2: invalid shift\n",
+            "exit_code": 1,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "\n# x\nana 9:00 12:00\nbo 25:00 26:00\n",
+            "stdout": "error: line 3: invalid shift\n",
+            "exit_code": 1,
+            "held_out": true
+          },
+          {
+            "args": [],
+            "stdin": "Ana 09:00 12:00\n",
+            "stdout": "error: line 1: invalid shift\n",
+            "exit_code": 1,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A4",
+        "flow": "F4",
+        "statement": "Invalid arguments print invalid arguments and exit 2",
+        "measure": "Exact output and exit status",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [
+              "--late"
+            ],
+            "stdin": "ana 09:00 12:00\n",
+            "stdout": "invalid arguments\n",
+            "exit_code": 2,
+            "held_out": false
+          },
+          {
+            "args": [
+              "--open",
+              "17:00",
+              "--close",
+              "09:00"
+            ],
+            "stdin": "ana 09:00 12:00\n",
+            "stdout": "invalid arguments\n",
+            "exit_code": 2,
+            "held_out": true
+          },
+          {
+            "args": [
+              "--min-staff",
+              "0"
+            ],
+            "stdin": "ana 09:00 12:00\n",
+            "stdout": "invalid arguments\n",
+            "exit_code": 2,
+            "held_out": true
+          }
+        ]
+      }
+    ],
+    "risks": [
+      {
+        "risk": "Six tasks written by one author do not establish general build quality",
+        "mitigation": "Report results only for these frozen tasks, this route, model and role prompts, as the AI-only arm alone"
+      },
+      {
+        "risk": "Held-out cases leak to the builder",
+        "mitigation": "The studio hides held-out studio cases from builder and reviewer; extended cases are never entered into the studio; the repository copy is never sent to runtime roles"
+      }
+    ],
+    "maintenance": {
+      "owner": "Jordan (study owner)",
+      "obligations": [
+        "Keep this frozen version unchanged; a change needs a new version and is reported as a deviation"
+      ],
+      "review_interval": "Not reviewed during the run; frozen until the thesis is submitted"
+    },
+    "tasks": [
+      {
+        "key": "T1",
+        "title": "Implement the shift coverage CLI",
+        "role": "builder",
+        "file_scope": [
+          "src"
+        ],
+        "depends_on": [],
+        "acceptance": [
+          "A1",
+          "A2",
+          "A3",
+          "A4"
+        ],
+        "deliverable": "src/main.py that passes every acceptance check"
+      }
+    ]
+  }
+}
