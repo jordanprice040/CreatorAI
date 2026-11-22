@@ -21,6 +21,8 @@ Recorded from Jordan's messages in the project on November 19, 2026, during the 
 - **Unchanged.** Existing installs keep their saved `pg_bin` (an upgrade does not switch them to the included copy). External mode and the installed-folder candidates work as before. Nothing is downloaded at run time. The installer stays unsigned (owner decision, November 17); the PostgreSQL licence allows redistribution with its notice, which the copied top-level files carry when the source folder has them.
 - **Tester guide.** `docs/TESTER_GUIDE.md`: install (SmartScreen "Run anyway", optional hash check), first launch with the defaults, what needs a model connection, WSL/Git for builds, feedback with logs, updating by running a newer installer ("Do not uninstall"), uninstalling (studio home stays).
 
+**Owner decision (Jordan, November 22, 2026, on the thread's decision card):** unsigned tester installers, with the hash check, go only to close friends. A code-signing certificate is bought before the installer goes to anyone wider. This refines the November 17 rule (buy a certificate before outside testers).
+
 Tests: `postgres::tests` (the included copy is listed only when it verifies, a saved folder wins, a failed copy leaves no `runtime` folder, nested trees copy). The build flag was run on Linux against a stand-in folder (layout copied, pgAdmin and docs left out, missing folder refused). Not covered: no Windows build with the real PostgreSQL folder and no install on a clean Windows account yet (needs Jordan's PC); a later release that includes a newer PostgreSQL minor does not move existing installs to it.
 
 ## ADR-0133 — Thesis AI-only run: six held-out build tasks and a protocol frozen before any run (November 19, 2026; no migration)

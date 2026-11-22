@@ -63,6 +63,7 @@ gone; that cannot be undone.
 
 ## Known limits of this test build
 
-- Not code-signed, so the Windows warning above appears.
+- Not code-signed, so the Windows warning above appears. Unsigned test builds go only to people the project
+  owner knows personally.
 - Windows on x64 only.
 - Nothing is sent to other people or services unless you connect a model or approve an action that says so.
