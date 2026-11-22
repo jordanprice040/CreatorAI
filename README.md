@@ -2,9 +2,9 @@
 
 Creator Agent is a local evidence and product studio with a React web interface,
 Node API/CLI and PostgreSQL records. It supports evidence-backed discovery,
-web search with checked quotes, alternative comparison, automatic assessments, human
-decisions, an autopilot that stops for a person, non-code proposals, workspace files and
-notes, bounded workflows and budgets, searchable provenance, and reviewed
+web search with checked quotes, uploaded documents as evidence, alternative
+comparison, automatic assessments, human decisions, an autopilot that stops for a
+person, non-code proposals, workspace files and notes, bounded workflows and budgets, searchable provenance, and reviewed
 build/package/preview paths for a Python CLI prototype and a small static web page.
 
 Start with [local development](docs/LOCAL_DEVELOPMENT.md) for setup and operation.
@@ -13,7 +13,16 @@ usage and remaining work. [Build status](tracking/BUILD_STATUS.md) and
 [integration readiness](tracking/INTEGRATIONS.md) distinguish implementation,
 recorded verification, configuration and activation.
 
-## Quick start
+## Install on Windows (testers)
+
+The current release is **0.1.9** ([release page](https://github.com/jordanprice040/CreatorAI/releases/tag/v0.1.9)).
+Its installer includes PostgreSQL 18 and the Visual C++ runtime it needs, so a tester installs
+nothing else: no database, Docker or Node. Windows 10 or 11 (64-bit), no administrator rights.
+The build is not code-signed, so it goes, with its SHA-256 hash, only to people the owner knows
+personally. Follow the [tester guide](docs/TESTER_GUIDE.md); the
+[desktop studio guide](docs/DESKTOP_STUDIO.md) covers updates, backups and building the installer.
+
+## Quick start (development)
 
 Use Node 22.23.4+ within Node 22 or 24.22.2+ within Node 24 and pnpm 11.25.0.
 
@@ -33,10 +42,14 @@ the one-run login link printed by the API.
 
 Fixture demonstrations use deterministic synthetic responses. Live provider and
 source-fetch adapters exist, but paid inference and live research are not verified
-or activated by setup. Submitting a theme uses recorded evidence. Searching the web
+or activated by setup. Submitting a theme uses recorded evidence. Evidence comes from
+pages the studio fetched itself or from uploaded text documents marked **Use as evidence**; a claim's quote is checked
+against that text. Searching the web
 (Projects › Discover › Search the web) needs a plan connection qualified for web
 discovery, and only quotes the studio finds on a fetched page become draft claims.
 The autopilot takes the same steps for you and stops where a person must decide.
+Standard view (the default) keeps explanations short and folds long sections; Advanced shows
+every tab, exact amounts and ids.
 Generated execution needs the reviewed WSL2
 worker and supports a bounded Python standard-library CLI recipe and the
 `static-web/1` recipe (plain HTML, CSS and JavaScript, checked in a pinned headless browser);

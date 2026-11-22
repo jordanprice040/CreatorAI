@@ -39,7 +39,12 @@ When setup is done, press **Sign in as local owner**, then **Open the studio**.
 ## 3. Try it
 
 - Create a workspace when the studio asks for one, then follow **Getting started** on the Chat page.
-- **Standard** mode shows the everyday controls; **Advanced** shows everything.
+- **Standard** mode shows the everyday controls and keeps explanations short: press a one-line
+  explanation or a folded section to open it. **Advanced** shows everything.
+- Evidence lives under **Sources**: fetch a web page, or drop a text document (text, Markdown,
+  CSV, JSON or code) anywhere on the page and press **Use as evidence** on Sources › Files. A
+  claim's quote must appear word for word in that page or document. **Library** (also under
+  Sources) lists every saved record with its versions and links.
 - Model-driven steps (drafting, scoring with a model, building) need a model connection under
   **Models and connections → Models**: a ChatGPT plan, or Claude Code already signed in on this computer.
   Without one, those steps are refused with a message; the rest of the studio still works.

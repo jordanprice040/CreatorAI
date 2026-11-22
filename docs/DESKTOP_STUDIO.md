@@ -139,7 +139,14 @@ In external mode the database user needs `CREATEDB` (`ALTER ROLE <user> CREATEDB
 rehearsal copy and for a rollback's restore.
 
 Builds are unsigned for the private beta (owner decision, November 17), so Windows may warn about
-the installer; the hash check proves the file is the one the release names, not who built it.
+the installer; the hash check proves the file is the one the release names, not who built it. An
+unsigned installer, sent with its SHA-256 hash, goes only to close friends; a code-signing
+certificate is bought before it goes to anyone wider (owner decision, November 22).
+
+The first real release is **0.1.9** (November 22): the tester build with PostgreSQL included,
+published as `v0.1.9` on the private releases repository and on the main repository's releases
+page. The deliberately broken test release `v0.1.7` was deleted before it, so Check on an installed 0.1.8
+should offer 0.1.9 (not yet tried on Jordan's PC).
 
 **Publishing a release (manual):** raise `version` in `src-tauri/tauri.conf.json` and
 `src-tauri/Cargo.toml` (above any version that was rolled back), build from a clean checkout
@@ -204,7 +211,8 @@ repository, so send it (for example as a PDF) with the installer and its hash.
 `build-studio.mjs` compiles, builds the UI, bundles the service into one file and stages
 `node.exe` (the build host's Node), the executor bridge, `config/` and the UI with a hash
 manifest (`bundle-manifest.json`, including the source commit and whether it was dirty).
-The installer is unsigned; it is a local review artifact, not a public release.
+The installer is unsigned. Only a build Jordan publishes (for example 0.1.9) is a release; any
+other build is a local review artifact.
 
 The installer uses a copy of Tauri's own NSIS template (`src-tauri/nsis/installer.nsi`, from
 the pinned `@tauri-apps/cli` 2.12.3) with the changes marked "Creator Agent" in it: when an older
