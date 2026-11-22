@@ -19,6 +19,7 @@ import { Checkout } from './checkout.js';
 import { Empty, Status, shortId, useLoad, type View } from './ui.js';
 import { newestFirst } from './versions.js';
 import { ShowOlder, useOlder } from './older.js';
+import { Explain } from './explain.js';
 
 const BalancesSchema = z.strictObject({
   balances: z.record(z.string(), z.string()),
@@ -187,11 +188,14 @@ export function Payments({
   return (
     <section className="panel" aria-labelledby="pay-title">
       <h2 id="pay-title">Sell</h2>
-      <p>
+      <Explain
+        short="Sell a verified release and see what came in."
+        className=""
+      >
         Sell a verified release through a payment processor and see what came
         in. Access is granted only after the server reads the payment from the
         processor; a checkout page or a webhook never grants it by itself.
-      </p>
+      </Explain>
       <p className="notice">
         Live payments aren&apos;t built. Connections work only in fixture
         workspaces, with the simulated processor or a processor&apos;s test

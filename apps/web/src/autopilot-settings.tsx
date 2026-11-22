@@ -13,6 +13,7 @@ import {
 } from '@creator/contracts';
 import { api, message, when } from './oversight.js';
 import { Status, useLoad } from './ui.js';
+import { Explain, useSectionState } from './explain.js';
 
 // ADR-0100: the owner's autopilot settings. Each switch lets an autopilot (Run it for me, Automate
 // the rest, Automate selection) take a planned fallback instead of stopping for you at one kind
@@ -57,6 +58,17 @@ const SWITCHES: AutopilotSettingKey[] = [
   'accept_quote_checked_claims',
 ];
 
+/** The saved switches in a few words, for the closed Standard fold. */
+export function settingsState(values: AutopilotSettingsValues): string {
+  const on = SWITCHES.filter((k) => values[k] === true);
+  if (on.length === 0) return 'All off: the autopilot stops for you';
+  if (isHandsOff(values)) {
+    const extra = on.filter((k) => NOT_HANDS_OFF.includes(k));
+    return `Hands-off is on${extra.length ? `, and ${extra.map((k) => AUTOPILOT_SETTING_TEXT[k].label).join(', ')}` : ''}`;
+  }
+  return `On: ${on.map((k) => AUTOPILOT_SETTING_TEXT[k].label).join(', ')}`;
+}
+
 export function AutopilotSettingsPanel({
   session,
   workspace,
@@ -81,6 +93,8 @@ export function AutopilotSettingsPanel({
   }, [ctx]);
   const changed =
     !!s && !!draft && JSON.stringify(s.values) !== JSON.stringify(draft);
+  // Review 1 of #255, M-2: the closed fold in Standard says which fallbacks are on.
+  useSectionState(s ? settingsState(s.values) : null);
 
   async function save(values: AutopilotSettingsValues) {
     if (!s) return;
@@ -105,12 +119,12 @@ export function AutopilotSettingsPanel({
       <p id="ap-settings-title">
         <strong>When the autopilot would stop</strong>
       </p>
-      <p className="small">
+      <Explain short="Let the autopilot take a fallback instead of stopping. All off by default.">
         Each switch lets an autopilot take a planned fallback instead of
         stopping for you. All are off until you turn them on. None approves a
         step, raises a budget or a connection cap, or clears a gate; each choice
         it makes this way says which setting allowed it.
-      </p>
+      </Explain>
       <Status
         loading={ctx.loading}
         error={ctx.error}

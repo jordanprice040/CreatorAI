@@ -28,6 +28,7 @@ import {
   useLoad,
   type View,
 } from './ui.js';
+import { Explain } from './explain.js';
 
 const LIVE = [
   'queued',
@@ -117,11 +118,14 @@ export function Overview({
           Refresh
         </button>
       </div>
-      <p>
+      <Explain
+        short={"What's running, what waits for you, and what it cost."}
+        className=""
+      >
         What runs on the server, what waits for you, and what it has cost.
         Closing this page stops nothing; only Pause and Cancel do. While work is
         in progress the page refreshes itself.
-      </p>
+      </Explain>
       <Status
         loading={data.loading && !d}
         error={data.error}

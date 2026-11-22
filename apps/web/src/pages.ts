@@ -245,13 +245,12 @@ export function routeHash(r: Route): string {
 /**
  * ADR-0082 (P19): the tabs Standard leaves out of the navigation because few people need them
  * day to day. Their routes still open (links, addresses, Chat buttons), and an open one is
- * listed while it is open. Advanced lists every tab. Runs and Library joined on November 14
- * (final UX pass, section 9; ADR-0103): Discover and Decide now show discovery progress and
- * what to do next, and records open from their own pages.
+ * listed while it is open. Advanced lists every tab. Runs joined on November 14 (final UX pass,
+ * section 9; ADR-0103): Discover and Decide now show discovery progress and what to do next.
+ * Library left again on November 22 (Jordan): it is listed in Standard too.
  */
 export const ADVANCED_ONLY: readonly View[] = [
   'runs',
-  'catalog',
   'payments',
   'marketing',
   'portfolio',

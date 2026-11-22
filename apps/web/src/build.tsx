@@ -88,6 +88,7 @@ import {
   needsRecover,
 } from './build-defaults.js';
 import { BuildDetails, BuildProgressSchema } from './build-progress.js';
+import { Explain } from './explain.js';
 
 // What GET /products returns (apps/api/src/products.ts, ADR-0046).
 const sha = z.string().regex(/^[0-9a-f]{40}$/);
@@ -410,12 +411,12 @@ export function BuildView({
   return (
     <section className="panel" aria-labelledby="build-title">
       <h2 id="build-title">Build and package</h2>
-      <p className="small">
+      <Explain short="Build a product from a frozen spec, one task at a time.">
         A product is built from a frozen spec, one task at a time. The studio
         writes the patch through the builder, runs the acceptance cases in the
         isolated worker and has the result reviewed; a verified build can then
         be packaged and tried under Try. Closing this page stops nothing.
-      </p>
+      </Explain>
       {fixture && (
         <p className="notice">
           Fixture workspace: the deterministic builder only answers for the

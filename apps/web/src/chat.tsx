@@ -45,6 +45,7 @@ import {
   SCOPE_LABEL,
   type PickedRecord,
 } from './chat-context.js';
+import { Explain } from './explain.js';
 
 /**
  * A plan answer can take as long as the connection's request timeout, which the owner sets
@@ -539,7 +540,7 @@ export function Chat({
   return (
     <section className="panel chat" aria-labelledby="chat-title">
       <h2 id="chat-title">Chat</h2>
-      <p className="small">
+      <Explain short="Ask about your project, or do a step here as a card.">
         {answersOn
           ? `Ask anything: writing, ideas, explanations or advice are answered by ${settings?.model_id} through your plan, at no extra cost. Those answers are labelled and never change anything. `
           : 'The owner can let a connected ChatGPT or Claude plan answer any question, studio or not (Models and connections › Chat answers). '}
@@ -548,7 +549,7 @@ export function Chat({
         can be done here as a card: it asks the form&apos;s questions, shows
         exactly what it will send, and sends nothing until you press its Send,
         through the same checks as the form.
-      </p>
+      </Explain>
       {error && (
         <p className="error" role="alert">
           {error}

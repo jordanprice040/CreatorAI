@@ -73,6 +73,7 @@ import {
   rowReasons,
 } from './carry-decisions.js';
 import { Term } from './term.js';
+import { Explain, SectionFold } from './explain.js';
 
 /** What still needs the owner's look, in words, for the line above Record. */
 function pendingReviews(
@@ -588,13 +589,16 @@ export function Compare({
   return (
     <section className="panel" aria-labelledby="cmp-title">
       <h2 id="cmp-title">Compare and decide</h2>
-      <p>
+      <Explain
+        short="Compare the options on the same evidence, then decide."
+        className=""
+      >
         Read each option against the same evidence before choosing. Scores are
         prioritization aids from reviewers’ ratings, not measured impact;{' '}
         <Term term="gate">gates</Term> (ethics and access,{' '}
         <Term term="humility_review">humility review</Term>) are separate and no
         score clears them.
-      </p>
+      </Explain>
       <div className="filters">
         <label htmlFor="cmp-problem" className="inline">
           Problem
@@ -702,9 +706,11 @@ export function Compare({
                 >
                   {linkingProblem ? 'Close' : 'Link claims to this problem'}
                 </button>{' '}
-                <span className="muted">
-                  Recorded claims become evidence an assessment reads.
-                </span>
+                {!standard && (
+                  <span className="muted">
+                    Recorded claims become evidence an assessment reads.
+                  </span>
+                )}
               </p>
             )}
             {linkingProblem && (
@@ -756,10 +762,12 @@ export function Compare({
                 ))}
               </ul>
             )}
-            <p className="small">
-              Passages count as current for {d.cmp.max_age_days} days after
-              retrieval.
-            </p>
+            {!standard && (
+              <p className="small">
+                Passages count as current for {d.cmp.max_age_days} days after
+                retrieval.
+              </p>
+            )}
 
             {/* UX pass section 6: occasional reading, folded in Standard. */}
             <Routine summary={assumptionsSummary(d.cmp.assumptions.length)}>
@@ -1143,26 +1151,31 @@ export function Compare({
               />
             )}
             {alts.length > 0 && !viewer && (
-              <ScoreOption
-                pick={scorePick}
-                base={base}
-                session={session}
-                options={alts.map((a) => ({
-                  entity: a.entity,
-                  kind: String(a.entity.body?.kind ?? ''),
-                }))}
-                claims={d.cmp.claims.map((c) => c.evidence)}
-                scorecards={d.scorecards}
-                prefill={{
-                  target_users: String(
-                    d.cmp.problem.body?.affected_group ?? '',
-                  ),
-                  measurable_outcome: String(
-                    d.cmp.brief?.body?.outcome_measure ?? '',
-                  ),
-                }}
-                saved={detail.reload}
-              />
+              <SectionFold
+                title="Score an option"
+                hint="Rate an option yourself."
+              >
+                <ScoreOption
+                  pick={scorePick}
+                  base={base}
+                  session={session}
+                  options={alts.map((a) => ({
+                    entity: a.entity,
+                    kind: String(a.entity.body?.kind ?? ''),
+                  }))}
+                  claims={d.cmp.claims.map((c) => c.evidence)}
+                  scorecards={d.scorecards}
+                  prefill={{
+                    target_users: String(
+                      d.cmp.problem.body?.affected_group ?? '',
+                    ),
+                    measurable_outcome: String(
+                      d.cmp.brief?.body?.outcome_measure ?? '',
+                    ),
+                  }}
+                  saved={detail.reload}
+                />
+              </SectionFold>
             )}
             <p className="small">
               Full rankings and sensitivity:{' '}
@@ -1178,14 +1191,14 @@ export function Compare({
                 aria-labelledby="decide-title"
               >
                 <h3 id="decide-title">Decide</h3>
-                <p className="small">
+                <Explain short="Choose what happens to each option and why.">
                   Give every option a disposition, a reason and what would
                   reverse it. Blocked choices are disabled; what blocks them is
                   written under each option.{' '}
                   {standard
                     ? 'The decision is tied to this exact report, so it never applies to a changed one.'
                     : `This decision binds report ${d.report.report_hash.slice(0, 12)}.`}
-                </p>
+                </Explain>
                 {carried?.from && latest && (
                   <p
                     className={`notice${review.length === 0 ? ' ok' : ''}`}

@@ -4,6 +4,7 @@ import { Automation } from './automation.js';
 import { AutopilotSettingsPanel } from './autopilot-settings.js';
 import { reveal } from './ui.js';
 import type { View } from './pages.js';
+import { Explain, SectionFold } from './explain.js';
 
 // ADR-0111 (Jordan's request, November 15): the whole autopilot flow on one page instead of
 // spread over Discover, Decide and Monitor. In order: the autopilots working or waiting for
@@ -37,12 +38,15 @@ export function AutopilotPage({
       aria-labelledby="autopilot-page-title"
     >
       <h2 id="autopilot-page-title">Autopilot</h2>
-      <p>
+      <Explain
+        short="Let the studio take the steps for you. It stops when a person must decide."
+        className=""
+      >
         The autopilot takes the steps from the evidence to a proposal for you
         and stops where a person must decide. Everything about it is here: what
         it is doing, why it stopped and what to do next, Continue, and starting
         a new one with its settings.
-      </p>
+      </Explain>
       {/* ADR-0130 (N2): where the stop alerts are set (plan §10). */}
       <p className="small">
         You&apos;ll be notified when an autopilot stops ·{' '}
@@ -70,28 +74,38 @@ export function AutopilotPage({
         focus={focus}
         between={
           <>
-            <Automation
-              key={`automation-${workspace.id}`}
-              session={session}
-              workspace={workspace}
-            />
-            <section
-              className="explore"
-              aria-labelledby="autopilot-settings-title"
+            <SectionFold
+              title="How much is automated"
+              hint="Let the studio do more of a project by itself."
             >
-              <h3 id="autopilot-settings-title">Autopilot settings</h3>
-              {workspace.role === 'owner' ? (
-                <AutopilotSettingsPanel
-                  key={`settings-${workspace.id}`}
-                  session={session}
-                  workspace={workspace}
-                />
-              ) : (
-                <p className="small">
-                  Only the workspace owner can change the autopilot settings.
-                </p>
-              )}
-            </section>
+              <Automation
+                key={`automation-${workspace.id}`}
+                session={session}
+                workspace={workspace}
+              />
+            </SectionFold>
+            <SectionFold
+              title="Autopilot settings"
+              hint="When the autopilot may carry on instead of stopping."
+            >
+              <section
+                className="explore"
+                aria-labelledby="autopilot-settings-title"
+              >
+                <h3 id="autopilot-settings-title">Autopilot settings</h3>
+                {workspace.role === 'owner' ? (
+                  <AutopilotSettingsPanel
+                    key={`settings-${workspace.id}`}
+                    session={session}
+                    workspace={workspace}
+                  />
+                ) : (
+                  <p className="small">
+                    Only the workspace owner can change the autopilot settings.
+                  </p>
+                )}
+              </section>
+            </SectionFold>
           </>
         }
       />

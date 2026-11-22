@@ -29,6 +29,7 @@ import { withFreshCount } from './usage-refresh.js';
 import { capWords } from './extra-requests-text.js';
 import { MODEL_CHOICE_CHANGED } from './model-choice.js';
 import { useModelChoice } from './model-switch.js';
+import { Explain } from './explain.js';
 
 // ADR-0057: chat answers from a connected plan. The answer view labels every answer as a model
 // answer that nobody checked and shows exactly what was sent; the settings card is the owner's
@@ -384,12 +385,15 @@ export function ChatAnswersCard({
   return (
     <section className="chat-answers-card" aria-labelledby="chat-answers-title">
       <h3 id="chat-answers-title">Chat answers</h3>
-      <p>
+      <Explain
+        short="Let Chat answer any question with one of your plans, at no extra cost."
+        className=""
+      >
         Let Chat answer open questions with one of your plans. Each answer uses
         your plan&apos;s own allowance at no extra cost, never a paid route, and
         is labelled as a model answer nobody checked. Answers are words only:
         they cannot start, approve or spend anything.
-      </p>
+      </Explain>
       {error && <p role="alert">{error}</p>}
       {readError && <p role="alert">{readError}</p>}
       {saved && <p role="status">{saved}</p>}

@@ -9,6 +9,7 @@ import {
 import { api, message, when } from './oversight.js';
 import { Status, useLoad } from './ui.js';
 import { removeLabel, resultText, sizeText } from './storage-text.js';
+import { Explain } from './explain.js';
 import './storage.css';
 
 const DAYS = [7, 14, 30, 90] as const;
@@ -67,11 +68,11 @@ export function Storage({ session }: { session: SessionInfo }) {
   return (
     <section className="panel storage">
       <h2>Storage</h2>
-      <p className="small">
+      <Explain short="Disk space per project.">
         Space the studio uses on this computer, per project. Only build
         workspaces can be removed here; repositories, packages, records,
         previews, files and backups always stay.
-      </p>
+      </Explain>
       <Status
         loading={data.loading}
         error={data.error}
@@ -173,7 +174,7 @@ export function Storage({ session }: { session: SessionInfo }) {
           )}
 
           <h3>Remove old build workspaces</h3>
-          <p className="small">
+          <Explain>
             A task's workspace is offered only when its latest commit is in a
             verified package whose files still match their recorded hashes,
             nothing in it is uncommitted or ignored, and it hasn't changed for
@@ -181,7 +182,7 @@ export function Storage({ session }: { session: SessionInfo }) {
             the workspace comes back by itself if you build that task again. A
             merge workspace is offered when its merge is already in the
             product's repository.
-          </p>
+          </Explain>
           <label className="storage-days">
             Not changed for{' '}
             <select

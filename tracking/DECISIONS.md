@@ -1,5 +1,17 @@
 # Decision log
 
+## Owner decision recorded November 22, 2026: a much shorter Standard view (no ADR, no migration)
+
+Jordan asked on November 22 to severely reduce the text and large text blocks in Standard, to add collapsible sections where long text remains, and to list Library in Standard. Built in `apps/web/src/explain.tsx`:
+
+- **`Explain`**: a page or section explanation. Advanced shows it as before; Standard shows one plain line (or "About this") and opens the full text in place. It is never used for a blocker, an error, an amount the person confirms or the only description of what a button does.
+- **`PointList`**: the autopilot and automation summaries ("What the autopilot does", "Routine approvals …"). Standard keeps the limits (money, steps, end time), data classes, "never covered", "still stops" and "it never" lines in view and folds the rest under a count; the "I have read both summaries" box stays disabled until each folded summary has been opened (a changed summary needs opening again). Review 1 of #255, M-1.
+- **`SectionFold`**: whole sections Standard shows closed under a title (Autopilot: How much is automated, Autopilot settings; Decide: Score an option; Settings: per-run limits, evidence websites, team profile and gates, backups). A closed fold shows the section's current state where it has one ("All off" or which fallbacks are on, "No limits set" or the limits, who clears gates, how many runs are automated; review 1, M-2). `reveal` (jump links) opens the fold and focuses its title; `#…?id=team-profile` opens and scrolls to it.
+- Kept in view in Standard after review 1: the team profile's notice that answers go to the model provider, the assessment preview's notes about what is left out, and the one-line meaning of Shut down worker and Revoke.
+- **Library** leaves `ADVANCED_ONLY` (this reverses the Library part of ADR-0103; Runs stays Advanced-only).
+
+Standard and Advanced still submit exactly the same requests (ADR-0082). Evidence: `tracking/evidence/standard-simplify/`.
+
 ## Drop anywhere in the installed app (November 22, 2026; no ADR, no migration)
 
 Jordan reported on November 22 that dropping files on the studio did nothing. The page's handlers (ADR-0072) work in a browser, but the installed app's studio window kept Tauri's native drag-and-drop handler, which is on by default and, on Windows (WebView2), takes over the drop so the page never sees `dragover` or `drop`. The studio window (`apps/desktop/src-tauri/src/main.rs`) now calls `disable_drag_drop_handler()`, as Tauri's own documentation says HTML5 drag and drop on Windows requires. Nothing listened for the native drop events (the studio window has no native IPC), so nothing is lost. The control window is unchanged. The drop overlay now catches pointer events, so a file dropped over an embedded preview frame lands in the studio instead of that frame. Because the overlay then blocks clicks, `file-drop.tsx` hides it on mouse movement, a click, Escape or window blur (none of which fire during an HTML5 drag), so a cancelled drag cannot leave it stuck (review 1 L-1). The safety model is unchanged: a dropped file is only stored in Files, never run, sent to a model or marked as evidence.

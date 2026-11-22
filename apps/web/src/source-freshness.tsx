@@ -1,3 +1,4 @@
+import { useViewMode } from './view-mode.js';
 import { useRef, useState } from 'react';
 import {
   SOURCE_RECHECK_MAX,
@@ -158,6 +159,7 @@ export function RecheckSources({
   const waiting = result?.sources.find(
     (s) => s.state === 'needs_human' && s.decision_id,
   );
+  const { standard } = useViewMode();
   return (
     <div className="sf-recheck">
       <p className="small">
@@ -174,7 +176,9 @@ export function RecheckSources({
             ? 'Choose an active run below first: a refetch uses its permission to fetch pages.'
             : sources === 0
               ? 'These claims cite no sources.'
-              : `${recheckIntro(sources, SOURCE_RECHECK_MAX)} under ${runName}, from approved sites only. No model requests; claims are flagged, never changed or re-assessed.`}
+              : standard
+                ? 'Checks the cited pages again; claims are only flagged.'
+                : `${recheckIntro(sources, SOURCE_RECHECK_MAX)} under ${runName}, from approved sites only. No model requests; claims are flagged, never changed or re-assessed.`}
         </span>
       </p>
       {busy && (

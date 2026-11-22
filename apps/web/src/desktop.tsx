@@ -12,6 +12,7 @@ import {
 } from '@creator/contracts';
 import { api, message, when } from './oversight.js';
 import { useLoad, StaleNote } from './ui.js';
+import { Explain } from './explain.js';
 
 /** X06: an active worker whose presence lease lapsed is shown as unreachable, not active. */
 function availability(d: DesktopDevice): string {
@@ -65,19 +66,22 @@ export function DesktopDevices({
   return (
     <section className="panel">
       <h2>Devices and local workers</h2>
-      <p>
+      <Explain short="Pair a desktop window or a local worker." className="">
         A desktop window or a local worker on your computer joins this studio
         here. Pairing only shows that a device is present; it can&apos;t run
         anything. A worker paired to run checks accepts only the exact product
         checks the owner submits, inside the reviewed offline WSL sandbox.
-      </p>
-      <p>
+      </Explain>
+      <Explain
+        short="Shut down worker stops it at its next check-in; Revoke refuses it at once."
+        className=""
+      >
         Closing a desktop window leaves a worker you started separately running.{' '}
         <strong>Shut down worker</strong> asks it to stop the next time it
         checks in; <strong>Revoke</strong> refuses its next check-in at once. An
         old last-seen time means the studio doesn&apos;t know whether the device
         is still there.
-      </p>
+      </Explain>
       <p>
         To pair a local worker, run this, then open the approval link in your
         signed-in system browser:

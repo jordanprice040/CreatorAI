@@ -18,6 +18,7 @@ import {
 } from '@creator/contracts';
 import { ApiError, api, message, when } from './oversight.js';
 import { Status, useLoad } from './ui.js';
+import { Explain, useSectionState } from './explain.js';
 
 type Status3 = 'yes' | 'no' | 'unknown';
 const STATUS_LABEL: Record<Status3, string> = {
@@ -143,7 +144,10 @@ export function TeamProfilePanel({
   return (
     <>
       <h3 id="team-profile">Team profile</h3>
-      <p>
+      <Explain
+        short="What your team can run, install and do with data."
+        className=""
+      >
         What your team can run, install and do with data. Every automatic
         assessment in <strong>{workspace.name}</strong> reads it, so a question
         like “can the team install Python tools?” is answered instead of
@@ -152,7 +156,7 @@ export function TeamProfilePanel({
           ? ', or run a built-in check that looks for the program on this computer'
           : ''}
         . Only you can change it; agents can read it but never write it.
-      </p>
+      </Explain>
       <p className="small">
         The answers, their notes and the notes below are sent to the model
         provider with every automatic assessment (the assessment preview shows
@@ -337,6 +341,15 @@ const MODE_TEXT: Record<GateClearMode, { label: string; text: string }> = {
   },
 };
 
+/** The saved gate rule in a few words, for the closed Standard fold. */
+const GATE_STATE: Record<GateClearMode, string> = {
+  owner: 'Gates: you clear them',
+  team_profile:
+    'Gates: access may clear on the model’s reading of your profile',
+  checklist: 'Gates: may clear when they pass your checklist',
+  model: 'Gates: may clear on the model’s word',
+};
+
 /** Who clears ethics and access gates: the owner picks; each change is recorded. */
 function AutoClearRule({
   session,
@@ -380,6 +393,8 @@ function AutoClearRule({
     }
   }
   const chosen = pick ?? r?.mode ?? 'owner';
+  // Review 1 of #255, M-2: the closed fold in Standard says who clears gates now.
+  useSectionState(r ? GATE_STATE[r.mode] : null);
   return (
     <>
       <h4>Who clears ethics and access gates</h4>
@@ -530,12 +545,12 @@ function GateChecklistEditor({
   return (
     <>
       <h4>Gate checklist</h4>
-      <p className="small">
+      <Explain short="What must hold before a gate clears without you. The items are sent to the model provider with each assessment.">
         What must hold before an ethics or access gate may clear without you.
         Every automatic assessment answers each item pass, fail or unknown and
         says why; the items go to the model provider with the assessment. Saving
         a change makes earlier assessments out of date.
-      </p>
+      </Explain>
       <Status
         loading={data.loading && !l}
         error={data.error}

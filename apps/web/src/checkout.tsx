@@ -18,6 +18,7 @@ import {
 import { api, message, when, words } from './oversight.js';
 import { money } from './budgets.js';
 import { Empty, Status, shortId, useLoad } from './ui.js';
+import { Explain } from './explain.js';
 
 /** What each processor step means to the owner. */
 const ACTION_LABEL: Record<TestBuyerAction, string> = {
@@ -148,12 +149,12 @@ export function Checkout({
   return (
     <>
       <h3>Checkout (test mode)</h3>
-      <p className="small">
+      <Explain short="Try an offer as the buyer, in test mode.">
         Try an offer from the buyer&apos;s side. With the simulated processor
         you play the buyer here, then deliver the processor&apos;s signed events
         yourself. Stripe test mode sends you to Stripe&apos;s test checkout
         page. Live checkout isn&apos;t built.
-      </p>
+      </Explain>
       {error && (
         <p className="error" role="alert">
           {error}

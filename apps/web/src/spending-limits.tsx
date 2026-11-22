@@ -10,6 +10,7 @@ import { usePageActive } from './page-drafts.js';
 import { money } from './budgets.js';
 import { usdToNano } from './amounts.js';
 import { Status, useLoad } from './ui.js';
+import { Explain, useSectionState } from './explain.js';
 
 type Provider = SpendLimits['per_model'][number]['provider'];
 const PROVIDERS: Provider[] = ['openai', 'brave'];
@@ -66,6 +67,23 @@ export function SpendingLimits({ session }: { session: SessionInfo }) {
     [],
   );
   const v = data.data;
+  // Review 1 of #255, M-2: the closed fold in Standard says whether any limit is set.
+  useSectionState(
+    v
+      ? v.limits.per_run_nano_usd === null && v.limits.per_model.length === 0
+        ? 'No limits set'
+        : [
+            v.limits.per_run_nano_usd !== null
+              ? `Per run ${dollars(v.limits.per_run_nano_usd)}`
+              : '',
+            v.limits.per_model.length > 0
+              ? `${v.limits.per_model.length} model limit${v.limits.per_model.length === 1 ? '' : 's'}`
+              : '',
+          ]
+            .filter(Boolean)
+            .join(' · ')
+      : null,
+  );
   const [draft, setDraft] = useState<Draft | null>(null);
   const [reason, setReason] = useState('');
   /** The version and limits the person reviewed; reloads pause while it is open. */
@@ -207,7 +225,7 @@ export function SpendingLimits({ session }: { session: SessionInfo }) {
   return (
     <>
       <h3>Per-run and per-model limits</h3>
-      <p>
+      <Explain short="Optional limits per run and per model." className="">
         Optional limits under the overall ceiling. None are set until you set
         them; until then the overall ceiling is the only limit. A real paid call
         is refused if it would take one run, or one model across every
@@ -215,7 +233,7 @@ export function SpendingLimits({ session }: { session: SessionInfo }) {
         and no limit can be set above it. They count the same real calls since{' '}
         {v ? when(v.counted_since) : 'the ceiling started'}; fixture work and
         ChatGPT-plan use are not money and are not counted.
-      </p>
+      </Explain>
       <Status
         loading={data.loading && !v}
         error={data.error}

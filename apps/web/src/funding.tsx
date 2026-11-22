@@ -16,6 +16,7 @@ import { money } from './budgets.js';
 import { usdToNano } from './amounts.js';
 import { ShowOlder, useOlder } from './older.js';
 import { Empty, Status, shortId, useLoad, type View } from './ui.js';
+import { Explain } from './explain.js';
 
 const nano = z.string().regex(/^-?(0|[1-9][0-9]{0,29})$/);
 const RailSchema = z.object({
@@ -262,7 +263,7 @@ export function Funding({
   return (
     <>
       <h3 id="funding">Funding and reinvesting</h3>
-      <p className="small">
+      <Explain short="Money in, cash on hand and what you owe.">
         Record money you put in, the cash you can draw on, and what you owe.
         Earnings become budget only when you turn reinvesting on and then ask
         for it; nothing reinvests automatically. Budget made from earnings still
@@ -271,7 +272,7 @@ export function Funding({
           Settings
         </button>
         .
-      </p>
+      </Explain>
       {!owner && (
         <p className="small">
           Only the workspace owner can record funding or change reinvesting.
@@ -376,12 +377,12 @@ export function Funding({
             <Tranches tranches={d.tranches} now={now} usd={show} />
 
             <h4>Funding sources</h4>
-            <p className="small">
+            <Explain>
               Cash you can draw on. A processor balance counts for 15 minutes
               after it is read; a balance you record yourself counts for 24
               hours. Only fresh balances of available sources count as usable
               cash.
-            </p>
+            </Explain>
             {d.rails.length === 0 ? (
               <Empty>
                 No funding sources, so there is no usable cash and nothing can
