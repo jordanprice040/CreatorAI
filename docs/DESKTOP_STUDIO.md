@@ -190,7 +190,8 @@ Get-FileHash .\Creator-Agent_<version>_x64-setup.exe   # the SHA-256 sent to tes
 ```
 
 The PostgreSQL part (`postgres-bundle.mjs`) copies `bin`, `lib` and `share` without StackBuilder,
-its wxWidgets libraries or the EDB-only modules `plugin_debugger`, `system_stats` and `uuid-ossp`.
+its wxWidgets libraries, the EDB modules `plugin_debugger` and `system_stats`, or the standard
+`uuid-ossp` extension (the studio uses no extensions, and its UUID library would need its own notice).
 The EDB zip does not carry the Microsoft Visual C++ runtime its programs need, so the build adds
 `vcruntime140.dll`, `vcruntime140_1.dll` and `msvcp140.dll` from the newest Visual Studio
 redistributable folder (`VC\Redist\MSVC\<version>\x64\Microsoft.VC14*.CRT`, or `--vcruntime

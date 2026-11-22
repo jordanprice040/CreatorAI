@@ -5,7 +5,7 @@
 // `--postgres <folder>` (or CREATOR_BUNDLE_POSTGRES) also includes a PostgreSQL 18 runtime from
 // an extracted EDB binaries zip (the folder holding bin, lib and share, e.g. C:\pgsql18\pgsql),
 // so a tester's computer needs nothing else (ADR-0135, `postgres-bundle.mjs`): bin, lib and
-// share without StackBuilder or EDB-only modules, the Visual C++ runtime DLLs (from the
+// share without StackBuilder or unused lib modules, the Visual C++ runtime DLLs (from the
 // newest Visual Studio redistributable folder, or `--vcruntime <folder>`) and the licence
 // notices. Without it the installer works as before and setup asks for an installed copy.
 import { createHash } from 'node:crypto';

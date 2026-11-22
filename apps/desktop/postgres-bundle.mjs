@@ -25,8 +25,9 @@ export const VC_RUNTIME = [
 ];
 const TOOLS = ['postgres', 'initdb', 'pg_ctl', 'pg_dump', 'pg_restore'];
 
-// Left out: StackBuilder and its wxWidgets libraries (bin), and EDB-only modules the studio never
-// loads (lib). Matched case-insensitively against the file name.
+// Left out: StackBuilder and its wxWidgets libraries (bin), and modules the studio never loads
+// (lib): EDB's plugin_debugger and system_stats, and the standard uuid-ossp extension. Matched
+// case-insensitively against the file name.
 const SKIP = {
   bin: [/^stackbuilder\.exe$/i, /^wx.*\.dll$/i, /\.lib$/i],
   lib: [/^plugin_debugger\.dll$/i, /^system_stats\.dll$/i, /^uuid-ossp\.dll$/i],

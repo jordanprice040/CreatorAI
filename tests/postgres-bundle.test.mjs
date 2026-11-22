@@ -1,5 +1,5 @@
 // ADR-0135 review 1 (H1, M1, N4): the tester installer's PostgreSQL runtime carries the Visual
-// C++ runtime and the licence notices, leaves out StackBuilder and EDB-only modules, and refuses
+// C++ runtime and the licence notices, leaves out StackBuilder and unused lib modules, and refuses
 // a DLL no notice covers. The bin listing below is the real EDB 18.1 x64 binaries zip's.
 import test from 'node:test';
 import assert from 'node:assert/strict';

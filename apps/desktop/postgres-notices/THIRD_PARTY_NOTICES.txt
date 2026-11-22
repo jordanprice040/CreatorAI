@@ -3,7 +3,7 @@ Third-party notices for the PostgreSQL runtime included with Creator Agent
 
 Creator Agent's tester installer includes an unmodified PostgreSQL 18 runtime taken from the
 EnterpriseDB Windows x64 binaries zip (bin, lib and share only; pgAdmin, StackBuilder, documentation,
-headers and the EDB-only modules plugin_debugger, system_stats and uuid-ossp are left out), plus the
+headers, the EDB modules plugin_debugger and system_stats and the unused uuid-ossp are left out), plus the
 Microsoft Visual C++ runtime files it needs. Each component keeps its own licence, reproduced below.
 
 ------------------------------------------------------------------------
