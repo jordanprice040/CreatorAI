@@ -61,7 +61,10 @@ export function allOpened(
   opened: ReadonlySet<string>,
   lists: readonly (readonly string[])[],
 ): boolean {
-  return lists.every((l) => opened.has(l.join('\n')));
+  // A list with nothing folded is all in view, so it counts as read (re-review L-A).
+  return lists.every(
+    (l) => l.every((p) => KEPT_POINT.test(p)) || opened.has(l.join('\n')),
+  );
 }
 
 /**
@@ -122,7 +125,10 @@ export function PointList({
       </p>
       {kept.length > 0 && list(kept)}
       {rest.length > 0 && (
+        // Keyed by the text: a changed summary (a new end time, other limits) shows closed
+        // again, so it is opened and read again (re-review L-A).
         <details
+          key={points.join('\n')}
           onToggle={(e) => {
             if (e.currentTarget.open) onOpen?.(points);
           }}
@@ -173,20 +179,25 @@ export function SectionFold({
   const [state, setState] = useState('');
   const ref = useRef<HTMLDetailsElement>(null);
   // Review 1 of #255, N-3: an address naming this section (Decide's "Team profile" link)
-  // scrolls to it once on arrival, in both views.
+  // opens it and scrolls to it, on arrival and when the address changes later while the
+  // page stays open (re-review N-B).
   useEffect(() => {
-    if (!anchor || addressId() !== anchor) return;
-    const el =
-      ref.current?.querySelector('summary') ?? document.getElementById(anchor);
-    el?.scrollIntoView({ block: 'start' });
+    if (!anchor) return;
+    const go = () => {
+      if (addressId() !== anchor) return;
+      if (ref.current) ref.current.open = true;
+      const el =
+        ref.current?.querySelector('summary') ??
+        document.getElementById(anchor);
+      el?.scrollIntoView({ block: 'start' });
+    };
+    go();
+    window.addEventListener('hashchange', go);
+    return () => window.removeEventListener('hashchange', go);
   }, [anchor]);
   if (!standard) return <>{children}</>;
   return (
-    <details
-      ref={ref}
-      className="section-fold"
-      open={anchor && addressId() === anchor ? true : undefined}
-    >
+    <details ref={ref} className="section-fold">
       <summary>
         <span className="section-fold-title">{title}</span>
         {state ? (

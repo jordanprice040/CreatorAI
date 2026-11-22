@@ -315,11 +315,6 @@ export function StaleNote({ stale }: { stale?: string | undefined }) {
  */
 export const SHOW_PANEL = 'creator:show-discover-panel';
 
-/**
- * Scrolls to the element with `id` and moves keyboard focus to it (review 1 of #192, L-1 and
- * L-2). It looks only inside the page that `from` belongs to, since kept-alive pages repeat
- * ids, and jumps without animation when the person asks for reduced motion.
- */
 /** Opens every closed <details> around a target (Standard's section folds), innermost first. */
 export function openFoldsAround(target: Element): number {
   let opened = 0;
@@ -344,6 +339,11 @@ export function focusTargetOf(target: HTMLElement): HTMLElement {
     : target;
 }
 
+/**
+ * Scrolls to the element with `id` and moves keyboard focus to it (review 1 of #192, L-1 and
+ * L-2). It looks only inside the page that `from` belongs to, since kept-alive pages repeat
+ * ids, and jumps without animation when the person asks for reduced motion.
+ */
 export function reveal(from: Element | null, id: string): boolean {
   const root: ParentNode = from?.closest('.draft-page') ?? document;
   const target = root.querySelector<HTMLElement>(`#${CSS.escape(id)}`);

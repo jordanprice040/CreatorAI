@@ -105,7 +105,12 @@ test('the "I have read both summaries" box needs every folded summary opened, an
   assert.equal(m.allOpened!(opened, [a, b]), false);
   opened.add(b.join('\n'));
   assert.equal(m.allOpened!(opened, [a, b]), true);
-  assert.equal(m.allOpened!(opened, [a, ['Limits: at most 30 steps.']]), false);
+  assert.equal(
+    m.allOpened!(opened, [a, ['Limits: at most 30 steps.', 'Other.']]),
+    false,
+  );
+  // A list with nothing folded is all in view, so it counts as read.
+  assert.equal(m.allOpened!(opened, [a, ['Limits: at most 30 steps.']]), true);
 });
 
 test('SectionFold: folded only in Standard, with the section unchanged inside', async () => {
@@ -195,4 +200,51 @@ test('reveal opens every closed fold around its target and focuses a folded head
   assert.equal((ui.focusTargetOf!(node(heading)) as { el: El }).el, summary);
   heading.height = 24;
   assert.equal((ui.focusTargetOf!(node(heading)) as { el: El }).el, heading);
+});
+
+test('a changed summary shows closed again: its fold is keyed by the text', async () => {
+  const source = await readFile('apps/web/src/explain.tsx', 'utf8');
+  const code = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      jsx: ts.JsxEmit.ReactJSX,
+    },
+  }).outputText;
+  const m: { PointList?: (p: object) => unknown } = {};
+  new Function('require', 'exports', code)(
+    (name: string) =>
+      name === './view-mode.js'
+        ? { useViewMode: () => ({ standard: true }) }
+        : require(name),
+    m,
+  );
+  type Node = {
+    type?: unknown;
+    key?: string | null;
+    props?: { children?: unknown };
+  };
+  const foldKey = (points: string[]): string | null | undefined => {
+    const walk = (n: unknown): Node | undefined => {
+      if (!n || typeof n !== 'object') return undefined;
+      if (Array.isArray(n)) {
+        for (const c of n) {
+          const f = walk(c);
+          if (f) return f;
+        }
+        return undefined;
+      }
+      const node = n as Node;
+      if (node.type === 'details') return node;
+      return walk(node.props?.children);
+    };
+    return walk(m.PointList!({ title: 'Routine approvals', points }))?.key;
+  };
+  const before = foldKey(['Limits: ends 10:20 UTC.', 'For this run only.']);
+  const after = foldKey(['Limits: ends 10:21 UTC.', 'For this run only.']);
+  assert.ok(before);
+  assert.notEqual(before, after);
+  assert.equal(
+    foldKey(['Limits: ends 10:20 UTC.', 'For this run only.']),
+    before,
+  );
 });
