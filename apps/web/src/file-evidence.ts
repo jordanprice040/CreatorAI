@@ -7,7 +7,8 @@ import { api } from './oversight.js';
 /**
  * ADR-0134: makes the current version of an uploaded file a source on the Evidence page, so
  * its passages can be cited in claims. The server reads the file's own kept text; nothing is
- * fetched and nothing is sent to a model.
+ * fetched and nothing is sent to a model now. Quotes later cited in a claim travel with that
+ * claim to model steps such as Decide, under those steps' own data-class rules.
  */
 export function fileAsEvidence(
   workspaceId: string,

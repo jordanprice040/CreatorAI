@@ -439,6 +439,18 @@ export const SourceSummarySchema = z.strictObject({
     .strictObject({ id, state: RetrievalStateSchema, finished_at: timestamp })
     .nullable(),
   instruction_like: z.boolean(),
+  /**
+   * ADR-0134: for a source made from an uploaded file, the file version its current version
+   * came from and the file's state now (`purged`: permanently deleted). Null for web pages.
+   */
+  upload: z
+    .strictObject({
+      file_id: id,
+      file_version: version,
+      file_current_version: version.nullable(),
+      file_status: z.enum(['active', 'deleted', 'purged']),
+    })
+    .nullable(),
 });
 export type SourceSummary = z.infer<typeof SourceSummarySchema>;
 

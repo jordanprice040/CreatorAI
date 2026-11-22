@@ -140,13 +140,20 @@ export function Evidence({
       setError(message(e));
     }
     try {
-      const files = await api(
-        WorkspaceFilePageSchema,
-        `workspaces/${workspace}/files?sort=newest`,
-      );
-      const usable = files.items
-        .filter((f) => f.status === 'active' && f.current.has_text)
-        .map((f) => ({ id: f.id, name: f.name, version: f.current_version }));
+      // Review 1 L-3: every page of files, not only the newest 50 (bounded at 40 pages).
+      const usable: { id: string; name: string; version: number }[] = [];
+      let cursor: string | null = null;
+      for (let page = 0; page < 40; page++) {
+        const files: z.infer<typeof WorkspaceFilePageSchema> = await api(
+          WorkspaceFilePageSchema,
+          `workspaces/${workspace}/files?sort=newest${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
+        );
+        for (const f of files.items)
+          if (f.status === 'active' && f.current.has_text)
+            usable.push({ id: f.id, name: f.name, version: f.current_version });
+        cursor = files.next_cursor;
+        if (!cursor) break;
+      }
       setDocs(usable);
       setDoc((cur) =>
         usable.some((f) => f.id === cur) ? cur : (usable[0]?.id ?? ''),
@@ -447,7 +454,11 @@ export function Evidence({
               </option>
             ))}
           </select>
-          <button className="secondary" disabled={busy || !doc}>
+          <button
+            className="secondary"
+            disabled={busy || !doc}
+            title="Uses the file's newest version. Quotes you cite go with the claim to model steps such as Decide."
+          >
             Use as evidence
           </button>
           {docNote && (
@@ -648,8 +659,15 @@ export function Evidence({
             <>
               <h3>Source: {source.source.title}</h3>
               <p className="small">
-                {uploadedFileId(source.source.url)
-                  ? 'Uploaded document in Files'
+                {source.source.upload
+                  ? `Uploaded document in Files, file v${source.source.upload.file_version}${
+                      source.source.upload.file_status !== 'active'
+                        ? ' (the file was deleted)'
+                        : source.source.upload.file_current_version !==
+                            source.source.upload.file_version
+                          ? ` (the file is now at v${source.source.upload.file_current_version}; use it as evidence again)`
+                          : ''
+                    }`
                   : source.source.url}{' '}
                 · v{source.source.version} ·{' '}
                 {source.source.retention === 'hash_only'

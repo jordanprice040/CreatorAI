@@ -4,7 +4,8 @@ import { z, id, timestamp } from './primitives.js';
 // size and the name and type it arrived with. A file has numbered immutable versions. The
 // studio inspects bytes itself: the browser's declared type is recorded but never trusted.
 // Uploading never shares a file with a model provider and never makes it evidence by itself;
-// an editor's "Use as evidence" makes its text a citable source (ADR-0134).
+// an editor's "Use as evidence" makes its text a citable source (ADR-0134). That source's
+// passages stay after the file is deleted permanently, until the source itself is redacted.
 
 /** What the studio can show a file as. Anything else is kept and downloadable only. */
 export const FileKindSchema = z.enum([

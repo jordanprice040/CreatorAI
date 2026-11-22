@@ -208,6 +208,15 @@ function toSupport(r: Row): ClaimSupport {
     retraction_reason: r.retraction_reason ? String(r.retraction_reason) : null,
   };
 }
+/**
+ * ADR-0134: the uploaded file (and its state now) behind a source's current version, as `up`
+ * and `wf`; both null for fetched pages and for a purged file's `wf`.
+ */
+const UPLOAD_JOIN = `
+  left join lateral (select u.file_id, u.file_version from source_retrievals u
+    where u.source_id = rs.source_id and u.source_version = e.version and u.adapter = 'upload'
+    order by u.started_at limit 1) up on true
+  left join workspace_files wf on wf.id = up.file_id`;
 const SUMMARY_SQL = `
   select rs.source_id, rs.url_key, rs.origin_cluster, rs.cluster_reason, rs.created_at as rs_created,
     e.version, e.fixture, e.title, e.body, e.status,
@@ -217,8 +226,10 @@ const SUMMARY_SQL = `
     (select max(f.finished_at) from source_retrievals f where f.source_id = rs.source_id
       and f.state = 'fetched' and f.content_hash = e.body->>'content_hash') as last_fetched_at,
     exists (select 1 from source_passages p where p.source_id = rs.source_id
-      and p.source_version = e.version and p.instruction_like) as instruction_like
+      and p.source_version = e.version and p.instruction_like) as instruction_like,
+    up.file_id, up.file_version, wf.current_version as file_current, wf.status as file_status
   from research_sources rs join entities e on e.id = rs.source_id
+  ${UPLOAD_JOIN}
   left join lateral (select x.id, x.state, x.finished_at from source_retrievals x
     where x.source_id = rs.source_id and x.finished_at is not null
     order by x.finished_at desc, x.started_at desc limit 1) lr on true
@@ -249,6 +260,15 @@ function toSummary(r: Row): SourceSummary {
         }
       : null,
     instruction_like: Boolean(r.instruction_like),
+    upload: r.file_id
+      ? {
+          file_id: String(r.file_id),
+          file_version: Number(r.file_version),
+          file_current_version: r.file_current ? Number(r.file_current) : null,
+          file_status: (r.file_status ?? 'purged') as
+            'active' | 'deleted' | 'purged',
+        }
+      : null,
   };
 }
 
@@ -1406,10 +1426,13 @@ export class ResearchStore extends WorkflowStore {
              and xp.source_version = e.version
              and (xp.excerpt is null or xp.excerpt_truncated)) as excerpts_complete,
          (select count(*) from source_passages cp2 where cp2.source_id = cs.source_id
-             and cp2.source_version = e.version) as current_passages
+             and cp2.source_version = e.version) as current_passages,
+         up.file_id, up.file_version, wf.current_version as file_current,
+         wf.status as file_status
        from claim_support cs
          join entities e on e.id = cs.source_id
          join research_sources rs on rs.source_id = cs.source_id
+         ${UPLOAD_JOIN}
          -- F8: the newest check that reached the page, by the cited address or by the source
          -- (a cited address that now redirects is recorded under the target's source).
          left join lateral (select k.finished_at, k.source_id from source_retrievals k
@@ -1435,6 +1458,17 @@ export class ResearchStore extends WorkflowStore {
         last_fetched_at: r.last_fetched_at ? iso(r.last_fetched_at) : null,
         origin_cluster: String(r.origin_cluster),
         retracted: r.retracted_at !== null,
+        // ADR-0134 review 1 M-2: the studio knows when an uploaded file changes.
+        ...(r.file_id
+          ? {
+              file:
+                r.file_status !== 'active'
+                  ? ('gone' as const)
+                  : Number(r.file_current) !== Number(r.file_version)
+                    ? ('newer_version' as const)
+                    : ('current' as const),
+            }
+          : {}),
       })),
     });
     // F8 (ADR-0126): what the newest check found for each cited passage; a flag only.

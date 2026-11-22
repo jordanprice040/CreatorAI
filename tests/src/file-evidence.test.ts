@@ -142,9 +142,28 @@ test('an uploaded document becomes a source whose passages a claim can quote', a
   assert.equal(again.source.id, used.source.id);
   assert.equal(again.source.version, 1);
 
+  assert.deepEqual(again.source.upload, {
+    file_id: file.id,
+    file_version: 1,
+    file_current_version: 1,
+    file_status: 'active',
+  });
   // A newer file version must be named, and makes a new source version: the old citation
   // shows as changed until it is re-assessed.
   await s.upload(REPORT.replace('Eleven', 'Nine'), 'survey-notes.md', file.id);
+  // Review 1 M-2: before anyone uses v2, the citation already needs a re-check.
+  const pending = await s.store.claimEvidence(owner, s.ws.id, c.id);
+  assert.equal(pending.status, 'needs_recheck');
+  assert.equal(pending.rows[0]!.freshness, 'changed');
+  assert.ok(
+    pending.labels.some((l) => l.includes('newer version')),
+    JSON.stringify(pending.labels),
+  );
+  assert.equal(
+    (await s.store.getSource(owner, s.ws.id, used.source.id)).source.upload
+      ?.file_current_version,
+    2,
+  );
   await rejects(
     'VERSION_CONFLICT',
     s.store.sourceFromFile(owner, s.ws.id, {
@@ -162,6 +181,52 @@ test('an uploaded document becomes a source whose passages a claim can quote', a
   const after = await s.store.claimEvidence(owner, s.ws.id, c.id);
   assert.equal(after.status, 'needs_recheck');
   assert.equal(after.rows[0]!.freshness, 'changed');
+
+  // Re-assessed against v2, the claim is supported again; deleting or permanently deleting the
+  // file then marks the citation removed, while the recorded passages stay readable.
+  const p2 = (
+    await s.store.getSource(owner, s.ws.id, used.source.id)
+  ).passages.find((p) => p.excerpt?.includes('Nine'))!;
+  await s.store.addClaimSupport(owner, s.ws.id, c.id, {
+    evidence: 'passage',
+    claim_version: 1,
+    passage_id: p2.id,
+    stance: 'supports',
+    support_type: 'observation',
+    quote: 'rural patients waited more than five weeks',
+    rationale: 'Re-assessed against v2.',
+  });
+  assert.equal(
+    (await s.store.claimEvidence(owner, s.ws.id, c.id)).status,
+    'supported',
+  );
+  await s.files.setFileDeleted(owner, s.ws.id, file.id, true, { reason: '' });
+  const deleted = await s.store.claimEvidence(owner, s.ws.id, c.id);
+  assert.equal(deleted.status, 'inaccessible');
+  assert.ok(deleted.labels.includes('a cited uploaded file was deleted'));
+  await s.files.purgeFile(owner, s.ws.id, file.id);
+  const purged = await s.store.getSource(owner, s.ws.id, used.source.id);
+  assert.equal(purged.source.upload?.file_status, 'purged');
+  assert.equal(purged.source.upload?.file_current_version, null);
+  assert.ok(purged.passages.some((p) => p.excerpt?.includes('Nine')));
+  assert.equal(
+    (await s.store.claimEvidence(owner, s.ws.id, c.id)).status,
+    'inaccessible',
+  );
+});
+
+test('review 1 L-1: text cut inside an emoji is stored and quotable', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const text = 'a' + '😀'.repeat(1500);
+  const file = await s.upload(text, 'emoji.txt');
+  const used = await s.store.sourceFromFile(owner, s.ws.id, {
+    file_id: file.id,
+    file_version: 1,
+  });
+  const passages = (await s.store.getSource(owner, s.ws.id, used.source.id))
+    .passages;
+  assert.equal(passages.map((p) => p.excerpt).join(''), text);
 });
 
 test('files without text, deleted files, other workspaces and viewers are refused', async (t) => {
@@ -279,6 +344,31 @@ test('uploaded text splits into exact passages within the excerpt limit', () => 
   }
   assert.ok(out.passages.at(-1)!.text.endsWith('short two'));
   assert.equal(out.partial, false);
+  // Review 1 L-1: a hard cut never splits a surrogate pair.
+  const emoji = uploadedTextPassages('a' + '😀'.repeat(1500), {
+    target: 1200,
+    max: UPLOAD_PASSAGE_MAX_CHARS,
+    maxPassages: 10,
+  });
+  assert.ok(emoji.passages.every((p) => !/[\ud800-\udbff]$/.test(p.text)));
+  // Review 1 M-1: long runs of spaces or tabs split in linear time.
+  for (const padded of [
+    ' '.repeat(80_000) + 'x',
+    'a' + '\t'.repeat(160_000) + 'b',
+    'x' + ' '.repeat(1_000_000) + '\n\n' + ' '.repeat(900_000) + 'y',
+  ]) {
+    const t0 = Date.now();
+    const r = uploadedTextPassages(padded, {
+      target: 1200,
+      max: UPLOAD_PASSAGE_MAX_CHARS,
+      maxPassages: SOURCE_MAX_PASSAGES,
+    });
+    assert.ok(Date.now() - t0 < 1000, `took ${Date.now() - t0} ms`);
+    assert.equal(
+      r.passages.map((p) => p.text.trim()).join(''),
+      padded.replace(/\s/g, ''),
+    );
+  }
   // 2 MB of text splits in well under a second.
   const started = Date.now();
   uploadedTextPassages('line of text\n'.repeat(160_000), {
