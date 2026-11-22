@@ -18,6 +18,7 @@ import {
 } from '@creator/contracts';
 import { ApiError, api, message, when } from './oversight.js';
 import { Status, useLoad } from './ui.js';
+import { Explain } from './explain.js';
 
 type Status3 = 'yes' | 'no' | 'unknown';
 const STATUS_LABEL: Record<Status3, string> = {
@@ -143,7 +144,10 @@ export function TeamProfilePanel({
   return (
     <>
       <h3 id="team-profile">Team profile</h3>
-      <p>
+      <Explain
+        short="What your team can run, install and do with data."
+        className=""
+      >
         What your team can run, install and do with data. Every automatic
         assessment in <strong>{workspace.name}</strong> reads it, so a question
         like “can the team install Python tools?” is answered instead of
@@ -152,13 +156,13 @@ export function TeamProfilePanel({
           ? ', or run a built-in check that looks for the program on this computer'
           : ''}
         . Only you can change it; agents can read it but never write it.
-      </p>
-      <p className="small">
+      </Explain>
+      <Explain>
         The answers, their notes and the notes below are sent to the model
         provider with every automatic assessment (the assessment preview shows
         them). Leave out anything you would not send there. Host names are never
         sent.
-      </p>
+      </Explain>
       <Status
         loading={data.loading && !t}
         error={data.error}
@@ -530,12 +534,12 @@ function GateChecklistEditor({
   return (
     <>
       <h4>Gate checklist</h4>
-      <p className="small">
+      <Explain short="What must hold before a gate clears without you.">
         What must hold before an ethics or access gate may clear without you.
         Every automatic assessment answers each item pass, fail or unknown and
         says why; the items go to the model provider with the assessment. Saving
         a change makes earlier assessments out of date.
-      </p>
+      </Explain>
       <Status
         loading={data.loading && !l}
         error={data.error}

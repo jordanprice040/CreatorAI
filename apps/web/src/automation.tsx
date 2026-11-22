@@ -1,3 +1,4 @@
+import { PointList } from './explain.js';
 import { useEffect, useState } from 'react';
 import { useViewMode } from './view-mode.js';
 import {
@@ -46,6 +47,7 @@ import { Empty, Status, reveal, useLoad } from './ui.js';
 import { usePoll } from './page-active.js';
 import { endTimeClose, useEndTime } from './end-time.js';
 import { useAutopilotSettings } from './autopilot-settings.js';
+import { Explain } from './explain.js';
 
 /** The run selector's value for "Automate the rest" on a new run (live-run finding). */
 const NEW_RUN = 'new';
@@ -491,13 +493,16 @@ export function Automation({
   return (
     <section className="explore" aria-labelledby="automation-title">
       <h3 id="automation-title">How much is automated</h3>
-      <p>
+      <Explain
+        short="Choose how much of a project the studio does for you."
+        className=""
+      >
         Choose how much of a project the studio does for you. Every level uses
         routine approvals made for that run only, which you confirm here as one
         summary; the studio never approves its own steps. Publishing, messages,
         payments and value questions always stop for you, and an ethics gate
         only the model cleared does too unless you allow it below.
-      </p>
+      </Explain>
       <ul className="small">
         {(['manual', 'selection', 'rest', 'whole'] as const).map((l) => (
           <li key={l}>
@@ -714,19 +719,13 @@ export function Automation({
                       )}
                     {step && levelSummary.length > 0 && (
                       <div className="notice">
-                        <p>
-                          <strong>
-                            What {AUTOMATION_LEVEL_TEXT[level].label} does
-                          </strong>
-                        </p>
-                        <ul>
-                          {levelSummary.map((l) => (
-                            <li key={l}>{l}</li>
-                          ))}
-                        </ul>
-                        <p>
-                          <strong>
-                            {step.kind === 'new'
+                        <PointList
+                          title={`What ${AUTOMATION_LEVEL_TEXT[level].label} does`}
+                          points={levelSummary}
+                        />
+                        <PointList
+                          title={
+                            step.kind === 'new'
                               ? 'Routine approvals this run gets'
                               : step.kind === 'revise'
                                 ? `This run’s routine approvals, widened to cover it${
@@ -734,17 +733,14 @@ export function Automation({
                                       ? ` (now they admit nothing: ${routineIdleReasons(step.view).join(' ')})`
                                       : ''
                                   }`
-                                : `This run’s routine approvals already cover it (${step.view.policy.max_actions - step.view.used_actions} of ${step.view.policy.max_actions} steps left)`}
-                          </strong>
-                        </p>
-                        <ul>
-                          {(step.kind === 'covered'
-                            ? step.view.policy.summary
-                            : routinePolicySummary(step.input)
-                          ).map((l) => (
-                            <li key={l}>{l}</li>
-                          ))}
-                        </ul>
+                                : `This run’s routine approvals already cover it (${step.view.policy.max_actions - step.view.used_actions} of ${step.view.policy.max_actions} steps left)`
+                          }
+                          points={
+                            step.kind === 'covered'
+                              ? step.view.policy.summary
+                              : routinePolicySummary(step.input)
+                          }
+                        />
                       </div>
                     )}
                     <label className="check">

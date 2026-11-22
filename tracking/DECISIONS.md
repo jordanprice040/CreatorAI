@@ -1,5 +1,16 @@
 # Decision log
 
+## Owner decision recorded November 22, 2026: a much shorter Standard view (no ADR, no migration)
+
+Jordan asked on November 22 to severely reduce the text and large text blocks in Standard, to add collapsible sections where long text remains, and to list Library in Standard. Built in `apps/web/src/explain.tsx`:
+
+- **`Explain`**: a page or section explanation. Advanced shows it as before; Standard shows one plain line (or "About this") and opens the full text in place. It is never used for a blocker, an error, an amount the person confirms or the only description of what a button does.
+- **`PointList`**: the autopilot and automation summaries ("What the autopilot does", "Routine approvals …"). Standard folds the same points under their title and count; the "I have read both summaries" box and every server check are unchanged.
+- **`SectionFold`**: whole sections Standard shows closed under a title and a one-line hint (Autopilot: How much is automated, Autopilot settings; Decide: Score an option; Settings: per-run limits, evidence websites, team profile and gates, backups). `reveal` (jump links) and `#…?id=team-profile` open the fold first.
+- **Library** leaves `ADVANCED_ONLY` (this reverses the Library part of ADR-0103; Runs stays Advanced-only).
+
+Standard and Advanced still submit exactly the same requests (ADR-0082). Evidence: `tracking/evidence/standard-simplify/`.
+
 ## Owner decisions recorded November 19, 2026 (no ADR, no migration)
 
 Recorded from Jordan's messages in the project on November 19, 2026, during the status-docs refresh.

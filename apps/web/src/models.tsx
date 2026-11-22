@@ -41,6 +41,7 @@ import { ApiKeyCheck } from './api-key-check-panel.js';
 import { AllowTasks } from './allow-tasks.js';
 import { CopyConnection } from './copy-connection.js';
 import { DailyCapNotice } from './extra-requests.js';
+import { Explain } from './explain.js';
 
 // §2.2 Models and connections. Sign-in, model access and task qualification are shown as
 // separate states; nothing here can enable credits or a paid fallback. A Claude Code
@@ -286,11 +287,14 @@ export function Models({
   return (
     <section className="panel" aria-labelledby="models-title">
       <h2 id="models-title">Models and connections</h2>
-      <p>
+      <Explain
+        short="Connect and check the models the studio may use."
+        className=""
+      >
         Creator Agent uses a model only through a connection you approve here.
         Signing in, verifying a model and qualifying it for a kind of task are
         separate steps, and each is recorded.
-      </p>
+      </Explain>
       {error && <p role="alert">{error}</p>}
       <button
         className="secondary"

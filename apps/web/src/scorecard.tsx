@@ -28,6 +28,7 @@ import {
   type ScorecardDraft,
 } from './scorecard-fields.js';
 import { Routine, WhatWillHappen } from './routine.js';
+import { Explain } from './explain.js';
 
 const RUBRIC_NAME: Record<RubricKey, string> = {
   suitability: 'Solution suitability',
@@ -144,9 +145,11 @@ export function ScoreOption({
     setTarget(pick.systemId ?? null);
     setOptionId(pick.optionId);
     setRubric(pick.rubric);
-    document
-      .getElementById('score-title')
-      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const title = document.getElementById('score-title');
+    // Standard folds this form; a "rate it" link opens it first.
+    const fold = title?.closest('details');
+    if (fold) fold.open = true;
+    title?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [pick?.n]);
   const reviewer = reviewerLabel(session);
   const option = options.find((o) => o.entity.id === optionId);
@@ -389,12 +392,12 @@ export function ScoreOption({
       aria-labelledby="score-title"
     >
       <h3 id="score-title">Score an option</h3>
-      <p className="small">
+      <Explain short="Rate one option on one rubric. Unknown is fine.">
         Rate one option on one rubric. Every rating is your judgment: pick
         Unknown when the evidence does not tell you, and it stays unknown in the
         ranking rather than being averaged away. A rating needs at least one
         claim behind it.
-      </p>
+      </Explain>
       <div className="filters">
         <label htmlFor="sc-option" className="inline">
           Option

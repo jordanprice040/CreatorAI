@@ -52,6 +52,7 @@ import {
   routePlans,
   useModelChoice,
 } from './model-switch.js';
+import { Explain } from './explain.js';
 
 // C53 "Explore for me" (ADR-0065). No theme: the studio reads claims already recorded here
 // and one explorer request proposes a short list of evidenced problems. Application rules
@@ -513,13 +514,16 @@ export function Explore({
       ref={sectionRef}
     >
       <h3 id="explore-title">Explore for me</h3>
-      <p>
+      <Explain
+        short="No theme needed: the studio proposes problems from the claims you already have."
+        className=""
+      >
         No theme needed. The studio reads the claims already recorded in this
         workspace (newest first) and asks one model for up to {maxCandidates}{' '}
         specific problems, each citing those claims. App rules then mark
         duplicates, excluded topics and thin evidence. Nothing is fetched, built
         or sent anywhere else, and an empty answer is a real answer.
-      </p>
+      </Explain>
       <Status
         loading={ctx.loading}
         error={ctx.error}

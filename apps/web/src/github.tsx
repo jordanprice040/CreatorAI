@@ -24,6 +24,7 @@ import { newestFirst } from './versions.js';
 import { runLabel } from './labels.js';
 import { checksSummary } from './github-checks.js';
 import { GitHubAppSetupPanel } from './github-app-setup.js';
+import { Explain } from './explain.js';
 
 /** The simulated GitHub account fixture workspaces talk to (FixtureGitHub's default). */
 const FIXTURE_OWNER = { login: 'fixture-owner', id: 4_100_001 };
@@ -110,12 +111,15 @@ export function GitHub({
   return (
     <section className="panel" aria-labelledby="gh-title">
       <h2 id="gh-title">GitHub</h2>
-      <p>
+      <Explain
+        short={"Connect GitHub for the studio's own private repositories."}
+        className=""
+      >
         Creator Agent keeps its own work in private repositories it creates, and
         touches an existing repository only if you list it on a connection.
         Every change asks the run&apos;s permissions first and is recorded;
         merges need an approving review of the exact commit and passing checks.
-      </p>
+      </Explain>
       {fixture ? (
         <p className="notice">
           Fixture workspace: this talks to a simulated GitHub account (

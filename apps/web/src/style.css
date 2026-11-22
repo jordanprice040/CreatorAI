@@ -4459,3 +4459,94 @@ ul.case-problems {
 .model-draft small {
   color: var(--text-2);
 }
+
+/* Standard-mode simplification (November 22): a page or section explanation folded behind one line. */
+details.explain-fold {
+  margin: 4px 0 10px;
+  font-size: 13px;
+}
+details.explain-fold > summary {
+  font-weight: 400;
+  color: var(--text-2);
+  padding: 4px 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+details.explain-fold > summary::-webkit-details-marker {
+  display: none;
+}
+details.explain-fold > summary .explain-more {
+  color: var(--accent);
+  font-weight: 600;
+  white-space: nowrap;
+}
+details.explain-fold:not([open]) .when-open,
+details.explain-fold[open] .when-closed {
+  display: none;
+}
+details.explain-fold > p,
+details.explain-fold > div {
+  margin-top: 2px;
+}
+details.point-list {
+  margin: 6px 0;
+}
+details.point-list > summary {
+  font-weight: 400;
+  color: var(--text);
+}
+details.point-list .point-count {
+  color: var(--text-2);
+  font-size: 12px;
+}
+details.section-fold {
+  margin-top: 18px;
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+}
+details.section-fold > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
+  padding: 8px 0;
+}
+details.section-fold .section-fold-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+details.section-fold .section-fold-hint {
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--text-2);
+}
+/* The folded section's own first heading is said once, by the summary. */
+details.section-fold > section > h3:first-child,
+details.section-fold > form > h3:first-child,
+details.section-fold > summary + h3 {
+  height: 0;
+  margin: 0;
+  overflow: hidden;
+}
+details.section-fold > section {
+  border-top: 0;
+  margin-top: 0;
+}
+details.section-fold > summary {
+  list-style: none;
+}
+details.section-fold > summary::-webkit-details-marker {
+  display: none;
+}
+details.section-fold > summary::before {
+  content: '▸';
+  color: var(--text-2);
+  width: 1em;
+}
+details.section-fold[open] > summary::before {
+  content: '▾';
+}

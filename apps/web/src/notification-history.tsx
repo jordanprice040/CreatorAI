@@ -10,6 +10,7 @@ import { api, message } from './oversight.js';
 import { GROUP_LABEL } from './notification-rules.js';
 import { NotificationRow, type NotificationFeed } from './notifications.js';
 import type { View } from './pages.js';
+import { Explain } from './explain.js';
 
 // ADR-0130 (N2): every notification of the signed-in person, newest first, by group,
 // workspace or unread. The bell's "View all". Only your own rows; nothing here acts.
@@ -102,14 +103,17 @@ export function NotificationHistory({
   return (
     <section className="panel" aria-labelledby="notification-history-title">
       <h2 id="notification-history-title">Notifications</h2>
-      <p>
+      <Explain
+        short="Everything the studio told you, newest first."
+        className=""
+      >
         Everything the studio told you about, newest first. Each one only links
         to the place to act; nothing here approves, continues or spends
         anything.{' '}
         <button className="text" onClick={() => open('notifysettings')}>
           Change what interrupts you
         </button>
-      </p>
+      </Explain>
       <div className="notification-filters">
         <label>
           Kind

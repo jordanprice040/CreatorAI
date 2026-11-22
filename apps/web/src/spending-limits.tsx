@@ -10,6 +10,7 @@ import { usePageActive } from './page-drafts.js';
 import { money } from './budgets.js';
 import { usdToNano } from './amounts.js';
 import { Status, useLoad } from './ui.js';
+import { Explain } from './explain.js';
 
 type Provider = SpendLimits['per_model'][number]['provider'];
 const PROVIDERS: Provider[] = ['openai', 'brave'];
@@ -207,7 +208,7 @@ export function SpendingLimits({ session }: { session: SessionInfo }) {
   return (
     <>
       <h3>Per-run and per-model limits</h3>
-      <p>
+      <Explain short="Optional limits per run and per model." className="">
         Optional limits under the overall ceiling. None are set until you set
         them; until then the overall ceiling is the only limit. A real paid call
         is refused if it would take one run, or one model across every
@@ -215,7 +216,7 @@ export function SpendingLimits({ session }: { session: SessionInfo }) {
         and no limit can be set above it. They count the same real calls since{' '}
         {v ? when(v.counted_since) : 'the ceiling started'}; fixture work and
         ChatGPT-plan use are not money and are not counted.
-      </p>
+      </Explain>
       <Status
         loading={data.loading && !v}
         error={data.error}

@@ -186,7 +186,8 @@ test('Standard lists fewer tabs; every route still opens; Advanced lists all', a
   ]);
   assert.deepEqual(p.hiddenTabs(page('projects'), true), ['Launch']);
   assert.deepEqual(p.hiddenTabs(page('monitor'), true), ['Runs', 'Workers']);
-  assert.deepEqual(p.hiddenTabs(page('sources'), true), ['Library']);
+  // Library is listed in Standard (Jordan, November 22).
+  assert.deepEqual(p.hiddenTabs(page('sources'), true), []);
   assert.deepEqual(p.hiddenTabs(page('settings'), true), ['Study']);
   // Every page keeps at least one listed tab.
   for (const pg of p.PAGES)
@@ -214,11 +215,9 @@ test('Standard lists fewer tabs; every route still opens; Advanced lists all', a
     ['#/monitor/workers', 'operations'],
     ['#/settings/study', 'studies'],
     ['#/monitor/runs', 'runs'],
-    ['#/sources/library', 'catalog'],
   ])
     assert.equal(p.parseRoute(hash).view, view, hash);
   assert.deepEqual([...p.ADVANCED_ONLY].sort(), [
-    'catalog',
     'marketing',
     'operations',
     'payments',

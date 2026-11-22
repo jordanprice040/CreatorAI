@@ -63,6 +63,12 @@ thesis scope is decided (Jordan, November 19: executed evidence plus the frozen 
 needs Jordan's typed OK and comes first, by November 27. Do not automatically install, publish, run a live provider or advance the pilot or thesis. Accepted
 owner decisions and existing scoped grants remain authoritative.
 
+## November 22 handoff — Standard view simplified (no migration or ADR)
+
+Jordan's request (decision log, November 22): about 45 page and section explanations fold to one line in Standard (`Explain`), the autopilot and automation summaries fold under their titles (`PointList`), and seven long sections fold closed in Standard (`SectionFold`); Library is listed in Standard. Measured on a throwaway studio, Standard's long running text fell from 3,993 to 518 words across all tabs (all visible words 12,736 → 8,427), the Autopilot page from 4,180 to 1,213 px tall and Settings from 4,219 to 1,548 px (`tracking/evidence/standard-simplify/`). Advanced is unchanged. Checks in the cloud: typecheck, format, `pnpm test:db` (only the 5 known PowerShell-wrapper failures), and a Playwright check that jump links and `?id=team-profile` open their folds and that the Autopilot page has no horizontal overflow at 390 px.
+
+New explanations in Standard-facing pages should use `Explain` (with a short line) rather than a long `<p className="small">`; test loaders that stub sibling imports need a `./explain.js` stub (see `web-display.test.ts`).
+
 ## November 19 handoff — thesis AI-only run frozen (ADR-0133, no migration)
 
 Protocol `docs/thesis/AI_ONLY_RUN_PROTOCOL.md`, manifest `config/thesis-ai-run/PROTOCOL.json` (SHA-256 `193f1262…83fc`), tasks `config/recipe-benchmarks/ai-run-*-v1`, analysis `scripts/ai-run-analysis.mjs` (`verify`, `analyze <records-dir> --opened <freeze merge time> --connection <id> [--markdown]`). Until the run ends, do not change the build roles or prompts, the recipe qualification harness, the scorer, these folders or the script: any change breaks v1 (protocol section 8). To run it: Jordan's typed OK in the thread that runs it, then protocol section 6 (dev studio, Qualify building, one task at a time in the frozen order, save each record JSON, then `analyze`). Never start these six benchmarks outside the run (any such record is a deviation). Never invent results; tasks with no record started by the end of November 27 (UTC-12) are `not_run`. Once PR #248 (thesis draft 2) and this one are both merged, thesis Section 6 and E19 should link the protocol and the anchor hash.

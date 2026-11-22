@@ -13,6 +13,7 @@ import {
 } from '@creator/contracts';
 import { api, message, when } from './oversight.js';
 import { Status, useLoad } from './ui.js';
+import { Explain } from './explain.js';
 
 // ADR-0100: the owner's autopilot settings. Each switch lets an autopilot (Run it for me, Automate
 // the rest, Automate selection) take a planned fallback instead of stopping for you at one kind
@@ -105,12 +106,12 @@ export function AutopilotSettingsPanel({
       <p id="ap-settings-title">
         <strong>When the autopilot would stop</strong>
       </p>
-      <p className="small">
+      <Explain short="Let the autopilot take a fallback instead of stopping. All off by default.">
         Each switch lets an autopilot take a planned fallback instead of
         stopping for you. All are off until you turn them on. None approves a
         step, raises a budget or a connection cap, or clears a gate; each choice
         it makes this way says which setting allowed it.
-      </p>
+      </Explain>
       <Status
         loading={ctx.loading}
         error={ctx.error}

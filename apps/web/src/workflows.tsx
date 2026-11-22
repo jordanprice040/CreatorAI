@@ -34,6 +34,7 @@ import {
 } from './labels.js';
 import { runNames } from './ui.js';
 import { Term } from './term.js';
+import { Explain } from './explain.js';
 
 const TERMINAL = ['succeeded', 'failed', 'cancelled'];
 /** Record kinds a skeptic review can examine, in the order the picker groups them. */
@@ -254,14 +255,14 @@ export function Workflows({
   return (
     <section className="panel records" aria-labelledby="wf-title">
       <h2 id="wf-title">Workflow runs</h2>
-      <p>
+      <Explain short="Skeptic reviews and discovery runs." className="">
         A skeptic review critiques one record from several perspectives, then
         combines them. Discovery runs (started from Projects › Discover, the API
         or <code>creator seed-discovery</code>) also show here with each
         proposal's disposition and the skeptic's dissent. Each step is
         checkpointed in the database and runs on the server: closing this page
         does not stop it. Use Cancel to stop it.
-      </p>
+      </Explain>
       <div className="connection">
         <button className="secondary" onClick={() => void load()}>
           Refresh

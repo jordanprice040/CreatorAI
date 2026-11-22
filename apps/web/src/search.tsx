@@ -14,6 +14,7 @@ import { api, message, when, words } from './oversight.js';
 import { Empty, SnippetText, Status, useLoad, type View } from './ui.js';
 import { canOpen, useOpenSubject } from './destinations.js';
 import { useListSort } from './list-sort.js';
+import { Explain } from './explain.js';
 
 const TYPE_LABEL: Record<SearchType, string> = {
   record: 'Records',
@@ -136,12 +137,15 @@ export function Search({
   return (
     <section className="panel" aria-labelledby="search-title">
       <h2 id="search-title">Search</h2>
-      <p>
+      <Explain
+        short="Search records, sources, decisions and history."
+        className=""
+      >
         Words search record text, source passages, decision questions, the
         activity history, artifact commits, models used and cost records. A full
         id, or its first 8 characters as shown across the page, finds that exact
         item. Redacted text is gone and cannot be found.
-      </p>
+      </Explain>
       <form className="searchbar" role="search" onSubmit={submit}>
         <label htmlFor="q" className="inline">
           Search

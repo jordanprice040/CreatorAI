@@ -337,6 +337,13 @@ export function reveal(from: Element | null, id: string): boolean {
   };
   // P-7: a target inside a closed Discover panel opens that panel first, then is shown once
   // the page has rendered it.
+  // A target inside a closed fold (Standard's section folds) opens the folds around it first.
+  for (
+    let d = target.closest('details');
+    d;
+    d = d.parentElement?.closest('details') ?? null
+  )
+    if (!d.open) d.open = true;
   const panel = target.closest<HTMLElement>('[data-panel][hidden]');
   if (panel) {
     panel.dispatchEvent(

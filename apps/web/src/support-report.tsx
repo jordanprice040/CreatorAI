@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { SupportReportSchema, type SupportReport } from '@creator/contracts';
 import { api, message } from './oversight.js';
+import { Explain } from './explain.js';
 import './support-report.css';
 
 /**
@@ -52,13 +53,13 @@ export function SupportReportPanel() {
   return (
     <div className="support-report">
       <h3>Support report</h3>
-      <p className="small">
+      <Explain short="A private-details-hidden report to share when something breaks.">
         App version, commit, schema, system, worker and connection health, and
         the last 20 errors or failed steps with their ids. Keys, tokens,
         cookies, passwords, emails, personal folders and account names are
         hidden. You see the full text before anything is copied, and nothing is
         sent anywhere.
-      </p>
+      </Explain>
       <div className="support-report-actions">
         <button
           type="button"

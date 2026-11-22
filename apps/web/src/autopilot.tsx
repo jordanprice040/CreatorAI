@@ -1,3 +1,4 @@
+import { Explain, PointList } from './explain.js';
 import {
   useEffect,
   useRef,
@@ -654,7 +655,10 @@ export function Autopilot({
       </section>
       <section className="explore" aria-labelledby="autopilot-title">
         <h3 id="autopilot-title">Start an autopilot</h3>
-        <p>
+        <Explain
+          short="The studio takes each step for you and stops when you are needed."
+          className=""
+        >
           The studio takes the whole path for you, one step after another:{' '}
           {researchOn ? 'search the web, ' : ''}explore the claims, write a
           brief from the first candidate problem, run discovery, assess every
@@ -663,7 +667,7 @@ export function Autopilot({
           routine approvals made for this run only. It stops and says why when a
           step needs you: a tie or close ranking, ethics and access to confirm,
           a software option (its spec stays with you), or a limit.
-        </p>
+        </Explain>
         {c && (
           <>
             {owner ? (
@@ -855,14 +859,10 @@ export function Autopilot({
                 {config && policy && (
                   // N-14: read top to bottom, without the flex row's gaps.
                   <div className="notice stacked">
-                    <p>
-                      <strong>What the autopilot does</strong>
-                    </p>
-                    <ul>
-                      {autopilotSummary(config).map((l) => (
-                        <li key={l}>{l}</li>
-                      ))}
-                    </ul>
+                    <PointList
+                      title="What the autopilot does"
+                      points={autopilotSummary(config)}
+                    />
                     {passages && (
                       // Not part of the summary the owner confirms, so kept outside its list
                       // (review 1 of #192, N-2 and N-3).
@@ -890,14 +890,10 @@ export function Autopilot({
                       </p>
                     )}
                     <UsageCheckNote {...usage} />
-                    <p>
-                      <strong>Routine approvals for its new run</strong>
-                    </p>
-                    <ul>
-                      {routinePolicySummary(policy).map((l) => (
-                        <li key={l}>{l}</li>
-                      ))}
-                    </ul>
+                    <PointList
+                      title="Routine approvals for its new run"
+                      points={routinePolicySummary(policy)}
+                    />
                   </div>
                 )}
                 {route?.kind === 'plan' && (

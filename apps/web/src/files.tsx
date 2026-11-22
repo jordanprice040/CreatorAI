@@ -24,6 +24,7 @@ import {
   viewerFor,
 } from './file-viewer-rules.js';
 import { useFileBytes } from './file-bytes.js';
+import { Explain } from './explain.js';
 
 // ADR-0106: the heavier viewers load only when a file of their kind is opened.
 const PdfView = lazy(() =>
@@ -117,11 +118,11 @@ export function Files({
   return (
     <section className="panel files" aria-labelledby="files-title">
       <h2 id="files-title">Files</h2>
-      <p className="small">
+      <Explain short="Files shared with everyone in this workspace.">
         Everyone in this workspace can see its files. Uploading keeps the exact
         original and its SHA-256; it never sends a file to a model or makes it
         evidence. Drop files anywhere in the studio, or pick them here.
-      </p>
+      </Explain>
       <div className="files-bar">
         <button
           type="button"

@@ -30,6 +30,7 @@ import { useOnShow } from './page-active.js';
 import { newestFirst } from './versions.js';
 import { Fold, FoldAll, useFolds, type Folds } from './fold.js';
 import { Term } from './term.js';
+import { Explain } from './explain.js';
 
 const GATE_LABEL: Record<string, string> = {
   clear: 'clear',
@@ -497,13 +498,16 @@ export function Scoring({
   return (
     <section className="panel records" aria-labelledby="sel-title">
       <h2 id="sel-title">Rankings, selections and specs</h2>
-      <p>
+      <Explain
+        short={"Rankings from reviewers' ratings, and the specs to freeze."}
+        className=""
+      >
         Scores are transparent prioritization aids from reviewers&apos; 1–5
         ratings, not probabilities or measured impact. Unknown ratings are never
         averaged away. Ethics, access and the humility review are gates that no
         score can clear. Record a selection under Decide, then freeze its
         specification here. Approvals appear under Monitor › Approvals.
-      </p>
+      </Explain>
       <div className="filters">
         <label htmlFor="sel-problem" className="inline">
           Problem

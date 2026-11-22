@@ -35,6 +35,7 @@ import { ReasonForm } from './reason-form.js';
 import { Routine, WhatWillHappen } from './routine.js';
 import { ClaimLinks } from './link-claims.js';
 import { Term } from './term.js';
+import { Explain } from './explain.js';
 
 type Passage = SourceDetail['passages'][number];
 const squash = (s: string) => s.replace(/\s+/g, ' ').trim();
@@ -270,7 +271,10 @@ export function Evidence({
   return (
     <section className="panel records" aria-labelledby="ev-title">
       <h2 id="ev-title">Sources and claim evidence</h2>
-      <p>
+      <Explain
+        short="Fetch a page, then quote a passage from it in a claim."
+        className=""
+      >
         Fetch a page from an approved website, then cite a{' '}
         <Term term="passage">passage</Term> from it in a{' '}
         <Term term="claim">claim</Term>. The studio keeps the page’s text as
@@ -278,7 +282,7 @@ export function Evidence({
         supported only by passages it quotes, and reposts of one story count
         once. For pages you don’t have yet, Projects › Discover › Search the web
         finds them for you.
-      </p>
+      </Explain>
       {status && <p className="small">{status}</p>}
       <div className="connection">
         <button className="secondary" onClick={() => void load()}>

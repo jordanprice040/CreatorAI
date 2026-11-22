@@ -109,9 +109,15 @@ async function load<T>(file: string, stubs: Record<string, unknown> = {}) {
               ? { useOlder: () => {}, ShowOlder: () => null }
               : name === './money.js'
                 ? { Money: () => null }
-                : name === './view-mode.js'
-                  ? { useViewMode: () => ({ standard: true }) }
-                  : require(name),
+                : name === './explain.js'
+                  ? {
+                      Explain: () => null,
+                      SectionFold: () => null,
+                      PointList: () => null,
+                    }
+                  : name === './view-mode.js'
+                    ? { useViewMode: () => ({ standard: true }) }
+                    : require(name),
     exports,
   );
   return exports;
