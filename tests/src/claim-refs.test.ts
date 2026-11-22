@@ -79,6 +79,25 @@ test('tags the packet holds become links; everything else stays as written', asy
     { ref: 'C3', claim: C3 },
     '): yes.',
   ]);
+  // A discovery run's draft tag, in any case and with any dash, is not this packet's claim.
+  for (const text of [
+    'draft-C3',
+    'Draft–C3',
+    'DRAFT—C3',
+    'see draft-C3 and draft–C12',
+  ])
+    assert.deepEqual(r.splitClaimRefs(text, refs), [text], text);
+  assert.deepEqual(r.splitClaimRefs('draft-C3 and C3', refs), [
+    'draft-C3 and ',
+    { ref: 'C3', claim: C3 },
+  ]);
+  // Both ends of a range link, whatever the dash.
+  for (const dash of ['-', '–', '—'])
+    assert.deepEqual(r.splitClaimRefs(`C3${dash}C12`, refs), [
+      { ref: 'C3', claim: C3 },
+      dash,
+      { ref: 'C12', claim: C12 },
+    ]);
   assert.deepEqual(r.splitClaimRefs('Cites C3.', null), ['Cites C3.']);
   assert.deepEqual(r.splitClaimRefs('Cites C3.', new Map()), ['Cites C3.']);
 });
@@ -131,14 +150,23 @@ test('a tag renders as a link to its claim under Sources, described by the claim
   assert.match(
     html,
     new RegExp(
-      `<a class="claim-ref" href="#/evidence\\?ws=w1&amp;id=claim%3A${C3.claim_id}" aria-describedby="([^"]+)-claim">C3</a>`,
+      `<a class="claim-ref" href="#/evidence\\?ws=w1&amp;id=claim%3A${C3.claim_id}" aria-describedby="([^"]+)-claim \\1-status">C3</a>`,
     ),
   );
-  const described = /aria-describedby="([^"]+)"/.exec(html)![1];
-  assert.ok(html.includes(`<span id="${described}">${C3.statement}</span>`));
-  // The preview is closed until hover or focus, and says the claim's evidence status.
+  const [claimId, statusId] = /aria-describedby="([^"]+)"/
+    .exec(html)![1]!
+    .split(' ');
+  // A screen reader hears the statement and its status; the status is as this run read it.
+  assert.ok(html.includes(`<span id="${claimId}">${C3.statement}</span>`));
+  assert.ok(
+    html.includes(
+      `<span id="${statusId}">supported when this run read it</span>`,
+    ),
+    html,
+  );
+  // The preview is closed until hover or focus.
   assert.match(html, /role="tooltip" class="claim-ref-tip" hidden=""/);
-  assert.match(html, /Claim C3 · supported/);
+  assert.match(html, /<span aria-hidden="true">Claim C3 · <\/span>/);
   assert.ok(html.includes('; C4 is not in the packet.'), html);
   assert.equal((html.match(/<a /g) ?? []).length, 1);
 });

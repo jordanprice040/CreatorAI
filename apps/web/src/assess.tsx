@@ -1267,11 +1267,7 @@ function SystemExplanation({
         ? c.title
         : 'a claim no longer listed'
       : `${c ? c.title : `claim ${id.slice(0, 8)}`} (v${version})`;
-    return (
-      <a key={id} href={claimHref(ws, id)}>
-        {name}
-      </a>
-    );
+    return <a href={claimHref(ws, id)}>{name}</a>;
   };
   return (
     <details className="assess-why">

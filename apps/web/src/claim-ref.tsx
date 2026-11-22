@@ -147,7 +147,7 @@ export function ClaimRef({
       <a
         className="claim-ref"
         href={claimHref(ws, claim.claim_id)}
-        aria-describedby={`${id}-claim`}
+        aria-describedby={`${id}-claim ${id}-status`}
         onFocus={() => on('focus')}
         onBlur={() => on('blur')}
         onKeyDown={(e) => {
@@ -167,8 +167,13 @@ export function ClaimRef({
         hidden={!tip.open}
         style={shift ? { left: `${shift}px` } : undefined}
       >
-        <strong aria-hidden="true">
-          Claim {tag} · {claim.status.replaceAll('_', ' ')}
+        {/* The packet's copy: the claim as this run read it, which the claim page may have
+            moved on from since (review of #254, N-2). The status is described too (N-1). */}
+        <strong>
+          <span aria-hidden="true">Claim {tag} · </span>
+          <span id={`${id}-status`}>
+            {claim.status.replaceAll('_', ' ')} when this run read it
+          </span>
         </strong>
         <span id={`${id}-claim`}>{previewText(claim.statement)}</span>
         <span className="claim-ref-hint" aria-hidden="true">

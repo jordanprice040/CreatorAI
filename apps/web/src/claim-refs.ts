@@ -10,11 +10,17 @@ export type RefClaim = { claim_id: string; statement: string; status: string };
 export type TextPart = string | { ref: string; claim: RefClaim };
 
 // "C" and one or two digits (packets hold at most 30 claims, refs C1–C99), not inside a longer
-// word or code such as "ABC12", "C1x" or "C-12".
+// word or code such as "ABC12" or "C1x". "draft-C3" (any case, any dash) is a discovery run's
+// tag, not this packet's: the assessment rules rename those so they never resolve here (review
+// of #254, L-1). A hyphen alone does not stop a tag, so both ends of "C1-C3" link (L-2).
 // Each use makes its own pattern: a shared global one carries `lastIndex` from one text to the
 // next, and `matchAll` starts from it.
 const tag = (flags = '') =>
-  new RegExp(/(?<![A-Za-z0-9_-])C[1-9][0-9]?(?![A-Za-z0-9_])/.source, flags);
+  new RegExp(
+    /(?<![A-Za-z0-9_])(?<![Dd][Rr][Aa][Ff][Tt][-–—])C[1-9][0-9]?(?![A-Za-z0-9_])/
+      .source,
+    flags,
+  );
 
 /** True when the text has anything shaped like a claim tag (so the packet is worth reading). */
 export function hasClaimTag(text: string): boolean {

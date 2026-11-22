@@ -76,6 +76,9 @@ Code `apps/web/src/claim-refs.ts`, `claim-ref.tsx`, `claim-ref.css`; test `tests
 (cloud, PostgreSQL 16, no CI): typecheck and format pass; `pnpm test:db` 1547 tests, 1510 pass, 32 skip, 5 fail (the
 known no-`pwsh` wrapper tests); a Playwright walk on a seeded discovery workspace (ports 5183/4330/4340, throwaway
 database) showed the C2 preview and opened the claim, and caught a regex `lastIndex` bug that the test now covers.
+Review 1 (2 Low, 3 nits) fixed: a `draft-C3` tag (any case, any dash) stays plain text, both ends of a
+`C1-C3` range link, the preview's status ("as this run read it") is part of the screen-reader description, and a
+redundant key is gone; tests cover drafts, ranges and the described status.
 
 ## November 19 update — thesis AI-only run frozen before any run (ADR-0133, no migration)
 
