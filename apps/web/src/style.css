@@ -3336,7 +3336,11 @@ table.usage-options th[scope='row'] {
   display: grid;
   place-items: center;
   background: rgb(0 0 0 / 0.55);
-  pointer-events: none;
+  /* Deliberately catches pointer events (and so blocks clicks) while a file drag is over the
+     window: a file dropped over an embedded viewer or preview frame then reaches the studio
+     instead of that frame. file-drop.tsx hides it on mouse movement, a click, Escape or blur, so a
+     cancelled drag cannot leave it blocking the page. Do not change this back to none. */
+  pointer-events: auto;
 }
 .file-drop-overlay > div {
   display: grid;
