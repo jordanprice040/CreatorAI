@@ -33,6 +33,7 @@ import { feedbackRevisionBlocker, feedbackSuperseded } from './spec-fields.js';
 import { Empty, Status, shortId, useLoad, type View, StaleNote } from './ui.js';
 import { newestFirst } from './versions.js';
 import { argsToSend, needsExactArgs } from './terminal-args.js';
+import { Explain } from './explain.js';
 
 const LABELS = {
   source_archive: 'Source archive',
@@ -71,11 +72,11 @@ export function Gallery({
   return (
     <section className="panel" aria-labelledby="gal-title">
       <h2 id="gal-title">Try</h2>
-      <p className="small">
+      <Explain short="Verified packages you can try.">
         Packages of verified task candidates. Each one was re-extracted from its
         archive and started again in the isolated worker before it is offered as
         a demo. Old versions stay here after a revision.
-      </p>
+      </Explain>
       <Status
         loading={list.loading}
         error={list.error}

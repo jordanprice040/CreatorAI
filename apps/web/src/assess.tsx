@@ -57,6 +57,7 @@ import {
   routePlans,
   useModelChoice,
 } from './model-switch.js';
+import { Explain } from './explain.js';
 
 // P08 automatic assessments (ADR-0074). Requests of a few options each rate every option on the
 // rubrics that apply, citing the claims linked to it. The studio checks the answer, writes one
@@ -96,6 +97,7 @@ export function AutoAssess({
   onRecorded: () => void;
   open: (view: View, id?: string) => void;
 }) {
+  const { standard } = useViewMode();
   const base = `workspaces/${workspace.id}`;
   const fixture = workspace.record_mode === 'fixture';
   const owner = workspace.role === 'owner';
@@ -457,7 +459,7 @@ export function AutoAssess({
   return (
     <section className="assess" aria-labelledby="assess-title">
       <h3 id="assess-title">Automatic assessment</h3>
-      <p className="small">
+      <Explain short="The model rates every option against the evidence.">
         The model rates every option of this problem (a few options per request)
         on the rubrics that apply, citing the claims linked to it, or says
         unknown. The studio checks every reference, records one scorecard per
@@ -467,7 +469,7 @@ export function AutoAssess({
         profile to let the model clear them. Selection stays with you, or with a
         routine policy you set; a run stops and asks you when only the model
         cleared ethics.
-      </p>
+      </Explain>
       {ctx.error && <p className="error">{ctx.error}</p>}
       <StaleNote stale={ctx.stale || pv.stale} />
       {c && (
@@ -478,9 +480,12 @@ export function AutoAssess({
               {preview.packet.options.length === 1 ? '' : 's'} and{' '}
               {preview.packet.claims.length} linked claim
               {preview.packet.claims.length === 1 ? '' : 's'}
-              {preview.requests > 1
-                ? ` in ${preview.requests} requests of a few options each, every request with the same claims; the largest is ${preview.chars.toLocaleString()} of ${preview.limit.toLocaleString()} characters.`
-                : ` in one request (${preview.chars.toLocaleString()} of ${preview.limit.toLocaleString()} characters).`}{' '}
+              {standard
+                ? '.'
+                : preview.requests > 1
+                  ? ` in ${preview.requests} requests of a few options each, every request with the same claims; the largest is ${preview.chars.toLocaleString()} of ${preview.limit.toLocaleString()} characters.`
+                  : ` in one request (${preview.chars.toLocaleString()} of ${preview.limit.toLocaleString()} characters).`}{' '}
+              {/* Review 1 of #255, L-1: what was left out of the request shows in both views. */}
               {preview.packet.notes.slice(0, -1).join(' ')}{' '}
               <button
                 type="button"

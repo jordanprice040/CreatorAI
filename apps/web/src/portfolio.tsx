@@ -10,6 +10,7 @@ import { api, message } from './oversight.js';
 import { Money } from './money.js';
 import { useOnShow } from './page-active.js';
 import { ShowOlder, useOlder } from './older.js';
+import { Explain } from './explain.js';
 
 const Policy = PortfolioPolicyRequestSchema.extend({
   version: z.number(),
@@ -370,12 +371,15 @@ export function Portfolio({
         </pre>
       </details>
       <h3>Reusable knowledge</h3>
-      <p>
+      <Explain
+        short="Reviewed lessons and components that guide later tasks."
+        className=""
+      >
         Reviewed lessons, components, prompts and skills add bounded task
         guidance. They cannot change policy, credentials, budgets or frozen
         study tasks. Regression checks establish structural safety; usefulness
         remains unverified.
-      </p>
+      </Explain>
       <ul>
         {view?.knowledge.map((k) => {
           const regression = view.regressions.find(

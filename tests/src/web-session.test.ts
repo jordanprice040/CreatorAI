@@ -55,7 +55,8 @@ test('browser session retains sign-in on failed logout and clears it after confi
             name === './fold.js' ||
             name === './amounts.js' ||
             name === './plain-words.js' ||
-            name === './view-mode.js'
+            name === './view-mode.js' ||
+            name === './explain.js'
           ? {}
           : name === './transfers.js'
             ? {

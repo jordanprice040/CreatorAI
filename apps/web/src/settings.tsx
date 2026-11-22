@@ -16,6 +16,7 @@ import { TeamProfilePanel } from './team-profile.js';
 import { Backups } from './backups.js';
 import { Status, useLoad, type View } from './ui.js';
 import { Term, TermList } from './term.js';
+import { Explain, SectionFold } from './explain.js';
 
 /**
  * Settings: the owner's overall ceiling on real spending (ADR-0043), the narrower per-run
@@ -133,7 +134,10 @@ export function Settings({
     <section className="panel" aria-labelledby="settings-title">
       <h2 id="settings-title">Settings</h2>
       <h3>Studio view</h3>
-      <p>
+      <Explain
+        short="Standard keeps pages short; Advanced shows every tab and setting."
+        className=""
+      >
         Your own choice, saved for you on this studio so it follows you to other
         browsers and the desktop app. Standard folds routine settings behind
         their defaults (shown in each fold&apos;s summary) and lists the
@@ -142,7 +146,7 @@ export function Settings({
         and the server checks them the same way. In Standard, the studio&apos;s
         own words, such as claim or gate, have a dashed underline: hover over,
         tab to or tap one for a short definition.
-      </p>
+      </Explain>
       <ViewModeSwitch />
       <details className="term-glossary">
         <summary>Words the studio uses</summary>
@@ -156,14 +160,17 @@ export function Settings({
         </p>
       ) : (
         c && (
-          <p>
+          <Explain
+            short="The most the studio may spend on real calls."
+            className=""
+          >
             The most Creator Agent may spend on real model and tool calls,
             across every workspace. Each call{' '}
             <Term term="reservation">reserves</Term> its maximum cost first and
             is refused if it would pass this ceiling. Fixture workspaces use
             simulated units and are not counted. Only the studio spending
             manager, you, can change it here; agents can&apos;t.
-          </p>
+          </Explain>
         )
       )}
       {!notManager && (
@@ -328,21 +335,41 @@ export function Settings({
         </Status>
       )}
 
-      {c && <SpendingLimits session={session} />}
+      {c && (
+        <SectionFold
+          title="Per-run and per-model limits"
+          hint="Optional limits under the overall ceiling."
+        >
+          <SpendingLimits session={session} />
+        </SectionFold>
+      )}
 
-      <EvidenceSites
-        key={workspace.id}
-        session={session}
-        workspace={workspace}
-      />
+      <SectionFold
+        title="Evidence websites"
+        hint="Websites the studio may quote as evidence."
+      >
+        <EvidenceSites
+          key={workspace.id}
+          session={session}
+          workspace={workspace}
+        />
+      </SectionFold>
 
-      <TeamProfilePanel
-        key={`team-${workspace.id}`}
-        session={session}
-        workspace={workspace}
-      />
+      <SectionFold
+        title="Team profile and gates"
+        hint="What your team can do, and who clears ethics and access gates."
+        anchor="team-profile"
+      >
+        <TeamProfilePanel
+          key={`team-${workspace.id}`}
+          session={session}
+          workspace={workspace}
+        />
+      </SectionFold>
 
-      <Backups session={session} />
+      <SectionFold title="Backups" hint="Copies of your studio's records.">
+        <Backups session={session} />
+      </SectionFold>
 
       <h3>Elsewhere</h3>
       <ul className="rows">

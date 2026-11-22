@@ -57,6 +57,7 @@ import {
   revisionReasonSummary,
   sectionCounts,
 } from './decide-routine.js';
+import { Explain } from './explain.js';
 
 // ADR-0077 (P09): why a response was chosen (shown on Decide), and the Proposals tab, where a
 // recommended non-code option gets a versioned proposal people write, check, review, revise,
@@ -382,12 +383,12 @@ export function Proposals({
     <div className="proposals-layout">
       <section className="panel" aria-labelledby="proposals-head">
         <h2 id="proposals-head">Proposals</h2>
-        <p className="small">
+        <Explain short="Write up a non-software answer as a plan people can use.">
           When a recommended response is not new software, write it up here as a
           plan people can use: what to do, with which evidence, how to tell
           whether it worked. Each save is a new version; reviews belong to the
           version they read.
-        </p>
+        </Explain>
         <Status
           loading={list.loading}
           error={list.error}

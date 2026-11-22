@@ -15,6 +15,7 @@ import {
   sizeText,
   suggestDatabase,
 } from './backups-text.js';
+import { Explain } from './explain.js';
 import './backups.css';
 
 /**
@@ -144,7 +145,7 @@ export function Backups({ session }: { session: SessionInfo }) {
   return (
     <>
       <h3 id="backups-title">Backups</h3>
-      <p className="small">
+      <Explain>
         A backup is a copy of this studio&apos;s records database (every
         workspace, decision, piece of evidence and connection record) and its
         product files, with a fingerprint (SHA-256 hash) of each file so a
@@ -152,7 +153,7 @@ export function Backups({ session }: { session: SessionInfo }) {
         to ChatGPT or Claude are not in it; sign in again after a restore. Keep
         backups as private as the studio itself. Only you, the studio owner, can
         see or make them here.
-      </p>
+      </Explain>
       <Status
         loading={data.loading && !v}
         error={data.error}

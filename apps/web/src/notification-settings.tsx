@@ -29,6 +29,7 @@ import {
   windowsStatusText,
 } from './notification-rules.js';
 import { notificationsChanged } from './notifications.js';
+import { Explain } from './explain.js';
 
 // ADR-0130 (N2): Settings › Notifications, the signed-in person's own choices. How you are
 // interrupted, what you are told about, quiet hours, muted workspaces. Saved as one versioned
@@ -174,21 +175,21 @@ export function NotificationSettings({
   return (
     <section className="panel" aria-labelledby="notify-settings-title">
       <h2 id="notify-settings-title">Notifications</h2>
-      <p>
+      <Explain short="Choose which notifications interrupt you." className="">
         Your own choices, for you only. Every notification goes to the bell at
         the top of the page; these settings decide which ones also interrupt
         you. Notifications only link to the place to act. They never approve,
         continue or spend anything, and they cost nothing.
-      </p>
+      </Explain>
       <form onSubmit={(e) => void save(e)}>
         <h3>How you&apos;re interrupted</h3>
-        <p>
+        <Explain className="">
           While a studio window is visible, an alert appears as a small toast in
           its corner, once. While the installed Creator Agent app is minimised
           or in the tray, the same alert appears as one Windows notification
           instead; clicking it opens the place to act. You never get both. In a
           hidden browser tab, an alert waits in the bell and is not shown late.
-        </p>
+        </Explain>
         <p className="small">
           <strong>Windows notifications:</strong>{' '}
           <span role="status">{windowsStatusText(windows)}</span>{' '}

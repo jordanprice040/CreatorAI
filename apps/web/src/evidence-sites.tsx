@@ -10,6 +10,7 @@ import { ApiError, api, message, when } from './oversight.js';
 import { usePageActive } from './page-drafts.js';
 import { parseSiteList, siteChanges } from './site-list.js';
 import { Status, useLoad } from './ui.js';
+import { Explain } from './explain.js';
 
 const MODE_LABEL: Record<EvidenceSiteMode, string> = {
   listed: 'Only these websites',
@@ -119,14 +120,14 @@ export function EvidenceSites({
   return (
     <>
       <h3>Evidence websites</h3>
-      <p>
+      <Explain short="Websites the studio may quote as evidence." className="">
         Where Creator Agent may fetch pages to quote as evidence in{' '}
         <strong>{workspace.name}</strong>. Each fetch still needs its run&apos;s
         approval, only secure (https) pages are read, and addresses on your own
         computer or home network are always refused. Fetched text is treated as
         evidence, never as instructions. Only the workspace owner can change
         this; agents can&apos;t.
-      </p>
+      </Explain>
       <Status
         loading={data.loading && !d}
         error={data.error}

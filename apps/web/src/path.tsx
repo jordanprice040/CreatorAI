@@ -1,5 +1,6 @@
 import { pathStages, type StudioFacts } from './next-rules.js';
 import { placeLabel, type View } from './pages.js';
+import { Explain } from './explain.js';
 
 const STATE_TEXT = {
   done: 'Done',
@@ -39,13 +40,13 @@ export function PathView({
   return (
     <section className="panel">
       <h2>Path</h2>
-      <p className="small">
+      <Explain short="Where your latest idea is, step by step.">
         The main path for the idea you worked on most recently. After Selection
         it branches: software goes on to a spec, a build and a product you can
         try; a non-code choice goes to a proposal and its review. Each step
         happens on its own tab; this list shows where you are and what each step
         needs.
-      </p>
+      </Explain>
       <ol className="path-stages">
         {stages.map((s, i) => (
           <li
@@ -108,7 +109,7 @@ export function ProjectReportDownload({
   return (
     <div className="path-report">
       <h3>Project report</h3>
-      <p className="small">
+      <Explain short="Everything recorded so far, in one file.">
         A Markdown file of everything recorded so far: the problem and who it
         affects, claims with their quotes and sources, the options compared
         (rejected ones too), people's decisions, frozen specs, build and QA
@@ -116,7 +117,7 @@ export function ProjectReportDownload({
         records alone; no model writes it.
         {fixture &&
           ' This is a fixture workspace, so the report is labelled as synthetic data.'}
-      </p>
+      </Explain>
       <a
         className="button secondary"
         href={`/api/workspaces/${encodeURIComponent(ws)}/project-report`}

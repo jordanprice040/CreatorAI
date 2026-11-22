@@ -32,6 +32,7 @@ import {
   type Workspace,
   dataClassName,
 } from '@creator/contracts';
+import { Explain } from './explain.js';
 
 export class ApiError extends Error {
   constructor(
@@ -848,11 +849,11 @@ export function Oversight({
   return (
     <section className="panel records" aria-labelledby="oversight-title">
       <h2 id="oversight-title">Approvals, policies and runs</h2>
-      <p>
+      <Explain short="Only work that needs you shows here." className="">
         Only work that needs a person appears here. Covered, reversible routine
         actions proceed without asking. Approving once permits exactly the
         action shown; a standing policy changes what future actions may do.
-      </p>
+      </Explain>
       <div className="connection">
         <button className="secondary" onClick={() => setShowAll((v) => !v)}>
           {showAll ? 'Pending only' : 'Show answered and closed'}
