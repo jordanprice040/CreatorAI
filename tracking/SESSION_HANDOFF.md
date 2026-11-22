@@ -1394,3 +1394,15 @@ tests in `tests/src/web-decide-routine.test.ts`, walk in `tracking/evidence/p19-
 workspace). No migration or ADR; next free numbers stay migration 54 and ADR-0084. Review fixes (M-1 override field stays in one place, L-1 review marks open, N-1..N-4) are in
 the same PR, with `walk-override.cjs`. Re-review fixes (L-A Expand all with a
 blocked folded section, N-A walk selector) followed. Next: re-review, then the installed app upgrade and P17.
+
+## Drop anywhere fix (November 22, 2026)
+
+- Jordan found that dropping files on the studio did nothing. Cause: the installed app's studio window kept Tauri's
+  default native drag-and-drop handler, which on Windows (WebView2) swallows the page's HTML5 drop events. Fix:
+  `disable_drag_drop_handler()` on the studio window; the drop overlay also catches pointer events so a drop over a
+  preview frame reaches the studio. Recorded in `tracking/DECISIONS.md` (November 22 entry, no ADR, no migration).
+- Checks (cloud container, no CI): `cargo check --target x86_64-pc-windows-msvc` for the desktop crate passes;
+  browser walk `tracking/evidence/drop-anywhere-2026-11-22/walk.mjs` (output `walk.txt`) on a throwaway database
+  passes; `pnpm typecheck`, `pnpm format:check` and `pnpm test:db` results are in the PR.
+- Not yet seen: a real file drag onto the installed app on Windows. That needs a build from this branch on Jordan's
+  PC (or the next release, 0.1.9 or higher).

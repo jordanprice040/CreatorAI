@@ -3336,7 +3336,9 @@ table.usage-options th[scope='row'] {
   display: grid;
   place-items: center;
   background: rgb(0 0 0 / 0.55);
-  pointer-events: none;
+  /* Catches the drop itself, so a file dropped over an embedded viewer or preview frame still
+     reaches the studio instead of that frame. */
+  pointer-events: auto;
 }
 .file-drop-overlay > div {
   display: grid;

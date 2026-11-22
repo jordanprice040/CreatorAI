@@ -1968,3 +1968,15 @@ route, gate, request or data change. The rules are in `apps/web/src/decide-routi
   again, the same. Output replaced.
 - Checks (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` and `pnpm format:check` pass; `pnpm test:db`
   954 tests, 920 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests).
+
+## Drop anywhere fix (November 22, 2026)
+
+- Jordan found that dropping files on the studio did nothing. Cause: the installed app's studio window kept Tauri's
+  default native drag-and-drop handler, which on Windows (WebView2) swallows the page's HTML5 drop events. Fix:
+  `disable_drag_drop_handler()` on the studio window; the drop overlay also catches pointer events so a drop over a
+  preview frame reaches the studio. Recorded in `tracking/DECISIONS.md` (November 22 entry, no ADR, no migration).
+- Checks (cloud container, no CI): `cargo check --target x86_64-pc-windows-msvc` for the desktop crate passes;
+  browser walk `tracking/evidence/drop-anywhere-2026-11-22/walk.mjs` (output `walk.txt`) on a throwaway database
+  passes; `pnpm typecheck`, `pnpm format:check` and `pnpm test:db` results are in the PR.
+- Not yet seen: a real file drag onto the installed app on Windows. That needs a build from this branch on Jordan's
+  PC (or the next release, 0.1.9 or higher).

@@ -1,5 +1,9 @@
 # Decision log
 
+## Drop anywhere in the installed app (November 22, 2026; no ADR, no migration)
+
+Jordan reported on November 22 that dropping files on the studio did nothing. The page's handlers (ADR-0072) work in a browser, but the installed app's studio window kept Tauri's native drag-and-drop handler, which is on by default and, on Windows (WebView2), takes over the drop so the page never sees `dragover` or `drop`. The studio window (`apps/desktop/src-tauri/src/main.rs`) now calls `disable_drag_drop_handler()`, as Tauri's own documentation says HTML5 drag and drop on Windows requires. Nothing listened for the native drop events (the studio window has no native IPC), so nothing is lost. The control window is unchanged. The drop overlay now catches pointer events, so a file dropped over an embedded preview frame lands in the studio instead of that frame. The safety model is unchanged: a dropped file is only stored in Files, never run, sent to a model or marked as evidence.
+
 ## Owner decisions recorded November 19, 2026 (no ADR, no migration)
 
 Recorded from Jordan's messages in the project on November 19, 2026, during the status-docs refresh.

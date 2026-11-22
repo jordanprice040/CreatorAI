@@ -1,0 +1,6 @@
+overlay still shown after moving onto it: 1
+overlay hidden after leaving window: true
+overlay: Drop to add to Files in “Fixture selection and spec demonstration”Kept exactly as they are. Nothing is sent to a model or marked as evidence. This page and its drafts stay open.
+tray: Files (1)HideClear finisheddropped-note.txtAdded · 24 bytes · Fixture selection and spec demonstrationOpenDismiss
+overlay gone: true url same: true
+errors []
