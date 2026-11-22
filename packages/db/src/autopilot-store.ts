@@ -997,8 +997,10 @@ export class AutopilotStore extends WebDiscoveryStore {
                   and not exists (
                   select 1 from claim_support cs where cs.claim_id = e.id
                     and cs.stance = 'supports' and cs.retracted_at is null
+                    -- ADR-0134: an uploaded document is not public, whatever its state.
                     and not exists (select 1 from source_retrievals r
-                      where r.source_id = cs.source_id and r.state = 'fetched'))))
+                      where r.source_id = cs.source_id and r.state = 'fetched'
+                        and r.adapter <> 'upload'))))
               order by e.created_at desc, e.id desc limit 500`,
             [ws, dataClass !== 'public' && dataClass !== 'synthetic'],
           )

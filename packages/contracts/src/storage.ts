@@ -63,7 +63,7 @@ const SourceBody = z
       .strictObject({
         retrieval_id: id,
         final_url: z.url().max(2000),
-        access: z.enum(['public', 'restricted', 'gone']),
+        access: z.enum(['public', 'restricted', 'gone', 'uploaded']),
         extraction: z.enum(['extracted', 'none']),
         retention: RetentionSchema,
         text_hash: hash.nullable(),

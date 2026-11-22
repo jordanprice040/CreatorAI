@@ -1,8 +1,8 @@
 # Session handoff — November 19, 2026
 
 Current source: main `561cb09` (PR #240, November 19), which includes every merged PR through #246. Schema **79**
-(migrations 42, 71, 75, 76 and 77 are unused; 76 stays reserved for later F11 slices). Next free migration **80**,
-next ADR **0133**. On Jordan's PC the installed app is the **trial build 0.1.8** (schema 79) from the F4 live
+(migrations 42, 71, 75, 76 and 77 are unused; 76 stays reserved for later F11 slices). Next free migration **81**,
+next ADR **0135** (ADR-0134 and migration 80 went to uploaded documents as evidence, November 22). On Jordan's PC the installed app is the **trial build 0.1.8** (schema 79) from the F4 live
 trial, so the next real release must be **0.1.9 or higher**; the dev studio runs from the worktree
 `C:\dev\creator_agent_mainrun` at main `ae6c42e1` (schema 79). This top section was rewritten on November 19 from
 the project state review of that morning (report in the project files,
@@ -68,6 +68,10 @@ owner decisions and existing scoped grants remain authoritative.
 Jordan's request (decision log, November 22): about 45 page and section explanations fold to one line in Standard (`Explain`), the autopilot and automation summaries fold under their titles (`PointList`), and seven long sections fold closed in Standard (`SectionFold`); Library is listed in Standard. Measured on a throwaway studio, Standard's long running text fell from 3,993 to 669 words across all tabs (all visible words 12,736 → 8,621), the Autopilot page from 4,180 to 1,536 px tall and Settings from 4,219 to 1,548 px (`tracking/evidence/standard-simplify/`). Advanced is unchanged. Checks in the cloud: typecheck, format, `pnpm test:db` (only the 5 known PowerShell-wrapper failures), and a Playwright check that jump links and `?id=team-profile` open their folds and that the Autopilot page has no horizontal overflow at 390 px. Review 1 (3 Medium, 4 Low, 4 nits) fixed: confirmed limits and safety notices stay in view, the confirm box waits for both summaries to be opened, closed sections show their current state.
 
 New explanations in Standard-facing pages should use `Explain` (with a short line) rather than a long `<p className="small">`; test loaders that stub sibling imports need a `./explain.js` stub (see `web-display.test.ts`).
+
+## November 22 handoff — uploaded documents as claim evidence (ADR-0134, migration 80)
+
+What now works: an editor can turn the current version of an uploaded text file (text, Markdown, CSV, JSON, code) into a source with **Use as evidence** on Sources › Files or the new "Or use an uploaded document" row on Sources and claims, then cite its passages in claims with the existing Cite form; the server checks each quote against the file's text, and the claim's evidence status, freshness and retraction work as for fetched pages. A newer file version used as evidence makes a new source version, so earlier citations show "changed" until re-assessed. Uploads need no run. Autopilot claim linking on public data and source rechecks skip uploaded documents. Checks (cloud, PostgreSQL 16): typecheck and prettier pass; new `tests/src/file-evidence.test.ts` (5 tests: source, passages and cited quote end to end, re-use and new version, refusals for no-text, blank, deleted, other-workspace and viewer requests and the upload check constraint, long-document cap, exact passage splitting and speed on 2 MB, recheck skips uploads); `autopilot.test.ts` ADR-0100 test now proves an upload-backed claim is not linked on public data (it fails with the fix reverted). Browser walk on a throwaway database (ports 5183/4330/4340): upload, Use as evidence, open on Sources and claims, cite with a quote, claim shows "supported". Full suite 1,548 tests: 1,511 pass, 32 skipped, 5 failed (the known PowerShell-wrapper tests, no pwsh). Not checked on the dev studio or installed app (they need schema 80). Next free: migration 81, ADR-0135. Review 1 (0 High, 3 Medium, 4 Low, 2 nits) is fixed: linear passage splitting, citations flagged when the file gets a newer version or is deleted, a purge warning when the file is evidence, emoji-safe cuts, clearer model wording, every file page in the picker, and a version-named button (ADR-0134 amendment). After the fixes: 1,553 tests, 1,516 pass, 32 skipped, 5 failed (the PowerShell-wrapper tests); `file-evidence.test.ts` now has 6 tests, including timing bounds on long whitespace runs, an emoji cut, and newer-version, delete and purge flags. Re-review (one Low, one nit) is fixed: a file reverted to earlier text and used again counts as current, and unchanged uploads never age past the freshness window; `file-evidence.test.ts` now has 7 tests (the new one fails with the ordering fix reverted). Full suite after: 1,554 tests, 1,517 pass, 32 skipped, 5 failed (the PowerShell-wrapper tests).
 
 ## November 22 handoff — claim tags link to their claim (no migration or ADR)
 
@@ -1068,7 +1072,7 @@ are migration 50 and ADR-0078 (P15 was asked to take those if it needs them).
 - Nothing on Jordan's device or in any studio database records the pilot's status (no runtime consumer of
   `owner-pilot.json`), so no app or database step is needed.
 - Checks (cloud container): typecheck and format check pass; the X10 readiness tests pass; `pnpm readiness
-pilot-check` reports the gate ready with no refusals. Full suite: see the PR. Next eligible: unchanged (P10 and
+pilot-check` reports the gate ready with no refusals. Full suite 1,548 tests: 1,511 pass, 32 skipped, 5 failed (the known PowerShell-wrapper tests, no pwsh). Next eligible: unchanged (P10 and
   P16 in their threads; then the installed-app upgrade, P12 once a search provider is chosen).
 
 ## PR #155 review fixes (November 10, no migration or ADR)
