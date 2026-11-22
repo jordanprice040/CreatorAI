@@ -1,6 +1,8 @@
 //! App-managed PostgreSQL (ADR-0041): a cluster in the studio home, run with the owner's
 //! verified PostgreSQL 18 binaries on loopback, started with the app and stopped only by
-//! it. External servers never pass through here.
+//! it. External servers never pass through here. An installer built with
+//! `build-studio.mjs --postgres <folder>` includes PostgreSQL 18 under its `studio\postgres`
+//! resources, so a new computer needs no separate install; setup copies it into the studio home.
 use std::net::{SocketAddr, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -49,19 +51,84 @@ pub fn verify_bin(dir: &Path) -> Result<String, String> {
     Ok(version.to_string())
 }
 
-pub fn detect(configured: Option<&str>) -> Vec<serde_json::Value> {
+/// Where an installer that includes PostgreSQL keeps its `bin` folder.
+pub fn bundled_bin(resources: &Path) -> PathBuf {
+    resources.join("postgres").join("bin")
+}
+
+/// Copies the included PostgreSQL into `<home>\runtime\postgresql-<version>` and returns its
+/// `bin` folder. The database never runs from the install folder, which an update replaces
+/// and a rollback renames, and the copy survives an uninstall together with the data it
+/// serves. A verified copy of the same version is reused; a new one is written to a
+/// temporary folder first and renamed into place, so a half-finished copy is never used.
+pub fn install_bundled(resources: &Path, home_root: &Path) -> Result<PathBuf, String> {
+    let src = resources.join("postgres");
+    let version = verify_bin(&src.join("bin"))?;
+    let runtime = home_root.join("runtime");
+    let dest = runtime.join(format!("postgresql-{version}"));
+    if verify_bin(&dest.join("bin")).ok().as_deref() == Some(version.as_str()) {
+        return Ok(dest.join("bin"));
+    }
+    std::fs::create_dir_all(&runtime).map_err(|_| "Could not create the studio runtime folder")?;
+    let tmp = runtime.join(format!(
+        ".postgresql-{version}-{}",
+        crate::studio::random_hex(4)?
+    ));
+    let copied = copy_tree(&src, &tmp);
+    if let Err(e) = copied {
+        let _ = std::fs::remove_dir_all(&tmp);
+        return Err(format!("Could not copy the included PostgreSQL: {e}"));
+    }
+    if dest.exists() {
+        // Only this function writes here; a folder that does not verify is an earlier,
+        // unusable copy (for example one whose files were removed by hand).
+        std::fs::remove_dir_all(&dest)
+            .map_err(|_| format!("Could not replace {}", dest.display()))?;
+    }
+    std::fs::rename(&tmp, &dest).map_err(|_| {
+        let _ = std::fs::remove_dir_all(&tmp);
+        "Could not move the included PostgreSQL into place".to_string()
+    })?;
+    verify_bin(&dest.join("bin"))?;
+    Ok(dest.join("bin"))
+}
+
+fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(to)?;
+    for entry in std::fs::read_dir(from)? {
+        let entry = entry?;
+        let target = to.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_tree(&entry.path(), &target)?;
+        } else {
+            std::fs::copy(entry.path(), &target)?;
+        }
+    }
+    Ok(())
+}
+
+/// Lists PostgreSQL 18 folders for setup: the saved one, then the copy included with this
+/// installer (`bundled`, listed first on a new computer), then the usual install folders.
+pub fn detect(configured: Option<&str>, bundled: Option<&Path>) -> Vec<serde_json::Value> {
+    let mut found = Vec::new();
+    if let Some(b) = bundled.filter(|_| configured.is_none()) {
+        if let Ok(v) = verify_bin(b) {
+            found.push(serde_json::json!({
+                "path": b.display().to_string(), "version": v, "ok": true, "bundled": true,
+            }));
+        }
+    }
     let mut dirs: Vec<String> = configured.map(|s| vec![s.to_string()]).unwrap_or_default();
     for c in CANDIDATES {
         if !dirs.iter().any(|d| d.eq_ignore_ascii_case(c)) {
             dirs.push(c.to_string());
         }
     }
-    dirs.into_iter()
-        .map(|d| match verify_bin(Path::new(&d)) {
-            Ok(v) => serde_json::json!({"path": d, "version": v, "ok": true}),
-            Err(e) => serde_json::json!({"path": d, "error": e, "ok": false}),
-        })
-        .collect()
+    found.extend(dirs.into_iter().map(|d| match verify_bin(Path::new(&d)) {
+        Ok(v) => serde_json::json!({"path": d, "version": v, "ok": true}),
+        Err(e) => serde_json::json!({"path": d, "error": e, "ok": false}),
+    }));
+    found
 }
 
 pub fn port_in_use(port: u16) -> bool {
@@ -222,6 +289,42 @@ mod tests {
         assert!(verify_bin(&dir)
             .unwrap_err()
             .contains("postgres.exe is missing"));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+    #[test]
+    fn included_runtime_is_listed_only_when_it_verifies_and_nothing_is_saved() {
+        let dir = std::env::temp_dir().join(format!(
+            "creator-pg-{}",
+            crate::studio::random_hex(8).unwrap()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        // An empty folder is not a usable runtime, so it is not offered.
+        let listed = detect(None, Some(&dir));
+        assert!(listed.iter().all(|c| c["bundled"].is_null()));
+        // A saved folder wins: setup is already done, the included copy is not offered.
+        let listed = detect(Some("C:\\saved\\bin"), Some(&dir));
+        assert_eq!(listed[0]["path"], "C:\\saved\\bin");
+        assert!(install_bundled(&dir, &dir)
+            .unwrap_err()
+            .contains("postgres.exe is missing"));
+        assert!(!dir.join("runtime").exists());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+    #[test]
+    fn copies_a_tree_with_nested_folders() {
+        let dir = std::env::temp_dir().join(format!(
+            "creator-pg-{}",
+            crate::studio::random_hex(8).unwrap()
+        ));
+        std::fs::create_dir_all(dir.join("src/share/timezone")).unwrap();
+        std::fs::write(dir.join("src/share/timezone/UTC"), b"tz").unwrap();
+        std::fs::write(dir.join("src/top.txt"), b"x").unwrap();
+        copy_tree(&dir.join("src"), &dir.join("dst")).unwrap();
+        assert_eq!(
+            std::fs::read(dir.join("dst/share/timezone/UTC")).unwrap(),
+            b"tz"
+        );
+        assert_eq!(std::fs::read(dir.join("dst/top.txt")).unwrap(), b"x");
         let _ = std::fs::remove_dir_all(dir);
     }
     #[test]

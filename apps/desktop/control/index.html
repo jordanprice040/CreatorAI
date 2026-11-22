@@ -36,11 +36,12 @@
         <fieldset>
           <legend>1. PostgreSQL 18 folder</legend>
           <p class="small">
-            The app runs its own database with PostgreSQL 18 that is already
-            installed on this computer. It is not downloaded or installed for
-            you. If none is listed, install PostgreSQL 18 (the EDB installer or
-            zip from postgresql.org), then enter its
-            <code>bin</code> folder.
+            The app runs its own database with PostgreSQL 18. When this
+            installer includes it, it is listed first and selected: setup copies
+            it into the studio folder, and you need nothing else. Otherwise the
+            app uses PostgreSQL 18 already installed on this computer (it
+            downloads nothing): install it (the EDB installer or zip from
+            postgresql.org), then enter its <code>bin</code> folder.
           </p>
           <div id="pg-list"></div>
           <label for="pg-bin">Folder</label>

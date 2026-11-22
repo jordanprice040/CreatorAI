@@ -60,7 +60,9 @@ async function detect() {
     const p = document.createElement('p');
     p.className = 'small';
     p.textContent = c.ok
-      ? `✓ ${c.path} — PostgreSQL ${c.version}`
+      ? c.bundled
+        ? `✓ Included with Creator Agent — PostgreSQL ${c.version}`
+        : `✓ ${c.path} — PostgreSQL ${c.version}`
       : `✗ ${c.path} — ${c.error}`;
     box.append(p);
   }
