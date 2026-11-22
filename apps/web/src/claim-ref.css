@@ -1,0 +1,57 @@
+/* Claim tags ("C1" …) link to their claim and preview it on hover or focus. Tokens only, so
+   both themes follow; the preview sets its own type so the surrounding text's size doesn't leak. */
+.claim-ref-wrap {
+  position: relative;
+  display: inline;
+}
+.claim-ref {
+  font-weight: 600;
+  white-space: nowrap;
+  text-underline-offset: 3px;
+}
+.claim-ref-tip {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: max-content;
+  max-width: min(360px, calc(100vw - 32px));
+  padding: 8px 10px;
+  background: var(--surface-raised);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1.5;
+  letter-spacing: normal;
+  text-align: left;
+  text-transform: none;
+  white-space: normal;
+}
+/* The gap between tag and preview counts as part of both, so the pointer can move onto the
+   preview without it closing (WCAG 1.4.13). */
+.claim-ref-tip::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -8px;
+  height: 8px;
+}
+.claim-ref-tip[hidden] {
+  display: none;
+}
+.claim-ref-tip strong {
+  font-weight: 600;
+}
+.claim-ref-hint {
+  color: var(--text-2);
+  font-size: 12px;
+}

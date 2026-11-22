@@ -67,6 +67,23 @@ owner decisions and existing scoped grants remain authoritative.
 
 Jordan's request (decision log, November 22): about 45 page and section explanations fold to one line in Standard (`Explain`), the autopilot and automation summaries fold under their titles (`PointList`), and seven long sections fold closed in Standard (`SectionFold`); Library is listed in Standard. Measured on a throwaway studio, Standard's long running text fell from 3,993 to 518 words across all tabs (all visible words 12,736 → 8,427), the Autopilot page from 4,180 to 1,213 px tall and Settings from 4,219 to 1,548 px (`tracking/evidence/standard-simplify/`). Advanced is unchanged. Checks in the cloud: typecheck, format, `pnpm test:db` (only the 5 known PowerShell-wrapper failures), and a Playwright check that jump links and `?id=team-profile` open their folds and that the Autopilot page has no horizontal overflow at 390 px.
 
+## November 22 update — claim tags link to their claim (no migration or ADR)
+
+Wherever a discovery, exploration or assessment cites a claim by its packet tag ("C1", "C2" …), the tag now links to
+the claim under Sources and shows its statement and evidence status on hover or keyboard focus (Escape closes it;
+the preview is the link's accessible description). Covered: Runs › discovery result reasons and skeptic findings;
+Explore cards, summary and directions; Decide's "Why these ratings" (rationales, confidence, gates, uncertainty, and
+the "Cites:" claim names); and the "what was sent" packet lists. Tags come from the workflow's own frozen packet
+(read once per workflow, only when the text has a tag); a tag the packet does not hold stays plain text. Not covered:
+the copies of discovery text inside saved alternatives (Library, Decide), which do not record their packet.
+Code `apps/web/src/claim-refs.ts`, `claim-ref.tsx`, `claim-ref.css`; test `tests/src/claim-refs.test.ts`. Checks
+(cloud, PostgreSQL 16, no CI): typecheck and format pass; `pnpm test:db` 1547 tests, 1510 pass, 32 skip, 5 fail (the
+known no-`pwsh` wrapper tests); a Playwright walk on a seeded discovery workspace (ports 5183/4330/4340, throwaway
+database) showed the C2 preview and opened the claim, and caught a regex `lastIndex` bug that the test now covers.
+Review 1 (2 Low, 3 nits) fixed: a `draft-C3` tag (any case, any dash) stays plain text, both ends of a
+`C1-C3` range link, the preview's status ("as this run read it") is part of the screen-reader description, and a
+redundant key is gone; tests cover drafts, ranges and the described status.
+
 ## November 19 update — thesis AI-only run frozen before any run (ADR-0133, no migration)
 
 Six new held-out build tasks (`config/recipe-benchmarks/ai-run-*-v1`, 3 small and 3 larger) and the frozen protocol [`docs/thesis/AI_ONLY_RUN_PROTOCOL.md`](../docs/thesis/AI_ONLY_RUN_PROTOCOL.md), held by `config/thesis-ai-run/PROTOCOL.json` (anchor `193f1262…83fc`) and checked by `node scripts/ai-run-analysis.mjs verify`. Each task runs once through Qualify building on the dev studio's ChatGPT plan connection with `gpt-6-astra`, $0 metered, by November 27; the result is reported as the AI arm alone. Plan credits and extra usage must be confirmed off before the first task (worst case 168 plan requests, $0). Checks run in the cloud: `tests/src/ai-run-tasks.test.ts` (11 tests, all pass), the one-attempt harness test in `recipe-qualification.test.ts` on a throwaway PostgreSQL 16, and the existing suite (see the PR). Review 1's 3 Medium, 7 Low and 4 nits are fixed before any run (ADR-0133 amendment). **Not run live**: needs Jordan's typed OK on his PC.

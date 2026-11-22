@@ -1,7 +1,8 @@
 import { versionTag } from './plain-words.js';
 import { useViewMode } from './view-mode.js';
 import { usePoll } from './page-active.js';
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
+import { ClaimText, claimHref, usePacketClaims } from './claim-ref.js';
 import {
   ASSESSMENT_TASK_CLASS,
   AssessmentPreviewSchema,
@@ -518,7 +519,7 @@ export function AutoAssess({
                   .join(', ')}{' '}
                 of {preview.limit.toLocaleString()} characters each.
               </p>
-              <Packet packet={preview.packet} />
+              <Packet ws={workspace.id} packet={preview.packet} />
             </>
           )}
           {capHelp && (
@@ -930,7 +931,7 @@ function Run({
           <button className="text" onClick={() => void packet()}>
             {sent ? 'Hide what was sent' : 'Show what was sent to the model'}
           </button>
-          {sent && <Packet packet={sent} />}
+          {sent && wf && <Packet ws={wf.workspace_id} packet={sent} />}
         </>
       )}
       {error && <p className="error">{error}</p>}
@@ -938,7 +939,7 @@ function Run({
   );
 }
 
-function Packet({ packet }: { packet: AssessmentPacket }) {
+function Packet({ ws, packet }: { ws: string; packet: AssessmentPacket }) {
   return (
     <div className="sent small">
       <p>
@@ -956,7 +957,8 @@ function Packet({ packet }: { packet: AssessmentPacket }) {
         <ul>
           {packet.claims.map((c) => (
             <li key={c.ref}>
-              {c.ref} · {words(c.relation)}
+              <a href={claimHref(ws, c.claim_id)}>{c.ref}</a> ·{' '}
+              {words(c.relation)}
               {c.options ? ` ${c.options.join(', ')}` : ''} · {words(c.status)}{' '}
               ·{' '}
               {c.statement.length > 200
@@ -1249,12 +1251,27 @@ function SystemExplanation({
   const { standard } = useViewMode();
   const b = card.body as unknown as ScorecardBody | undefined;
   const a = b?.assessment;
+  const ws = card.workspace_id;
+  // The assessor cites claims by its packet's tags ("C3"); each links to its claim.
+  const refs = usePacketClaims(ws, a?.workflow_id, 'assessment-packet', [
+    ...Object.values(b?.ratings ?? {}).map((r) => r?.rationale),
+    b?.confidence.rationale,
+    b?.software_influence?.note,
+    b?.gates.ethics.note,
+    b?.gates.access.note,
+    a?.uncertainty,
+  ]);
   if (!b || !a) return null;
   const criteria = RUBRICS[b.rubric].criteria;
+  const text = (t: string) => <ClaimText ws={ws} text={t} refs={refs} />;
   const claimName = (id: string, version: number) => {
     const c = claims.find((x) => x.id.toLowerCase() === id.toLowerCase());
-    if (standard) return c ? c.title : 'a claim no longer listed';
-    return `${c ? c.title : `claim ${id.slice(0, 8)}`} (v${version})`;
+    const name = standard
+      ? c
+        ? c.title
+        : 'a claim no longer listed'
+      : `${c ? c.title : `claim ${id.slice(0, 8)}`} (v${version})`;
+    return <a href={claimHref(ws, id)}>{name}</a>;
   };
   return (
     <details className="assess-why">
@@ -1269,14 +1286,17 @@ function SystemExplanation({
                 {c.label}: {r.rating === null ? 'unknown' : `${r.rating} of 5`}
               </dt>
               <dd>
-                {r.rationale || 'No rationale given.'}
+                {r.rationale ? text(r.rationale) : 'No rationale given.'}
                 {r.evidence_refs.length > 0 && (
                   <span className="muted">
                     {' '}
                     Cites:{' '}
-                    {r.evidence_refs
-                      .map((e) => claimName(e.id, e.version))
-                      .join('; ')}
+                    {r.evidence_refs.map((e, i) => (
+                      <Fragment key={e.id}>
+                        {i > 0 && '; '}
+                        {claimName(e.id, e.version)}
+                      </Fragment>
+                    ))}
                     .
                   </span>
                 )}
@@ -1286,7 +1306,7 @@ function SystemExplanation({
         })}
         <div>
           <dt>Confidence: {b.confidence.level}</dt>
-          <dd>{b.confidence.rationale}</dd>
+          <dd>{text(b.confidence.rationale)}</dd>
         </div>
         {b.software_influence && (
           <div>
@@ -1294,19 +1314,19 @@ function SystemExplanation({
               Software influence (not counted):{' '}
               {b.software_influence.rating ?? 'unknown'}
             </dt>
-            <dd>{b.software_influence.note}</dd>
+            <dd>{text(b.software_influence.note)}</dd>
           </div>
         )}
         <div>
           <dt>Ethics and access (a person confirms)</dt>
           <dd>
-            Ethics {words(b.gates.ethics.status)}: {b.gates.ethics.note} Access{' '}
-            {words(b.gates.access.status)}: {b.gates.access.note}
+            Ethics {words(b.gates.ethics.status)}: {text(b.gates.ethics.note)}{' '}
+            Access {words(b.gates.access.status)}: {text(b.gates.access.note)}
           </dd>
         </div>
         <div>
           <dt>Uncertainty</dt>
-          <dd>{a.uncertainty}</dd>
+          <dd>{text(a.uncertainty)}</dd>
         </div>
       </dl>
       <p className="muted">

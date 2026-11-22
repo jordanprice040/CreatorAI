@@ -69,6 +69,12 @@ Jordan's request (decision log, November 22): about 45 page and section explanat
 
 New explanations in Standard-facing pages should use `Explain` (with a short line) rather than a long `<p className="small">`; test loaders that stub sibling imports need a `./explain.js` stub (see `web-display.test.ts`).
 
+## November 22 handoff — claim tags link to their claim (no migration or ADR)
+
+`ClaimText`/`ClaimRef`/`usePacketClaims` in `apps/web/src/claim-ref.tsx` link "C1"-style tags to `#/sources/claims?id=claim:<id>`
+using the workflow's packet endpoint (`packet`, `exploration-packet`, `assessment-packet`). Use them for any new view
+that shows model or rule text written against a packet. Saved alternatives' text keeps plain tags (no packet link).
+
 ## November 19 handoff — thesis AI-only run frozen (ADR-0133, no migration)
 
 Protocol `docs/thesis/AI_ONLY_RUN_PROTOCOL.md`, manifest `config/thesis-ai-run/PROTOCOL.json` (SHA-256 `193f1262…83fc`), tasks `config/recipe-benchmarks/ai-run-*-v1`, analysis `scripts/ai-run-analysis.mjs` (`verify`, `analyze <records-dir> --opened <freeze merge time> --connection <id> [--markdown]`). Until the run ends, do not change the build roles or prompts, the recipe qualification harness, the scorer, these folders or the script: any change breaks v1 (protocol section 8). To run it: Jordan's typed OK in the thread that runs it, then protocol section 6 (dev studio, Qualify building, one task at a time in the frozen order, save each record JSON, then `analyze`). Never start these six benchmarks outside the run (any such record is a deviation). Never invent results; tasks with no record started by the end of November 27 (UTC-12) are `not_run`. Once PR #248 (thesis draft 2) and this one are both merged, thesis Section 6 and E19 should link the protocol and the anchor hash.
