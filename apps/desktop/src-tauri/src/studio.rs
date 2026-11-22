@@ -947,7 +947,15 @@ impl Supervisor {
             let kind = req["kind"].as_str().ok_or("Choose a setup option")?;
             let close = req["close_behavior"].as_str().unwrap_or("background");
             let login = req["launch_at_login"].as_bool().unwrap_or(false);
-            let pg_bin = req["pg_bin"].as_str().ok_or("Choose the PostgreSQL 18 folder")?.to_string();
+            let mut pg_bin = req["pg_bin"].as_str().ok_or("Choose the PostgreSQL 18 folder")?.to_string();
+            // The PostgreSQL included with the installer runs from a copy in the studio home,
+            // never from the install folder (an update replaces it, a rollback renames it).
+            if postgres::is_bundled(&pg_bin, &self.resources) {
+                self.set(Status::new("working", "Preparing the included PostgreSQL", "Copying it into the studio folder"));
+                pg_bin = postgres::install_bundled(&self.resources, &self.home.root)?
+                    .display()
+                    .to_string();
+            }
             let version = postgres::verify_bin(Path::new(&pg_bin))?;
             self.note(&format!("setup {kind} with PostgreSQL {version}"));
             let products = self.home.products();

@@ -1,6 +1,13 @@
 // Stages the installed studio's runtime resources (ADR-0041) into apps/desktop/.bundle/studio:
 // node/node.exe, a single-file service bundle, the executor's worker bridge, config and the
 // production UI. Uses only already-installed pinned tools (tsc, vite); no network.
+//
+// `--postgres <folder>` (or CREATOR_BUNDLE_POSTGRES) also includes a PostgreSQL 18 runtime from
+// an extracted EDB binaries zip (the folder holding bin, lib and share, e.g. C:\pgsql18\pgsql),
+// so a tester's computer needs nothing else (ADR-0135, `postgres-bundle.mjs`): bin, lib and
+// share without StackBuilder or unused lib modules, the Visual C++ runtime DLLs (from the
+// newest Visual Studio redistributable folder, or `--vcruntime <folder>`) and the licence
+// notices. Without it the installer works as before and setup asks for an installed copy.
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import {
@@ -17,10 +24,31 @@ import {
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { requireSupportedNode } from '../../scripts/runtime.mjs';
+import {
+  checkPostgres,
+  findVcRuntime,
+  stagePostgres,
+} from './postgres-bundle.mjs';
 
 requireSupportedNode();
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const argv = process.argv.slice(2);
+const flag = (name, env) => {
+  const i = argv.indexOf(name);
+  if (i !== -1 && !argv[i + 1]) throw new Error(`${name} needs a folder`);
+  return i !== -1 ? argv[i + 1] : process.env[env] || '';
+};
+const pgSource = flag('--postgres', 'CREATOR_BUNDLE_POSTGRES');
+const vcFlag = flag('--vcruntime', 'CREATOR_BUNDLE_VCRUNTIME');
+// Checked before anything is built, so a missing runtime or notice fails at once.
+const pgVersion = pgSource ? checkPostgres(resolve(pgSource)) : null;
+const vcDir = pgSource
+  ? findVcRuntime({
+      explicit: vcFlag && resolve(vcFlag),
+      pgBin: join(resolve(pgSource), 'bin'),
+    })
+  : null;
 const out = join(root, 'apps/desktop/.bundle/studio');
 const step = (m) => console.log(`[bundle] ${m}`);
 const node = (args, cwd = root) =>
@@ -97,6 +125,12 @@ for (const f of ['bridge.py', 'recipe.py', 'terminal.py', 'web_recipe.py'])
   );
 cpSync(join(root, 'config'), join(out, 'config'), { recursive: true });
 cpSync(join(root, 'apps/web/dist'), join(out, 'web'), { recursive: true });
+if (pgSource) {
+  step(`including PostgreSQL ${pgVersion} from ${pgSource}`);
+  step(`including the Visual C++ runtime from ${vcDir}`);
+  stagePostgres(resolve(pgSource), join(out, 'postgres'), vcDir);
+} else
+  step('PostgreSQL not included (pass --postgres <folder> for a tester build)');
 
 function files(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
@@ -111,6 +145,8 @@ const manifest = {
   source_commit: git(['rev-parse', 'HEAD']),
   source_dirty: git(['status', '--porcelain', '--untracked-files=no']) !== '',
   node_version: process.version,
+  postgres_version: pgVersion,
+  vc_runtime_from: vcDir,
   files: files(out).map((f) => {
     const bytes = readFileSync(f);
     return {

@@ -43,6 +43,7 @@ locations are refused). `CREATOR_STUDIO_HOME` overrides it for acceptance runs o
 | `EBWebView\`      | the windows' WebView2 data (cookies, storage); follows `CREATOR_STUDIO_HOME` |
 | `secrets\*.dpapi` | database password/URL and the persisted sign-in, Windows DPAPI (CurrentUser) |
 | `postgres\data`   | app-managed PostgreSQL 18 cluster (managed mode)                             |
+| `runtime\`        | the copy of the PostgreSQL included with a tester installer (ADR-0135)       |
 | `products\`       | generated product store                                                      |
 | `backups\`        | adoption and pre-upgrade backups                                             |
 | `updates\`        | update settings, downloads, the saved copy for rollback, `history.jsonl`     |
@@ -53,9 +54,12 @@ locations are refused). `CREATOR_STUDIO_HOME` overrides it for acceptance runs o
 
 The setup window asks for:
 
-1. **PostgreSQL 18 folder.** A managed prerequisite: the app uses PostgreSQL 18 that is
-   already installed (detected at `C:\pgsql18\pgsql\bin` and
-   `C:\Program Files\PostgreSQL\18\bin`; version checked). It downloads nothing.
+1. **PostgreSQL 18 folder.** A tester installer (built with `--postgres`, ADR-0135) includes
+   PostgreSQL 18; it is listed first as "Included with Creator Agent" and preselected, and setup
+   copies it into `runtime\postgresql-<version>` in the studio home and uses it from there.
+   Otherwise the app uses PostgreSQL 18 that is already installed (detected at
+   `C:\pgsql18\pgsql\bin` and `C:\Program Files\PostgreSQL\18\bin`; version checked). It
+   downloads nothing.
 2. **Where records come from.**
    - _Start a new, empty studio (recommended on a new computer, preselected):_ nothing is imported.
    - _Adopt an existing studio on this computer:_ prefilled with the §1.2 studio
@@ -173,6 +177,30 @@ cd apps/desktop
 node node_modules/@tauri-apps/cli/tauri.js build --config src-tauri/tauri.local-bundle.conf.json --bundles nsis
 ```
 
+For a build to hand to testers, include PostgreSQL so their computer needs nothing else
+(ADR-0135; tester steps in [TESTER_GUIDE.md](TESTER_GUIDE.md)):
+
+```powershell
+node apps/desktop/build-studio.mjs --postgres C:\pgsql18\pgsql
+cd apps/desktop
+node node_modules/@tauri-apps/cli/tauri.js build --config src-tauri/tauri.local-bundle.conf.json --bundles nsis
+cd src-tauri\target\release\bundle\nsis
+Rename-Item "Creator Agent_<version>_x64-setup.exe" "Creator-Agent_<version>_x64-setup.exe"
+Get-FileHash .\Creator-Agent_<version>_x64-setup.exe   # the SHA-256 sent to testers with the file
+```
+
+The PostgreSQL part (`postgres-bundle.mjs`) copies `bin`, `lib` and `share` without StackBuilder,
+its wxWidgets libraries, the EDB modules `plugin_debugger` and `system_stats`, or the standard
+`uuid-ossp` extension (the studio uses no extensions, and its UUID library would need its own notice).
+The EDB zip does not carry the Microsoft Visual C++ runtime its programs need, so the build adds
+`vcruntime140.dll`, `vcruntime140_1.dll` and `msvcp140.dll` from the newest Visual Studio
+redistributable folder (`VC\Redist\MSVC\<version>\x64\Microsoft.VC14*.CRT`, or `--vcruntime
+<folder>`); without them the build stops. It also adds `THIRD_PARTY_NOTICES.txt`
+(`apps/desktop/postgres-notices/`) and stops on any DLL in `bin` that the notices do not cover. A
+computer that already has the runtime installed hides a missing copy, so check a tester build in
+Windows Sandbox or a virtual machine without it. The tester guide lives in this private
+repository, so send it (for example as a PDF) with the installer and its hash.
+
 `build-studio.mjs` compiles, builds the UI, bundles the service into one file and stages
 `node.exe` (the build host's Node), the executor bridge, `config/` and the UI with a hash
 manifest (`bundle-manifest.json`, including the source commit and whether it was dirty).
@@ -198,8 +226,10 @@ development packages; `icons/icon.png`, the 64 px frame of `icons/icon.ico`, is 
 
 - Persistent identity for the separately paired execution worker (ADR-0028 still holds:
   re-pair after restart).
-- Bundling PostgreSQL itself; OIDC sign-in inside the installed app; code signing (updates
-  are hash-checked, ADR-0128); other Windows machines or architectures.
+- A newer PostgreSQL minor in a later installer is not moved into existing installs.
+- OIDC sign-in inside the installed app.
+- Code signing (updates are hash-checked, ADR-0128).
+- Other Windows machines or architectures.
 - Updates: the downloaded installer is removed once an update is confirmed, but one that is
   refused or rolled back stays in `updates\downloads\` until you delete it. A rollback's
   `products-rb-*` folder and the kept upgraded database are never removed automatically. A

@@ -35,7 +35,14 @@ pub async fn studio_detect_postgres(
 ) -> Result<Value, String> {
     local(&window)?;
     let configured = sup.home.load().ok().flatten().and_then(|c| c.pg_bin);
-    blocking(move || Ok(json!(crate::postgres::detect(configured.as_deref())))).await
+    let bundled = crate::postgres::bundled_bin(&sup.resources);
+    blocking(move || {
+        Ok(json!(crate::postgres::detect(
+            configured.as_deref(),
+            Some(&bundled)
+        )))
+    })
+    .await
 }
 
 #[tauri::command]

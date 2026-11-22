@@ -71,7 +71,7 @@ const PROPOSED_SETTINGS = {
   format: 'chatgpt-plan-settings/1',
   plan_type: 'plus',
   shared_allowance_note:
-    "ChatGPT Plus: the five-hour usage allowance is shared with Jordan's personal ChatGPT and Codex use. Credits after the limit stay off for Creator Agent.",
+    'ChatGPT Plus: the five-hour usage allowance is shared with your own ChatGPT and Codex use. Credits after the limit stay off for Creator Agent.',
   allowed_data_classes: ['synthetic', 'public'],
   // ADR-0084 (Decision A): every task this kind can take; the owner can untick any.
   allowed_task_classes: defaultTaskClasses('chatgpt_plan'),
@@ -98,7 +98,7 @@ const PROPOSED_CLAUDE_SETTINGS = {
   format: 'chatgpt-plan-settings/1',
   plan_type: 'unknown',
   shared_allowance_note:
-    "Claude Pro/Max: the five-hour and weekly usage limits are shared with Jordan's own Claude and Claude Code use. Extra usage after the limit stays off.",
+    'Claude Pro/Max: the five-hour and weekly usage limits are shared with your own Claude and Claude Code use. Extra usage after the limit stays off.',
   allowed_data_classes: ['synthetic', 'public'],
   // ADR-0084 (Decision A): every task Claude Code can take, so no code build.
   allowed_task_classes: defaultTaskClasses('claude_code'),
