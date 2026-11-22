@@ -4,9 +4,10 @@
 //
 // `--postgres <folder>` (or CREATOR_BUNDLE_POSTGRES) also includes a PostgreSQL 18 runtime from
 // an extracted EDB binaries zip (the folder holding bin, lib and share, e.g. C:\pgsql18\pgsql),
-// so a tester's computer needs no separate PostgreSQL install. Only bin, lib, share and the
-// folder's top-level files (licence notes) are copied; pgAdmin, docs, headers and symbols are
-// left out. Without it the installer works as before and setup asks for an installed copy.
+// so a tester's computer needs nothing else (ADR-0135, `postgres-bundle.mjs`): bin, lib and
+// share without StackBuilder or EDB-only modules, the Visual C++ runtime DLLs (from the
+// newest Visual Studio redistributable folder, or `--vcruntime <folder>`) and the licence
+// notices. Without it the installer works as before and setup asks for an installed copy.
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import {
@@ -23,43 +24,31 @@ import {
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { requireSupportedNode } from '../../scripts/runtime.mjs';
+import {
+  checkPostgres,
+  findVcRuntime,
+  stagePostgres,
+} from './postgres-bundle.mjs';
 
 requireSupportedNode();
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const argv = process.argv.slice(2);
-const pgFlag = argv.indexOf('--postgres');
-if (pgFlag !== -1 && !argv[pgFlag + 1])
-  throw new Error(
-    '--postgres needs the PostgreSQL 18 folder (holding bin, lib, share)',
-  );
-const pgSource =
-  pgFlag !== -1 ? argv[pgFlag + 1] : process.env.CREATOR_BUNDLE_POSTGRES || '';
+const flag = (name, env) => {
+  const i = argv.indexOf(name);
+  if (i !== -1 && !argv[i + 1]) throw new Error(`${name} needs a folder`);
+  return i !== -1 ? argv[i + 1] : process.env[env] || '';
+};
+const pgSource = flag('--postgres', 'CREATOR_BUNDLE_POSTGRES');
+const vcFlag = flag('--vcruntime', 'CREATOR_BUNDLE_VCRUNTIME');
+// Checked before anything is built, so a missing runtime or notice fails at once.
 const pgVersion = pgSource ? checkPostgres(resolve(pgSource)) : null;
-
-// Refuses a folder that is not a PostgreSQL 18 runtime before anything is built.
-function checkPostgres(dir) {
-  for (const part of ['bin', 'lib', 'share'])
-    if (!existsSync(join(dir, part)))
-      throw new Error(
-        `${dir} has no ${part} folder; pass the folder that holds bin, lib and share`,
-      );
-  for (const tool of ['postgres', 'initdb', 'pg_ctl', 'pg_dump', 'pg_restore'])
-    if (!existsSync(join(dir, 'bin', `${tool}.exe`)))
-      throw new Error(`${tool}.exe is missing from ${join(dir, 'bin')}`);
-  if (process.platform !== 'win32') return 'unchecked';
-  const text = execFileSync(join(dir, 'bin', 'postgres.exe'), ['--version'], {
-    encoding: 'utf8',
-  }).trim();
-  const version = text.replace(/^postgres \(PostgreSQL\) /, '');
-  if (version === text || version.split('.')[0] !== '18')
-    throw new Error(`PostgreSQL 18 is required; ${dir} reports "${text}"`);
-  if (!existsSync(join(dir, 'bin', 'vcruntime140.dll')))
-    console.warn(
-      '[bundle] warning: bin has no vcruntime140.dll; a computer without the Microsoft Visual C++ runtime may not start the database',
-    );
-  return version;
-}
+const vcDir = pgSource
+  ? findVcRuntime({
+      explicit: vcFlag && resolve(vcFlag),
+      pgBin: join(resolve(pgSource), 'bin'),
+    })
+  : null;
 const out = join(root, 'apps/desktop/.bundle/studio');
 const step = (m) => console.log(`[bundle] ${m}`);
 const node = (args, cwd = root) =>
@@ -138,15 +127,8 @@ cpSync(join(root, 'config'), join(out, 'config'), { recursive: true });
 cpSync(join(root, 'apps/web/dist'), join(out, 'web'), { recursive: true });
 if (pgSource) {
   step(`including PostgreSQL ${pgVersion} from ${pgSource}`);
-  const src = resolve(pgSource);
-  mkdirSync(join(out, 'postgres'), { recursive: true });
-  for (const e of readdirSync(src, { withFileTypes: true }))
-    if (e.isFile())
-      copyFileSync(join(src, e.name), join(out, 'postgres', e.name));
-    else if (['bin', 'lib', 'share'].includes(e.name))
-      cpSync(join(src, e.name), join(out, 'postgres', e.name), {
-        recursive: true,
-      });
+  step(`including the Visual C++ runtime from ${vcDir}`);
+  stagePostgres(resolve(pgSource), join(out, 'postgres'), vcDir);
 } else
   step('PostgreSQL not included (pass --postgres <folder> for a tester build)');
 
@@ -164,6 +146,7 @@ const manifest = {
   source_dirty: git(['status', '--porcelain', '--untracked-files=no']) !== '',
   node_version: process.version,
   postgres_version: pgVersion,
+  vc_runtime_from: vcDir,
   files: files(out).map((f) => {
     const bytes = readFileSync(f);
     return {

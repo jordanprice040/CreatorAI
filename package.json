@@ -13,7 +13,7 @@
     "build": "pnpm build:code && pnpm --filter @creator/web build",
     "typecheck": "tsc -b && pnpm --filter @creator/web typecheck",
     "test": "pnpm build:code && node --test --test-concurrency=1 tests/dist/*.test.js && pnpm test:dev-safety",
-    "test:dev-safety": "node --test --test-concurrency=1 tests/dev-artifact-retention.test.mjs tests/theme-intent-upgrade-current-guards.test.mjs tests/development-config.test.mjs",
+    "test:dev-safety": "node --test --test-concurrency=1 tests/dev-artifact-retention.test.mjs tests/theme-intent-upgrade-current-guards.test.mjs tests/development-config.test.mjs tests/postgres-bundle.test.mjs",
     "test:historical-upgrade": "node --test tests/theme-intent-upgrade-v4-guards.test.mjs",
     "test:db": "node scripts/require-test-db.mjs && pnpm test",
     "format": "prettier --write apps packages tests scripts config docs package.json pnpm-workspace.yaml tsconfig.json tsconfig.base.json .prettierrc.json",

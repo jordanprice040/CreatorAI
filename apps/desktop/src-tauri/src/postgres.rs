@@ -66,10 +66,24 @@ pub fn install_bundled(resources: &Path, home_root: &Path) -> Result<PathBuf, St
     let version = verify_bin(&src.join("bin"))?;
     let runtime = home_root.join("runtime");
     let dest = runtime.join(format!("postgresql-{version}"));
-    if verify_bin(&dest.join("bin")).ok().as_deref() == Some(version.as_str()) {
+    // Reused only when the version matches and no file is missing (review N3).
+    if verify_bin(&dest.join("bin")).ok().as_deref() == Some(version.as_str())
+        && count_files(&dest) == count_files(&src)
+    {
         return Ok(dest.join("bin"));
     }
     std::fs::create_dir_all(&runtime).map_err(|_| "Could not create the studio runtime folder")?;
+    // A copy interrupted by a closed or crashed app left its temporary folder (review L2).
+    // Setup holds the app's single-instance and busy locks, so none is in use now.
+    for entry in std::fs::read_dir(&runtime).into_iter().flatten().flatten() {
+        if entry
+            .file_name()
+            .to_string_lossy()
+            .starts_with(".postgresql-")
+        {
+            let _ = std::fs::remove_dir_all(entry.path());
+        }
+    }
     let tmp = runtime.join(format!(
         ".postgresql-{version}-{}",
         crate::studio::random_hex(4)?
@@ -93,6 +107,26 @@ pub fn install_bundled(resources: &Path, home_root: &Path) -> Result<PathBuf, St
     Ok(dest.join("bin"))
 }
 
+/// Whether a folder typed or kept in setup is the installer's included `bin` folder. Compared
+/// without letter case and a trailing separator, as Windows paths are (review N2).
+pub fn is_bundled(path: &str, resources: &Path) -> bool {
+    let norm = |s: &str| s.trim().trim_end_matches(['\\', '/']).to_lowercase();
+    norm(path) == norm(&bundled_bin(resources).display().to_string())
+}
+
+fn count_files(dir: &Path) -> Option<usize> {
+    let mut n = 0;
+    for entry in std::fs::read_dir(dir).ok()? {
+        let entry = entry.ok()?;
+        n += if entry.file_type().ok()?.is_dir() {
+            count_files(&entry.path())?
+        } else {
+            1
+        };
+    }
+    Some(n)
+}
+
 fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
     std::fs::create_dir_all(to)?;
     for entry in std::fs::read_dir(from)? {
@@ -111,12 +145,16 @@ fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
 /// installer (`bundled`, listed first on a new computer), then the usual install folders.
 pub fn detect(configured: Option<&str>, bundled: Option<&Path>) -> Vec<serde_json::Value> {
     let mut found = Vec::new();
-    if let Some(b) = bundled.filter(|_| configured.is_none()) {
-        if let Ok(v) = verify_bin(b) {
-            found.push(serde_json::json!({
-                "path": b.display().to_string(), "version": v, "ok": true, "bundled": true,
-            }));
-        }
+    // Listed when this installer includes PostgreSQL (its folder exists), also when it fails
+    // its check, so setup can say why (review L1).
+    if let Some(b) =
+        bundled.filter(|b| configured.is_none() && b.parent().is_some_and(|p| p.is_dir()))
+    {
+        let path = b.display().to_string();
+        found.push(match verify_bin(b) {
+            Ok(v) => serde_json::json!({"path": path, "version": v, "ok": true, "bundled": true}),
+            Err(e) => serde_json::json!({"path": path, "error": e, "ok": false, "bundled": true}),
+        });
     }
     let mut dirs: Vec<String> = configured.map(|s| vec![s.to_string()]).unwrap_or_default();
     for c in CANDIDATES {
@@ -292,22 +330,57 @@ mod tests {
         let _ = std::fs::remove_dir_all(dir);
     }
     #[test]
-    fn included_runtime_is_listed_only_when_it_verifies_and_nothing_is_saved() {
+    fn included_runtime_is_listed_with_its_check_and_nothing_is_saved() {
         let dir = std::env::temp_dir().join(format!(
             "creator-pg-{}",
             crate::studio::random_hex(8).unwrap()
         ));
         std::fs::create_dir_all(&dir).unwrap();
-        // An empty folder is not a usable runtime, so it is not offered.
-        let listed = detect(None, Some(&dir));
+        // An installer without PostgreSQL has no `postgres` folder: nothing is listed for it.
+        let bin = dir.join("postgres").join("bin");
+        let listed = detect(None, Some(&bin));
         assert!(listed.iter().all(|c| c["bundled"].is_null()));
+        // An included copy that fails its check is listed with the reason, not hidden.
+        std::fs::create_dir_all(&bin).unwrap();
+        let listed = detect(None, Some(&bin));
+        assert_eq!(listed[0]["bundled"], true);
+        assert_eq!(listed[0]["ok"], false);
+        assert!(listed[0]["error"]
+            .as_str()
+            .unwrap()
+            .contains("postgres.exe is missing"));
         // A saved folder wins: setup is already done, the included copy is not offered.
-        let listed = detect(Some("C:\\saved\\bin"), Some(&dir));
+        let listed = detect(Some("C:\\saved\\bin"), Some(&bin));
         assert_eq!(listed[0]["path"], "C:\\saved\\bin");
         assert!(install_bundled(&dir, &dir)
             .unwrap_err()
             .contains("postgres.exe is missing"));
         assert!(!dir.join("runtime").exists());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+    #[test]
+    fn matches_the_included_folder_without_case_or_trailing_separator() {
+        let res = Path::new("C:\\Users\\t\\AppData\\Local\\Creator Agent\\studio");
+        let bin = bundled_bin(res).display().to_string();
+        assert!(is_bundled(&bin, res));
+        assert!(is_bundled(&format!("{}\\", bin.to_uppercase()), res));
+        assert!(is_bundled(&format!(" {bin}/ "), res));
+        assert!(!is_bundled("C:\\pgsql18\\pgsql\\bin", res));
+    }
+    #[test]
+    fn counts_files_so_an_incomplete_copy_is_not_reused() {
+        let dir = std::env::temp_dir().join(format!(
+            "creator-pg-{}",
+            crate::studio::random_hex(8).unwrap()
+        ));
+        std::fs::create_dir_all(dir.join("a/share")).unwrap();
+        std::fs::write(dir.join("a/share/x"), b"x").unwrap();
+        std::fs::write(dir.join("a/y"), b"y").unwrap();
+        copy_tree(&dir.join("a"), &dir.join("b")).unwrap();
+        assert_eq!(count_files(&dir.join("a")), Some(2));
+        assert_eq!(count_files(&dir.join("a")), count_files(&dir.join("b")));
+        std::fs::remove_file(dir.join("b/share/x")).unwrap();
+        assert_ne!(count_files(&dir.join("a")), count_files(&dir.join("b")));
         let _ = std::fs::remove_dir_all(dir);
     }
     #[test]

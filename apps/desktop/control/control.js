@@ -59,16 +59,39 @@ async function detect() {
   for (const c of list) {
     const p = document.createElement('p');
     p.className = 'small';
+    const name = c.bundled ? 'Included with Creator Agent' : c.path;
     p.textContent = c.ok
-      ? c.bundled
-        ? `✓ Included with Creator Agent — PostgreSQL ${c.version}`
-        : `✓ ${c.path} — PostgreSQL ${c.version}`
-      : `✗ ${c.path} — ${c.error}`;
+      ? `✓ ${name} — PostgreSQL ${c.version}`
+      : `✗ ${name} — ${c.error}`;
     box.append(p);
+    // Review L1: say what to do when the included copy cannot run.
+    if (c.bundled && !c.ok) {
+      const help = document.createElement('p');
+      help.className = 'small error';
+      help.textContent =
+        'The PostgreSQL included with this installer cannot run on this computer. Tell whoever sent you the installer what the line above says, or install PostgreSQL 18 yourself and enter its bin folder below.';
+      box.append(help);
+    }
   }
+  bundledPath = list.find((c) => c.bundled)?.path ?? null;
   const first = list.find((c) => c.ok);
   if (first && !$('pg-bin').value) $('pg-bin').value = first.path;
+  pgNote();
 }
+
+// Review N1: the folder field shows the installed path; name it when it is the included copy.
+let bundledPath = null;
+function pgNote() {
+  const v = $('pg-bin')
+    .value.trim()
+    .replace(/[\\/]+$/, '')
+    .toLowerCase();
+  const bundled =
+    bundledPath !== null &&
+    v === bundledPath.replace(/[\\/]+$/, '').toLowerCase();
+  $('pg-note').hidden = !bundled;
+}
+$('pg-bin').addEventListener('input', pgNote);
 
 function render(s) {
   state = s;

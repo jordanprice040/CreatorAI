@@ -7,7 +7,8 @@ it uses the internet.
 ## What you need
 
 - Windows 10 or 11 (64-bit). No administrator rights are needed.
-- Microsoft Edge WebView2, which Windows 11 and an up-to-date Windows 10 already have.
+- Microsoft Edge WebView2, which Windows 11 and an up-to-date Windows 10 already have. If the Creator
+  Agent window never opens, install Microsoft's free "Evergreen WebView2 Runtime" and start it again.
 - About 1 GB of free disk space.
 - These local ports free: 5173, 4310 and 4320 (they are only used on your own computer).
 
@@ -26,7 +27,9 @@ You do **not** need to install a database, Docker, Node or anything else: the te
 
 Start **Creator Agent** from the Start menu. A small setup window opens.
 
-1. **PostgreSQL 18 folder:** "Included with Creator Agent" is already selected. Leave it.
+1. **PostgreSQL 18 folder:** the list shows "✓ Included with Creator Agent", and the Folder box below it is
+   already filled in with a path ending in `studio\postgres\bin`, with a note saying it is the included copy.
+   Leave it as it is.
 2. **Where the records come from:** keep **Start a new, empty studio**.
 3. **When you close the window:** pick what you prefer (the default keeps the studio running in the tray).
 4. Press **Set up Creator Agent** and confirm. It takes a minute or two.
@@ -38,7 +41,7 @@ When setup is done, press **Sign in as local owner**, then **Open the studio**.
 - Create a workspace when the studio asks for one, then follow **Getting started** on the Chat page.
 - **Standard** mode shows the everyday controls; **Advanced** shows everything.
 - Model-driven steps (drafting, scoring with a model, building) need a model connection under
-  **System → Models and connections**: a ChatGPT plan, or Claude Code already signed in on this computer.
+  **Models and connections → Models**: a ChatGPT plan, or Claude Code already signed in on this computer.
   Without one, those steps are refused with a message; the rest of the studio still works.
 - Building and packaging products also needs WSL and Git for Windows. Skip it if you do not have them.
 

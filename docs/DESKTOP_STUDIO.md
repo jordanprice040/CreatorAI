@@ -182,7 +182,23 @@ For a build to hand to testers, include PostgreSQL so their computer needs nothi
 
 ```powershell
 node apps/desktop/build-studio.mjs --postgres C:\pgsql18\pgsql
+cd apps/desktop
+node node_modules/@tauri-apps/cli/tauri.js build --config src-tauri/tauri.local-bundle.conf.json --bundles nsis
+cd src-tauri\target\release\bundle\nsis
+Rename-Item "Creator Agent_<version>_x64-setup.exe" "Creator-Agent_<version>_x64-setup.exe"
+Get-FileHash .\Creator-Agent_<version>_x64-setup.exe   # the SHA-256 sent to testers with the file
 ```
+
+The PostgreSQL part (`postgres-bundle.mjs`) copies `bin`, `lib` and `share` without StackBuilder,
+its wxWidgets libraries or the EDB-only modules `plugin_debugger`, `system_stats` and `uuid-ossp`.
+The EDB zip does not carry the Microsoft Visual C++ runtime its programs need, so the build adds
+`vcruntime140.dll`, `vcruntime140_1.dll` and `msvcp140.dll` from the newest Visual Studio
+redistributable folder (`VC\Redist\MSVC\<version>\x64\Microsoft.VC14*.CRT`, or `--vcruntime
+<folder>`); without them the build stops. It also adds `THIRD_PARTY_NOTICES.txt`
+(`apps/desktop/postgres-notices/`) and stops on any DLL in `bin` that the notices do not cover. A
+computer that already has the runtime installed hides a missing copy, so check a tester build in
+Windows Sandbox or a virtual machine without it. The tester guide lives in this private
+repository, so send it (for example as a PDF) with the installer and its hash.
 
 `build-studio.mjs` compiles, builds the UI, bundles the service into one file and stages
 `node.exe` (the build host's Node), the executor bridge, `config/` and the UI with a hash
@@ -209,8 +225,10 @@ development packages; `icons/icon.png`, the 64 px frame of `icons/icon.ico`, is 
 
 - Persistent identity for the separately paired execution worker (ADR-0028 still holds:
   re-pair after restart).
-- A newer PostgreSQL minor in a later installer is not moved into existing installs; OIDC sign-in inside the installed app; code signing (updates
-  are hash-checked, ADR-0128); other Windows machines or architectures.
+- A newer PostgreSQL minor in a later installer is not moved into existing installs.
+- OIDC sign-in inside the installed app.
+- Code signing (updates are hash-checked, ADR-0128).
+- Other Windows machines or architectures.
 - Updates: the downloaded installer is removed once an update is confirmed, but one that is
   refused or rolled back stays in `updates\downloads\` until you delete it. A rollback's
   `products-rb-*` folder and the kept upgraded database are never removed automatically. A

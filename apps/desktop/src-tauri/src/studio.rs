@@ -950,7 +950,7 @@ impl Supervisor {
             let mut pg_bin = req["pg_bin"].as_str().ok_or("Choose the PostgreSQL 18 folder")?.to_string();
             // The PostgreSQL included with the installer runs from a copy in the studio home,
             // never from the install folder (an update replaces it, a rollback renames it).
-            if Path::new(&pg_bin) == postgres::bundled_bin(&self.resources) {
+            if postgres::is_bundled(&pg_bin, &self.resources) {
                 self.set(Status::new("working", "Preparing the included PostgreSQL", "Copying it into the studio folder"));
                 pg_bin = postgres::install_bundled(&self.resources, &self.home.root)?
                     .display()
