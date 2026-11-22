@@ -10,7 +10,7 @@ import {
   type ErrorCode,
   type ProblemComparison,
 } from '@creator/contracts';
-import { uploadedTextPassages } from '@creator/domain';
+import { assessClaimEvidence, uploadedTextPassages } from '@creator/domain';
 import { FileStore, ResearchStore, type CommandContext } from '@creator/db';
 import { recheckSources } from '@creator/api';
 import type { SourceBroker } from '@creator/research';
@@ -213,6 +213,75 @@ test('an uploaded document becomes a source whose passages a claim can quote', a
     (await s.store.claimEvidence(owner, s.ws.id, c.id)).status,
     'inaccessible',
   );
+});
+
+test('re-review: a reverted file used again is current, and uploads never go stale', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const file = await s.upload(REPORT);
+  await s.store.sourceFromFile(owner, s.ws.id, {
+    file_id: file.id,
+    file_version: 1,
+  });
+  const src = (await s.store.listSources(owner, s.ws.id)).find(
+    (x) => x.url === uploadSourceUrl(file.id),
+  )!;
+  const passage = (
+    await s.store.getSource(owner, s.ws.id, src.id)
+  ).passages.find((p) => p.excerpt?.includes('Eleven'))!;
+  const c = await s.claim('Most rural patients wait over five weeks.');
+  await s.store.addClaimSupport(owner, s.ws.id, c.id, {
+    evidence: 'passage',
+    claim_version: 1,
+    passage_id: passage.id,
+    stance: 'supports',
+    support_type: 'observation',
+    quote: 'rural patients waited more than five weeks',
+    rationale: 'The survey notes say so.',
+  });
+  // v2 changes the text and is never used; v3 puts the v1 text back.
+  await s.upload(REPORT.replace('Eleven', 'Nine'), 'survey-notes.md', file.id);
+  await s.upload(REPORT, 'survey-notes.md', file.id);
+  assert.equal(
+    (await s.store.claimEvidence(owner, s.ws.id, c.id)).status,
+    'needs_recheck',
+  );
+  const v3 = await s.store.sourceFromFile(owner, s.ws.id, {
+    file_id: file.id,
+    file_version: 3,
+  });
+  assert.equal(v3.changed, false);
+  assert.equal(v3.source.version, 1);
+  assert.equal(v3.source.upload?.file_version, 3);
+  const ev = await s.store.claimEvidence(owner, s.ws.id, c.id);
+  assert.equal(ev.status, 'supported');
+  assert.equal(ev.rows[0]!.freshness, 'current');
+  assert.ok(!ev.labels.some((l) => l.includes('newer version')));
+  // An upload is not re-fetched, so it does not age past the freshness window; a fetched
+  // page of the same age does.
+  const row = {
+    stance: 'supports' as const,
+    support_type: 'observation' as const,
+    claim_version: 1,
+    source_version: 1,
+    source_current_version: 1,
+    latest_state: 'fetched' as const,
+    last_fetched_at: '2025-01-01T00:00:00.000Z',
+    origin_cluster: 'o',
+    retracted: false,
+  };
+  const aged = (file?: 'current') =>
+    assessClaimEvidence({
+      claim_version: 1,
+      now: Date.parse('2026-11-22T00:00:00Z'),
+      max_age_ms: 180 * 86_400_000,
+      rows: [file ? { ...row, file } : row],
+    });
+  assert.equal(aged('current').status, 'supported');
+  assert.ok(
+    !aged('current').labels.some((l) => l.includes('freshness window')),
+  );
+  assert.equal(aged().status, 'needs_recheck');
 });
 
 test('review 1 L-1: text cut inside an emoji is stored and quotable', async (t) => {

@@ -210,12 +210,14 @@ function toSupport(r: Row): ClaimSupport {
 }
 /**
  * ADR-0134: the uploaded file (and its state now) behind a source's current version, as `up`
- * and `wf`; both null for fetched pages and for a purged file's `wf`.
+ * and `wf`; both null for fetched pages and for a purged file's `wf`. The newest use of the file
+ * for that source version decides, so a file reverted to earlier text and used again is current
+ * (re-review L).
  */
 const UPLOAD_JOIN = `
   left join lateral (select u.file_id, u.file_version from source_retrievals u
     where u.source_id = rs.source_id and u.source_version = e.version and u.adapter = 'upload'
-    order by u.started_at limit 1) up on true
+    order by u.started_at desc, u.file_version desc limit 1) up on true
   left join workspace_files wf on wf.id = up.file_id`;
 const SUMMARY_SQL = `
   select rs.source_id, rs.url_key, rs.origin_cluster, rs.cluster_reason, rs.created_at as rs_created,

@@ -258,6 +258,9 @@ export function rowFreshness(
     return 'inaccessible';
   if (r.source_version !== r.source_current_version) return 'changed';
   if (r.file === 'newer_version') return 'changed';
+  // Re-review nit: an uploaded file does not age; rechecks skip it and a new version is
+  // flagged above, so only a fetched page can go stale.
+  if (r.file === 'current') return 'current';
   if (
     r.last_fetched_at === null ||
     now - Date.parse(r.last_fetched_at) > maxAgeMs
