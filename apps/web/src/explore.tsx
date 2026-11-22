@@ -1,6 +1,8 @@
 import { usePageActive, usePoll } from './page-active.js';
 import type { SitesHandoff } from './past-project.js';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { ClaimText, claimHref, usePacketClaims } from './claim-ref.js';
+import type { RefClaim } from './claim-refs.js';
 import {
   EXPLORATION_TASK_CLASS,
   EnvelopeSchema,
@@ -828,6 +830,29 @@ function Exploration({
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [sent, setSent] = useState<ExplorationPacket | null>(null);
+  // The explorer cites claims by its packet's tags ("C3"); each links to its claim.
+  const found = wf?.result?.exploration;
+  const refs = usePacketClaims(
+    wf?.workspace_id ?? '',
+    wf?.id,
+    'exploration-packet',
+    found
+      ? [
+          found.summary,
+          ...found.candidates.flatMap((e) => [
+            e.card.affected_users,
+            e.card.observable_pain,
+            e.card.why_chosen,
+            ...e.card.current_alternatives,
+            e.card.outcome_measure,
+            e.card.next_question,
+            e.card.uncertainty,
+            ...e.reasons,
+          ]),
+          ...found.directions.flatMap((x) => [x.why, x.question]),
+        ]
+      : [],
+  );
 
   async function showSent() {
     if (sent) return setSent(null);
@@ -919,6 +944,8 @@ function Exploration({
             </p>
           ) : (
             <Result
+              ws={wf.workspace_id}
+              refs={refs}
               result={wf.result?.exploration ?? null}
               explanation={wf.result?.explanation ?? wf.reason}
               fixture={fixture || wf.fixture}
@@ -942,7 +969,7 @@ function Exploration({
                   : 'Show what was sent to the model'}
             </button>
           </p>
-          {sent && <Sent packet={sent} />}
+          {sent && wf && <Sent ws={wf.workspace_id} packet={sent} />}
           {error && (
             <p className="error" role="alert">
               {error}
@@ -955,6 +982,8 @@ function Exploration({
 }
 
 function Result({
+  ws,
+  refs,
   result,
   explanation,
   fixture,
@@ -963,6 +992,8 @@ function Result({
   onUse,
   open,
 }: {
+  ws: string;
+  refs: ReadonlyMap<string, RefClaim> | null;
   result: ExplorationResult | null;
   explanation: string;
   fixture: boolean;
@@ -975,13 +1006,14 @@ function Result({
   const order = (x: { disposition: string }) =>
     x.disposition === 'candidate' ? 0 : 1;
   const cards = [...result.candidates].sort((a, b) => order(a) - order(b));
+  const text = (t: string) => <ClaimText ws={ws} text={t} refs={refs} />;
   return (
     <>
       <p>
         <strong>{explanation}</strong>
         {fixture && ' Fixture explorer: rules over the packet, not reasoning.'}
       </p>
-      {result.summary && <p className="small">{result.summary}</p>}
+      {result.summary && <p className="small">{text(result.summary)}</p>}
       {!cards.length && (
         <Empty>No problem was proposed from the claims read.</Empty>
       )}
@@ -998,23 +1030,23 @@ function Result({
             </h4>
             <dl>
               <dt>Who</dt>
-              <dd>{e.card.affected_users}</dd>
+              <dd>{text(e.card.affected_users)}</dd>
               <dt>Problem</dt>
-              <dd>{e.card.observable_pain}</dd>
+              <dd>{text(e.card.observable_pain)}</dd>
               <dt>Why this</dt>
-              <dd>{e.card.why_chosen}</dd>
+              <dd>{text(e.card.why_chosen)}</dd>
               {e.card.current_alternatives.length > 0 && (
                 <>
                   <dt>Today</dt>
-                  <dd>{e.card.current_alternatives.join('; ')}</dd>
+                  <dd>{text(e.card.current_alternatives.join('; '))}</dd>
                 </>
               )}
               <dt>Measure</dt>
-              <dd>{e.card.outcome_measure}</dd>
+              <dd>{text(e.card.outcome_measure)}</dd>
               <dt>Next question</dt>
-              <dd>{e.card.next_question}</dd>
+              <dd>{text(e.card.next_question)}</dd>
               <dt>Uncertainty</dt>
-              <dd>{e.card.uncertainty}</dd>
+              <dd>{text(e.card.uncertainty)}</dd>
               <dt>Evidence</dt>
               <dd>
                 <ul className="cited">
@@ -1041,7 +1073,7 @@ function Result({
             </dl>
             <ul className="small">
               {e.reasons.map((r, i) => (
-                <li key={i}>{r}</li>
+                <li key={i}>{text(r)}</li>
               ))}
             </ul>
             {e.disposition === 'candidate' && owner && (
@@ -1063,7 +1095,8 @@ function Result({
           <ul className="small">
             {result.directions.map((x, i) => (
               <li key={i}>
-                <strong>{x.direction}.</strong> {x.why} Question: {x.question}
+                <strong>{x.direction}.</strong> {text(x.why)} Question:{' '}
+                {text(x.question)}
               </li>
             ))}
           </ul>
@@ -1183,7 +1216,7 @@ function Preview({
 }
 
 /** The packet an exploration read, as it was sent. */
-function Sent({ packet }: { packet: ExplorationPacket }) {
+function Sent({ ws, packet }: { ws: string; packet: ExplorationPacket }) {
   return (
     <div className="preview">
       <p className="small">
@@ -1195,7 +1228,10 @@ function Sent({ packet }: { packet: ExplorationPacket }) {
       <ul className="sent">
         {packet.claims.map((c) => (
           <li key={c.claim_id}>
-            <strong>{c.ref}</strong> {clip(c.statement, 200)}{' '}
+            <strong>
+              <a href={claimHref(ws, c.claim_id)}>{c.ref}</a>
+            </strong>{' '}
+            {clip(c.statement, 200)}{' '}
             <span className="small">
               {words(c.status)} ·{' '}
               {[...new Set(c.passages.map((x) => hostOf(x.url)))].join(', ')}
