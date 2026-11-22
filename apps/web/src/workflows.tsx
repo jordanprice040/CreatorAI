@@ -34,6 +34,7 @@ import {
 } from './labels.js';
 import { runNames } from './ui.js';
 import { Term } from './term.js';
+import { ClaimText, claimHref, usePacketClaims } from './claim-ref.js';
 
 const TERMINAL = ['succeeded', 'failed', 'cancelled'];
 /** Record kinds a skeptic review can examine, in the order the picker groups them. */
@@ -469,7 +470,11 @@ export function Workflows({
                   <h3>Result: {words(wf.result.outcome)}</h3>
                   <p>{wf.result.explanation}</p>
                   {wf.result.discovery && (
-                    <Discovery result={wf.result.discovery} />
+                    <Discovery
+                      ws={workspace}
+                      workflow={wf.id}
+                      result={wf.result.discovery}
+                    />
                   )}
                   {wf.result.exploration && (
                     <p className="small">
@@ -500,6 +505,7 @@ export function Workflows({
                   <h3>Evidence it was given</h3>
                   {packet?.workflow === wf.id ? (
                     <PacketSummary
+                      ws={workspace}
                       packet={packet.packet}
                       hash={packet.packet_hash}
                     />
@@ -565,9 +571,11 @@ export function Workflows({
  * untrusted evidence with no authority; it is shown as text, never acted on.
  */
 function PacketSummary({
+  ws,
   packet,
   hash,
 }: {
+  ws: string;
   packet: z.infer<typeof EvidencePacketSchema>;
   hash: string;
 }) {
@@ -592,13 +600,14 @@ function PacketSummary({
         {packet.catalog.length} existing{' '}
         {packet.catalog.length === 1 ? 'record' : 'records'} to compare with
       </p>
-      <ol className="small">
+      <ul className="small">
         {packet.claims.map((c) => (
           <li key={c.claim_id}>
-            {c.statement} <small>({words(c.status)})</small>
+            <a href={claimHref(ws, c.claim_id)}>{c.ref}</a> · {c.statement}{' '}
+            <small>({words(c.status)})</small>
           </li>
         ))}
-      </ol>
+      </ul>
       <details>
         <summary>The exact packet</summary>
         <pre>{JSON.stringify(packet, null, 2)}</pre>
@@ -608,7 +617,21 @@ function PacketSummary({
 }
 
 /** One discovery run's outcome: every proposal, why it ended where it did, and the dissent. */
-function Discovery({ result }: { result: DiscoveryResult }) {
+function Discovery({
+  ws,
+  workflow,
+  result,
+}: {
+  ws: string;
+  workflow: string;
+  result: DiscoveryResult;
+}) {
+  // Reasons and skeptic findings cite the packet's claim tags ("C3"); each links to its claim.
+  const refs = usePacketClaims(ws, workflow, 'packet', [
+    ...result.proposals.flatMap((p) => [...p.reasons, ...p.dissent]),
+    ...result.excluded.map((x) => x.reason),
+  ]);
+  const text = (t: string) => <ClaimText ws={ws} text={t} refs={refs} />;
   return (
     <div className="discovery">
       <p className="small">
@@ -638,7 +661,7 @@ function Discovery({ result }: { result: DiscoveryResult }) {
             {p.reasons.map((r) => (
               <small key={r}>
                 <br />
-                {r}
+                {text(r)}
               </small>
             ))}
             {p.dissent.length > 0 && (
@@ -646,7 +669,7 @@ function Discovery({ result }: { result: DiscoveryResult }) {
                 <summary>Skeptic findings ({p.dissent.length})</summary>
                 <ul>
                   {p.dissent.map((d, i) => (
-                    <li key={i}>{d}</li>
+                    <li key={i}>{text(d)}</li>
                   ))}
                 </ul>
               </details>
@@ -656,7 +679,7 @@ function Discovery({ result }: { result: DiscoveryResult }) {
         {result.excluded.map((x) => (
           <li key={x.perspective}>
             <span className="kind">excluded</span>{' '}
-            <strong>{words(x.perspective)}</strong>: {x.reason}
+            <strong>{words(x.perspective)}</strong>: {text(x.reason)}
           </li>
         ))}
       </ul>
