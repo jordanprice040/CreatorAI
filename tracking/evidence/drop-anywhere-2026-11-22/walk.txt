@@ -1,6 +1,25 @@
-overlay still shown after moving onto it: 1
-overlay hidden after leaving window: true
-overlay: Drop to add to Files in “Fixture selection and spec demonstration”Kept exactly as they are. Nothing is sent to a model or marked as evidence. This page and its drafts stay open.
-tray: Files (1)HideClear finisheddropped-note.txtAdded · 24 bytes · Fixture selection and spec demonstrationOpenDismiss
-overlay gone: true url same: true
-errors []
+# Branch (this PR), 2026-11-22T07:31:49Z
+1 overlay up while over the frame true
+1 top element over the frame "file-drop-overlay"
+1 tray "Files (1)HideClear finisheddropped-note.txtAdded · 25 bytes · Fixture selection and spec demonstrationOpenDismiss"
+1 overlay gone after drop true
+1 page not navigated true
+2 overlay still up after cancel true
+2 overlay gone after mouse move true
+2 top element after mouse move "panel chat"
+2b overlay still up after cancel true
+2b overlay gone after Escape true
+page errors []
+
+# Same walk with main's overlay (pointer-events: none) and main's file-drop.tsx
+1 overlay up while over the frame false
+1 top element over the frame "walk-frame"
+1 tray null
+1 overlay gone after drop true
+1 page not navigated true
+2 overlay still up after cancel true
+2 overlay gone after mouse move false
+2 top element after mouse move "panel chat"
+2b overlay still up after cancel true
+2b overlay gone after Escape false
+page errors []
