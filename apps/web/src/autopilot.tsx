@@ -1,4 +1,4 @@
-import { Explain, PointList } from './explain.js';
+import { Explain, PointList, useReadLists } from './explain.js';
 import {
   useEffect,
   useRef,
@@ -325,6 +325,12 @@ export function Autopilot({
     policy ? routinePolicySummary(policy) : null,
   ]);
   useEffect(() => setConfirmed(false), [summariesRead]);
+  // Review 1 of #255, M-1: in Standard the box is offered once both folded summaries were opened.
+  const lists = useReadLists();
+  const listsRead =
+    !!config &&
+    !!policy &&
+    lists.read(autopilotSummary(config), routinePolicySummary(policy));
   const blockers = [
     ...(!route
       ? [
@@ -349,6 +355,7 @@ export function Autopilot({
     !!config &&
     !!policy &&
     confirmed &&
+    listsRead &&
     blockers.length === 0;
 
   async function start(e: FormEvent) {
@@ -862,6 +869,7 @@ export function Autopilot({
                     <PointList
                       title="What the autopilot does"
                       points={autopilotSummary(config)}
+                      onOpen={lists.mark}
                     />
                     {passages && (
                       // Not part of the summary the owner confirms, so kept outside its list
@@ -893,6 +901,7 @@ export function Autopilot({
                     <PointList
                       title="Routine approvals for its new run"
                       points={routinePolicySummary(policy)}
+                      onOpen={lists.mark}
                     />
                   </div>
                 )}
@@ -902,13 +911,19 @@ export function Autopilot({
                 <label className="check">
                   <input
                     type="checkbox"
-                    checked={confirmed}
+                    checked={confirmed && listsRead}
+                    disabled={!listsRead}
                     onChange={(e) => setConfirmed(e.target.checked)}
                   />{' '}
                   I have read both summaries; start a new run with these routine
                   approvals and run the autopilot on it. The approvals end when
                   the autopilot ends, except while it waits for me.
                 </label>
+                {!listsRead && config && policy && (
+                  <p className="small muted">
+                    Open both summaries above to confirm them.
+                  </p>
+                )}
                 {blockers.length > 0 && (
                   <ul className="error">
                     {[...new Set(blockers)].map((b) => (

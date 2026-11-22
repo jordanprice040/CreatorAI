@@ -1,4 +1,3 @@
-import { PointList } from './explain.js';
 import { useEffect, useState } from 'react';
 import { useViewMode } from './view-mode.js';
 import {
@@ -47,7 +46,12 @@ import { Empty, Status, reveal, useLoad } from './ui.js';
 import { usePoll } from './page-active.js';
 import { endTimeClose, useEndTime } from './end-time.js';
 import { useAutopilotSettings } from './autopilot-settings.js';
-import { Explain } from './explain.js';
+import {
+  Explain,
+  PointList,
+  useReadLists,
+  useSectionState,
+} from './explain.js';
 
 /** The run selector's value for "Automate the rest" on a new run (live-run finding). */
 const NEW_RUN = 'new';
@@ -187,6 +191,21 @@ export function Automation({
     };
   }, [workspace.id]);
   const c = ctx.data;
+  // Review 1 of #255, M-2: the closed fold in Standard says how many runs are automated now.
+  const automated = c
+    ? c.runs.filter(
+        (r) =>
+          currentLevel(r.run_id, c.automations, c.autopilots).level !==
+          'manual',
+      ).length
+    : 0;
+  useSectionState(
+    c
+      ? automated === 0
+        ? 'Every run is Manual: you take every step'
+        : `${automated} run${automated === 1 ? '' : 's'} automated`
+      : null,
+  );
   const watching =
     (c?.autopilots.some((a) => a.state === 'running') ?? false) ||
     (c?.automations.some((a) => a.state === 'active') ?? false);
@@ -335,6 +354,14 @@ export function Automation({
       ? ['Choose at most 2160 hours (90 days).']
       : []),
   ];
+  const policyPoints = !step
+    ? []
+    : step.kind === 'covered'
+      ? step.view.policy.summary
+      : routinePolicySummary(step.input);
+  // Review 1 of #255, M-1: in Standard the box is offered once both folded summaries were opened.
+  const lists = useReadLists();
+  const listsRead = lists.read(levelSummary, policyPoints);
   const ready =
     owner &&
     !busy &&
@@ -342,6 +369,7 @@ export function Automation({
     !!step &&
     levelSummary.length > 0 &&
     confirmed &&
+    listsRead &&
     blockers.length === 0;
 
   async function apply() {
@@ -494,7 +522,7 @@ export function Automation({
     <section className="explore" aria-labelledby="automation-title">
       <h3 id="automation-title">How much is automated</h3>
       <Explain
-        short="Choose how much of a project the studio does for you."
+        short="Choose how much of a project the studio does for you. Publishing, messages, payments and value questions always stop for you."
         className=""
       >
         Choose how much of a project the studio does for you. Every level uses
@@ -722,6 +750,7 @@ export function Automation({
                         <PointList
                           title={`What ${AUTOMATION_LEVEL_TEXT[level].label} does`}
                           points={levelSummary}
+                          onOpen={lists.mark}
                         />
                         <PointList
                           title={
@@ -735,22 +764,25 @@ export function Automation({
                                   }`
                                 : `This run’s routine approvals already cover it (${step.view.policy.max_actions - step.view.used_actions} of ${step.view.policy.max_actions} steps left)`
                           }
-                          points={
-                            step.kind === 'covered'
-                              ? step.view.policy.summary
-                              : routinePolicySummary(step.input)
-                          }
+                          points={policyPoints}
+                          onOpen={lists.mark}
                         />
                       </div>
                     )}
                     <label className="check">
                       <input
                         type="checkbox"
-                        checked={confirmed}
+                        checked={confirmed && listsRead}
+                        disabled={!listsRead}
                         onChange={(e) => setConfirmed(e.target.checked)}
                       />{' '}
                       I have read both summaries; apply them to this run.
                     </label>
+                    {!listsRead && step && levelSummary.length > 0 && (
+                      <p className="small muted">
+                        Open both summaries above to confirm them.
+                      </p>
+                    )}
                     {blockers.length > 0 && (
                       <ul className="error">
                         {[...new Set(blockers)].map((b) => (

@@ -320,6 +320,30 @@ export const SHOW_PANEL = 'creator:show-discover-panel';
  * L-2). It looks only inside the page that `from` belongs to, since kept-alive pages repeat
  * ids, and jumps without animation when the person asks for reduced motion.
  */
+/** Opens every closed <details> around a target (Standard's section folds), innermost first. */
+export function openFoldsAround(target: Element): number {
+  let opened = 0;
+  for (
+    let d = target.closest('details');
+    d;
+    d = d.parentElement?.closest('details') ?? null
+  )
+    if (!d.open) {
+      d.open = true;
+      opened++;
+    }
+  return opened;
+}
+
+/** Where focus goes for a revealed target: a section fold's hidden heading hands it to the fold's summary. */
+export function focusTargetOf(target: HTMLElement): HTMLElement {
+  const fold = target.closest('details.section-fold');
+  const summary = fold?.querySelector<HTMLElement>(':scope > summary');
+  return summary && target.getBoundingClientRect().height === 0
+    ? summary
+    : target;
+}
+
 export function reveal(from: Element | null, id: string): boolean {
   const root: ParentNode = from?.closest('.draft-page') ?? document;
   const target = root.querySelector<HTMLElement>(`#${CSS.escape(id)}`);
@@ -332,18 +356,16 @@ export function reveal(from: Element | null, id: string): boolean {
       behavior: still ? 'auto' : 'smooth',
       block: 'start',
     });
-    if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
-    target.focus({ preventScroll: true });
+    // Review 1 of #255, L-3: a folded section's own heading is collapsed to no height, so focus
+    // goes to the fold's visible summary instead.
+    const shown = focusTargetOf(target);
+    if (!shown.hasAttribute('tabindex') && shown.tagName !== 'SUMMARY')
+      shown.setAttribute('tabindex', '-1');
+    shown.focus({ preventScroll: true });
   };
   // P-7: a target inside a closed Discover panel opens that panel first, then is shown once
   // the page has rendered it.
-  // A target inside a closed fold (Standard's section folds) opens the folds around it first.
-  for (
-    let d = target.closest('details');
-    d;
-    d = d.parentElement?.closest('details') ?? null
-  )
-    if (!d.open) d.open = true;
+  openFoldsAround(target);
   const panel = target.closest<HTMLElement>('[data-panel][hidden]');
   if (panel) {
     panel.dispatchEvent(

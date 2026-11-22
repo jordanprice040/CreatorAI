@@ -18,7 +18,7 @@ import {
 } from '@creator/contracts';
 import { ApiError, api, message, when } from './oversight.js';
 import { Status, useLoad } from './ui.js';
-import { Explain } from './explain.js';
+import { Explain, useSectionState } from './explain.js';
 
 type Status3 = 'yes' | 'no' | 'unknown';
 const STATUS_LABEL: Record<Status3, string> = {
@@ -157,12 +157,12 @@ export function TeamProfilePanel({
           : ''}
         . Only you can change it; agents can read it but never write it.
       </Explain>
-      <Explain>
+      <p className="small">
         The answers, their notes and the notes below are sent to the model
         provider with every automatic assessment (the assessment preview shows
         them). Leave out anything you would not send there. Host names are never
         sent.
-      </Explain>
+      </p>
       <Status
         loading={data.loading && !t}
         error={data.error}
@@ -341,6 +341,15 @@ const MODE_TEXT: Record<GateClearMode, { label: string; text: string }> = {
   },
 };
 
+/** The saved gate rule in a few words, for the closed Standard fold. */
+const GATE_STATE: Record<GateClearMode, string> = {
+  owner: 'Gates: you clear them',
+  team_profile:
+    'Gates: access may clear on the model’s reading of your profile',
+  checklist: 'Gates: may clear when they pass your checklist',
+  model: 'Gates: may clear on the model’s word',
+};
+
 /** Who clears ethics and access gates: the owner picks; each change is recorded. */
 function AutoClearRule({
   session,
@@ -384,6 +393,8 @@ function AutoClearRule({
     }
   }
   const chosen = pick ?? r?.mode ?? 'owner';
+  // Review 1 of #255, M-2: the closed fold in Standard says who clears gates now.
+  useSectionState(r ? GATE_STATE[r.mode] : null);
   return (
     <>
       <h4>Who clears ethics and access gates</h4>
@@ -534,7 +545,7 @@ function GateChecklistEditor({
   return (
     <>
       <h4>Gate checklist</h4>
-      <Explain short="What must hold before a gate clears without you.">
+      <Explain short="What must hold before a gate clears without you. The items are sent to the model provider with each assessment.">
         What must hold before an ethics or access gate may clear without you.
         Every automatic assessment answers each item pass, fail or unknown and
         says why; the items go to the model provider with the assessment. Saving

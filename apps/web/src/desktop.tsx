@@ -72,7 +72,10 @@ export function DesktopDevices({
         anything. A worker paired to run checks accepts only the exact product
         checks the owner submits, inside the reviewed offline WSL sandbox.
       </Explain>
-      <Explain className="">
+      <Explain
+        short="Shut down worker stops it at its next check-in; Revoke refuses it at once."
+        className=""
+      >
         Closing a desktop window leaves a worker you started separately running.{' '}
         <strong>Shut down worker</strong> asks it to stop the next time it
         checks in; <strong>Revoke</strong> refuses its next check-in at once. An

@@ -4491,17 +4491,6 @@ details.explain-fold > p,
 details.explain-fold > div {
   margin-top: 2px;
 }
-details.point-list {
-  margin: 6px 0;
-}
-details.point-list > summary {
-  font-weight: 400;
-  color: var(--text);
-}
-details.point-list .point-count {
-  color: var(--text-2);
-  font-size: 12px;
-}
 details.section-fold {
   margin-top: 18px;
   border-top: 1px solid var(--border);
@@ -4549,4 +4538,20 @@ details.section-fold > summary::before {
 }
 details.section-fold[open] > summary::before {
   content: '▾';
+}
+details.section-fold .section-fold-state {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text);
+}
+.point-list > p {
+  margin: 6px 0 2px;
+}
+.point-list > details {
+  margin-top: 2px;
+}
+.point-list > details > summary {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--text-2);
 }

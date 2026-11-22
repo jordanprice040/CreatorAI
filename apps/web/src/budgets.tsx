@@ -362,7 +362,7 @@ export function Budgets({
     <section className="panel records" aria-labelledby="budget-title">
       <h2 id="budget-title">Budgets and pricing</h2>
       <Explain
-        short="Every call reserves its most possible cost first, and is never sent past a budget."
+        short="Every call reserves its maximum cost first, and is never sent past a budget."
         className=""
       >
         Every model or tool call <Term term="reservation">reserves</Term> its

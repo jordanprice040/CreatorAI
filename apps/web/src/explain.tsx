@@ -1,4 +1,11 @@
-import type { ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { useViewMode } from './view-mode.js';
 
 /**
@@ -43,21 +50,56 @@ export function Explain({
 }
 
 /**
+ * The lines of a confirmed summary that Standard never folds: its limits (money, steps, end
+ * time), its data classes and what it never does. Review 1 of #255, M-1.
+ */
+export const KEPT_POINT =
+  /^(Limits|Data|Never covered|Still stops and asks you):|^It never /;
+
+/** Whether every list has been opened (Standard), so "I have read both summaries" is true. */
+export function allOpened(
+  opened: ReadonlySet<string>,
+  lists: readonly (readonly string[])[],
+): boolean {
+  return lists.every((l) => opened.has(l.join('\n')));
+}
+
+/**
+ * The summaries a person opened on this form. In Standard a confirm box that says "I have read"
+ * stays disabled until each folded summary was opened once; Advanced shows them open, so every
+ * list counts as read. A changed summary is a new list and needs opening again.
+ */
+export function useReadLists() {
+  const { standard } = useViewMode();
+  const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
+  return {
+    mark: (points: readonly string[]) =>
+      setOpened((s) =>
+        s.has(points.join('\n')) ? s : new Set(s).add(points.join('\n')),
+      ),
+    read: (...lists: (readonly string[])[]) =>
+      !standard || allOpened(opened, lists),
+  };
+}
+
+/**
  * A titled list of points (what a run does, the routine approvals it gets). Advanced shows it
- * open as before; Standard folds the points under the title with their count, opened in place.
- * The text is the same in both, so a checkbox that confirms "I have read" still covers it.
+ * open as before. Standard keeps the limits and "never" lines (KEPT_POINT) in view and folds
+ * the rest under the title with their count; `onOpen` tells a confirm box it was read.
  */
 export function PointList({
   title,
   points,
+  onOpen,
 }: {
   title: ReactNode;
   points: readonly string[];
+  onOpen?: (points: readonly string[]) => void;
 }) {
   const { standard } = useViewMode();
-  const list = (
+  const list = (items: readonly string[]) => (
     <ul>
-      {points.map((l) => (
+      {items.map((l) => (
         <li key={l}>{l}</li>
       ))}
     </ul>
@@ -68,20 +110,45 @@ export function PointList({
         <p>
           <strong>{title}</strong>
         </p>
-        {list}
+        {list(points)}
       </>
     );
+  const kept = points.filter((l) => KEPT_POINT.test(l));
+  const rest = points.filter((l) => !KEPT_POINT.test(l));
   return (
-    <details className="point-list">
-      <summary>
-        <strong>{title}</strong>{' '}
-        <span className="point-count">
-          {points.length} point{points.length === 1 ? '' : 's'}, open to read
-        </span>
-      </summary>
-      {list}
-    </details>
+    <div className="point-list">
+      <p>
+        <strong>{title}</strong>
+      </p>
+      {kept.length > 0 && list(kept)}
+      {rest.length > 0 && (
+        <details
+          onToggle={(e) => {
+            if (e.currentTarget.open) onOpen?.(points);
+          }}
+        >
+          <summary>
+            {rest.length} more point{rest.length === 1 ? '' : 's'}, open to read
+          </summary>
+          {list(rest)}
+        </details>
+      )}
+    </div>
   );
+}
+
+/** Lets a panel inside a SectionFold say its current state on the closed fold (M-2). */
+const SectionState = createContext<((line: string) => void) | null>(null);
+
+/**
+ * Called by a panel inside a SectionFold with its current state in a few words ("All off",
+ * "Gates: you clear them"). Standard shows it on the closed fold; Advanced ignores it.
+ */
+export function useSectionState(line: string | null) {
+  const set = useContext(SectionState);
+  useEffect(() => {
+    if (set && line !== null) set(line);
+  }, [set, line]);
 }
 
 /**
@@ -96,24 +163,39 @@ export function SectionFold({
   children,
 }: {
   title: ReactNode;
-  /** One line under the title while it is closed. */
+  /** One line under the title while it has no state to show. */
   hint?: ReactNode;
   /** The address's item id that opens this fold on arrival, e.g. `team-profile`. */
   anchor?: string;
   children: ReactNode;
 }) {
   const { standard } = useViewMode();
+  const [state, setState] = useState('');
+  const ref = useRef<HTMLDetailsElement>(null);
+  // Review 1 of #255, N-3: an address naming this section (Decide's "Team profile" link)
+  // scrolls to it once on arrival, in both views.
+  useEffect(() => {
+    if (!anchor || addressId() !== anchor) return;
+    const el =
+      ref.current?.querySelector('summary') ?? document.getElementById(anchor);
+    el?.scrollIntoView({ block: 'start' });
+  }, [anchor]);
   if (!standard) return <>{children}</>;
   return (
     <details
+      ref={ref}
       className="section-fold"
-      open={anchor ? addressId() === anchor : undefined}
+      open={anchor && addressId() === anchor ? true : undefined}
     >
       <summary>
         <span className="section-fold-title">{title}</span>
-        {hint ? <span className="section-fold-hint">{hint}</span> : null}
+        {state ? (
+          <span className="section-fold-state">{state}</span>
+        ) : hint ? (
+          <span className="section-fold-hint">{hint}</span>
+        ) : null}
       </summary>
-      {children}
+      <SectionState.Provider value={setState}>{children}</SectionState.Provider>
     </details>
   );
 }

@@ -485,7 +485,8 @@ export function AutoAssess({
                 : preview.requests > 1
                   ? ` in ${preview.requests} requests of a few options each, every request with the same claims; the largest is ${preview.chars.toLocaleString()} of ${preview.limit.toLocaleString()} characters.`
                   : ` in one request (${preview.chars.toLocaleString()} of ${preview.limit.toLocaleString()} characters).`}{' '}
-              {standard ? '' : preview.packet.notes.slice(0, -1).join(' ')}{' '}
+              {/* Review 1 of #255, L-1: what was left out of the request shows in both views. */}
+              {preview.packet.notes.slice(0, -1).join(' ')}{' '}
               <button
                 type="button"
                 className="text"
