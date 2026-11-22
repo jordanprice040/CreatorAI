@@ -60,15 +60,32 @@ export function FileDrop({
       if (!files.length || ws.role === 'viewer') return;
       startUploads(files, { ws: ws.id, wsName: ws.name, csrf });
     };
-    window.addEventListener('dragenter', enter);
-    window.addEventListener('dragleave', leave);
-    window.addEventListener('dragover', overFn);
-    window.addEventListener('drop', drop);
+    // The overlay blocks clicks while it is up, so a drag that ends without dragleave or drop (a
+    // cancelled drag) must not leave it stuck. Mouse events never fire during an HTML5 drag, so any
+    // of these means the drag is over.
+    const reset = () => {
+      if (!depth.current) return;
+      depth.current = 0;
+      setOver(false);
+    };
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') reset();
+    };
+    const handlers = [
+      ['dragenter', enter],
+      ['dragleave', leave],
+      ['dragover', overFn],
+      ['drop', drop],
+      ['mousemove', reset],
+      ['pointerdown', reset],
+      ['keydown', key],
+      ['blur', reset],
+    ] as const;
+    for (const [name, fn] of handlers)
+      window.addEventListener(name, fn as EventListener);
     return () => {
-      window.removeEventListener('dragenter', enter);
-      window.removeEventListener('dragleave', leave);
-      window.removeEventListener('dragover', overFn);
-      window.removeEventListener('drop', drop);
+      for (const [name, fn] of handlers)
+        window.removeEventListener(name, fn as EventListener);
     };
   }, [csrf, viewer]);
   return (

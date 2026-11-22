@@ -1404,3 +1404,19 @@ tests in `tests/src/web-decide-routine.test.ts`, walk in `tracking/evidence/p19-
 workspace). No migration or ADR; next free numbers stay migration 54 and ADR-0084. Review fixes (M-1 override field stays in one place, L-1 review marks open, N-1..N-4) are in
 the same PR, with `walk-override.cjs`. Re-review fixes (L-A Expand all with a
 blocked folded section, N-A walk selector) followed. Next: re-review, then the installed app upgrade and P17.
+
+## Drop anywhere fix (November 22, 2026)
+
+- Jordan found that dropping files on the studio did nothing. Cause: the installed app's studio window kept Tauri's
+  default native drag-and-drop handler, which on Windows (WebView2) swallows the page's HTML5 drop events. Fix:
+  `disable_drag_drop_handler()` on the studio window; the drop overlay also catches pointer events so a drop over a
+  preview frame reaches the studio, and hides on mouse movement, a click, Escape or blur so a cancelled drag cannot
+  leave it blocking clicks. Recorded in `tracking/DECISIONS.md` (November 22 entry, no ADR, no migration).
+- Checks (cloud container, no CI): `cargo check --target x86_64-pc-windows-msvc` and `cargo fmt --check` for the
+  desktop crate pass. Browser walk `tracking/evidence/drop-anywhere-2026-11-22/walk.mjs` (output `walk.txt`) uses
+  Chromium's real drag input on a throwaway database: a drop over an embedded frame uploads, and a cancelled drag's
+  overlay goes on mouse move or Escape; the same walk fails with main's overlay and handler. `pnpm typecheck` and
+  `pnpm format:check` pass. `pnpm test:db` (main merged, PostgreSQL 16): 1547 tests, 1510 pass, 32 skip, 5 fail (the
+  known no-`pwsh` wrapper tests); no test file covers the drop component, so the later review fix is covered by the walk.
+- Not yet seen: a real file drag onto the installed app on Windows. That needs a build from this branch on Jordan's
+  PC (or the next release, 0.1.9 or higher).
