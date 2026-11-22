@@ -396,6 +396,11 @@ fn build_studio_window(
     let window = builder
         .title(DEFAULT_TITLE)
         .inner_size(1200.0, 800.0)
+        // The studio page handles file drops itself (ADR-0072 drop anywhere). Tauri's native
+        // drag-and-drop handler is on by default and, on Windows (WebView2), swallows the HTML5
+        // dragover/drop events, so dropped files never reached the page. This window has no
+        // native IPC, so the native drop events had no listener anyway.
+        .disable_drag_drop_handler()
         .visible(visible && !probes.any())
         .on_document_title_changed(move |_, title| {
             if signin_probe && title.starts_with("CREATOR_SIGNIN_PROBE:") {
