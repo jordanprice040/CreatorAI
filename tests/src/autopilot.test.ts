@@ -53,7 +53,7 @@ import {
   suggestClaims,
 } from '@creator/domain';
 import { FixtureAdapter } from '@creator/broker';
-import { AUTOPILOT_ACTOR_ID, ConnectionStore } from '@creator/db';
+import { AUTOPILOT_ACTOR_ID, ConnectionStore, FileStore } from '@creator/db';
 import {
   AutopilotRunner,
   DEFAULT_OWNER_ACTOR_ID,
@@ -2793,6 +2793,43 @@ test('ADR-0100: linking suggested claims is the autopilot’s, audited, and neve
        from claim_support cs where cs.id = $1`,
     [support.id, randomUUID(), backed.id, linkId],
   );
+  // ADR-0134: a claim quoting an uploaded document is not public, though its source is
+  // recorded like a fetched page, so it is never linked on public data.
+  const doc = (
+    await new FileStore(h.db.pool).uploadFile(owner, h.ws.id, {
+      bytes: Buffer.from(
+        `Our own notes: ${opt2.title} handles the problem well.`,
+      ),
+      name: 'private-notes.txt',
+      declaredType: null,
+      uploadKey: randomUUID(),
+      linkEntityId: null,
+      keepDuplicate: true,
+    })
+  ).file;
+  const fromDoc = await h.store.sourceFromFile(owner, h.ws.id, {
+    file_id: doc.id,
+    file_version: 1,
+  });
+  const privateClaim = await h.store.createEntity(owner, h.ws.id, {
+    kind: 'claim',
+    title: `${opt2.title} works for us`,
+    body: {
+      statement: `${opt2.title} handles the problem well, say our notes.`,
+      basis: 'observation',
+      uncertainty: 'test',
+    },
+  });
+  await h.store.addClaimSupport(owner, h.ws.id, privateClaim.id, {
+    evidence: 'passage',
+    claim_version: 1,
+    passage_id: (await h.store.getSource(owner, h.ws.id, fromDoc.source.id))
+      .passages[0]!.id,
+    stance: 'supports',
+    support_type: 'observation',
+    quote: 'handles the problem well',
+    rationale: 'Our notes say so.',
+  });
   const linked = await h.store.autopilotLinkClaims(
     ap,
     h.ws.id,
@@ -2802,6 +2839,10 @@ test('ADR-0100: linking suggested claims is the autopilot’s, audited, and neve
   );
   assert.ok(
     linked.some((m) => m.to_id === opt2.id && m.claim_id === backed.id),
+    JSON.stringify(linked),
+  );
+  assert.ok(
+    linked.every((m) => m.claim_id !== privateClaim.id),
     JSON.stringify(linked),
   );
   const row = await h.db.pool.query(

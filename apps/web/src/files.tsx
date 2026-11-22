@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FileTextViewSchema,
+  SourceSummarySchema,
   WorkspaceFileDetailSchema,
   WorkspaceFilePageSchema,
   bytesText,
@@ -24,6 +25,8 @@ import {
   viewerFor,
 } from './file-viewer-rules.js';
 import { useFileBytes } from './file-bytes.js';
+import { fileAsEvidence, fileEvidenceNote } from './file-evidence.js';
+import type { View } from './ui.js';
 
 // ADR-0106: the heavier viewers load only when a file of their kind is opened.
 const PdfView = lazy(() =>
@@ -62,11 +65,14 @@ export function Files({
   workspace,
   focus,
   onFocus,
+  open,
 }: {
   session: SessionInfo;
   workspace: Workspace;
   focus: string;
   onFocus: (id: string) => void;
+  /** Opens another page (ADR-0134: Evidence, at the source made from a file). */
+  open?: (view: View, id?: string) => void;
 }) {
   const base = filesPath(workspace.id);
   const [sort, setSort] = useState<FileSort>('newest');
@@ -119,8 +125,9 @@ export function Files({
       <h2 id="files-title">Files</h2>
       <p className="small">
         Everyone in this workspace can see its files. Uploading keeps the exact
-        original and its SHA-256; it never sends a file to a model or makes it
-        evidence. Drop files anywhere in the studio, or pick them here.
+        original and its SHA-256; uploading sends nothing to a model. A file
+        becomes evidence only when you press Use as evidence. Drop files
+        anywhere in the studio, or pick them here.
       </p>
       <div className="files-bar">
         <button
@@ -279,6 +286,7 @@ export function Files({
             changed={() => page.refresh()}
             wide={wide}
             setWide={setWide}
+            open={open}
           />
         )}
       </div>
@@ -294,6 +302,7 @@ function FileDetail({
   changed,
   wide,
   setWide,
+  open,
 }: {
   id: string;
   session: SessionInfo;
@@ -302,6 +311,7 @@ function FileDetail({
   changed: () => void;
   wide: boolean;
   setWide: (wide: boolean) => void;
+  open: ((view: View, id?: string) => void) | undefined;
 }) {
   const base = `${filesPath(workspace.id)}/${id}`;
   const detail = useLoad(
@@ -315,6 +325,43 @@ function FileDetail({
   const owner = workspace.role === 'owner';
   const writer = workspace.role !== 'viewer';
   const newVersion = useRef<HTMLInputElement>(null);
+  // ADR-0134: the source made from this file, once "Use as evidence" was pressed.
+  const [evidence, setEvidence] = useState<{
+    source: string;
+    note: string;
+  } | null>(null);
+  // Review 1 M-2: the source already made from this file, and which file version it uses.
+  const source = useLoad(
+    async () =>
+      (
+        await api(
+          z.array(SourceSummarySchema),
+          `workspaces/${workspace.id}/sources`,
+        )
+      ).find((s) => s.upload?.file_id === id) ?? null,
+    [workspace.id, id],
+  );
+  // Review 1 n-1: a new version clears the earlier "Ready to cite" note.
+  const current = detail.data?.file.current_version;
+  useEffect(() => setEvidence(null), [current]);
+  async function makeEvidence(fileVersion: number) {
+    setBusy(true);
+    setError('');
+    try {
+      const r = await fileAsEvidence(
+        workspace.id,
+        session.csrf_token,
+        id,
+        fileVersion,
+      );
+      setEvidence({ source: r.source.id, note: fileEvidenceNote(r) });
+      source.refresh();
+    } catch (e) {
+      setError(message(e));
+    } finally {
+      setBusy(false);
+    }
+  }
   async function act(path: string, body: unknown, after?: () => void) {
     setBusy(true);
     setError('');
@@ -397,6 +444,73 @@ function FileDetail({
                   )}
                 </div>
                 <FileView base={base} name={f.name} v={v} />
+                {(() => {
+                  const used = source.data;
+                  const latest = detail.data.versions[0]!;
+                  const older = v.version !== latest.version;
+                  const usable =
+                    writer && f.status === 'active' && latest.has_text;
+                  if (!used && !usable) return null;
+                  return (
+                    <div className="actions">
+                      {(source.stale || source.error) && (
+                        <span className="small">
+                          Could not read whether this file is evidence:{' '}
+                          {source.stale || source.error}
+                        </span>
+                      )}
+                      {used && (
+                        <span className="small">
+                          Evidence uses v{used.upload!.file_version}
+                          {used.upload!.file_version !== latest.version
+                            ? `; v${latest.version} is not used yet, so claims citing v${used.upload!.file_version} need a re-check.`
+                            : '.'}
+                        </span>
+                      )}
+                      {usable && (
+                        <button
+                          type="button"
+                          className="secondary"
+                          // Review 1 L-4: it always uses the newest version, so say which.
+                          disabled={busy || older}
+                          title={
+                            older
+                              ? `Only the newest version (v${latest.version}) can be used as evidence.`
+                              : 'Its text becomes a source you can quote in claims. Quotes you cite go with the claim to model steps such as Decide.'
+                          }
+                          onClick={() => void makeEvidence(latest.version)}
+                        >
+                          Use v{latest.version} as evidence
+                        </button>
+                      )}
+                      {evidence && (
+                        <span role="status" className="small">
+                          {evidence.note}{' '}
+                          {open && (
+                            <button
+                              type="button"
+                              className="text"
+                              onClick={() =>
+                                open('evidence', `source:${evidence.source}`)
+                              }
+                            >
+                              Cite a passage in a claim
+                            </button>
+                          )}
+                        </span>
+                      )}
+                      {!evidence && used && open && (
+                        <button
+                          type="button"
+                          className="text"
+                          onClick={() => open('evidence', `source:${used.id}`)}
+                        >
+                          Open on Sources and claims
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
                 {f.links.length > 0 && (
                   <>
                     <h4>Linked records</h4>
@@ -525,7 +639,7 @@ function FileDetail({
                             onClick={() => {
                               if (
                                 window.confirm(
-                                  `Delete “${f.name}” and all ${detail.data!.versions.length} of its versions permanently? This cannot be undone here. Backups made earlier still contain it until they are removed.`,
+                                  `Delete “${f.name}” and all ${detail.data!.versions.length} of its versions permanently? This cannot be undone here. Backups made earlier still contain it until they are removed.${source.data ? ' Its text stays on Sources and claims as evidence (up to 200 passages); redact that source there to remove it.' : ''}`,
                                 )
                               )
                                 void act('purge', {}, close);
