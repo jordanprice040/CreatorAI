@@ -24,6 +24,8 @@ import {
   viewerFor,
 } from './file-viewer-rules.js';
 import { useFileBytes } from './file-bytes.js';
+import { fileAsEvidence, fileEvidenceNote } from './file-evidence.js';
+import type { View } from './ui.js';
 
 // ADR-0106: the heavier viewers load only when a file of their kind is opened.
 const PdfView = lazy(() =>
@@ -62,11 +64,14 @@ export function Files({
   workspace,
   focus,
   onFocus,
+  open,
 }: {
   session: SessionInfo;
   workspace: Workspace;
   focus: string;
   onFocus: (id: string) => void;
+  /** Opens another page (ADR-0134: Evidence, at the source made from a file). */
+  open?: (view: View, id?: string) => void;
 }) {
   const base = filesPath(workspace.id);
   const [sort, setSort] = useState<FileSort>('newest');
@@ -119,8 +124,9 @@ export function Files({
       <h2 id="files-title">Files</h2>
       <p className="small">
         Everyone in this workspace can see its files. Uploading keeps the exact
-        original and its SHA-256; it never sends a file to a model or makes it
-        evidence. Drop files anywhere in the studio, or pick them here.
+        original and its SHA-256; it never sends a file to a model. A file
+        becomes evidence only when you press Use as evidence. Drop files
+        anywhere in the studio, or pick them here.
       </p>
       <div className="files-bar">
         <button
@@ -279,6 +285,7 @@ export function Files({
             changed={() => page.refresh()}
             wide={wide}
             setWide={setWide}
+            open={open}
           />
         )}
       </div>
@@ -294,6 +301,7 @@ function FileDetail({
   changed,
   wide,
   setWide,
+  open,
 }: {
   id: string;
   session: SessionInfo;
@@ -302,6 +310,7 @@ function FileDetail({
   changed: () => void;
   wide: boolean;
   setWide: (wide: boolean) => void;
+  open: ((view: View, id?: string) => void) | undefined;
 }) {
   const base = `${filesPath(workspace.id)}/${id}`;
   const detail = useLoad(
@@ -315,6 +324,28 @@ function FileDetail({
   const owner = workspace.role === 'owner';
   const writer = workspace.role !== 'viewer';
   const newVersion = useRef<HTMLInputElement>(null);
+  // ADR-0134: the source made from this file, once "Use as evidence" was pressed.
+  const [evidence, setEvidence] = useState<{
+    source: string;
+    note: string;
+  } | null>(null);
+  async function makeEvidence(fileVersion: number) {
+    setBusy(true);
+    setError('');
+    try {
+      const r = await fileAsEvidence(
+        workspace.id,
+        session.csrf_token,
+        id,
+        fileVersion,
+      );
+      setEvidence({ source: r.source.id, note: fileEvidenceNote(r) });
+    } catch (e) {
+      setError(message(e));
+    } finally {
+      setBusy(false);
+    }
+  }
   async function act(path: string, body: unknown, after?: () => void) {
     setBusy(true);
     setError('');
@@ -397,6 +428,39 @@ function FileDetail({
                   )}
                 </div>
                 <FileView base={base} name={f.name} v={v} />
+                {writer &&
+                  f.status === 'active' &&
+                  detail.data.versions[0]?.has_text && (
+                    <div className="actions">
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={busy}
+                        title="Its text becomes a source you can quote in claims, like a fetched page."
+                        onClick={() =>
+                          void makeEvidence(detail.data!.versions[0]!.version)
+                        }
+                      >
+                        Use as evidence
+                      </button>
+                      {evidence && (
+                        <span role="status" className="small">
+                          {evidence.note}{' '}
+                          {open && (
+                            <button
+                              type="button"
+                              className="text"
+                              onClick={() =>
+                                open('evidence', `source:${evidence.source}`)
+                              }
+                            >
+                              Cite a passage in a claim
+                            </button>
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 {f.links.length > 0 && (
                   <>
                     <h4>Linked records</h4>

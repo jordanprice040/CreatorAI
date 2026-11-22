@@ -207,10 +207,11 @@ export const RetrievalSchema = z.strictObject({
   id,
   workspace_id: id,
   fixture: z.boolean(),
-  run_id: id,
+  /** ADR-0134: null for an uploaded file made into a source (adapter `upload`); no run fetched it. */
+  run_id: id.nullable(),
   task_id: id.nullable(),
   logical_operation_id: id,
-  adapter: z.enum(['fixture', 'http', 'none']),
+  adapter: z.enum(['fixture', 'http', 'none', 'upload']),
   policy_hash: hash,
   requested_url: z.string().max(2000),
   final_url: z.string().max(2000).nullable(),
@@ -241,6 +242,8 @@ export const RetrievalSchema = z.strictObject({
   started_at: timestamp,
   finished_at: timestamp.nullable(),
   replayed: z.boolean(),
+  /** ADR-0134: the workspace file and version an `upload` retrieval read; null for fetches. */
+  file: z.strictObject({ id, version }).nullable(),
 });
 export type Retrieval = z.infer<typeof RetrievalSchema>;
 
@@ -438,6 +441,52 @@ export const SourceSummarySchema = z.strictObject({
   instruction_like: z.boolean(),
 });
 export type SourceSummary = z.infer<typeof SourceSummarySchema>;
+
+// ---- Uploaded documents as evidence (ADR-0134, migration 80) -------------------------------
+
+/**
+ * An uploaded file's text becomes a source the same way a fetched page does: one source per
+ * file, a new source version when a newer file version is used, passages with exact offsets,
+ * and claims cite those passages with a quote the studio checks word for word. Its address is
+ * this inert `upload://` form, which is never fetched; the file stays in the Library.
+ */
+export const UPLOAD_SOURCE_PREFIX = 'upload://file/';
+export const uploadSourceUrl = (fileId: string) =>
+  `${UPLOAD_SOURCE_PREFIX}${fileId.toLowerCase()}`;
+/** The file id behind an uploaded-document source address, or null for any other address. */
+export function uploadedFileId(url: string): string | null {
+  if (!url.startsWith(UPLOAD_SOURCE_PREFIX)) return null;
+  const rest = url.slice(UPLOAD_SOURCE_PREFIX.length);
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(
+    rest,
+  )
+    ? rest
+    : null;
+}
+/** Longest passage made from an uploaded document; the passage excerpt limit, so none is cut. */
+export const UPLOAD_PASSAGE_MAX_CHARS = 2000;
+/** Paragraphs are packed into one passage until it reaches about this many characters. */
+export const UPLOAD_PASSAGE_TARGET_CHARS = 1200;
+
+export const FileSourceRequestSchema = z.strictObject({
+  file_id: id,
+  /** The file version to use; it must be the file's current version. */
+  file_version: version,
+});
+export type FileSourceRequest = z.infer<typeof FileSourceRequestSchema>;
+export const FileSourceResultSchema = z.strictObject({
+  source: SourceSummarySchema,
+  /** False when this file version was already the source's current version. */
+  changed: z.boolean(),
+  passages: counter,
+  /**
+   * Part of the text could not be cited: the file's kept text was cut, or the document had more
+   * passages than a source keeps (SOURCE_MAX_PASSAGES).
+   */
+  partial: z.boolean(),
+  retrieval_id: id,
+});
+export type FileSourceResult = z.infer<typeof FileSourceResultSchema>;
 export const SourceDetailSchema = z.strictObject({
   source: SourceSummarySchema,
   passages: z.array(PassageSchema).max(500),

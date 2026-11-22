@@ -3,6 +3,7 @@ import type { PoolClient } from 'pg';
 import {
   ChangeEvidenceSitesRequestSchema,
   ClaimSupportRequestSchema,
+  FileSourceRequestSchema,
   RetractSupportRequestSchema,
   SourceFetchRequestSchema,
   isAllowedLink,
@@ -12,6 +13,7 @@ import {
   type EvidenceSiteMode,
   type ClaimSupport,
   type ClaimSupportRequest,
+  type FileSourceResult,
   type Passage,
   type Retention,
   type Retrieval,
@@ -21,6 +23,9 @@ import {
   type StoredEntity,
   AUTOPILOT_QUOTE_CHECK_LABEL,
   SOURCE_MAX_PASSAGES,
+  UPLOAD_PASSAGE_MAX_CHARS,
+  UPLOAD_PASSAGE_TARGET_CHARS,
+  uploadSourceUrl,
 } from '@creator/contracts';
 import {
   assessClaimEvidence,
@@ -29,6 +34,7 @@ import {
   canonicalHash,
   looksLikeInstructions,
   quoteInPassage,
+  uploadedTextPassages,
   urlKey,
 } from '@creator/domain';
 import { webDiscoveryFetchRefusal } from './web-discovery-gates.js';
@@ -131,7 +137,7 @@ function toRetrieval(r: Row, replayed = false): Retrieval {
     id: String(r.id),
     workspace_id: String(r.workspace_id),
     fixture: Boolean(r.fixture),
-    run_id: String(r.run_id),
+    run_id: r.run_id ? String(r.run_id) : null,
     task_id: r.task_id ? String(r.task_id) : null,
     logical_operation_id: String(r.logical_operation_id),
     adapter: r.adapter as Retrieval['adapter'],
@@ -157,6 +163,9 @@ function toRetrieval(r: Row, replayed = false): Retrieval {
     started_at: iso(r.started_at),
     finished_at: r.finished_at ? iso(r.finished_at) : null,
     replayed,
+    file: r.file_id
+      ? { id: String(r.file_id), version: Number(r.file_version) }
+      : null,
   };
 }
 function toPassage(r: Row): Passage {
@@ -543,7 +552,10 @@ export class ResearchStore extends WorkflowStore {
           http_status: f.http_status,
           changed: source?.changed ?? false,
         },
-        relatedIds: [String(r.run_id), ...(source ? [source.id] : [])],
+        relatedIds: [
+          ...(r.run_id ? [String(r.run_id)] : []),
+          ...(source ? [source.id] : []),
+        ],
       });
       return toRetrieval(updated.rows[0] as Row);
     });
@@ -559,6 +571,8 @@ export class ResearchStore extends WorkflowStore {
       RetrievalFinish,
       { state: 'fetched' | 'inaccessible' | 'removed' }
     >,
+    /** ADR-0134: the uploaded file this text came from, instead of a fetched page. */
+    upload: { name: string; version: number; truncated: boolean } | null = null,
   ): Promise<{
     id: string;
     version: number;
@@ -642,10 +656,11 @@ export class ResearchStore extends WorkflowStore {
         };
     }
     const host = new URL(f.final_url);
-    const title = (doc?.title || `${host.hostname}${host.pathname}`).slice(
-      0,
-      500,
-    );
+    const title = (
+      upload?.name ||
+      doc?.title ||
+      `${host.hostname}${host.pathname}`
+    ).slice(0, 500);
     const body = validateBody('source', {
       url: f.final_url,
       retrieval_status: status,
@@ -654,19 +669,25 @@ export class ResearchStore extends WorkflowStore {
       published_at: doc?.published_at ?? null,
       independent_origin:
         `origin ${cluster.id.slice(0, 8)} (${cluster.reason})`.slice(0, 500),
-      observation:
-        f.state === 'fetched'
+      observation: upload
+        ? `Uploaded file “${upload.name}” v${upload.version}: ${f.state === 'fetched' ? Math.min(f.doc.paragraphs.length, f.max_passages) : 0} passages from its text${upload.truncated ? ' (the file’s kept text was cut)' : ''}.`.slice(
+            0,
+            2000,
+          )
+        : f.state === 'fetched'
           ? `Fetched ${f.bytes} bytes of ${f.content_type}; ${Math.min(f.doc.paragraphs.length, f.max_passages)} passages extracted.`
           : `The server answered HTTP ${f.http_status}; the content was not readable.`,
-      uncertainty:
-        f.state === 'fetched'
+      uncertainty: upload
+        ? 'Shows what the uploaded document says; that does not make it true, and nobody outside checked where it came from.'
+        : f.state === 'fetched'
           ? 'Shows what the page said when it was retrieved; that does not make it true.'
           : 'Nothing about the content is known beyond the server’s response.',
       retrieval: {
         retrieval_id: String(r.id),
         final_url: f.final_url,
-        access:
-          f.state === 'fetched'
+        access: upload
+          ? 'uploaded'
+          : f.state === 'fetched'
             ? 'public'
             : f.state === 'inaccessible'
               ? 'restricted'
@@ -686,8 +707,9 @@ export class ResearchStore extends WorkflowStore {
         title,
         body,
         hash: contentHashOf('source', title, body),
-        reason:
-          status === 'available'
+        reason: upload
+          ? `Used file version ${upload.version} as evidence.`
+          : status === 'available'
             ? 'Re-fetched; the content changed.'
             : `Re-fetched; the page is now ${status}.`,
         corrects: null,
@@ -846,6 +868,185 @@ export class ResearchStore extends WorkflowStore {
           id: String(s.source_id),
           url: String(s.url_key),
         })),
+      };
+    });
+  }
+
+  /**
+   * ADR-0134: makes the current version of an uploaded file a source, so claims can cite its
+   * passages like a fetched page's. Nothing is fetched and no run or permission is used: the
+   * text is the file's own kept text, read by an editor of the workspace. The same file always
+   * maps to the same source; a newer file version writes a new source version, so support
+   * cited from the old one shows as changed until it is re-assessed.
+   */
+  async sourceFromFile(
+    ctx: CommandContext,
+    ws: string,
+    raw: unknown,
+  ): Promise<FileSourceResult> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    const req = parse(FileSourceRequestSchema, raw);
+    const fileId = req.file_id.toLowerCase();
+    return this.idempotent(ws, ctx, { op: 'file_source', req }, async (c) => {
+      await this.role(c, ws, ctx.actorId, true);
+      const file = (
+        await c.query(
+          `select f.name, f.status, f.current_version, v.sha256, v.size_bytes, v.media_type,
+               v.text_content, v.text_truncated
+             from workspace_files f
+               join workspace_file_versions v on v.file_id = f.id and v.version = $3
+             where f.workspace_id = $1 and f.id = $2 for share of f`,
+          [ws, fileId, req.file_version],
+        )
+      ).rows[0] as Row | undefined;
+      if (!file) throw fail('NOT_FOUND', 'File version not found.');
+      if (file.status !== 'active')
+        throw fail(
+          'INVALID_TRANSITION',
+          'This file is deleted; restore it before using it as evidence.',
+        );
+      if (Number(file.current_version) !== req.file_version)
+        throw fail(
+          'VERSION_CONFLICT',
+          `The file is now at v${String(file.current_version)}; use that version.`,
+        );
+      if (file.text_content === null)
+        throw fail(
+          'INVALID_CONTRACT',
+          'This file has no readable text to quote. Text, Markdown, CSV, JSON and code files can be used as evidence.',
+        );
+      const text = String(file.text_content);
+      const split = uploadedTextPassages(text, {
+        target: UPLOAD_PASSAGE_TARGET_CHARS,
+        max: UPLOAD_PASSAGE_MAX_CHARS,
+        maxPassages: SOURCE_MAX_PASSAGES,
+      });
+      if (!split.passages.length)
+        throw fail('INVALID_CONTRACT', 'This file has no text to quote.');
+      const url = uploadSourceUrl(fileId);
+      const name = String(file.name);
+      const truncated = Boolean(file.text_truncated);
+      const started = (
+        await c.query(
+          `insert into source_retrievals (id, workspace_id, fixture, run_id, task_id,
+               logical_operation_id, request_hash, adapter, policy_hash, requested_url, url_key,
+               state, reason_code, explanation, actor_id, file_id, file_version)
+             select $1, w.id, w.fixture, null, null, $3, $4, 'upload', $5, $6, $7,
+               'in_flight', 'started', '', $8, $9, $10
+             from workspaces w where w.id = $2 returning *`,
+          [
+            randomUUID(),
+            ws,
+            randomUUID(),
+            canonicalHash({ op: 'file_source', file: fileId, req }),
+            sha256('upload-evidence/1'),
+            url,
+            urlKey(url),
+            ctx.actorId,
+            fileId,
+            req.file_version,
+          ],
+        )
+      ).rows[0] as Row;
+      const doc: ExtractedDocument = {
+        title: name,
+        published_at: null,
+        canonical_url: null,
+        text_hash: sha256(text),
+        fingerprint: sha256(
+          text
+            .toLowerCase()
+            .replace(/[^\p{L}\p{N}]+/gu, ' ')
+            .trim(),
+        ),
+        paragraphs: split.passages,
+        instruction_like: split.passages.some((p) =>
+          looksLikeInstructions(p.text),
+        ),
+      };
+      const source = await this.recordSource(
+        c,
+        ctx,
+        ws,
+        started,
+        {
+          state: 'fetched',
+          final_url: url,
+          redirects: [],
+          http_status: 0,
+          content_type: String(file.media_type),
+          bytes: Number(file.size_bytes),
+          content_hash: String(file.sha256),
+          retention: 'excerpts',
+          doc,
+          max_passages: SOURCE_MAX_PASSAGES,
+          max_excerpt_chars: UPLOAD_PASSAGE_MAX_CHARS,
+        },
+        { name, version: req.file_version, truncated },
+      );
+      if (source.redacted)
+        throw fail(
+          'INVALID_TRANSITION',
+          'The source made from this file was redacted; its text cannot be used again.',
+        );
+      const reason = source.changed ? 'new_version' : 'unchanged';
+      await c.query(
+        `update source_retrievals set state = 'fetched', reason_code = $2, explanation = $3,
+             final_url = $4, content_type = $5, bytes = $6, content_hash = $7, text_hash = $8,
+             source_id = $9, source_version = $10, changed = $11, instruction_like = $12,
+             finished_at = now()
+           where id = $1`,
+        [
+          started.id,
+          reason,
+          source.changed
+            ? `Recorded source v${source.version} from file v${req.file_version} with ${split.passages.length} passages.`
+            : `File v${req.file_version} is already source v${source.version}; no new version.`,
+          url,
+          String(file.media_type),
+          Number(file.size_bytes),
+          String(file.sha256),
+          doc.text_hash,
+          source.id,
+          source.version,
+          source.changed,
+          doc.instruction_like,
+        ],
+      );
+      await this.append(c, ctx, {
+        workspaceId: ws,
+        action: 'source.file_used',
+        subjectKind: 'retrieval',
+        subjectId: String(started.id),
+        subjectVersion: null,
+        contentHash: String(file.sha256),
+        payload: {
+          file_id: fileId,
+          file_version: req.file_version,
+          changed: source.changed,
+          passages: split.passages.length,
+        },
+        relatedIds: [fileId, source.id],
+      });
+      const summary = (
+        await c.query(`${SUMMARY_SQL} and rs.source_id = $2`, [ws, source.id])
+      ).rows[0] as Row;
+      const kept = Number(
+        (
+          await c.query(
+            `select count(*) as n from source_passages
+                where source_id = $1 and source_version = $2`,
+            [source.id, source.version],
+          )
+        ).rows[0]?.n ?? 0,
+      );
+      return {
+        source: toSummary(summary),
+        changed: source.changed,
+        passages: kept,
+        partial: split.partial || truncated,
+        retrieval_id: String(started.id),
       };
     });
   }

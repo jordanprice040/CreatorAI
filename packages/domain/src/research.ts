@@ -463,3 +463,53 @@ export function evidencePacket(
     passages: body,
   });
 }
+
+/**
+ * ADR-0134: passages from an uploaded document's text. Paragraphs (split at blank lines) are
+ * trimmed and packed together up to about `target` characters; a paragraph longer than `max`
+ * is cut at its last line break, else its last space, else at `max`. Each passage is the exact
+ * text between its offsets, so a quote is checked against what the file says. Passages past
+ * `maxPassages` are left out and `partial` says so.
+ */
+export function uploadedTextPassages(
+  text: string,
+  opts: { target: number; max: number; maxPassages: number },
+): {
+  passages: { text: string; start: number; end: number }[];
+  partial: boolean;
+} {
+  const pieces: { start: number; end: number }[] = [];
+  const para = /\S[\s\S]*?(?=\n[ \t\r\f\v]*\n|\s*$)/g;
+  for (const m of text.matchAll(para)) {
+    let start = m.index;
+    const end = start + m[0].trimEnd().length;
+    while (end - start > opts.max) {
+      const window = text.slice(start, start + opts.max);
+      const nl = window.lastIndexOf('\n');
+      const sp = window.search(/\s\S*$/);
+      const cut = nl > opts.max / 4 ? nl : sp > opts.max / 4 ? sp : opts.max;
+      const piece = text.slice(start, start + cut).trimEnd();
+      if (piece) pieces.push({ start, end: start + piece.length });
+      start += cut;
+      while (start < end && /\s/.test(text[start]!)) start++;
+    }
+    if (end > start) pieces.push({ start, end });
+  }
+  const packed: { start: number; end: number }[] = [];
+  for (const p of pieces) {
+    const last = packed[packed.length - 1];
+    if (
+      last &&
+      last.end - last.start < opts.target &&
+      p.end - last.start <= opts.max
+    )
+      last.end = p.end;
+    else packed.push({ ...p });
+  }
+  return {
+    passages: packed
+      .slice(0, opts.maxPassages)
+      .map((p) => ({ ...p, text: text.slice(p.start, p.end) })),
+    partial: packed.length > opts.maxPassages,
+  };
+}

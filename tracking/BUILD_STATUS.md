@@ -1,8 +1,8 @@
 # Build status — November 19, 2026
 
 Current source: main `561cb09` (PR #240, November 19), which includes every merged PR through #246. Schema **79**
-(migrations 42, 71, 75, 76 and 77 are unused; 76 stays reserved for later F11 slices). Next free migration **80**,
-next ADR **0133**. On Jordan's PC the installed app is the **trial build 0.1.8** (schema 79) from the F4 live
+(migrations 42, 71, 75, 76 and 77 are unused; 76 stays reserved for later F11 slices). Next free migration **81**,
+next ADR **0135** (ADR-0134 and migration 80 went to uploaded documents as evidence, November 22). On Jordan's PC the installed app is the **trial build 0.1.8** (schema 79) from the F4 live
 trial, so the next real release must be **0.1.9 or higher**; the dev studio runs from the worktree
 `C:\dev\creator_agent_mainrun` at main `ae6c42e1` (schema 79). This top section was rewritten on November 19 from
 the project state review of that morning (report in the project files,
@@ -62,6 +62,10 @@ updater; then the owner's choice between a short P17 acceptance walk and build p
 thesis scope is decided (Jordan, November 19: executed evidence plus the frozen AI-only run, ADR-0133); its live run
 needs Jordan's typed OK and comes first, by November 27. Do not automatically install, publish, run a live provider or advance the pilot or thesis. Accepted
 owner decisions and existing scoped grants remain authoritative.
+
+## November 22 update — uploaded documents as claim evidence (ADR-0134, migration 80)
+
+What now works: an editor can turn the current version of an uploaded text file (text, Markdown, CSV, JSON, code) into a source with **Use as evidence** on Sources › Files or the new "Or use an uploaded document" row on Sources and claims, then cite its passages in claims with the existing Cite form; the server checks each quote against the file's text, and the claim's evidence status, freshness and retraction work as for fetched pages. A newer file version used as evidence makes a new source version, so earlier citations show "changed" until re-assessed. Uploads need no run. Autopilot claim linking on public data and source rechecks skip uploaded documents. Checks (cloud, PostgreSQL 16): typecheck and prettier pass; new `tests/src/file-evidence.test.ts` (5 tests: source, passages and cited quote end to end, re-use and new version, refusals for no-text, blank, deleted, other-workspace and viewer requests and the upload check constraint, long-document cap, exact passage splitting and speed on 2 MB, recheck skips uploads); `autopilot.test.ts` ADR-0100 test now proves an upload-backed claim is not linked on public data (it fails with the fix reverted). Browser walk on a throwaway database (ports 5183/4330/4340): upload, Use as evidence, open on Sources and claims, cite with a quote, claim shows "supported". Full suite: see the PR. Not checked on the dev studio or installed app (they need schema 80). Next free: migration 81, ADR-0135.
 
 ## November 19 update — thesis AI-only run frozen before any run (ADR-0133, no migration)
 

@@ -13,6 +13,8 @@ import {
   SourceDetailSchema,
   SourceSummarySchema,
   StoredEntitySchema,
+  WorkspaceFilePageSchema,
+  uploadedFileId,
   z,
   type ClaimEvidence,
   type Retrieval,
@@ -35,6 +37,7 @@ import { ReasonForm } from './reason-form.js';
 import { Routine, WhatWillHappen } from './routine.js';
 import { ClaimLinks } from './link-claims.js';
 import { Term } from './term.js';
+import { fileAsEvidence, fileEvidenceNote } from './file-evidence.js';
 
 type Passage = SourceDetail['passages'][number];
 const squash = (s: string) => s.replace(/\s+/g, ' ').trim();
@@ -98,6 +101,12 @@ export function Evidence({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [cite, setCite] = useState<Passage | null>(null);
+  // ADR-0134: Library files with text, which can become sources.
+  const [docs, setDocs] = useState<
+    { id: string; name: string; version: number }[]
+  >([]);
+  const [doc, setDoc] = useState('');
+  const [docNote, setDocNote] = useState('');
   // The claim evidence row whose "Retract…" form is open.
   const [retracting, setRetracting] = useState('');
   // A claim the cite form saved whose evidence step then failed. Kept here, not in the form,
@@ -129,6 +138,46 @@ export function Evidence({
       );
     } catch (e) {
       setError(message(e));
+    }
+    try {
+      const files = await api(
+        WorkspaceFilePageSchema,
+        `workspaces/${workspace}/files?sort=newest`,
+      );
+      const usable = files.items
+        .filter((f) => f.status === 'active' && f.current.has_text)
+        .map((f) => ({ id: f.id, name: f.name, version: f.current_version }));
+      setDocs(usable);
+      setDoc((cur) =>
+        usable.some((f) => f.id === cur) ? cur : (usable[0]?.id ?? ''),
+      );
+    } catch {
+      // Files are optional here; the Library page reports its own errors.
+      setDocs([]);
+    }
+  }
+  /** ADR-0134: the chosen Library file becomes a source whose passages can be cited. */
+  async function addDocument(e: FormEvent) {
+    e.preventDefault();
+    const f = docs.find((x) => x.id === doc);
+    if (!f) return;
+    setBusy(true);
+    setError('');
+    setDocNote('');
+    try {
+      const r = await fileAsEvidence(
+        workspace,
+        session.csrf_token,
+        f.id,
+        f.version,
+      );
+      setDocNote(fileEvidenceNote(r));
+      await load();
+      await openSource(r.source.id);
+    } catch (err) {
+      setError(message(err));
+    } finally {
+      setBusy(false);
     }
   }
   useEffect(() => {
@@ -307,6 +356,7 @@ export function Evidence({
             {owner ? '; you can revoke that under Monitor › Approvals' : ''}.
             {!fixture &&
               ' Real pages are fetched only while live fetching is on.'}
+            {docs.length > 0 && ' Uploaded documents (below) need no run.'}
           </p>
           <div className="actions">
             {owner && (
@@ -381,6 +431,32 @@ export function Evidence({
           </span>
         )}
       </form>
+      {editor && docs.length > 0 && (
+        <form className="fetch-row" onSubmit={(e) => void addDocument(e)}>
+          <label htmlFor="evdoc" className="inline">
+            Or use an uploaded document
+          </label>
+          <select
+            id="evdoc"
+            value={doc}
+            onChange={(e) => setDoc(e.target.value)}
+          >
+            {docs.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
+            ))}
+          </select>
+          <button className="secondary" disabled={busy || !doc}>
+            Use as evidence
+          </button>
+          {docNote && (
+            <span className="small" role="status">
+              {docNote}
+            </span>
+          )}
+        </form>
+      )}
       {last && (
         <p className={`small ret-${last.state}`} role="status">
           <span className="badge">{words(last.state)}</span>{' '}
@@ -402,7 +478,7 @@ export function Evidence({
                     onClick={() => void openSource(s.id)}
                   >
                     <span className={`badge src-${s.retrieval_status}`}>
-                      {s.retrieval_status}
+                      {uploadedFileId(s.url) ? 'uploaded' : s.retrieval_status}
                     </span>{' '}
                     {s.title}
                     <small>
@@ -449,7 +525,12 @@ export function Evidence({
             <ol className="history">
               {retrievals.map((r) => (
                 <li key={r.id} className={`ret-${r.state}`}>
-                  <span>{words(r.state)}</span> {r.requested_url}
+                  <span>
+                    {r.file && r.state === 'fetched' ? 'used' : words(r.state)}
+                  </span>{' '}
+                  {r.file
+                    ? `uploaded document, file v${r.file.version}`
+                    : r.requested_url}
                   <small> {words(r.reason_code)}</small>
                 </li>
               ))}
@@ -567,7 +648,10 @@ export function Evidence({
             <>
               <h3>Source: {source.source.title}</h3>
               <p className="small">
-                {source.source.url} · v{source.source.version} ·{' '}
+                {uploadedFileId(source.source.url)
+                  ? 'Uploaded document in Files'
+                  : source.source.url}{' '}
+                · v{source.source.version} ·{' '}
                 {source.source.retention === 'hash_only'
                   ? 'hashes only (no excerpts kept)'
                   : 'excerpts kept'}
@@ -575,7 +659,7 @@ export function Evidence({
                   ? ` · published ${when(source.source.published_at)}`
                   : ''}
                 {source.source.last_fetched_at
-                  ? ` · checked ${when(source.source.last_fetched_at)}`
+                  ? ` · ${uploadedFileId(source.source.url) ? 'used' : 'checked'} ${when(source.source.last_fetched_at)}`
                   : ''}
               </p>
               <p className="small">
