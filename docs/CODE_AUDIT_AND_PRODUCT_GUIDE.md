@@ -1,4 +1,4 @@
-# Creator Agent product guide — November 15, 2026
+# Creator Agent product guide — November 22, 2026
 
 Use [current implementation and verification](CURRENT_STATUS.md) for capability boundaries and
 [build status](../tracking/BUILD_STATUS.md) for what was checked and when. The
@@ -10,13 +10,15 @@ Use [current implementation and verification](CURRENT_STATUS.md) for capability 
 The left nav has seven pages. **Chat** answers what's next, why something is blocked and, with a
 plan connection, open questions; a step can also be done there as a card. **Projects** holds the
 path from evidence to a product, one tab per step. **Autopilot** takes those steps for you and
-stops where a person must decide. **Sources** holds pages, claims, the library, files and search.
+stops where a person must decide. **Sources** holds pages, claims, the Library, files and search.
 **Monitor** shows what runs, what waits for you, activity and budgets. **Models and connections**
 and **Settings** hold access and owner settings.
 
 The **Next** banner at the top of each page names the one step that moves the main path on and
-links to it. Standard view (the default) folds routine settings behind their defaults and shows
-amounts in cents; Advanced view, at the foot of the nav, lists every tab and shows exact amounts
+links to it. Standard view (the default) folds routine settings behind their defaults, keeps each
+explanation to one line (open it for the full text), folds long sections closed with their
+current state on the title, and shows amounts in cents; it lists every page you need day to day,
+including Library. Advanced view, at the foot of the nav, lists every tab and shows exact amounts
 and ids. Both send the same requests and the server checks them the same way.
 
 ## Everyday path
@@ -29,11 +31,15 @@ and ids. Both send the same requests and the server checks them the same way.
    connection's settings can be copied to another workspace; nothing it earned comes along.
    When a daily cap runs out, the owner can add extra requests for 24 hours.
 3. Record evidence under **Sources**: fetch a page from an approved site and cite a passage in a
-   claim. **Projects › Discover › Search the web** finds new pages through the plan's own web
-   search; the studio fetches them and drafts claims only from quotes it finds on the page. A
-   typed theme is not evidence.
+   claim. An uploaded text document (text, Markdown, CSV, JSON or code) is evidence too once you
+   press **Use as evidence** on Sources › Files, or pick it under "Or use an uploaded document"
+   on Sources and claims; its quotes are checked against the file's text the same way.
+   **Projects › Discover › Search the web** finds new pages through the plan's own web search;
+   the studio fetches them and drafts claims only from quotes it finds on the page. A typed
+   theme is not evidence.
 4. On **Discover**, start from claims (Explore for me), a short brief, or the web. Discoveries
-   and what to do when one stops show on Discover and Decide.
+   and what to do when one stops show on Discover and Decide. A claim tag such as "C1" in a
+   result links to that claim and previews it.
 5. On **Decide**, read every option against the same evidence, link claims to options, assess
    automatically or score by hand, confirm ethics and access in the gate checklist, and record a
    selection. Existing tools, process changes, human-led action and defer/decline remain

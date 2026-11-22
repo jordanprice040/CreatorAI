@@ -107,8 +107,8 @@ record a choice and freeze a plan. Addresses from before the page map (`#/runs?w
 still open the same screen. Each person chooses Standard (the default) or Advanced at the
 foot of the page list or on Settings, and the choice is saved for them on the server
 (ADR-0082). Standard folds routine fields behind their defaults, shows "What will happen"
-before each start, and leaves Launch, Runs, Library, Workers and Study (and Discover's theme
-draft) out of the tab rows (their addresses
+before each start, keeps explanations to one line and folds long sections closed, and leaves
+Launch, Runs, Workers and Study (and Discover's theme draft) out of the tab rows (their addresses
 still open); Advanced opens every field and lists every tab. A new workspace shows a
 "Getting started" path on Chat and Path.
 
