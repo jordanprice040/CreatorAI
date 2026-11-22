@@ -4,6 +4,7 @@ import {
   SOURCE_RECHECK_MAX,
   SourceRecheckRequestSchema,
   parse,
+  uploadedFileId,
   type ProblemComparison,
   type Retrieval,
   type SourceRecheckOutcome,
@@ -78,6 +79,9 @@ export async function recheckSources(o: {
   for (const c of cmp.claims)
     for (const r of c.evidence.rows) {
       if (r.freshness === 'retracted') continue;
+      // ADR-0134: an uploaded document has no page to fetch; a newer file version is used
+      // from the Library instead.
+      if (uploadedFileId(r.source_url)) continue;
       const id = r.support.source_id;
       const seen = cited.get(id);
       if (!seen)

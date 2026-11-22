@@ -1,8 +1,8 @@
 # Build status — November 19, 2026
 
 Current source: main `561cb09` (PR #240, November 19), which includes every merged PR through #246. Schema **79**
-(migrations 42, 71, 75, 76 and 77 are unused; 76 stays reserved for later F11 slices). Next free migration **80**,
-next ADR **0133**. On Jordan's PC the installed app is the **trial build 0.1.8** (schema 79) from the F4 live
+(migrations 42, 71, 75, 76 and 77 are unused; 76 stays reserved for later F11 slices). Next free migration **81**,
+next ADR **0135** (ADR-0134 and migration 80 went to uploaded documents as evidence, November 22). On Jordan's PC the installed app is the **trial build 0.1.8** (schema 79) from the F4 live
 trial, so the next real release must be **0.1.9 or higher**; the dev studio runs from the worktree
 `C:\dev\creator_agent_mainrun` at main `ae6c42e1` (schema 79). This top section was rewritten on November 19 from
 the project state review of that morning (report in the project files,
@@ -66,6 +66,10 @@ owner decisions and existing scoped grants remain authoritative.
 ## November 22 update — tester installer includes PostgreSQL (ADR-0135, no migration)
 
 Branch `claude/project-thread-5odrri`. `build-studio.mjs --postgres <folder>` puts PostgreSQL 18 (bin, lib, share only) into the installer; the setup window preselects "Included with Creator Agent" on a new computer and copies it into `<studio home>\runtime\postgresql-<version>`, so the database never runs from the install folder. Existing installs keep their saved folder. New `docs/TESTER_GUIDE.md` for testers (install, first launch, feedback, update, uninstall). Checks run in the cloud: `cargo test` (new `postgres::tests` pass; the 2 known Linux-only `home::tests` path failures are unchanged from main), `cargo fmt`, `cargo clippy` (only the 3 existing Linux dead-code warnings), Prettier, and `build-studio.mjs --postgres` against a stand-in folder. Not yet done: a Windows tester build with `C:\pgsql18\pgsql` and an install on a clean Windows account (needs Jordan's PC and typed OK); the release itself should wait for the open cleanup PRs (Standard mode, uploads as evidence, drop upload, claim links) and ship as 0.1.9 or higher after `v0.1.7` is deleted.
+
+## November 22 update — uploaded documents as claim evidence (ADR-0134, migration 80)
+
+What now works: an editor can turn the current version of an uploaded text file (text, Markdown, CSV, JSON, code) into a source with **Use as evidence** on Sources › Files or the new "Or use an uploaded document" row on Sources and claims, then cite its passages in claims with the existing Cite form; the server checks each quote against the file's text, and the claim's evidence status, freshness and retraction work as for fetched pages. A newer file version used as evidence makes a new source version, so earlier citations show "changed" until re-assessed. Uploads need no run. Autopilot claim linking on public data and source rechecks skip uploaded documents. Checks (cloud, PostgreSQL 16): typecheck and prettier pass; new `tests/src/file-evidence.test.ts` (5 tests: source, passages and cited quote end to end, re-use and new version, refusals for no-text, blank, deleted, other-workspace and viewer requests and the upload check constraint, long-document cap, exact passage splitting and speed on 2 MB, recheck skips uploads); `autopilot.test.ts` ADR-0100 test now proves an upload-backed claim is not linked on public data (it fails with the fix reverted). Browser walk on a throwaway database (ports 5183/4330/4340): upload, Use as evidence, open on Sources and claims, cite with a quote, claim shows "supported". Full suite 1,548 tests: 1,511 pass, 32 skipped, 5 failed (the known PowerShell-wrapper tests, no pwsh). Not checked on the dev studio or installed app (they need schema 80). Next free: migration 81, ADR-0135. Review 1 (0 High, 3 Medium, 4 Low, 2 nits) is fixed: linear passage splitting, citations flagged when the file gets a newer version or is deleted, a purge warning when the file is evidence, emoji-safe cuts, clearer model wording, every file page in the picker, and a version-named button (ADR-0134 amendment). After the fixes: 1,553 tests, 1,516 pass, 32 skipped, 5 failed (the PowerShell-wrapper tests); `file-evidence.test.ts` now has 6 tests, including timing bounds on long whitespace runs, an emoji cut, and newer-version, delete and purge flags. Re-review (one Low, one nit) is fixed: a file reverted to earlier text and used again counts as current, and unchanged uploads never age past the freshness window; `file-evidence.test.ts` now has 7 tests (the new one fails with the ordering fix reverted). Full suite after: 1,554 tests, 1,517 pass, 32 skipped, 5 failed (the PowerShell-wrapper tests).
 
 ## November 22 update — claim tags link to their claim (no migration or ADR)
 
@@ -1303,7 +1307,7 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
 - Nothing on Jordan's device or in any studio database records the pilot's status (no runtime consumer of
   `owner-pilot.json`), so no app or database step is needed.
 - Checks (cloud container): typecheck and format check pass; the X10 readiness tests pass; `pnpm readiness
-pilot-check` reports the gate ready with no refusals. Full suite: see the PR. Next eligible: unchanged (P10 and
+pilot-check` reports the gate ready with no refusals. Full suite 1,548 tests: 1,511 pass, 32 skipped, 5 failed (the known PowerShell-wrapper tests, no pwsh). Next eligible: unchanged (P10 and
   P16 in their threads; then the installed-app upgrade, P12 once a search provider is chosen).
 
 ## PR #155 review fixes (November 10, no migration or ADR)

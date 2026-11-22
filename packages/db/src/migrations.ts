@@ -4134,6 +4134,45 @@ create trigger github_app_setups_forward before update or delete on github_app_s
  for each row execute function creator_github_app_setup_change();
 `,
   },
+  {
+    // ADR-0134: an uploaded file's text made into a source, so claims can cite it. The
+    // retrieval that records it has adapter 'upload', no run (nothing was fetched and no
+    // permission was used) and names the file and version it read. Passages and claim support
+    // stay exactly as for fetched pages. The file reference is provenance only: purging the
+    // file later leaves the source's recorded passages in place.
+    version: 80,
+    name: 'uploaded_file_sources',
+    sql: `
+alter table source_retrievals alter column run_id drop not null;
+alter table source_retrievals drop constraint source_retrievals_adapter_check;
+alter table source_retrievals add constraint source_retrievals_adapter_check
+  check (adapter in ('fixture', 'http', 'none', 'upload'));
+alter table source_retrievals add column file_id uuid;
+alter table source_retrievals add column file_version integer check (file_version >= 1);
+alter table source_retrievals add constraint source_retrievals_upload_check check (
+  (adapter = 'upload') = (run_id is null)
+  and (adapter = 'upload') = (file_id is not null)
+  and (file_id is null) = (file_version is null));
+create index source_retrievals_file on source_retrievals (workspace_id, file_id)
+  where file_id is not null;
+create or replace function creator_retrieval_finish() returns trigger language plpgsql as $$
+begin
+  if old.state <> 'in_flight'
+     or (new.id, new.workspace_id, new.fixture, new.run_id, new.task_id,
+         new.logical_operation_id, new.request_hash, new.adapter, new.policy_hash,
+         new.requested_url, new.url_key, new.admission_id, new.actor_id, new.started_at,
+         new.file_id, new.file_version)
+       is distinct from
+        (old.id, old.workspace_id, old.fixture, old.run_id, old.task_id,
+         old.logical_operation_id, old.request_hash, old.adapter, old.policy_hash,
+         old.requested_url, old.url_key, old.admission_id, old.actor_id, old.started_at,
+         old.file_id, old.file_version) then
+    raise exception 'a finished retrieval is immutable' using errcode = 'P0001';
+  end if;
+  return new;
+end $$;
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

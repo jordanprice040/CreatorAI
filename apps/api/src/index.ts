@@ -2644,6 +2644,13 @@ export function createApi(
     } else if (collection === 'sources') {
       if (!item && method === 'GET')
         return send(200, await store.listSources(ctx, ws), false);
+      // ADR-0134: an uploaded file's current version becomes a citable source.
+      if (!item && method === 'POST')
+        return send(
+          200,
+          await store.sourceFromFile(ctx, ws, await readJson(req)),
+          true,
+        );
       if (item && !action && method === 'GET')
         return send(200, await store.getSource(ctx, ws, item), false);
     } else if (collection === 'retrievals' && !item && method === 'GET') {
@@ -3248,7 +3255,7 @@ export {
   type RunCompareStore,
 } from './run-compare.js';
 export { createPreviewServer } from './artifacts.js';
-export { recheckOperationId } from './source-recheck.js';
+export { recheckOperationId, recheckSources } from './source-recheck.js';
 export { createBackups, inside as insideFolder } from './backups.js';
 export { WebDiscoveryRunner, stepId, answerJson } from './web-discovery.js';
 export {

@@ -837,6 +837,7 @@ function App() {
             workspace={workspace}
             focus={pageRoute.id}
             onFocus={focus}
+            open={open}
           />
         );
       case 'catalog':
