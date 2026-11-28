@@ -263,7 +263,7 @@ export function Autopilot({
   // Review 1 of #213, H-1: an autopilot can pass its end time while the page is open, and then
   // it can no longer continue; drawing again each half minute moves it to Earlier autopilots.
   const [, setTick] = useState(0);
-  // ADR-0140: the web search's search limit (1 to 5), which the scout is told.
+  // ADR-0140: the web search's search limit (1 to MAX_SEARCH_CALLS), which the scout is told.
   const [maxSearches, setMaxSearches] = useState(3);
   useEffect(() => {
     const t = setInterval(() => setTick((n) => n + 1), 30_000);

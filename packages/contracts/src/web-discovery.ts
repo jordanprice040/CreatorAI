@@ -19,12 +19,12 @@ export const WEB_DISCOVERY_POLICY_VERSION = 'web-discovery/1.0' as const;
  */
 export const WEB_DISCOVERY_TASK_CLASS = 'research_synthesis' as const;
 
-/** What the owner narrows a web discovery with. Every field is optional. */
 /**
  * ADR-0140 (review L-2): the most search calls one web search request may make. It is the
- * plan route's own technical bound (`plan-responses.ts` accepts 1 to 10), not a policy cap.
+ * plan route's own technical bound (`checkPlanWebSearch` in `plan-responses.ts` uses it), not a policy cap.
  */
 export const MAX_SEARCH_CALLS = 10;
+/** What the owner narrows a web discovery with. Every field is optional. */
 export const WebDiscoveryScopeSchema = z.strictObject({
   /** Interests or fields to lean towards; with none, broad public seeds are used. */
   interests: z.array(term).max(5).default([]),

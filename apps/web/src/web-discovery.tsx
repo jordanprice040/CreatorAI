@@ -132,7 +132,7 @@ export function WebDiscover({
     if (sites?.skip !== undefined) setSkip(sites.skip);
   }, [sites?.nonce]);
   const [maxFetches, setMaxFetches] = useState(8);
-  // ADR-0140: the search limit the owner picks (1 to 5), which the scout is told.
+  // ADR-0140: the search limit the owner picks (1 to MAX_SEARCH_CALLS), which the scout is told.
   const [maxSearches, setMaxSearches] = useState(3);
   const [maxClaims, setMaxClaims] = useState(8);
   const [connectionId, setConnectionId] = useState('');

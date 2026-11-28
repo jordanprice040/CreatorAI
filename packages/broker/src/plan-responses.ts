@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { MAX_SEARCH_CALLS } from '@creator/contracts';
 
 // Direct Responses path for ChatGPT plan usage (Path A). Preview requirements (docs read
 // 2026-10-20): store:false, stream:true, instructions instead of system items, and no
@@ -138,8 +139,12 @@ export interface PlanSearchCall {
 
 const DOMAIN = /^[a-z0-9]+(?:[.-][a-z0-9]+)*\.[a-z]{2,}$/;
 export function checkPlanWebSearch(w: PlanWebSearch): string | null {
-  if (!Number.isInteger(w.max_calls) || w.max_calls < 1 || w.max_calls > 10)
-    return 'max_calls must be 1 to 10.';
+  if (
+    !Number.isInteger(w.max_calls) ||
+    w.max_calls < 1 ||
+    w.max_calls > MAX_SEARCH_CALLS
+  )
+    return `max_calls must be 1 to ${MAX_SEARCH_CALLS}.`;
   if (w.allowed_domains?.length && w.blocked_domains?.length)
     return 'Give allowed or blocked domains, not both.';
   for (const list of [w.allowed_domains ?? [], w.blocked_domains ?? []]) {

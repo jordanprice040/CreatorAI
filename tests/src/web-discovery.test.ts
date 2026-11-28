@@ -1740,5 +1740,6 @@ test('ADR-0140 review N-3: a chosen limit reaches both the scout input and the e
   const cut = await h.start(await h.run(), two);
   assert.deepEqual(asked, [2, 2]);
   assert.notEqual(cut.state, 'done');
+  assert.match(cut.explanation, /more than 2 search calls|studio_search_cap/);
   assert.equal(cut.leads.length, 0);
 });
