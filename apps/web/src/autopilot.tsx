@@ -1276,11 +1276,16 @@ function NextAfterStop({
           Start a new autopilot
         </button>
       );
+      // Review 1 of #260, L-5: it carries on by itself only when it was started with "continue
+      // after a limit" and that is still waiting.
+      const resumes = a.auto_resume?.state === 'waiting';
       if (kind === 'run_cap' || kind === 'daily_cap') {
         text =
           kind === 'run_cap'
             ? `Next: the connection's per-run request cap is used up; raise it under Models and connections › Change caps${then}`
-            : "Next: the connection's daily request cap is used up. The autopilot carries on by itself once the cap has room (this card says when it checks next), or add requests under Models and connections.";
+            : resumes
+              ? "Next: the connection's daily request cap is used up. The autopilot carries on by itself once the cap has room (this card says when it checks next), or add requests under Models and connections."
+              : `Next: the connection's daily request cap is used up; add requests under Models and connections or wait until it has room${then}`;
         actions = (
           <button
             type="button"
@@ -1293,9 +1298,11 @@ function NextAfterStop({
         break;
       }
       if (kind === 'usage_limit') {
-        text = canContinue
+        text = resumes
           ? 'Next: nothing to do. The plan account’s usage limit resets by itself, and the autopilot carries on once it has (this card says when it checks next). Continue also works after the reset.'
-          : 'Next: the plan account’s usage limit resets by itself; start a new autopilot after that. What this one made is kept.';
+          : canContinue
+            ? 'Next: the plan account’s usage limit resets by itself; press Continue on this card after it has.'
+            : 'Next: the plan account’s usage limit resets by itself; start a new autopilot after that. What this one made is kept.';
         break;
       }
       if (kind === 'call_limit' || kind === 'end_time') {

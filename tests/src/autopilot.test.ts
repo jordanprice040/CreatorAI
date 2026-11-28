@@ -593,6 +593,30 @@ test('a person’s choice under Decide carries the autopilot on; part-way starts
   assert.equal(nextAutopilotStage({ research: null, start }, []), 'select');
   assert.deepEqual(autopilotProblem({ start }, []), { id: 'p', version: 3 });
   assert.equal(autopilotProblem({ start: null }, []), null);
+  // Review 1 of #260, L-2: the newest step that carried a problem wins, so an exploration that
+  // went on with a recorded problem (ADR-0139) after a gather loop wins over an older assessment.
+  const p1 = { id: 'p1', version: 1 };
+  const p2 = { id: 'p2', version: 1 };
+  const carriedBy = (stage: AutopilotStep['stage'], problem: typeof p1) => ({
+    ...step(stage),
+    problem,
+  });
+  assert.deepEqual(
+    autopilotProblem({ start: null }, [
+      carriedBy('discover', p1),
+      carriedBy('assess', p1),
+      step('gather'),
+      carriedBy('explore', p2),
+    ]),
+    p2,
+  );
+  assert.deepEqual(
+    autopilotProblem({ start: null }, [
+      carriedBy('explore', p2),
+      carriedBy('assess', { id: 'p2', version: 2 }),
+    ]),
+    { id: 'p2', version: 2 },
+  );
 
   // Review L-3 and N-4: Continue cannot get past a stop marked final, or a full step list.
   const finished = {
@@ -4265,6 +4289,7 @@ test('autopilot friction pass (November 28): a stop on a request with no recorde
   if (!h) return;
   const conn = '00000000-0000-4000-8000-0000000000c1';
   let open = 1;
+  let closable = true;
   class Holding extends ConnectionStore {
     override async planRunRoomIn() {
       return { per_run: 40, used: 0, daily_left: 50 };
@@ -4275,7 +4300,7 @@ test('autopilot friction pass (November 28): a stop on a request with no recorde
       if (args[2] !== conn) return super.planConnectionDetail(...args);
       return {
         connection: { quota: { state: 'ok' } },
-        open_requests: Array.from({ length: open }, () => ({})),
+        open_requests: Array.from({ length: open }, () => ({ closable })),
       } as unknown as Awaited<
         ReturnType<ConnectionStore['planConnectionDetail']>
       >;
@@ -4347,6 +4372,23 @@ test('autopilot friction pass (November 28): a stop on a request with no recorde
   const same = await h.store.getAutopilot(owner, h.ws.id, a.id);
   assert.equal(same.version, done.version, 'no attempt was recorded');
   assert.equal(same.steps.length, done.steps.length);
+  assert.equal(starts, 1);
+
+  // Review 1 of #260, L-1: with Close unknown plan requests on, Continue still waits while the
+  // only open request may still be running (nothing could close it).
+  await h.store.saveAutopilotSettings(owner, h.ws.id, {
+    expected_version: 0,
+    values: {
+      ...AUTOPILOT_SETTINGS_DEFAULT,
+      close_unknown_plan_requests: true,
+    },
+  });
+  closable = false;
+  await rejects(
+    'INVALID_TRANSITION',
+    runner.retry(owner, h.ws.id, a.id, { expected_version: done.version }),
+    /may still be running/,
+  );
   assert.equal(starts, 1);
 
   // Once it is closed, Continue tries the step again.

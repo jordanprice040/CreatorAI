@@ -84,22 +84,21 @@ export function autopilotProblem(
   config: Pick<AutopilotConfig, 'start'>,
   steps: readonly AutopilotStep[],
 ): { id: string; version: number } | null {
-  // ADR-0100: an assessment of the problem's current version (after a person changed it) wins.
-  // ADR-0139: or the recorded problem an exploration went on with, whichever is newer.
+  // The newest finished step that carried a problem: an assessment (of the problem's current
+  // version, after a person changed it; ADR-0100), a discovery, or (ADR-0139) an exploration
+  // that went on with an already-recorded problem. Review 1 of #260, L-2: by position, so a
+  // later exploration wins over an older assessment.
   const found = [...steps]
     .reverse()
     .find(
       (s) =>
-        (s.stage === 'discover' || s.stage === 'explore') &&
+        (s.stage === 'assess' ||
+          s.stage === 'discover' ||
+          s.stage === 'explore') &&
         s.state === 'done' &&
         s.problem,
     );
-  return (
-    carried(steps, 'assess')?.problem ??
-    found?.problem ??
-    config.start?.problem ??
-    null
-  );
+  return found?.problem ?? config.start?.problem ?? null;
 }
 
 export type ChildLimits =
@@ -458,13 +457,13 @@ export function autopilotChoice(
         outcome: 'needs_person',
         kind: 'tie',
         reason: clip(
-          `${firstTie.length} options tie for first${worst ? ' by the worst case' : ' on suitability'}: ${tiedNames(firstTie.map((c) => c.alternative.title))}. The fixed order (opportunity rank, fewer unknowns, the better worst case, the option that builds least, the title) does not separate them. Choose one under Decide and continue.`,
+          `${firstTie.length} options tie for first${worst ? ' by the worst case' : ' on suitability'}: ${tiedNames(firstTie.map((c) => c.alternative.title))}. The fixed order (opportunity rank, fewer unknowns, the better worst case, an option the rule may choose, the option that builds least, the title) does not separate them. Choose one under Decide and continue.`,
         ),
       };
     fallbacks.push({
       setting: 'break_ties',
       instead_of: 'tie',
-      note: `${firstTie.map((c) => `“${c.alternative.title}”`).join(' and ')} tied for first; the fixed order (opportunity rank, fewer unknowns, the better worst case, the option that builds least, the title) put “${order[0]!.alternative.title}” first.`,
+      note: `${firstTie.map((c) => `“${c.alternative.title}”`).join(' and ')} tied for first; the fixed order (opportunity rank, fewer unknowns, the better worst case, an option the rule may choose, the option that builds least, the title) put “${order[0]!.alternative.title}” first.`,
     });
   } else if (firstTie.length > 1)
     return {

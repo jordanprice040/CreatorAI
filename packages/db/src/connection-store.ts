@@ -3813,7 +3813,10 @@ export class ConnectionStore extends AutomationStore {
   /**
    * ADR-0137 (Jordan, November 28): an autopilot closes the plan requests on its connection
    * whose outcome is unknown, when the owner's autopilot setting "Close unknown plan requests"
-   * is on. Only a plan connection (no per-request charge), only for the autopilot itself acting
+   * is on: any such request on that connection (chat, qualification or another autopilot's
+   * too), since each one blocks every request there. Only plan connections, which this store's
+   * `plan_connections` table holds (no per-request charge; review 1 of #260, N-2), only for the
+   * autopilot itself acting
    * for the owner who started it, and only requests a person could close now: `unknown` ones,
    * and in-flight ones past their stale point that this studio is not waiting on. Each is
    * recorded as "it ran, or the studio cannot tell" (never "did not run"), so it keeps counting
@@ -3844,20 +3847,22 @@ export class ConnectionStore extends AutomationStore {
       const settings = await this.readAutopilotSettings(c, ws);
       if (!settings.values.close_unknown_plan_requests) return [];
       const conn = await this.#lock(c, ws, id);
+      // Review 1 of #260, M-1: settling locks a request before its connection, the reverse of
+      // this path (PR #128 L-2), so only requests nobody can be settling are locked: unknown
+      // ones, and in-flight ones past their stale point that this studio is not waiting on. The
+      // filter is in the query itself, before any request row is locked.
       const open = await c.query(
-        `select pr.id, pr.state, ${PLAN_REQUEST_STALE_AFTER} <= clock_timestamp() as overdue
+        `select pr.id
            from plan_requests pr join plan_connections pc on pc.id = pr.connection_id
-          where pr.connection_id = $1 and pr.state in ('unknown','in_flight')
+          where pr.connection_id = $1
+            and (pr.state = 'unknown'
+              or (pr.state = 'in_flight'
+                and ${PLAN_REQUEST_STALE_AFTER} <= clock_timestamp()
+                and not (pr.id = any($2::uuid[]))))
           order by pr.started_at, pr.id for update of pr`,
-        [conn.id],
+        [conn.id, [...this.#livePlanRequests]],
       );
-      const closable = (open.rows as Row[])
-        .filter(
-          (r) =>
-            r.state === 'unknown' ||
-            (Boolean(r.overdue) && !this.#livePlanRequests.has(String(r.id))),
-        )
-        .map((r) => String(r.id));
+      const closable = (open.rows as Row[]).map((r) => String(r.id));
       if (!closable.length) return [];
       await c.query(
         `update plan_requests set state = 'reconciled', reason_code = 'autopilot_setting_ran',
