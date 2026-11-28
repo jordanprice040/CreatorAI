@@ -2,7 +2,7 @@
 
 Current source: main `7f75907` (PR #257, November 22), which includes every merged PR through #257. Schema **80**
 (migrations 42, 71, 75, 76 and 77 are unused; 76 stays reserved for later F11 slices). Next free migration **81**,
-next ADR **0140** (0138 and migration 81 claimed by the "Automate Decide" thread). **Release 0.1.9** (the tester build from `9940601`, with PostgreSQL 18.6 included) is published
+next ADR **0140** (0138 and migration 81 taken by the Decide automation PR). **Release 0.1.9** (the tester build from `9940601`, with PostgreSQL 18.6 included) is published
 as `v0.1.9` on the private releases repository, which the in-app updater reads, and on this repository's releases
 page; the deliberately broken `v0.1.7` is deleted (Jordan, November 22). On Jordan's PC the installed app is still
 the **trial build 0.1.8** (schema 79) and can now update itself to 0.1.9; the dev studio runs from the worktree
@@ -68,6 +68,10 @@ OK, by November 27); the loose ends above that need Jordan's PC or typed OK (0.1
 rerun, N3 check 13 with `cargo test`, F11 slice 2); then the owner's choice between a short P17 acceptance walk and
 build phase 2 (B5 PyPI packages first). Do not automatically install, publish, run a live provider or advance the
 pilot or thesis. Accepted owner decisions and existing scoped grants remain authoritative.
+
+## November 28 update — Decide without the busywork (ADR-0138, migration 81)
+
+Owner gate override in Decide (warning, reason and confirmation; recorded on the selection and as `selection.gate_overridden`; never by an autopilot), validation plans (proposals) for custom software taken to validation, the autopilot carrying "Validate before building" on instead of stopping, the "Decide for me" autopilot setting (part of Hands-off), and a build covered by the option's humility review from Decide. Checks run in the cloud on a throwaway PostgreSQL: typecheck, format, new `tests/src/gate-override.test.ts` (3 tests, mutation-checked on the freeze and humility paths) and two ADR-0138 tests in `autopilot.test.ts`. Built on PR #260's branch.
 
 ## November 28 update — Hands-off self-sufficiency from the friction audit (ADR-0139, no migration)
 

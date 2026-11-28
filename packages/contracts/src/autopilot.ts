@@ -152,6 +152,11 @@ export const AutopilotStepSchema = z.strictObject({
       version,
       kind: z.string().max(40),
       title: z.string().max(500),
+      /**
+       * ADR-0138: the choice that advanced it, when the selection step knows it. Custom
+       * software taken to validation goes on to its validation plan (a proposal), not a spec.
+       */
+      disposition: z.string().max(40).optional(),
     })
     .nullable(),
   /**

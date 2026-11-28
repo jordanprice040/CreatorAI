@@ -237,9 +237,7 @@ export class ProposalStore extends CatalogStore {
     if (!isProposalKind(kind))
       throw fail(
         'INVALID_CONTRACT',
-        kind === 'build'
-          ? 'Custom software goes to a spec and a build, not a proposal.'
-          : `A ${kind.replaceAll('_', ' ')} outcome has no plan to propose.`,
+        `A ${kind.replaceAll('_', ' ')} outcome has no plan to propose.`,
       );
     const p = await c.query(
       `select e.* from entity_links l join entities e on e.id = l.to_id
@@ -255,16 +253,22 @@ export class ProposalStore extends CatalogStore {
     const choice = selection?.dispositions.find(
       (d) => d.alternative.id.toLowerCase() === option.id,
     );
+    // ADR-0138: custom software has a proposal only as a validation plan; selected for a
+    // build, it goes to a spec instead.
     if (
       !selection ||
       !choice ||
-      !['recommend_alternative', 'proceed_to_validation'].includes(
-        choice.disposition,
-      )
+      !(
+        kind === 'build'
+          ? ['proceed_to_validation']
+          : ['recommend_alternative', 'proceed_to_validation']
+      ).includes(choice.disposition)
     )
       throw fail(
         'INVALID_TRANSITION',
-        'Record a selection that recommends this option (or proceeds to validate it) before writing its proposal.',
+        kind === 'build'
+          ? 'Custom software has a proposal only as a validation plan: record a selection that takes it to validation first (selected for a build, it goes to a spec).'
+          : 'Record a selection that recommends this option (or proceeds to validate it) before writing its proposal.',
       );
     if (choice.alternative.version !== option.version)
       throw fail(

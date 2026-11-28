@@ -10,6 +10,8 @@ import {
   MODEL_ONLY_ETHICS_NOTE,
   autopilotNextSteps,
   type Autopilot,
+  type Selection,
+  type SelectionReport,
   type AutopilotFallback,
   type AutopilotSettings,
   type AutopilotStopKind,
@@ -43,6 +45,7 @@ import {
 import {
   autopilotChildLimits,
   autopilotChoice,
+  checkSelection,
   connectionRefusals,
   dailyCap,
   autopilotProblem,
@@ -2453,7 +2456,12 @@ export class AutopilotRunner {
         problem.id,
         current!.report.suitability.sensitivity.shortlist_size,
       );
-      if (now.report_hash !== current!.report_hash)
+      if (now.report_hash !== current!.report_hash) {
+        const again =
+          mine.kind === 'carry'
+            ? await this.#recordAgain(ctx, keyed, ws, a, current!, now)
+            : null;
+        if (again) return again;
         return {
           stop: {
             outcome: 'needs_person',
@@ -2467,6 +2475,7 @@ export class AutopilotRunner {
             }. Review it under Decide and record it again (or choose another), then continue.`,
           },
         };
+      }
     }
     if (mine.kind === 'stop')
       return {
@@ -2642,6 +2651,68 @@ export class AutopilotRunner {
               ? ` With the owner's autopilot settings: ${choice.fallbacks.map((f) => f.note).join(' ')}`
               : ''
           }${flagged ? ` ${MODEL_ONLY_ETHICS_NOTE}` : ''}`,
+          1200,
+        ),
+      },
+    };
+  }
+
+  /**
+   * ADR-0138: with the owner's "Decide for me" on, a choice a person made under Decide on older
+   * scores is recorded again, unchanged, on the current ones, when the current report still
+   * accepts it as it is (same option versions, no gate blocking it, any ranking override reason
+   * it needs already given). A gate the person passed is never passed again by the autopilot.
+   * Null: the autopilot stops for the person as before.
+   */
+  async #recordAgain(
+    ctx: CommandContext,
+    keyed: CommandContext,
+    ws: string,
+    a: Autopilot,
+    current: Selection,
+    now: SelectionReport,
+  ): Promise<Result | null> {
+    const settings = await this.#settings(ctx, ws);
+    if (!settings.values.decide_for_me || current.gate_overrides.length)
+      return null;
+    const mine = personChoice(current, new Date(0).toISOString());
+    if (mine.kind !== 'carry') return null;
+    const check = checkSelection(now, {
+      dispositions: current.dispositions,
+      override_reason: current.override_reason,
+    });
+    if (
+      check.invalid.length ||
+      check.blocked.length ||
+      check.override_reason_missing
+    )
+      return null;
+    const out = await this.store.select(keyed, ws, a.run_id, {
+      problem: { id: now.problem.id, version: now.problem.version },
+      report_hash: now.report_hash,
+      dispositions: current.dispositions,
+      override_reason: check.overrides.length ? current.override_reason : null,
+      rationale: cutText(
+        `Recorded again by the autopilot on the current scores, unchanged, with the owner's setting “${AUTOPILOT_SETTING_TEXT.decide_for_me.label}” (ADR-0138). The person's rationale: ${current.rationale}`,
+        1200,
+      ),
+      shortlist_size: now.suitability.sensitivity.shortlist_size,
+      data_class: a.config.data_class,
+    });
+    if (out.status !== 'recorded' || !out.selection) return null;
+    return {
+      done: {
+        child: { kind: 'selection', id: out.selection.id },
+        problem: { id: now.problem.id, version: now.problem.version },
+        option: mine.option,
+        fallback: this.#fb(
+          settings,
+          'decide_for_me',
+          'person_choice',
+          `Your choice of “${mine.option.title}” was made on older scores; the current scores still accept it, so it was recorded again unchanged.`,
+        ),
+        note: cutText(
+          `Recorded your choice under Decide again on the current scores: “${mine.option.title}” (${mine.disposition.replaceAll('_', ' ')}), with the owner's setting “${AUTOPILOT_SETTING_TEXT.decide_for_me.label}”.`,
           1200,
         ),
       },

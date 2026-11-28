@@ -53,7 +53,11 @@ export function nextAutopilotStage(
     case 'assess':
       return 'select';
     case 'select':
-      return last.option?.kind === 'build' ? 'spec' : 'proposal';
+      // ADR-0138: software taken to validation goes on to its validation plan.
+      return last.option?.kind === 'build' &&
+        last.option.disposition !== 'proceed_to_validation'
+        ? 'spec'
+        : 'proposal';
     case 'gather': {
       // ADR-0100: a fallback goes back to the step it gathered evidence for.
       const then = last.request?.then;
@@ -263,7 +267,13 @@ export type ChoiceFallback = {
 export type AutopilotChoice =
   | {
       ok: true;
-      option: { id: string; version: number; kind: string; title: string };
+      option: {
+        id: string;
+        version: number;
+        kind: string;
+        title: string;
+        disposition: SelectionDisposition;
+      };
       request: Omit<SelectRequest, 'data_class'>;
       /** ADR-0100: the owner's settings that let the rule choose instead of stopping. */
       fallbacks: ChoiceFallback[];
@@ -548,8 +558,30 @@ export function autopilotChoice(
     return null;
   };
   let chosen = leader;
+  let validate = false;
   const leaderWhy = why(leader);
-  if (leaderWhy) {
+  // ADR-0138 (Jordan, November 28): with "Decide for me" on, custom software ranking first whose
+  // build is still gated (an incomplete opportunity assessment, no humility review, not alone
+  // on opportunity) is taken to validation before building, when no gate blocks that, instead
+  // of stopping. Its validation plan is the next step; nothing is built and no gate is passed.
+  if (
+    leaderWhy &&
+    settings.decide_for_me &&
+    leader.alternative.kind === 'build' &&
+    (leaderWhy.kind === 'gate_blocked' || leaderWhy.kind === 'opportunity') &&
+    leader.gates.discovery === 'candidate' &&
+    !(leader.gates.blocked.proceed_to_validation ?? []).length
+  ) {
+    validate = true;
+    fallbacks.push({
+      setting: 'decide_for_me',
+      instead_of: leaderWhy.kind,
+      note: clip(
+        `${leaderWhy.reason.replace(/ Resolve it, or choose under Decide yourself, then continue\.$/, '')} Took it to validation before building instead; its validation plan comes next.`,
+        600,
+      ),
+    });
+  } else if (leaderWhy) {
     // A defer, decline or investigate outcome ranking first is the honest result, not a stop.
     const ownKind = autopilotDisposition(leader.alternative.kind) === null;
     const next =
@@ -591,7 +623,9 @@ export function autopilotChoice(
     chosen = next;
   }
   const kind = chosen.alternative.kind;
-  const disposition = autopilotDisposition(kind)!;
+  const disposition: SelectionDisposition = validate
+    ? 'proceed_to_validation'
+    : autopilotDisposition(kind)!;
   const score =
     (worst ? chosen.range?.lower.display : chosen.score?.display) ?? 'n/a';
   const how = worst
@@ -605,6 +639,7 @@ export function autopilotChoice(
       version: chosen.alternative.version,
       kind,
       title: chosen.alternative.title,
+      disposition,
     },
     request: {
       problem: { id: report.problem.id, version: report.problem.version },
@@ -701,7 +736,13 @@ export function personChoice(
   | { kind: 'none' }
   | {
       kind: 'carry';
-      option: { id: string; version: number; kind: string; title: string };
+      option: {
+        id: string;
+        version: number;
+        kind: string;
+        title: string;
+        disposition: SelectionDisposition;
+      };
       disposition: SelectionDisposition;
     }
   | { kind: 'stop'; outcome: AutopilotOutcome; reason: string } {
@@ -733,13 +774,8 @@ export function personChoice(
   const row = selection.report.suitability.candidates.find(
     (c) => c.alternative.id.toLowerCase() === d.alternative.id.toLowerCase(),
   );
-  if (row?.alternative.kind === 'build' && d.disposition !== 'select_for_build')
-    return {
-      kind: 'stop',
-      outcome: 'needs_person',
-      reason:
-        'Your selection advances a software option without selecting it for a build; a software option goes on to a spec, which stays with you.',
-    };
+  // ADR-0138: custom software you take to validation before building goes on to its
+  // validation plan (a proposal); before, this stopped every time Continue was pressed.
   return {
     kind: 'carry',
     disposition: d.disposition,
@@ -751,6 +787,7 @@ export function personChoice(
           ? 'build'
           : (row?.alternative.kind ?? 'unknown'),
       title: row?.alternative.title ?? 'The option you chose',
+      disposition: d.disposition,
     },
   };
 }

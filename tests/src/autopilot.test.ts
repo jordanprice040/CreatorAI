@@ -833,6 +833,135 @@ async function setup(t: test.TestContext) {
   };
 }
 
+test('ADR-0138: software taken to validation goes on to its validation plan; Decide for me validates gated software and never passes a gate', () => {
+  const since = '2026-11-12T00:00:00.000Z';
+  const validated = {
+    id: 's',
+    workspace_id: 'w',
+    run_id: 'r',
+    problem: { id: 'p', version: 2 },
+    report_hash: 'b'.repeat(64),
+    report: report([cand('a', 'use_existing', 2), cand('b', 'build', 1)]),
+    dispositions: [
+      {
+        alternative: { id: 'a', version: 1 },
+        disposition: 'defer',
+        reasons: ['Later.'],
+        reverse_if: 'x',
+      },
+      {
+        alternative: { id: 'b', version: 1 },
+        disposition: 'proceed_to_validation',
+        reasons: ['Test this option.'],
+        reverse_if: 'It does not work.',
+      },
+    ],
+    overrides: [],
+    override_reason: null,
+    gate_overrides: [],
+    gate_override_reason: null,
+    rationale: 'Mine.',
+    admission_id: 'ad',
+    actor_id: 'person',
+    autopilot_id: null,
+    created_at: '2026-11-12T01:00:00.000Z',
+    current: true,
+  } as Selection;
+  // Jordan's 11 stops: this used to stop as "advances a software option without selecting it".
+  const carry = personChoice(validated, since);
+  assert.ok(carry.kind === 'carry');
+  if (carry.kind !== 'carry') return;
+  assert.equal(carry.option.kind, 'build');
+  assert.equal(carry.option.disposition, 'proceed_to_validation');
+  assert.equal(
+    nextAutopilotStage({ research: null }, [
+      step('select', 'done', carry.option),
+    ]),
+    'proposal',
+  );
+  // Selected for a build, software still goes to its spec.
+  assert.equal(
+    nextAutopilotStage({ research: null }, [
+      step('select', 'done', {
+        ...carry.option,
+        disposition: 'select_for_build',
+      }),
+    ]),
+    'spec',
+  );
+
+  const gates = (blocked: Record<string, string[]>) => ({
+    gates: {
+      ethics_access: 'clear' as const,
+      discovery: 'candidate',
+      humility: 'missing' as const,
+      blocked,
+    },
+  });
+  const gated = report(
+    [
+      cand(
+        'b',
+        'build',
+        1,
+        gates({
+          select_for_build: ['No humility review of this exact version.'],
+        }),
+      ),
+      cand('a', 'use_existing', 2),
+    ],
+    [cand('b', 'build', 1)],
+  );
+  const off = autopilotChoice(gated, AUTOPILOT_SETTINGS_DEFAULT);
+  assert.ok(!off.ok && off.kind === 'gate_blocked');
+  const on = autopilotChoice(gated, {
+    ...AUTOPILOT_SETTINGS_DEFAULT,
+    decide_for_me: true,
+  });
+  assert.ok(on.ok);
+  if (!on.ok) return;
+  assert.equal(on.option.id, 'b');
+  assert.equal(on.option.disposition, 'proceed_to_validation');
+  assert.equal(on.fallbacks[0]?.setting, 'decide_for_me');
+  assert.equal(on.fallbacks[0]?.instead_of, 'gate_blocked');
+  // The request passes the selection route's own check: nothing blocked, nothing passed.
+  const check = checkSelection(gated, on.request);
+  assert.deepEqual(check.blocked, []);
+  assert.deepEqual(check.invalid, []);
+  assert.deepEqual(check.gated, []);
+  // Validation blocked too (an open ethics question): Decide for me still stops for a person.
+  const ethics = report(
+    [
+      cand(
+        'b',
+        'build',
+        1,
+        gates({
+          select_for_build: ['An ethics or access question is unresolved.'],
+          proceed_to_validation: [
+            'An ethics or access question is unresolved.',
+          ],
+        }),
+      ),
+      cand('a', 'use_existing', 2),
+    ],
+    [cand('b', 'build', 1)],
+  );
+  const still = autopilotChoice(ethics, {
+    ...AUTOPILOT_SETTINGS_DEFAULT,
+    decide_for_me: true,
+  });
+  assert.ok(!still.ok && still.kind === 'gate_blocked');
+  // Decide for me is part of Hands-off; Hands-off saved before it joined reads as not on.
+  assert.equal(handsOff(AUTOPILOT_SETTINGS_DEFAULT).decide_for_me, true);
+  assert.ok(
+    handsOffMissing({
+      ...handsOff(AUTOPILOT_SETTINGS_DEFAULT),
+      decide_for_me: false,
+    }).includes('decide_for_me'),
+  );
+});
+
 test('an autopilot runs explore → brief → discover → assess, stops at a tie for a person, and finishes with a proposal after Continue', async (t) => {
   const h = await setup(t);
   if (!h) return;
@@ -2022,6 +2151,45 @@ test('review 3 L-1: a start at assessment does not carry a choice made on the sc
     sels.map((x) => [x.id, x.current]),
     [[selection.id, true]],
   );
+});
+
+test('ADR-0138: with Decide for me on, a choice made on older scores is recorded again unchanged and carried on', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  const runId = await h.run();
+  const first = await h.start(runId);
+  const problem = first.steps[2]!.problem!;
+  const { selection } = await ownerChooses(h, runId, problem.id);
+  await h.store.saveAutopilotSettings(owner, h.ws.id, {
+    expected_version: 0,
+    values: { ...AUTOPILOT_SETTINGS_DEFAULT, decide_for_me: true },
+  });
+  const later = await h.start(
+    await h.run(),
+    h.config({ start: { stage: 'assess', problem } }),
+  );
+  assert.deepEqual(
+    later.steps.map((s) => [s.stage, s.state]),
+    [
+      ['assess', 'done'],
+      ['select', 'done'],
+      ['proposal', 'done'],
+    ],
+    later.explanation,
+  );
+  const select = later.steps[1]!;
+  assert.equal(select.fallback?.setting, 'decide_for_me');
+  assert.equal(select.fallback?.instead_of, 'person_choice');
+  // A new selection, the autopilot's, with the person's dispositions unchanged; the person's
+  // own selection stays in the history.
+  const sels = await h.store.listSelections(owner, h.ws.id, problem.id);
+  assert.equal(sels.length, 2);
+  const again = sels.find((x) => x.current)!;
+  assert.notEqual(again.id, selection.id);
+  assert.ok(again.autopilot_id);
+  assert.deepEqual(again.dispositions, selection.dispositions);
+  assert.match(again.rationale, /Recorded again by the autopilot/);
 });
 
 test('review 4 L-1: a start at assessment does not end on an older choice that advanced nothing', async (t) => {

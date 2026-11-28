@@ -46,6 +46,14 @@ export const AutopilotSettingsValuesSchema = z.strictObject({
    * stopping for the owner. Never applies to paid API calls. Part of Hands-off.
    */
   close_unknown_plan_requests: z.boolean(),
+  /**
+   * ADR-0138 (Jordan, November 28): Decide for me. Custom software ranking first whose build
+   * is still gated is taken to validation before building (its validation plan is next) instead
+   * of stopping, and a choice you made under Decide on older scores is recorded again on the
+   * current ones when nothing it advances is blocked. It never passes a gate and never builds.
+   * Part of Hands-off.
+   */
+  decide_for_me: z.boolean(),
 });
 export type AutopilotSettingsValues = z.infer<
   typeof AutopilotSettingsValuesSchema
@@ -63,6 +71,7 @@ export const AUTOPILOT_SETTINGS_DEFAULT: AutopilotSettingsValues = {
   accept_quote_checked_claims: false,
   draft_proposal_sections: false,
   close_unknown_plan_requests: false,
+  decide_for_me: false,
 };
 
 /**
@@ -82,6 +91,7 @@ export function handsOff(v: AutopilotSettingsValues): AutopilotSettingsValues {
     accept_quote_checked_claims: v.accept_quote_checked_claims,
     draft_proposal_sections: true,
     close_unknown_plan_requests: true,
+    decide_for_me: true,
   };
 }
 /** The switches Hands-off leaves as they are. */
@@ -223,6 +233,10 @@ export const AUTOPILOT_SETTING_TEXT: Record<
   close_unknown_plan_requests: {
     label: 'Close unknown plan requests',
     text: 'When a ChatGPT plan or Claude Code request ends without a recorded outcome (for example a web search the studio cut off), records it as “it ran, or I cannot tell” and goes on, instead of stopping until you close it. It still counts toward the daily cap. Paid API calls always wait for you.',
+  },
+  decide_for_me: {
+    label: 'Decide for me',
+    text: 'When custom software ranks first but its build is still blocked (an incomplete opportunity assessment, no humility review, or not first on opportunity), takes it to validation before building and writes its validation plan, instead of stopping. When a choice you made under Decide was on older scores, records the same choice again on the current ones and goes on. It never passes a gate for you (only you can, under Decide) and never starts a build; the choice says which setting made it.',
   },
   draft_proposal_sections: {
     label: 'Draft a proposal’s missing sections',

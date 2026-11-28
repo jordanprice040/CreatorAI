@@ -63,6 +63,9 @@ import { Explain } from './explain.js';
 // recommended non-code option gets a versioned proposal people write, check, review, revise,
 // download as Markdown and save to Files. Nothing here says a plan was carried out or works.
 
+/** ADR-0138: a proposal for custom software is its validation plan. */
+const proposalKind = (k: string) =>
+  k === 'build' ? 'Validation plan for custom software' : RESPONSE[k];
 const RESPONSE: Record<string, string> = {
   use_existing: 'Existing tool',
   change_process: 'Process change',
@@ -433,7 +436,7 @@ export function Proposals({
                     {p.title}
                   </button>{' '}
                   <small>
-                    · {RESPONSE[p.response]} · v{p.version}
+                    · {proposalKind(p.response)} · v{p.version}
                     {p.status !== 'active' ? ` · ${p.status}` : ''} ·{' '}
                     {when(p.updated_at)}
                   </small>
@@ -928,7 +931,7 @@ function ProposalEditor({
       <p className="small">
         {detail
           ? `${kindTitle(body.response, detail.option_title)} · problem: ${detail.problem_title}`
-          : `${RESPONSE[body.response]} · drafted from the records; sections nobody has filled in are marked unknown`}
+          : `${proposalKind(body.response)} · drafted from the records; sections nobody has filled in are marked unknown`}
       </p>
       {detail && (
         <div className="actions">

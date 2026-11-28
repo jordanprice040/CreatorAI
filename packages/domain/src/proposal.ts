@@ -42,6 +42,9 @@ export const RESPONSE_WORDS: Record<string, string> = {
 };
 const words = (kind: string) =>
   RESPONSE_WORDS[kind] ?? kind.replaceAll('_', ' ');
+/** ADR-0138: a proposal for custom software is the plan to validate it before building. */
+const proposalWords = (kind: string) =>
+  kind === 'build' ? 'a validation plan for custom software' : words(kind);
 const clip = (s: string, n: number) =>
   s.length <= n ? s : `${s.slice(0, n - 1)}…`;
 
@@ -422,7 +425,7 @@ export function draftProposal(input: DraftInput): {
     ),
     background: written(
       [
-        `Selected response: ${words(input.response)} — ${end(input.option.title)}.`,
+        `Selected response: ${proposalWords(input.response)} — ${end(input.option.title)}.`,
         str(o.rationale),
         choice?.reasons.length
           ? `Why it was selected:\n${choice.reasons.map((r) => `- ${r}`).join('\n')}`
@@ -435,7 +438,9 @@ export function draftProposal(input: DraftInput): {
         .join('\n\n'),
     ),
     objectives: unknown(
-      'State the outcome this should change, for whom, and how it will be measured.',
+      input.response === 'build'
+        ? 'State what validation must show before any software is built: who would use it, which repeated work it removes that existing tools cannot, and who would maintain it.'
+        : 'State the outcome this should change, for whom, and how it will be measured.',
     ),
     evidence: supports.length
       ? written(
@@ -497,7 +502,10 @@ export function draftProposal(input: DraftInput): {
     next_tasks: unknown('List the next concrete tasks.'),
   };
   return {
-    title: clip(`Proposal: ${oneLine(input.option.title)}`, 300),
+    title: clip(
+      `${input.response === 'build' ? 'Validation plan' : 'Proposal'}: ${oneLine(input.option.title)}`,
+      300,
+    ),
     body: {
       format: 'proposal/1',
       problem: { id: input.problem.id, version: input.problem.version },
@@ -505,7 +513,7 @@ export function draftProposal(input: DraftInput): {
       response: input.response,
       selection_id: input.selection.id,
       summary: clip(
-        `${words(input.response)[0]!.toUpperCase()}${words(input.response).slice(1)} for “${input.problem.title}”: ${end(input.option.title)}.`,
+        `${proposalWords(input.response)[0]!.toUpperCase()}${proposalWords(input.response).slice(1)} for “${input.problem.title}”: ${end(input.option.title)}.`,
         1200,
       ),
       sections,

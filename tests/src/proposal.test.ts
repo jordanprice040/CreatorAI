@@ -240,11 +240,12 @@ test('a proposal is drafted from records, versioned, checked, reviewed and expor
   const s = await discoverySetup(t, new FixtureAdapter());
   if (!s) return;
   const { problem, build, human, tool, selection } = await nonCodeSelected(s);
-  // Only an advanced non-code option gets a proposal; software goes to a spec instead.
+  // Only an advanced non-code option gets a proposal; software gets one only as a validation
+  // plan (ADR-0138), so software not taken to validation is refused.
   await rejects(
-    'INVALID_CONTRACT',
+    'INVALID_TRANSITION',
     s.store.proposalDraft(owner, s.ws.id, build.id),
-    /spec and a build/,
+    /only as a validation plan/,
   );
   await rejects(
     'INVALID_TRANSITION',

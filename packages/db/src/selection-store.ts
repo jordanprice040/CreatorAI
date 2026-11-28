@@ -31,6 +31,7 @@ import {
   type SpecStatus,
   type StoredEntity,
   MODEL_ONLY_ETHICS_NOTE,
+  GATE_OVERRIDE_NOTE,
 } from '@creator/contracts';
 import {
   ASSESSMENT_PROMPT_HASH,
@@ -107,6 +108,8 @@ export function toSelection(r: Row, current: boolean): Selection {
     dispositions: r.dispositions as Selection['dispositions'],
     overrides: r.overrides as Selection['overrides'],
     override_reason: (r.override_reason as string | null) ?? null,
+    gate_overrides: (r.gate_overrides as Selection['gate_overrides']) ?? [],
+    gate_override_reason: (r.gate_override_reason as string | null) ?? null,
     rationale: String(r.rationale),
     admission_id: String(r.admission_id),
     actor_id: String(r.actor_id),
@@ -1292,20 +1295,48 @@ export class SelectionStore extends TeamStore {
       const check = checkSelection(report, req);
       if (check.invalid.length)
         throw fail('INVALID_CONTRACT', check.invalid.join(' ').slice(0, 2000));
-      if (check.blocked.length)
+      // ADR-0138 (Jordan, November 28): the owner may pass the gates that block a choice, after
+      // a warning. Checked here, in this transaction: only the workspace owner signed in as a
+      // person (not a tester, an agent or an autopilot step) can, and a choice the option's kind
+      // rules out is never passed. Every reason passed is stored on the selection.
+      const passing = req.gate_override ?? null;
+      if (check.fixed.length || (check.blocked.length && !passing))
         throw fail(
           'INVALID_TRANSITION',
-          check.blocked.join(' ').slice(0, 2000),
+          (check.fixed.length ? check.fixed : check.blocked)
+            .join(' ')
+            .slice(0, 2000),
+        );
+      if (passing && !check.gated.length)
+        throw fail(
+          'INVALID_CONTRACT',
+          'No gate blocks these choices now; record them without an override.',
+        );
+      if (
+        passing &&
+        (ctx.autopilot || !(await this.isPolicyOwner(c, ws, ctx.actorId)))
+      )
+        throw fail(
+          'ACCESS_DENIED',
+          'Only the workspace owner, signed in as a person, can pass gates.',
         );
       if (check.override_reason_missing)
         throw fail(
           'INVALID_CONTRACT',
           'An advanced candidate is outranked by one that is not advanced; give an override reason.',
         );
+      const gateOverrides = passing ? check.gated : [];
       const decision = {
         report_hash: report.report_hash,
         dispositions: req.dispositions,
         override_reason: req.override_reason,
+        // The approval covers the gates passed too (ADR-0138); absent when none were.
+        ...(passing
+          ? {
+              gate_overrides: gateOverrides,
+              gate_override_reason: passing.reason,
+            }
+          : {}),
       };
       // ADR-0100 (Jordan, November 14): the owner may let an autopilot choose an option whose
       // ethics only the model cleared. The setting is read here, in this transaction, so neither
@@ -1323,9 +1354,11 @@ export class SelectionStore extends TeamStore {
             [ws],
           )
         ).rowCount === 1;
-      const rationale = ownerAllows
-        ? `${MODEL_ONLY_ETHICS_NOTE} ${req.rationale}`.slice(0, 1200)
-        : req.rationale;
+      const rationale = passing
+        ? `${GATE_OVERRIDE_NOTE} ${req.rationale}`.slice(0, 1200)
+        : ownerAllows
+          ? `${MODEL_ONLY_ETHICS_NOTE} ${req.rationale}`.slice(0, 1200)
+          : req.rationale;
       const admission = await this.admitIn(c, ctx, ws, runId, {
         action_type: 'candidate.select',
         task_id: null,
@@ -1362,8 +1395,8 @@ export class SelectionStore extends TeamStore {
       const { rows } = await c.query(
         `insert into selections (id, workspace_id, run_id, problem_id, problem_version,
            report_hash, report, dispositions, overrides, override_reason, rationale,
-           admission_id, actor_id, autopilot_id)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) returning *`,
+           admission_id, actor_id, autopilot_id, gate_overrides, gate_override_reason)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) returning *`,
         [
           id,
           ws,
@@ -1379,6 +1412,8 @@ export class SelectionStore extends TeamStore {
           admission.id,
           recordedActor(ctx),
           ctx.autopilot?.id.toLowerCase() ?? null,
+          JSON.stringify(gateOverrides),
+          passing?.reason ?? null,
         ],
       );
       await this.append(c, ctx, {
@@ -1398,6 +1433,7 @@ export class SelectionStore extends TeamStore {
           ),
           overrides: check.overrides.length,
           ...(ownerAllows ? { model_only_ethics: true } : {}),
+          ...(passing ? { gate_overrides: gateOverrides.length } : {}),
         },
         relatedIds: [
           runId,
@@ -1405,6 +1441,30 @@ export class SelectionStore extends TeamStore {
           ...req.dispositions.map((d) => d.alternative.id.toLowerCase()),
         ],
       });
+      // ADR-0138: its own audit event, so an override is found without reading every selection.
+      if (passing)
+        await this.append(c, ctx, {
+          workspaceId: ws,
+          action: 'selection.gate_overridden',
+          subjectKind: 'selection',
+          subjectId: id,
+          subjectVersion: null,
+          contentHash: report.report_hash,
+          payload: {
+            reason: passing.reason,
+            passed: gateOverrides.map((g) => ({
+              alternative: g.alternative.id,
+              version: g.alternative.version,
+              disposition: g.disposition,
+              reasons: g.reasons,
+            })),
+          },
+          relatedIds: [
+            runId,
+            problem.id,
+            ...gateOverrides.map((g) => g.alternative.id),
+          ],
+        });
       return {
         status: 'recorded',
         admission: outcomeOf(admission),
@@ -1721,7 +1781,24 @@ export class SelectionStore extends TeamStore {
         blockers.push(
           'The alternative is no longer a candidate for the problem.',
         );
-      else blockers.push(...(row.gates.blocked.select_for_build ?? []));
+      else {
+        // ADR-0138: a gate the owner passed when selecting stays passed for this freeze, as long
+        // as it reads exactly as it did then; a new or changed gate reason still blocks.
+        const passed = new Set(
+          selection.gate_overrides
+            .filter(
+              (g) =>
+                g.alternative.id.toLowerCase() === altId &&
+                g.disposition === 'select_for_build',
+            )
+            .flatMap((g) => g.reasons),
+        );
+        blockers.push(
+          ...(row.gates.blocked.select_for_build ?? []).filter(
+            (r) => !passed.has(r.slice(0, 1000)),
+          ),
+        );
+      }
     }
     return { blockers, selection };
   }

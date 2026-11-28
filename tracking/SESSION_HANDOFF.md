@@ -73,6 +73,10 @@ pilot or thesis. Accepted owner decisions and existing scoped grants remain auth
 
 Audit phases A and B ran in the cloud (throwaway database, fixture provider, $0; scripts and screenshots in `tracking/evidence/autopilot-friction/`, findings in the plan doc). Fixed: Hands-off goes on with an already-recorded problem instead of stopping at thin evidence, the fixed tie order ends with the option that builds least and then the title, stop cards name the stop kind with the right button, and Automate the rest defaults to a new run. Still open: telling the web search model its search limit plus a "Searches per web search" field (own PR; requalification needs Jordan's typed OK), and phase C (a live run, needs his OK).
 
+## November 28 handoff — Decide without the busywork (ADR-0138, migration 81)
+
+What changed is in ADR-0138. Schema becomes 81 when this merges; the dev studio and the installed app need the migration before they run it. Open follow-ups: the autopilot still stops at the spec for software selected for a build; a model-drafted humility review (so "Decide for me" can also clear the humility gate) is not built; the runbook export still reads only a review of the spec itself.
+
 ## November 28 handoff — autopilot stops on an open plan request (ADR-0136, ADR-0137, no migration)
 
 What changed is in ADR-0136. Root cause on Jordan's PC: a web search ran past its search cap (`studio_search_cap`), the studio cut the stream, and the request was left with an unknown outcome, which blocks every request on that connection until the owner closes it under Models and connections. Jordan closed it on November 28 and chose (decision card) the opt-in auto-close built as ADR-0137. Open follow-ups for the autopilot friction audit: tell the scout its `max_search_calls` (prompt change, requalification needs Jordan's OK); overlapping active runs from Explore for me and Search the web keep their routine approvals until their end time.

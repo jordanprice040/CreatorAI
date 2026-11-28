@@ -947,8 +947,19 @@ export function selectionReport(input: {
 // ---- Selection checks -------------------------------------------------------------------
 
 export interface SelectionCheck {
-  /** Gate failures: a high score or an override never clears these. */
+  /** Gate failures: a high score or a ranking override never clears these. */
   blocked: string[];
+  /**
+   * ADR-0138: the blocked choices only an owner's gate override may pass, with their reasons.
+   * A choice the option's kind rules out is not here: it is in `fixed`, and nothing passes it.
+   */
+  gated: {
+    alternative: { id: string; version: number };
+    disposition: SelectionDisposition;
+    reasons: string[];
+  }[];
+  /** ADR-0138: blocked choices the option's kind rules out (never overridable). */
+  fixed: string[];
   /** Structural problems: missing, extra or stale candidates. */
   invalid: string[];
   overrides: {
@@ -966,6 +977,8 @@ export function checkSelection(
 ): SelectionCheck {
   const blocked: string[] = [];
   const invalid: string[] = [];
+  const gated: SelectionCheck['gated'] = [];
+  const fixed: string[] = [];
   const all = report.suitability.candidates;
   const byId = new Map(all.map((c) => [c.alternative.id, c]));
   const chosen = new Map<string, SelectionDisposition>();
@@ -983,10 +996,23 @@ export function checkSelection(
     if (chosen.has(id))
       invalid.push(`"${c.alternative.title}" has more than one disposition.`);
     chosen.set(id, d.disposition);
-    for (const reason of c.gates.blocked[d.disposition] ?? [])
+    const reasons = c.gates.blocked[d.disposition] ?? [];
+    for (const reason of reasons)
       blocked.push(
         `"${c.alternative.title}" cannot be ${d.disposition.replaceAll('_', ' ')}: ${reason}`,
       );
+    if (reasons.length) {
+      if (kindAllows(c.alternative.kind, d.disposition))
+        gated.push({
+          alternative: { id, version: c.alternative.version },
+          disposition: d.disposition,
+          reasons: reasons.map((r) => r.slice(0, 1000)).slice(0, 20),
+        });
+      else
+        fixed.push(
+          `"${c.alternative.title}" cannot be ${d.disposition.replaceAll('_', ' ')}: ${reasons[0]}`,
+        );
+    }
   }
   for (const c of all)
     if (!chosen.has(c.alternative.id))
@@ -1034,6 +1060,8 @@ export function checkSelection(
   );
   return {
     blocked,
+    gated,
+    fixed,
     invalid,
     overrides,
     override_reason_missing:

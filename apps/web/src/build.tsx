@@ -357,6 +357,11 @@ export function BuildView({
         (version === undefined || sub.version === version)
       );
     });
+  /** ADR-0138: the review from Decide of the exact option version this spec builds. */
+  const optionReview = (s: SpecStatus) => {
+    const o = d ? specOption(d.specEntities, s.spec.id, s.spec.version) : null;
+    return o ? reviewOf(o.id, o.version) : undefined;
+  };
   /** The review to start from: this spec's newest (any version), else its option's. */
   const startFrom = (s: SpecStatus) => {
     const alt = entityOf(s)?.body?.alternative as { id: string } | undefined;
@@ -641,6 +646,18 @@ export function BuildView({
                                   ),
                                 )}
                               </>
+                            ) : optionReview(s) ? (
+                              <>
+                                Covered by the humility review of the option
+                                this spec builds, from Decide (
+                                {words(
+                                  String(
+                                    optionReview(s)!.body?.disposition ?? '',
+                                  ),
+                                )}
+                                ); a build uses it, so no second review is
+                                needed.
+                              </>
                             ) : (
                               <>
                                 No humility review of v{s.spec.version} yet; a
@@ -861,7 +878,7 @@ function Sample({
       </Empty>
     );
   const isSample = spec.spec.title === 'Synthetic checklist sample';
-  const reviewed = reviews.some((r) => reviewOf(r, spec));
+  const reviewed = reviews.some((r) => reviewOf(r, spec, []));
   return (
     <div className="cite">
       <h3>Try the $0 sample</h3>
@@ -926,15 +943,51 @@ function Sample({
   );
 }
 
-const reviewOf = (r: StoredEntity, s: SpecStatus) => {
+/**
+ * ADR-0138: the option version a spec version was written from, when that version is the
+ * stored current one; its humility review from Decide covers a build of the spec.
+ */
+export function specOption(
+  specs: readonly StoredEntity[],
+  id: string,
+  version: number,
+): { id: string; version: number } | null {
+  const e = specs.find(
+    (x) => x.id.toLowerCase() === id.toLowerCase() && x.version === version,
+  );
+  const a = e?.body?.alternative as
+    { id?: unknown; version?: unknown } | undefined;
+  return typeof a?.id === 'string' && typeof a.version === 'number'
+    ? { id: a.id, version: a.version }
+    : null;
+}
+/**
+ * Whether a humility review covers a build of this spec version: a review of the spec version
+ * itself, or (ADR-0138) of the exact option version the spec was written from.
+ */
+export function reviewCovers(
+  r: StoredEntity,
+  specId: string,
+  specVersion: number,
+  option: { id: string; version: number } | null,
+): boolean {
   const subject = (r.body as { subject?: { id?: string; version?: number } })
     .subject;
+  const is = (x: { id: string; version: number }) =>
+    subject?.id?.toLowerCase() === x.id.toLowerCase() &&
+    subject.version === x.version;
   return (
     r.status === 'active' &&
-    subject?.id === s.spec.id &&
-    subject.version === s.spec.version
+    (is({ id: specId, version: specVersion }) || (!!option && is(option)))
   );
-};
+}
+const reviewOf = (r: StoredEntity, s: SpecStatus, specs: StoredEntity[]) =>
+  reviewCovers(
+    r,
+    s.spec.id,
+    s.spec.version,
+    specOption(specs, s.spec.id, s.spec.version),
+  );
 
 type Data = {
   reviews: StoredEntity[];
@@ -1416,13 +1469,11 @@ function StartBuild({
   fixes?: FixContext;
 }) {
   const { standard } = useViewMode();
-  const reviews = data.reviews.filter((r) => {
-    const s = (r.body as { subject?: { id?: string; version?: number } })
-      .subject;
-    return (
-      r.status === 'active' && s?.id === specId && s.version === specVersion
-    );
-  });
+  // ADR-0138: the spec version's own reviews, and the Decide review of the option it builds.
+  const option = specOption(data.specEntities, specId, specVersion);
+  const reviews = data.reviews.filter((r) =>
+    reviewCovers(r, specId, specVersion, option),
+  );
   const [run, setRun] = useState('');
   const [budget, setBudget] = useState('');
   const [price, setPrice] = useState('');
@@ -1567,7 +1618,7 @@ function StartBuild({
     ...(!chosen
       ? [
           {
-            text: 'Needs a humility review of this exact spec version.',
+            text: 'Needs a humility review of this spec version, or of the option version it builds (Decide).',
             fix: { view: 'scores' as View, label: 'Open Scores and specs' },
           },
         ]

@@ -59,13 +59,18 @@ export const CORE_PROPOSAL_SECTIONS: readonly ProposalSection[] = [
   'ethics_risks',
   'next_tasks',
 ];
-/** Option kinds a proposal may describe: every non-code response, and a hybrid's whole plan. */
+/**
+ * Option kinds a proposal may describe: every non-code response, a hybrid's whole plan, and
+ * (ADR-0138) custom software taken to validation before building, whose proposal is the
+ * validation plan. Software selected for a build still goes to a spec, not a proposal.
+ */
 export const PROPOSAL_KINDS = [
   'use_existing',
   'change_process',
   'human_led',
   'hybrid',
   'investigate',
+  'build',
 ] as const;
 export const PROPOSAL_SECTION_MAX = 6000;
 export const PROPOSAL_MAX_BODY_BYTES = 131072;

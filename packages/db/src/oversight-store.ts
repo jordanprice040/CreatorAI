@@ -2020,7 +2020,9 @@ export class OversightStore extends Store {
                 : 'superseded',
             body: e.body,
           },
-          binding.target,
+          binding.target
+            ? await this.humilityCovers(c, ws, binding.target, e.body)
+            : null,
           binding.target
             ? await this.humilitySubjectKind(c, ws, binding.target.id)
             : 'software',
@@ -2287,6 +2289,38 @@ export class OversightStore extends Store {
    * ADR-0077 (pilot F9): a hybrid option, or a spec written from one, is a hybrid subject; the
    * humility gate then reads the hybrid comparison. Anything else is judged as software-only.
    */
+  /**
+   * ADR-0138 (Jordan, November 28): the subject a humility review is checked against for this
+   * target. A spec is covered by the review of the exact option version it was written from
+   * (the review done in Decide), so a build does not ask for the same review again; any other
+   * target, or a review of another option or version, is checked against the target itself.
+   */
+  protected async humilityCovers(
+    c: PoolClient,
+    ws: string,
+    target: { id: string; version: number },
+    reviewBody: unknown,
+  ): Promise<{ id: string; version: number }> {
+    const subject = (reviewBody as Row | null)?.subject as Row | undefined;
+    if (
+      typeof subject?.id !== 'string' ||
+      subject.id.toLowerCase() === target.id.toLowerCase()
+    )
+      return target;
+    const { rows } = await c.query<{ body: Row | null }>(
+      `select v.body from entity_versions v join entities e on e.id = v.entity_id
+        where e.workspace_id = $1 and e.kind = 'specification' and v.entity_id = $2
+          and v.version = $3`,
+      [ws, target.id.toLowerCase(), target.version],
+    );
+    const alt = rows[0]?.body?.alternative as Row | undefined;
+    return typeof alt?.id === 'string' &&
+      alt.id.toLowerCase() === subject.id.toLowerCase() &&
+      Number(alt.version) === Number(subject.version)
+      ? { id: subject.id, version: Number(subject.version) }
+      : target;
+  }
+
   protected async humilitySubjectKind(
     c: PoolClient,
     ws: string,

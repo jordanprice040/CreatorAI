@@ -1,0 +1,20 @@
+{
+  "blocked": {
+    "select_for_build": [
+      "No humility review of this exact version."
+    ],
+    "recommend_alternative": [
+      "Custom software is selected for build or validation, not recommended as an alternative."
+    ]
+  },
+  "dropdown": [
+    "Choose…",
+    "Select for a bounded build (gates passed by you)",
+    "Validate before building",
+    "[off] Recommend (no new software) (blocked: Custom software is selected for build or validation, not recommended as an alternative.)",
+    "Research further",
+    "Defer",
+    "Reject"
+  ],
+  "errors": []
+}

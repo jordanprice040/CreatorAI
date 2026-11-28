@@ -666,8 +666,31 @@ export const SelectRequestSchema = z.strictObject({
   shortlist_size: counter.min(1).max(10).default(3),
   /** Data class of the material the decision covers, matched against grants. */
   data_class: DataClassSchema,
+  /**
+   * ADR-0138 (Jordan, November 28): the owner passes the gates that block these choices. Only
+   * the workspace owner, signed in as a person, may send it (never an autopilot or a model); a
+   * choice the option's kind rules out is never passed. The record keeps every reason passed.
+   */
+  gate_override: z
+    .strictObject({
+      reason: note,
+      /** The owner saw the warning and confirmed it. */
+      confirmed: z.literal(true),
+    })
+    .nullable()
+    .optional(),
 });
 export type SelectRequest = z.infer<typeof SelectRequestSchema>;
+/** ADR-0138: one choice whose gates the owner passed, with the gate reasons as they read then. */
+export const GateOverrideSchema = z.strictObject({
+  alternative: ref,
+  disposition: SelectionDispositionSchema,
+  reasons: z.array(z.string().max(1000)).min(1).max(20),
+});
+export type GateOverride = z.infer<typeof GateOverrideSchema>;
+/** ADR-0138: the label every owner gate override carries where the choice is shown. */
+export const GATE_OVERRIDE_NOTE =
+  'Owner override: gates passed without their checks.' as const;
 export const OverrideSchema = z.strictObject({
   alternative: id,
   ranking: RubricIdSchema,
@@ -692,6 +715,10 @@ export const SelectionSchema = z.strictObject({
   dispositions: SelectRequestSchema.shape.dispositions,
   overrides: z.array(OverrideSchema),
   override_reason: note.nullable(),
+  /** ADR-0138: choices whose gates the owner passed (empty when none). */
+  gate_overrides: z.array(GateOverrideSchema).default([]),
+  /** ADR-0138: the owner's reason for passing them; null when nothing was passed. */
+  gate_override_reason: note.nullable().default(null),
   rationale: note,
   admission_id: id,
   actor_id: id,
