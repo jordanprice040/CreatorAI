@@ -893,7 +893,7 @@ test('PR #176 review 3 L-1 and N-2: research synthesis is queued per lane, locat
   if (!s) return;
   // Fixture copies, since the test connection is a fixture one.
   const WEB = {
-    ...read('config/connections/benchmarks/web-discovery-v2.json'),
+    ...read('config/connections/benchmarks/web-discovery-v3.json'),
     fixture: true,
   };
   const OLD_WEB = {
@@ -956,7 +956,7 @@ test('PR #176 review 4 N-A: a locator pass refuses the locator only, web discove
   const s = await setup(t, { responses: [{ kind: 'text', text: 'ok' }, GOOD] });
   if (!s) return;
   const WEB = {
-    ...read('config/connections/benchmarks/web-discovery-v2.json'),
+    ...read('config/connections/benchmarks/web-discovery-v3.json'),
     fixture: true,
   };
   const LOC = read(

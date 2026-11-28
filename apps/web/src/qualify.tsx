@@ -15,7 +15,7 @@ import specCases from '../../../config/connections/benchmarks/spec-cases-v2.json
 import summarization from '../../../config/connections/benchmarks/summarization-synthetic-v1.json';
 import builder from '../../../config/connections/benchmarks/t12-builder-v3.json';
 import reviewer from '../../../config/connections/benchmarks/t12-reviewer-v3.json';
-import webDiscovery from '../../../config/connections/benchmarks/web-discovery-v2.json';
+import webDiscovery from '../../../config/connections/benchmarks/web-discovery-v3.json';
 import { AllowTasks } from './allow-tasks.js';
 import {
   forRole,

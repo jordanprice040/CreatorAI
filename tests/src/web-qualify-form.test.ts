@@ -552,7 +552,7 @@ test('P24 after P12: Qualify several reads each benchmark in its own research sy
   const allowed = ['research_synthesis'];
   const web = (qs: PlanQualification[]) =>
     queueChoices(qs, 'gpt-6-astra', allowed).find(
-      (c) => c.name === 'web-discovery-v2',
+      (c) => c.name === 'web-discovery-v3',
     )?.eligible;
   const decided = {
     task_class: 'research_synthesis' as const,

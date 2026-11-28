@@ -262,6 +262,8 @@ export function Autopilot({
   // Review 1 of #213, H-1: an autopilot can pass its end time while the page is open, and then
   // it can no longer continue; drawing again each half minute moves it to Earlier autopilots.
   const [, setTick] = useState(0);
+  // ADR-0140: the web search's search limit (1 to 5), which the scout is told.
+  const [maxSearches, setMaxSearches] = useState(3);
   useEffect(() => {
     const t = setInterval(() => setTick((n) => n + 1), 30_000);
     return () => clearInterval(t);
@@ -289,7 +291,7 @@ export function Autopilot({
     question: question.trim() ? cutText(question.trim(), 300) : null,
     exclusions: list(exclusions),
     excluded_hosts: [],
-    max_search_calls: 3,
+    max_search_calls: maxSearches,
     max_fetches: 8,
     max_claims: 8,
   };
@@ -827,6 +829,26 @@ export function Autopilot({
                           do with each other.
                         </p>
                       )}
+                      <label htmlFor="ap-searches">
+                        Searches per web search
+                      </label>
+                      <select
+                        id="ap-searches"
+                        value={maxSearches}
+                        aria-describedby="ap-searches-hint"
+                        onChange={(e) => setMaxSearches(Number(e.target.value))}
+                      >
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <option key={n} value={n}>
+                            Up to {n}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="small" id="ap-searches-hint">
+                        How many searches the model may run in its one request.
+                        More can find more pages; the model is told the limit,
+                        and a request that goes past it ends with nothing kept.
+                      </p>
                     </>
                   )}
                   <label htmlFor="ap-class">Evidence sharing class</label>

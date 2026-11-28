@@ -131,6 +131,8 @@ export function WebDiscover({
     if (sites?.skip !== undefined) setSkip(sites.skip);
   }, [sites?.nonce]);
   const [maxFetches, setMaxFetches] = useState(8);
+  // ADR-0140: the search limit the owner picks (1 to 5), which the scout is told.
+  const [maxSearches, setMaxSearches] = useState(3);
   const [maxClaims, setMaxClaims] = useState(8);
   const [connectionId, setConnectionId] = useState('');
   const [planModel, setPlanModel] = useState('');
@@ -192,7 +194,7 @@ export function WebDiscover({
     question: question.trim() || null,
     exclusions: list(exclusions),
     excluded_hosts: hosts(skip),
-    max_search_calls: 3,
+    max_search_calls: maxSearches,
     max_fetches: maxFetches,
     max_claims: maxClaims,
   };
@@ -242,7 +244,7 @@ export function WebDiscover({
       : []),
     ...(plan && model && !webQualified(plan, model)
       ? [
-          `${model} is not qualified for web discovery (the web-discovery-v2 benchmark). Qualify it under Models and connections first.`,
+          `${model} is not qualified for web discovery (the web-discovery-v3 benchmark). Qualify it under Models and connections first.`,
         ]
       : []),
     ...(current?.data?.fetching_available === false
@@ -424,6 +426,26 @@ export function WebDiscover({
                       onChange={(e) => setSkip(e.target.value)}
                     />
                   </div>
+                </div>
+                <div>
+                  <label htmlFor="w-searches">Searches per web search</label>
+                  <select
+                    id="w-searches"
+                    value={maxSearches}
+                    aria-describedby="w-searches-hint"
+                    onChange={(e) => setMaxSearches(Number(e.target.value))}
+                  >
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <option key={n} value={n}>
+                        Up to {n}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="small" id="w-searches-hint">
+                    How many searches the model may run in its one request. More
+                    can find more pages; the model is told the limit, and a
+                    request that goes past it ends with nothing kept.
+                  </p>
                 </div>
                 <div className="two">
                   <div>

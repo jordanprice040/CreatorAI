@@ -22,6 +22,9 @@ import {
 import {
   READER_PROMPT,
   SCOUT_MARKER,
+  SCOUT_PROMPT,
+  WEB_DISCOVERY_ROLE_VERSION,
+  scoutInput,
   READER_MARKER,
   buildReaderPacket,
   canonicalHash,
@@ -591,7 +594,7 @@ test('the bundled benchmark binds both stages to the current prompts and grades 
     JSON.parse(
       readFileSync(
         new URL(
-          '../../config/connections/benchmarks/web-discovery-v2.json',
+          '../../config/connections/benchmarks/web-discovery-v3.json',
           import.meta.url,
         ),
         'utf8',
@@ -923,7 +926,7 @@ async function setup(t: test.TestContext) {
   const manifest = JSON.parse(
     readFileSync(
       new URL(
-        '../../config/connections/benchmarks/web-discovery-v2.json',
+        '../../config/connections/benchmarks/web-discovery-v3.json',
         import.meta.url,
       ),
       'utf8',
@@ -1055,6 +1058,8 @@ test('search, guarded fetch, reading and the quote check run end to end on a bar
       excluded_topics: [],
       excluded_websites: ['excluded.fixture.test'],
       max_leads: 10,
+      // ADR-0140: the scout is told its search limit.
+      max_searches: 3,
     }),
   );
   const by = Object.fromEntries(d.leads.map((l) => [l.url, l]));
@@ -1672,4 +1677,35 @@ test('review 2 N-3: every distinct quote that loses its page’s row is named, a
   assert.match(many[0]!, /“no no/);
   assert.match(many[1]!, /“never/);
   assert.equal(many[2], 'It has 2 more quotes not recorded as their own rows.');
+});
+
+test('ADR-0140: the scout is told its search limit, and the limit binds the preview hash', () => {
+  assert.equal(WEB_DISCOVERY_ROLE_VERSION, 'web-discovery-role/3');
+  assert.match(SCOUT_PROMPT, /at most max_searches web searches/);
+  const two = WebDiscoveryScopeSchema.parse({ max_search_calls: 2 });
+  const five = WebDiscoveryScopeSchema.parse({ max_search_calls: 5 });
+  assert.equal(JSON.parse(scoutInput(two)).max_searches, 2);
+  assert.equal(JSON.parse(scoutInput(five)).max_searches, 5);
+  assert.notEqual(scoutInputHash(two), scoutInputHash(five));
+  // The web discovery benchmark carries the current prompt, so a pass under role 2 no longer
+  // admits web discovery until the model is qualified again.
+  const bench = JSON.parse(
+    readFileSync(
+      new URL(
+        '../../config/connections/benchmarks/web-discovery-v3.json',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  ) as {
+    cases: {
+      input: { role: string; text: string }[];
+      check: { kind: string; role_version: string };
+    }[];
+  };
+  for (const c of bench.cases) {
+    assert.equal(c.check.role_version, WEB_DISCOVERY_ROLE_VERSION);
+    if (c.check.kind === 'web_scout_contract')
+      assert.equal(c.input[0]!.text, SCOUT_PROMPT);
+  }
 });

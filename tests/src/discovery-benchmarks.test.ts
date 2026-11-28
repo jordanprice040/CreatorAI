@@ -251,7 +251,7 @@ test('ADR-0089: start a discovery qualification by name; stale names, fixture mi
   const web = BenchmarkManifestSchema.parse(
     JSON.parse(
       readFileSync(
-        new URL('config/connections/benchmarks/web-discovery-v2.json', root),
+        new URL('config/connections/benchmarks/web-discovery-v3.json', root),
         'utf8',
       ),
     ),

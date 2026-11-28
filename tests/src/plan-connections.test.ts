@@ -789,7 +789,7 @@ test('PR #173 review 4 L-A: a view recorded in the old key format still guards w
     model_id: 'm',
   });
   const v2 = {
-    ...(read('config/connections/benchmarks/web-discovery-v2.json') as {
+    ...(read('config/connections/benchmarks/web-discovery-v3.json') as {
       cases: ManifestCase[];
     }),
     fixture: true,

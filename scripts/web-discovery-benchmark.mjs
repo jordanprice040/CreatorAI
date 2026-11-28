@@ -1,4 +1,4 @@
-// Writes config/connections/benchmarks/web-discovery-v2.json (ADR-0086, P12). Run after
+// Writes config/connections/benchmarks/web-discovery-v3.json (ADR-0086, P12). Run after
 // `pnpm build:code`: node scripts/web-discovery-benchmark.mjs
 // Scout cases search the live web through the plan connection's own web search and are graded
 // on what the provider reported (a search happened, enough leads from its own source list, from
@@ -280,21 +280,21 @@ const cases = [
 
 const manifest = BenchmarkManifestSchema.parse({
   format: 'route-benchmark/1',
-  name: 'web-discovery-v2',
+  name: 'web-discovery-v3',
   fixture: false,
   task_class: 'research_synthesis',
   data_class: 'public',
   cases,
   provenance:
-    'ADR-0086 (P12), November 11, 2026; v2 after the live v1 check (scout prompt states field limits, role version 2; the three v1 held-out scout cases became practice and three new held-out scout cases were added). Scout cases search the live web and are graded on the provider-reported search calls and sources, never on exact URLs; the development scout cases reuse the November 10 search-route test queries. Reader cases are synthetic packets written for this benchmark, graded by the studio quote check. Not a study instrument.',
+    'ADR-0140, November 28, 2026: v3 is v2 with role version 3 (the scout prompt and input state the search limit, max_searches); the cases, splits and checks are unchanged, and the change came from a live search cut off at its limit, not from any case result. ADR-0086 (P12), November 11, 2026; v2 after the live v1 check (scout prompt states field limits, role version 2; the three v1 held-out scout cases became practice and three new held-out scout cases were added). Scout cases search the live web and are graded on the provider-reported search calls and sources, never on exact URLs; the development scout cases reuse the November 10 search-route test queries. Reader cases are synthetic packets written for this benchmark, graded by the studio quote check. Not a study instrument.',
 });
 writeFileSync(
   new URL(
-    '../config/connections/benchmarks/web-discovery-v2.json',
+    '../config/connections/benchmarks/web-discovery-v3.json',
     import.meta.url,
   ),
   `${JSON.stringify(manifest, null, 2)}\n`,
 );
 console.log(
-  `web-discovery-v2: ${cases.length} cases, ${cases.filter((c) => c.split === 'held_out').length} held out`,
+  `web-discovery-v3: ${cases.length} cases, ${cases.filter((c) => c.split === 'held_out').length} held out`,
 );

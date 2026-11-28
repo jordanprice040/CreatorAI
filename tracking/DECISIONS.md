@@ -1,5 +1,13 @@
 # Decision log
 
+## ADR-0140 — The web search model is told its search limit; the owner picks it (November 28, 2026; no migration)
+
+**Request (Jordan, November 28, 2026):** after the friction pass found the root cause of his stuck autopilot (a web search ran past `max_search_calls`, the studio cut the stream with `studio_search_cap`, and the request was left with an unknown outcome), he agreed to tell the scout its limit and to let the owner choose it, in its own PR, with live requalification only after merge and with his typed OK.
+
+- The scout's input now carries `max_searches` (the scope's `max_search_calls`), and its prompt says to run at most that many searches, because the studio ends the request after that and keeps nothing. Role version 3 (`web-discovery-role/3`, marker `scout/3`); the preview hash changes with the limit.
+- `config/connections/benchmarks/web-discovery-v3.json` is v2 with the new prompt and input: the same 13 cases, splits and checks. The change came from a live search cut off at its limit, not from any case result (invariant 9). Because each case carries the current prompt, a pass under role 2 no longer admits web discovery: **web search is unavailable on a connection until its model passes web-discovery-v3** (Models and connections › Qualify, live plan requests, Jordan's OK).
+- Search the web and the autopilot's "Search the web first" get a "Searches per web search" field (1 to 5, default 3, the range the scope schema already allowed).
+
 ## ADR-0139 — Hands-off goes past recorded problems and full ties; stop cards say which stop (November 28, 2026; no migration)
 
 **Request (Jordan, November 28, 2026):** a fully automatic autopilot that "runs without stopping unless absolutely necessary"; the levels and per-stop switches stay. Audit phases A and B (throwaway database, fixture provider, $0; evidence in `tracking/evidence/autopilot-friction/`) found two places where Hands-off still stopped and several unclear cards.
