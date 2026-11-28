@@ -145,4 +145,33 @@ test('ADR-0137: an autopilot closes unknown plan requests only under the owner s
     await store.autoClosePlanRequests(asAutopilot, ws.id, conn.id, autopilotId),
     [],
   );
+
+  // Review 1 of #260, M-1: settling locks a request before its connection, so a request that
+  // may still be running is never locked here. While another transaction holds the running
+  // request's row (as a settle would), the close still finishes and closes the others: an
+  // unknown one, and an in-flight one long past its stale point.
+  const another = await add('unknown');
+  const stale = await add('in_flight');
+  await db.pool.query(
+    "update plan_requests set started_at = clock_timestamp() - interval '2 days' where id = $1",
+    [stale],
+  );
+  const holder = await db.pool.connect();
+  try {
+    await holder.query('begin');
+    await holder.query(
+      'select id from plan_requests where id = $1 for update',
+      [flying],
+    );
+    const done = await Promise.race([
+      store.autoClosePlanRequests(asAutopilot, ws.id, conn.id, autopilotId),
+      new Promise<'blocked'>((r) => setTimeout(() => r('blocked'), 5000)),
+    ]);
+    assert.notEqual(done, 'blocked', 'the close waited on a running request');
+    assert.deepEqual(new Set(done as string[]), new Set([another, stale]));
+  } finally {
+    await holder.query('rollback');
+    holder.release();
+  }
+  assert.equal((await stateOf(flying)).state, 'in_flight');
 });
