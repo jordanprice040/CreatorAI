@@ -1,0 +1,54 @@
+[
+  {
+    "label": "off",
+    "clicks_to_start": 6,
+    "outcome": "needs_person",
+    "stop_kind": "tie",
+    "steps": [
+      "assess:done",
+      "select:stopped"
+    ],
+    "explanation": "5 options tie for first on suitability: “Use the existing tool: The clinics’ scheduling systems send…”, “Human-led: a named coordinator owns Share of first-appointm…”, “Front-desk staff phone patients the day before appointments…” and 2 more. The autopilot breaks ties only when you allow it (Break ties). Choose one under Decide and continue: the autopilot goes on with your choice.",
+    "next": [
+      "allow_and_continue: Allow “Break ties” and continue",
+      "decide: Choose under Decide"
+    ],
+    "card": "Waiting for you Automate the rest · Unused first-appointment slots at rural clinics: Rural clinics… · Automate the rest · Nov 28, 2026, 8:58 AM · started Nov 28, 2026, 8:58 AM · 2 of 30 calls set aside · can continue until Nov 29, 2026, 8:59 AM\n\n5 options tie for first on suitability: “Use the existing tool: The clinics’ scheduling systems send…”, “Human-led: a named coordinator owns Share of first-appointm…”, “Front-desk staff phone patients the day before appointments…” and 2 more. The autopilot breaks ties only when you allow it (Break ties). Choose one under Decide and continue: the autopilot goes on with your choice.\n\nNext: this step is yours. Make the choice under Projects › Decide (or write the proposal under Proposals), then press Continue on this card. Autopilot settings below choose which stops it may handle on its own.\n\nOpen Decide\nAutopilot settings\nContinue the autopilot from choose an option\nAllow “Break ties” and continue\n\nA tie for first goes to the better opportunity rank, then fewer unknowns, then the better worst case. It stays on for later autopilots; change it under Autopilot settings.\n\n✓ Assess the options: The assessment wrote 7 system scorecards.\n✗ Choose an option: see above.\n\nPlanned next:\n\n○ Choose an option\n○ Write the proposal (a software option stops at its spec instead)",
+    "errors": [],
+    "shot": "a2-off.png"
+  },
+  {
+    "label": "handsoff",
+    "clicks_to_start": 6,
+    "outcome": "needs_person",
+    "stop_kind": "tie",
+    "steps": [
+      "assess:done",
+      "select:stopped"
+    ],
+    "explanation": "5 options tie for first on suitability: “Hybrid: routine workaround supported by a simple list from …”, “Software: Airline overbooking calculations from historical …”, “Use the existing tool: The clinics’ scheduling systems send…” and 2 more. The fixed order (opportunity rank, fewer unknowns, the better worst case) does not separate them. Choose one under Decide and continue.",
+    "next": [
+      "decide: Choose under Decide"
+    ],
+    "card": "Waiting for you Automate the rest · Unused first-appointment slots at rural clinics: Rural clinics… · Automate the rest · Nov 28, 2026, 8:58 AM · started Nov 28, 2026, 8:58 AM · 2 of 30 calls set aside · can continue until Nov 29, 2026, 8:59 AM\n\n5 options tie for first on suitability: “Hybrid: routine workaround supported by a simple list from …”, “Software: Airline overbooking calculations from historical …”, “Use the existing tool: The clinics’ scheduling systems send…” and 2 more. The fixed order (opportunity rank, fewer unknowns, the better worst case) does not separate them. Choose one under Decide and continue.\n\nNext: this step is yours. Make the choice under Projects › Decide (or write the proposal under Proposals), then press Continue on this card. Autopilot settings below choose which stops it may handle on its own.\n\nOpen Decide\nAutopilot settings\nContinue the autopilot from choose an option\n✓ Assess the options: The assessment wrote 7 system scorecards.\n✗ Choose an option: see above.\n\nPlanned next:\n\n○ Choose an option\n○ Write the proposal (a software option stops at its spec instead)",
+    "errors": [],
+    "shot": "a2-handsoff.png"
+  },
+  {
+    "label": "handsoff-ethics",
+    "clicks_to_start": 6,
+    "outcome": "needs_person",
+    "stop_kind": "tie",
+    "steps": [
+      "assess:done",
+      "select:stopped"
+    ],
+    "explanation": "5 options tie for first on suitability: “Software: Airline overbooking calculations from historical …”, “Hybrid: routine workaround supported by a simple list from …”, “Human-led: a named coordinator owns Share of first-appointm…” and 2 more. The fixed order (opportunity rank, fewer unknowns, the better worst case) does not separate them. Choose one under Decide and continue.",
+    "next": [
+      "decide: Choose under Decide"
+    ],
+    "card": "Waiting for you Automate the rest · Unused first-appointment slots at rural clinics: Rural clinics… · Automate the rest · Nov 28, 2026, 8:58 AM · started Nov 28, 2026, 8:58 AM · 2 of 30 calls set aside · can continue until Nov 29, 2026, 8:59 AM\n\n5 options tie for first on suitability: “Software: Airline overbooking calculations from historical …”, “Hybrid: routine workaround supported by a simple list from …”, “Human-led: a named coordinator owns Share of first-appointm…” and 2 more. The fixed order (opportunity rank, fewer unknowns, the better worst case) does not separate them. Choose one under Decide and continue.\n\nNext: this step is yours. Make the choice under Projects › Decide (or write the proposal under Proposals), then press Continue on this card. Autopilot settings below choose which stops it may handle on its own.\n\nOpen Decide\nAutopilot settings\nContinue the autopilot from choose an option\n✓ Assess the options: The assessment wrote 7 system scorecards.\n✗ Choose an option: see above.\n\nPlanned next:\n\n○ Choose an option\n○ Write the proposal (a software option stops at its spec instead)",
+    "errors": [],
+    "shot": "a2-handsoff-ethics.png"
+  }
+]
