@@ -6,6 +6,7 @@ import {
   mkdir,
   readFile,
   readdir,
+  realpath,
   rm,
   symlink,
   writeFile,
@@ -30,7 +31,11 @@ const CLI = join(ROOT, 'scripts/dev-artifact-retention.mjs');
 // Every test gets a disposable verification root and a fake repo whose
 // tracking/docs folders form the evidence reference corpus.
 async function sandbox(t) {
-  const base = await mkdtemp(join(tmpdir(), 'creator-retention-test-'));
+  // The real path: Windows may give tmpdir() as an 8.3 short name (C:\Users\RUNNER~1), and
+  // the cleanup rightly refuses a root that resolves elsewhere.
+  const base = await realpath(
+    await mkdtemp(join(tmpdir(), 'creator-retention-test-')),
+  );
   t.after(() => rm(base, { recursive: true, force: true }));
   const root = join(base, 'verification');
   const repoRoot = join(base, 'repo');

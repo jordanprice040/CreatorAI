@@ -1466,6 +1466,11 @@ No app, package, script, frozen benchmark or grader file changed, and on Linux e
   real paths of the recorded working directory. Latent note, not a fix: `canonical()` in
   `packages/executor/src/files.ts` would refuse any studio folder given as a short name; the app's own folders are
   not built from `tmpdir()`, so no app path is known to hit it.
+- **`test:dev-safety` on Windows** (it runs after the main suite, so it was never reached while the main suite
+  failed): 8 `dev-artifact-retention` tests hit the same short temp path (the cleanup refuses a root that resolves
+  elsewhere), so the sandbox now uses the `realpath` of its temp folder; the foreign-listener guard test hard-coded
+  `C:/Program Files/PostgreSQL/18/bin` while the runner ships 17, so it now uses `CREATOR_PG_BIN` when set and skips
+  with that reason when no `pg_ctl.exe` is there.
 - `.github/workflows/ci.yml`: the Windows job's timeout is 40 minutes (was 25). Its test run alone takes about 17
   minutes, and one #259 run was cancelled at exactly 25.
 - Checks (cloud, Linux, PostgreSQL 16): `pnpm typecheck`, `pnpm format:check`, and the six changed test files pass
