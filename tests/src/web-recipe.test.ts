@@ -10,6 +10,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { request, type Server } from 'node:http';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import {
   ArtifactSupervisor,
   BuildSupervisor,
@@ -1006,7 +1007,9 @@ test('review N-4: the pinned browser shown in the app is the one the bridge veri
 });
 
 test('the frozen web benchmark still matches its freeze, its checker and the studio spec schema', async () => {
-  const bench = await import(join(ROOT, 'scripts/p15-web-benchmark.mjs'));
+  const bench = await import(
+    pathToFileURL(join(ROOT, 'scripts/p15-web-benchmark.mjs')).href
+  );
   assert.deepEqual(await bench.verify(), []);
 });
 
@@ -1023,7 +1026,9 @@ test(
       : 'set CREATOR_TEST_BROWSER_DIR to the pinned headless browser and install bwrap',
   },
   async () => {
-    const bench = await import(join(ROOT, 'scripts/p15-web-benchmark.mjs'));
+    const bench = await import(
+      pathToFileURL(join(ROOT, 'scripts/p15-web-benchmark.mjs')).href
+    );
     assert.deepEqual(await bench.verify(), []);
     const s = bench.score(
       'p15-small-signup-v4',

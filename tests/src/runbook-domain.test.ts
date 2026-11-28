@@ -428,8 +428,10 @@ test('the shipped runner reproduces the visible cases from the bundle alone', as
       },
     );
   // A reference implementation of the synthetic spec, written for this test.
+  // The bundle tells Windows programs to write `\n` themselves; this one does.
   const good = [
     'import sys',
+    'sys.stdout.reconfigure(newline="\\n")',
     'args = sys.argv[1:]',
     'if args not in ([], ["--lines"]):',
     '    sys.exit(2)',

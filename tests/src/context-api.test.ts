@@ -142,7 +142,13 @@ test('context API and CLI: capabilities, folder index, pack, cached call, batch,
   await mkdir(outside, { recursive: true });
   await writeFile(join(outside, 'secret.ts'), 'export const key = "x";\n');
   await symlink(outside, join(src, 'linked'), 'junction');
-  await symlink(join(outside, 'secret.ts'), join(src, 'secret.ts'));
+  // A file link needs Windows Developer Mode; without it only the junctions are checked.
+  await symlink(join(outside, 'secret.ts'), join(src, 'secret.ts')).catch(
+    (e: NodeJS.ErrnoException) => {
+      if (process.platform !== 'win32' || e.code !== 'EPERM') throw e;
+      t.diagnostic('file symlink not permitted here; checked junctions only');
+    },
+  );
   await symlink(src, join(src, 'src', 'loop'), 'junction');
   const first = await cli(
     'context-index',

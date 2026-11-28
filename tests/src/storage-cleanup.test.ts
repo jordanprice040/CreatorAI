@@ -525,7 +525,12 @@ test('review M-1 and L-5: ignored files, links, unregistered folders and a left 
   await rm(lock);
   // A link named like a workspace, and a folder Git doesn't know.
   const linked = randomUUID();
-  await symlink(tree, join(products.dir(p.id), 'worktrees', linked));
+  // A junction needs no Windows Developer Mode; elsewhere the type is ignored.
+  await symlink(
+    tree,
+    join(products.dir(p.id), 'worktrees', linked),
+    'junction',
+  );
   assert.match(await reasonOf(linked), /Not a plain folder/);
   const loose = randomUUID();
   await mkdir(join(products.dir(p.id), 'worktrees', loose));

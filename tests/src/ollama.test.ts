@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
+import { fileURLToPath } from 'node:url';
 import {
   createServer,
   type IncomingMessage,
@@ -151,7 +152,7 @@ test('the address must be IP loopback over http, host and port only', () => {
 
 test('the shipped config pins no model and points at the default loopback address', () => {
   const config = loadLocalModelsConfig(
-    new URL('config/local-models.json', root).pathname,
+    fileURLToPath(new URL('config/local-models.json', root)),
   );
   assert.deepEqual(config.models, []);
   assert.equal(config.base_url, 'http://127.0.0.1:11434');
