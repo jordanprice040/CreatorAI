@@ -1,4 +1,9 @@
-import { Explain, PointList, useReadLists } from './explain.js';
+import {
+  Explain,
+  OpenSummariesHint,
+  PointList,
+  useReadLists,
+} from './explain.js';
 import {
   useEffect,
   useRef,
@@ -11,6 +16,8 @@ import {
   AUTOPILOT_MIN_CALLS,
   AUTOPILOT_RETRYABLE,
   autopilotContinuable,
+  autopilotStepConnection,
+  stopsOnOpenRequest,
   AUTOPILOT_STAGE_LABEL,
   AutopilotConfigSchema,
   AutopilotSchema,
@@ -82,6 +89,23 @@ const OUTCOME_LABEL: Record<string, string> = {
   failed: 'Stopped: a step failed',
   cancelled: 'Stopped by you',
 };
+/**
+ * Autopilot friction pass (November 28): a connection's refusal comes back as "needs authority",
+ * yet nothing waits under Approvals for it; the title names what actually stopped it.
+ */
+function outcomeLabel(a: AutopilotRecord): string {
+  const last = a.steps.at(-1);
+  if (a.outcome === 'needs_authority') {
+    if (stopsOnOpenRequest(last))
+      return 'Stopped: a plan request has an unknown outcome';
+    if (last?.stop_kind === 'run_cap' || last?.stop_kind === 'daily_cap')
+      return 'Stopped: connection request cap reached';
+    if (last?.stop_kind === 'connection')
+      return 'Stopped: the connection needs fixing';
+    if (last?.stop_kind === 'end_time') return 'Stopped: its end time passed';
+  }
+  return OUTCOME_LABEL[a.outcome ?? ''] ?? words(a.outcome ?? '');
+}
 const MARK: Record<string, string> = {
   done: '✓',
   running: '…',
@@ -573,7 +597,7 @@ export function Autopilot({
                   AUTOPILOT_RETRYABLE.includes(a.outcome) &&
                   !can.ok
                 ? `Ended: ${can.reason.startsWith('Its end time') ? 'its end time passed' : 'it cannot continue'}`
-                : (OUTCOME_LABEL[a.outcome ?? ''] ?? words(a.outcome ?? ''))}
+                : outcomeLabel(a)}
           </strong>{' '}
           <span className="small">
             {a.automation_id
@@ -920,9 +944,12 @@ export function Autopilot({
                   the autopilot ends, except while it waits for me.
                 </label>
                 {!listsRead && config && policy && (
-                  <p className="small muted">
-                    Open both summaries above to confirm them.
-                  </p>
+                  <OpenSummariesHint
+                    names={[
+                      'What the autopilot does',
+                      'Routine approvals for its new run',
+                    ]}
+                  />
                 )}
                 {blockers.length > 0 && (
                   <ul className="error">
@@ -1111,7 +1138,49 @@ function NextAfterStop({
         </>
       );
       break;
-    case 'needs_authority':
+    case 'needs_authority': {
+      // Autopilot friction pass (November 28): a connection refusal is fixed under Models and
+      // connections, never under Approvals, where nothing waits for it. Only an approval stop
+      // (or one the page cannot place) points at Approvals.
+      const conn = last ? autopilotStepConnection(a.config, last.stage) : null;
+      const models = (label: string) => (
+        <button
+          type="button"
+          className="secondary"
+          onClick={() => {
+            open('models');
+            if (conn && stopsOnOpenRequest(last))
+              revealWhenShown(`open-requests-${conn}`);
+          }}
+        >
+          {label}
+        </button>
+      );
+      if (stopsOnOpenRequest(last)) {
+        text = `Next: nothing waits under Approvals. An earlier request on this plan connection has no recorded outcome, so no request can start there. Under Models and connections › Requests without a recorded outcome, close it with what you know (or wait for it if it is still running)${then}${canContinue ? ' Until then, Continue is refused rather than tried again.' : ''} The setting “Close unknown plan requests” lets the autopilot do this itself.`;
+        actions = models('Open the request to close');
+        break;
+      }
+      if (last?.stop_kind === 'run_cap') {
+        text = `Next: nothing waits under Approvals. The connection's per-run request cap is used up; raise it under Models and connections › Change caps${then}`;
+        actions = models('Open Models and connections');
+        break;
+      }
+      if (last?.stop_kind === 'daily_cap') {
+        text = `Next: nothing waits under Approvals. The connection's daily request cap is used up; add requests under Models and connections or wait until it has room${then}`;
+        actions = models('Open Models and connections');
+        break;
+      }
+      if (last?.stop_kind === 'connection') {
+        text = `Next: nothing waits under Approvals. The connection refused for its own setup (the step's note above says why); fix it under Models and connections${then}`;
+        actions = models('Open Models and connections');
+        break;
+      }
+      if (last?.stop_kind === 'end_time') {
+        text =
+          'Next: its end time passed. Start a new autopilot (Narrow it and set limits); what this one made is kept.';
+        break;
+      }
       text = `Next: approve the waiting action under Monitor › Approvals${then}`;
       actions = (
         <a
@@ -1122,6 +1191,7 @@ function NextAfterStop({
         </a>
       );
       break;
+    }
     case 'limit_reached':
       text = canContinue
         ? 'Next: press Continue to carry on with what is left, or start a new autopilot with more calls or hours.'

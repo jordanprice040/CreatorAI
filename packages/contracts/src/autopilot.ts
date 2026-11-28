@@ -10,6 +10,7 @@ import { EvidenceRoleSchema, ResponseTypeSchema } from './discovery.js';
 import { ExploreScopeSchema } from './exploration.js';
 import { WebDiscoveryScopeSchema } from './web-discovery.js';
 import { WorkflowResourceSetupSchema } from './orchestration.js';
+import { PLAN_RECONCILE_HINT } from './connections.js';
 import {
   AutopilotFallbackSchema,
   AutopilotNextSchema,
@@ -438,6 +439,22 @@ export function autopilotContinuable(
   return { ok: true };
 }
 
+/**
+ * Autopilot friction pass (November 28): the stop was a plan request with no recorded outcome
+ * (or one still marked running) on the step's connection. Stops recorded before the
+ * `open_request` kind existed were `connection` stops whose note names the reconcile hint.
+ */
+export function stopsOnOpenRequest(
+  step: Pick<AutopilotStep, 'stop_kind' | 'note'> | undefined,
+): boolean {
+  if (!step) return false;
+  if (step.stop_kind === 'open_request') return true;
+  return (
+    step.stop_kind === 'connection' &&
+    (step.note ?? '').includes(PLAN_RECONCILE_HINT)
+  );
+}
+
 /** ADR-0124 (F2): automatic continues one autopilot may make after usage limits (the database refuses more). */
 export const AUTO_RESUME_MAX_CHECKS = 8;
 
@@ -696,6 +713,14 @@ const NEXT: Record<AutopilotStopKind, Omit<AutopilotNext, 'setting'>[]> = {
       label: 'Fix the connection',
       detail:
         'Models and connections: the connection says what it needs (for example accepting its caps); then continue.',
+    },
+  ],
+  open_request: [
+    {
+      kind: 'models',
+      label: 'Close the request without a recorded outcome',
+      detail:
+        'Models and connections › your plan connection › Requests without a recorded outcome: close it with what you know, then continue. Nothing waits under Approvals.',
     },
   ],
   daily_cap: [

@@ -26,6 +26,7 @@ import {
   autopilotRequestFloor,
   autopilotStageFloor,
   autopilotStepConnection,
+  stopsOnOpenRequest,
   parse,
   type AutopilotUsageCheck,
   SETTING_FOR_STOP,
@@ -280,6 +281,22 @@ export function refusalKind(e: unknown): AutopilotStopKind {
       ? e.reasons.map((r) => r.code).filter((c) => plan.includes(c))
       : [];
   const text = said(e).toLowerCase();
+  // Autopilot friction pass (November 28): an earlier plan request with no recorded outcome
+  // blocks every request on the connection until the owner closes it; it is neither an approval
+  // nor a setup fault, and Continue cannot get past it until then. Read first, since closing it
+  // is the one fix that must come before any other.
+  if (
+    reasons.includes('request_open') &&
+    reasons.every((c) =>
+      [
+        'request_open',
+        'quota_exhausted',
+        'cap_reached',
+        'daily_cap_reached',
+      ].includes(c),
+    )
+  )
+    return 'open_request';
   // Re-review 2 N-1: a connection that is not set up (caps not accepted, sign-in, …) is fixed
   // first; more requests cannot help until it is.
   // Live rerun 3 (November 15): the plan account's own usage limit resets by itself; it is a
@@ -309,6 +326,9 @@ export function refusalKind(e: unknown): AutopilotStopKind {
   if (outcome === 'failed') return 'failed_step';
   return 'other';
 }
+
+/** ADR-0137: plan requests one autopilot may close by itself before it stops for the owner. */
+export const AUTO_CLOSE_MAX = 3;
 
 const USAGE_LIMIT_NOTE =
   "The plan account's usage limit was reached, so the step is not tried again now. Once it resets (see your plan's usage settings), recheck usage under Models and connections, then continue.";
@@ -821,9 +841,37 @@ export class AutopilotRunner {
   }
 
   async retry(ctx: CommandContext, ws: string, id: string, body: unknown) {
+    await this.#openRequestHolds(ctx, ws, id);
     const a = await this.store.retryAutopilot(ctx, ws, id, body);
     this.#launch(a.created_by, ws, a.id);
     return this.withNext(ctx, ws, a);
+  }
+
+  /**
+   * Autopilot friction pass (November 28): Continue after a stop on a plan request with no
+   * recorded outcome is refused while that connection still has one open, instead of starting
+   * an attempt the connection can only refuse again (a live run on November 28 tried the same
+   * step five times, each taking one of the autopilot's steps). A connection that cannot be
+   * read is left to the step's own admission.
+   */
+  async #openRequestHolds(ctx: CommandContext, ws: string, id: string) {
+    const a = await this.store.getAutopilot(ctx, ws, id).catch(() => null);
+    const last = a?.steps.at(-1);
+    if (!a || a.state !== 'finished' || !stopsOnOpenRequest(last)) return;
+    // ADR-0137: with the owner's setting on, the autopilot closes the request itself on Continue.
+    const settings = await this.#settings(ctx, ws).catch(() => null);
+    if (settings?.values.close_unknown_plan_requests) return;
+    const conn = autopilotStepConnection(a.config, last!.stage);
+    if (!conn) return;
+    const d = await this.store
+      .planConnectionDetail(ctx, ws, conn)
+      .catch(() => null);
+    const open = d?.open_requests.length ?? 0;
+    if (open > 0)
+      throw new ContractError(
+        'INVALID_TRANSITION',
+        `${open === 1 ? 'A plan request' : `${open} plan requests`} on this connection ${open === 1 ? 'has' : 'have'} no recorded outcome yet, so the step would only be refused again. Under Models and connections › Requests without a recorded outcome, wait for ${open === 1 ? 'it' : 'them'} to finish or close ${open === 1 ? 'it' : 'them'} with what you know, then continue.`,
+      );
   }
 
   async cancel(ctx: CommandContext, ws: string, id: string, body: unknown) {
@@ -988,6 +1036,18 @@ export class AutopilotRunner {
       // Live rerun (November 15): a finished step keeps only the calls it used.
       const fresh = await this.#trimSpent(ctx, ws, read);
       if ('stop' in r) {
+        // ADR-0137: a stop on a plan request without a recorded outcome closes it and tries the
+        // step again when the owner's setting allows it, instead of waiting for the owner.
+        const closed =
+          r.stop.kind === 'open_request'
+            ? await this.#closeOpen(ctx, ws, fresh, step, r.stop).catch(
+                () => null,
+              )
+            : null;
+        if (closed) {
+          await this.#redo(ctx, ws, fresh, closed);
+          continue;
+        }
         await this.#finish(ctx, ws, fresh, r.stop);
         return;
       }
@@ -1393,6 +1453,46 @@ export class AutopilotRunner {
       settings_version: settings.version,
       instead_of,
       note: cutText(note, 600),
+    };
+  }
+
+  /**
+   * ADR-0137: with the owner's "Close unknown plan requests" on, the plan requests on the step's
+   * connection that have no recorded outcome are closed as "it ran, or the studio cannot tell"
+   * (the store checks the setting, the owner and the connection kind again) and the step is
+   * tried again. At most `AUTO_CLOSE_MAX` times per autopilot, so a connection that keeps
+   * leaving requests open stops for the owner instead of looping. Null: stop as before.
+   */
+  async #closeOpen(
+    ctx: CommandContext,
+    ws: string,
+    a: Autopilot,
+    step: AutopilotStep,
+    stop: Stop,
+  ): Promise<Fallback | null> {
+    const settings = await this.#settings(ctx, ws);
+    if (!settings.values.close_unknown_plan_requests) return null;
+    const used = a.steps.filter(
+      (s) => s.fallback?.setting === 'close_unknown_plan_requests',
+    ).length;
+    if (used >= AUTO_CLOSE_MAX) return null;
+    const conn = autopilotStepConnection(a.config, step.stage);
+    if (!conn) return null;
+    const closed = await this.store.autoClosePlanRequests(ctx, ws, conn, a.id);
+    if (!closed.length) return null;
+    return {
+      fallback: this.#fb(
+        settings,
+        'close_unknown_plan_requests',
+        'open_request',
+        fitNote(
+          stop.note,
+          `Closed ${closed.length} plan request${closed.length === 1 ? '' : 's'} without a recorded outcome as “it ran, or the studio cannot tell” and tried the step again (the owner's setting “${AUTOPILOT_SETTING_TEXT.close_unknown_plan_requests.label}”).`,
+          600,
+        ),
+      ),
+      then: { kind: 'retry' },
+      ...(stop.unsent ? { unsent: true } : {}),
     };
   }
 

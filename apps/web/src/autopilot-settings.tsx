@@ -54,6 +54,7 @@ const SWITCHES: AutopilotSettingKey[] = [
   'keep_close_leader',
   'next_candidate',
   'draft_proposal_sections',
+  'close_unknown_plan_requests',
   'choose_model_ethics',
   'accept_quote_checked_claims',
 ];
@@ -153,6 +154,18 @@ export function AutopilotSettingsPanel({
                   }`}
               {s.updated_at ? ` Last changed ${when(s.updated_at)}.` : ''}
             </p>
+            {/* Autopilot friction pass (November 28): Hands-off on, web searches still stopped
+                for their claims, and the owner took Hands-off to cover them. */}
+            {isHandsOff(s.values) && !s.values.accept_quote_checked_claims && (
+              <p className="small model-note model-note-warn" role="note">
+                Web searches still stop for you to read the claims they find:
+                Hands-off leaves “
+                {AUTOPILOT_SETTING_TEXT.accept_quote_checked_claims.label}” to
+                you. Turn it on below if the autopilot may use them as checked
+                by their quotes only.
+              </p>
+            )}
+            <StillStops />
             {s.can_change && !isHandsOff(draft) && (
               <button
                 type="button"
@@ -260,5 +273,43 @@ export function AutopilotSettingsPanel({
         )}
       </Status>
     </div>
+  );
+}
+
+/**
+ * Autopilot friction pass (November 28): what no setting here removes, so "fully automatic"
+ * means what it says. These are the studio's fixed safety rules, not switches.
+ */
+export function StillStops() {
+  return (
+    <details className="small">
+      <summary>What still stops it, whatever these say</summary>
+      <ul>
+        <li>
+          A plan or paid request whose outcome is unknown: close it under Models
+          and connections › Requests without a recorded outcome. No request
+          starts on that connection until then.
+        </li>
+        <li>
+          Limits: the connection’s per-run and daily request caps, the plan’s
+          own usage limit (it can continue by itself after that one if you chose
+          so at the start), the autopilot’s call limit and end time, and your
+          spending ceiling.
+        </li>
+        <li>
+          Steps its run’s routine approvals do not cover. Routine approvals let
+          steps start without asking; these settings decide what happens when a
+          step’s result needs a judgment. Hands-off running needs both.
+        </li>
+        <li>
+          Publishing, sending messages, payments, GitHub, account or access
+          changes and raising budgets: never automatic.
+        </li>
+        <li>
+          Value questions, a flagged ethical concern, and writing or freezing a
+          software spec.
+        </li>
+      </ul>
+    </details>
   );
 }

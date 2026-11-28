@@ -22,6 +22,7 @@ import {
   AutopilotConfigSchema,
   AutopilotSchema,
   autopilotContinuable,
+  stopsOnOpenRequest,
   autopilotEndsApprovals,
   ContractError,
   WebDiscoveryScopeSchema,
@@ -67,6 +68,7 @@ import {
   nextGatherQuestion,
   refusalKind,
   refusalStop,
+  AUTO_CLOSE_MAX,
   stalledNote,
   spentCandidates,
   spentSettled,
@@ -3246,6 +3248,32 @@ test('review 1 L-2: a plan refusal is read by its code, not its words', () => {
     refusalKind(refused('cap_reached', 'The per-run request cap is reached.')),
     'run_cap',
   );
+  // Autopilot friction pass (November 28): an earlier request with no recorded outcome is its
+  // own stop, fixed under Models and connections, not an approval or a setup fault.
+  assert.equal(
+    refusalKind(
+      refused(
+        'request_open',
+        'An earlier plan request has an unknown outcome; reconcile it in Models and connections.',
+      ),
+    ),
+    'open_request',
+  );
+  assert.equal(
+    refusalKind(
+      new ContractError(
+        'ACCESS_DENIED',
+        'This plan request is not admitted.',
+        ['Unknown outcome.', 'Caps not accepted.'],
+        [
+          { code: 'request_open', text: 'Unknown outcome.' },
+          { code: 'caps_not_accepted', text: 'Caps not accepted.' },
+        ],
+      ),
+    ),
+    'connection',
+    'a setup fault beside it is still named as the connection',
+  );
   // Re-review 2 N-1: a connection that is not set up is named first, whatever else is used up.
   assert.equal(
     refusalKind(
@@ -4107,4 +4135,196 @@ test('PR #211 review 1 L-2b: a gather round that leaves as many unknown ratings 
     done.explanation,
     /left 1 unknown rating, the same as the 1 before it, so it stops gathering/,
   );
+});
+
+test('autopilot friction pass (November 28): a stop on a request with no recorded outcome points at Models and connections, and Continue waits until it is closed', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  const conn = '00000000-0000-4000-8000-0000000000c1';
+  let open = 1;
+  class Holding extends ConnectionStore {
+    override async planRunRoomIn() {
+      return { per_run: 40, used: 0, daily_left: 50 };
+    }
+    override async planConnectionDetail(
+      ...args: Parameters<ConnectionStore['planConnectionDetail']>
+    ) {
+      if (args[2] !== conn) return super.planConnectionDetail(...args);
+      return {
+        connection: { quota: { state: 'ok' } },
+        open_requests: Array.from({ length: open }, () => ({})),
+      } as unknown as Awaited<
+        ReturnType<ConnectionStore['planConnectionDetail']>
+      >;
+    }
+  }
+  let starts = 0;
+  const web = webStub(async () => {
+    starts += 1;
+    throw new ContractError(
+      'ACCESS_DENIED',
+      "Web search can't start on this connection now.",
+      [
+        'An earlier plan request has an unknown outcome; reconcile it in Models and connections.',
+      ],
+      [
+        {
+          code: 'request_open',
+          text: 'An earlier plan request has an unknown outcome; reconcile it in Models and connections.',
+        },
+      ],
+    );
+  });
+  const runner = new AutopilotRunner(new Holding(h.db.pool), web, {
+    pollMs: 5,
+    onWait: () => h.worker.settle(),
+  });
+  const research = {
+    connection_id: conn,
+    model_id: 'gpt-test',
+    scope: WebDiscoveryScopeSchema.parse({ interests: ['volunteers'] }),
+    input_hash: 'c'.repeat(64),
+  };
+  const runId = await h.run(
+    h.policy(['research', 'evidence', 'model_work', 'selection'], {
+      data_classes: ['public', 'synthetic'],
+    }),
+  );
+  const a = await runner.start(
+    owner,
+    h.ws.id,
+    runId,
+    h.body(h.config({ research })),
+  );
+  await runner.settled(a.id);
+  const done = runner.with(await h.store.getAutopilot(owner, h.ws.id, a.id));
+  assert.equal(starts, 1);
+  assert.equal(done.outcome, 'needs_authority', done.explanation);
+  assert.equal(done.steps.at(-1)!.stop_kind, 'open_request');
+  assert.ok(stopsOnOpenRequest(done.steps.at(-1)));
+  // ADR-0137: the one-click setting comes first, then closing it by hand.
+  assert.equal(
+    done.next?.[0]?.setting,
+    'close_unknown_plan_requests',
+    JSON.stringify(done.next),
+  );
+  assert.ok(done.next?.some((n) => n.kind === 'models'));
+  assert.ok(
+    !done.next?.some((n) => n.kind === 'approvals'),
+    'nothing waits under Approvals for it',
+  );
+  assert.ok(autopilotContinuable(done).ok);
+
+  // While the request stays open, Continue is refused without taking a step or calling out.
+  await rejects(
+    'INVALID_TRANSITION',
+    runner.retry(owner, h.ws.id, a.id, { expected_version: done.version }),
+    /no recorded outcome yet/,
+  );
+  const same = await h.store.getAutopilot(owner, h.ws.id, a.id);
+  assert.equal(same.version, done.version, 'no attempt was recorded');
+  assert.equal(same.steps.length, done.steps.length);
+  assert.equal(starts, 1);
+
+  // Once it is closed, Continue tries the step again.
+  open = 0;
+  const cont = await runner.retry(owner, h.ws.id, a.id, {
+    expected_version: done.version,
+  });
+  await runner.settled(cont.id);
+  assert.equal(starts, 2, 'tried again after the request was closed');
+});
+
+test('autopilot friction pass (November 28): a stop recorded before the open-request kind is still read as one', () => {
+  assert.ok(
+    stopsOnOpenRequest({
+      stop_kind: 'connection',
+      note: "Explore the evidence was refused: Exploration can't start on this connection now. An earlier plan request has an unknown outcome; reconcile it in Models and connections.",
+    }),
+  );
+  assert.ok(
+    !stopsOnOpenRequest({
+      stop_kind: 'connection',
+      note: 'Discover was refused: Caps not accepted.',
+    }),
+  );
+  assert.ok(!stopsOnOpenRequest(undefined));
+});
+
+test('ADR-0137: with Close unknown plan requests on, an open-request stop closes them and tries again, at most AUTO_CLOSE_MAX times', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  const conn = '00000000-0000-4000-8000-0000000000c1';
+  let closes = 0;
+  class Closing extends ConnectionStore {
+    override async planRunRoomIn() {
+      return { per_run: 40, used: 0, daily_left: 50 };
+    }
+    override async autoClosePlanRequests(
+      ...args: Parameters<ConnectionStore['autoClosePlanRequests']>
+    ) {
+      assert.equal(args[2], conn, 'the step’s own connection');
+      assert.equal(args[0].autopilot?.id, args[3].toLowerCase());
+      closes += 1;
+      return [randomUUID()];
+    }
+  }
+  let starts = 0;
+  const web = webStub(async () => {
+    starts += 1;
+    throw new ContractError(
+      'ACCESS_DENIED',
+      "Web search can't start on this connection now.",
+      ['An earlier plan request has an unknown outcome.'],
+      [
+        {
+          code: 'request_open',
+          text: 'An earlier plan request has an unknown outcome.',
+        },
+      ],
+    );
+  });
+  const store = new Closing(h.db.pool);
+  await store.saveAutopilotSettings(owner, h.ws.id, {
+    expected_version: 0,
+    values: {
+      ...AUTOPILOT_SETTINGS_DEFAULT,
+      close_unknown_plan_requests: true,
+    },
+  });
+  const runner = new AutopilotRunner(store, web, {
+    pollMs: 5,
+    onWait: () => h.worker.settle(),
+  });
+  const research = {
+    connection_id: conn,
+    model_id: 'gpt-test',
+    scope: WebDiscoveryScopeSchema.parse({ interests: ['volunteers'] }),
+    input_hash: 'c'.repeat(64),
+  };
+  const runId = await h.run(
+    h.policy(['research', 'evidence', 'model_work', 'selection'], {
+      data_classes: ['public', 'synthetic'],
+    }),
+  );
+  const a = await runner.start(
+    owner,
+    h.ws.id,
+    runId,
+    h.body(h.config({ research })),
+  );
+  await runner.settled(a.id);
+  const done = await h.store.getAutopilot(owner, h.ws.id, a.id);
+  assert.equal(closes, AUTO_CLOSE_MAX);
+  assert.equal(starts, AUTO_CLOSE_MAX + 1);
+  const fallbacks = done.steps.filter(
+    (s) => s.fallback?.setting === 'close_unknown_plan_requests',
+  );
+  assert.equal(fallbacks.length, AUTO_CLOSE_MAX);
+  assert.ok(fallbacks.every((s) => s.stop_kind === 'open_request'));
+  assert.match(fallbacks[0]!.note, /it ran, or the studio cannot tell/);
+  // Past the bound it stops for the owner as before, with nothing set aside for refusals.
+  assert.equal(done.outcome, 'needs_authority', done.explanation);
+  assert.equal(done.steps.at(-1)!.stop_kind, 'open_request');
+  assert.equal(done.calls_reserved, 0);
 });

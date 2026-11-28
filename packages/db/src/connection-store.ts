@@ -3810,6 +3810,85 @@ export class ConnectionStore extends AutomationStore {
     );
   }
 
+  /**
+   * ADR-0137 (Jordan, November 28): an autopilot closes the plan requests on its connection
+   * whose outcome is unknown, when the owner's autopilot setting "Close unknown plan requests"
+   * is on. Only a plan connection (no per-request charge), only for the autopilot itself acting
+   * for the owner who started it, and only requests a person could close now: `unknown` ones,
+   * and in-flight ones past their stale point that this studio is not waiting on. Each is
+   * recorded as "it ran, or the studio cannot tell" (never "did not run"), so it keeps counting
+   * toward the daily cap. The setting is read here, in the same transaction, never taken from
+   * the caller. Returns the closed request ids (none: nothing to close or not allowed).
+   */
+  async autoClosePlanRequests(
+    ctxIn: CommandContext,
+    wsIn: string,
+    idIn: string,
+    autopilotId: string,
+  ): Promise<string[]> {
+    const ctx = normalize(ctxIn);
+    const ws = uuid(wsIn);
+    const id = uuid(idIn);
+    if (!ctx.autopilot || ctx.autopilot.id !== uuid(autopilotId))
+      throw fail(
+        'ACCESS_DENIED',
+        'Only an autopilot, for the owner who started it, closes plan requests by itself.',
+      );
+    return this.tx(async (c) => {
+      await this.requireOwner(
+        c,
+        ws,
+        ctx.actorId,
+        'The person who started this autopilot no longer owns the workspace.',
+      );
+      const settings = await this.readAutopilotSettings(c, ws);
+      if (!settings.values.close_unknown_plan_requests) return [];
+      const conn = await this.#lock(c, ws, id);
+      const open = await c.query(
+        `select pr.id, pr.state, ${PLAN_REQUEST_STALE_AFTER} <= clock_timestamp() as overdue
+           from plan_requests pr join plan_connections pc on pc.id = pr.connection_id
+          where pr.connection_id = $1 and pr.state in ('unknown','in_flight')
+          order by pr.started_at, pr.id for update of pr`,
+        [conn.id],
+      );
+      const closable = (open.rows as Row[])
+        .filter(
+          (r) =>
+            r.state === 'unknown' ||
+            (Boolean(r.overdue) && !this.#livePlanRequests.has(String(r.id))),
+        )
+        .map((r) => String(r.id));
+      if (!closable.length) return [];
+      await c.query(
+        `update plan_requests set state = 'reconciled', reason_code = 'autopilot_setting_ran',
+                finished_at = coalesce(finished_at, clock_timestamp())
+          where connection_id = $1 and id = any($2::uuid[]) and state in ('unknown','in_flight')`,
+        [conn.id, closable],
+      );
+      const payload = {
+        request_ids: closable,
+        outcome: 'ran',
+        note: `Closed by autopilot ${ctx.autopilot!.id} under the owner's setting "Close unknown plan requests" (settings version ${settings.version}): recorded as it ran, or the studio cannot tell.`,
+        settings_version: settings.version,
+      };
+      await c.query(
+        'update plan_connections set version = version + 1, updated_at = clock_timestamp() where id = $1',
+        [conn.id],
+      );
+      await this.#event(c, conn.id, 'request_reconciled', payload, ctx);
+      await this.append(c, ctx, {
+        workspaceId: ws,
+        action: 'connection.request_reconciled',
+        subjectKind: 'plan_connection',
+        subjectId: conn.id,
+        subjectVersion: conn.version + 1,
+        contentHash: null,
+        payload,
+      });
+      return closable;
+    });
+  }
+
   /** Owner says to try the plan again after a usage limit; the next request re-observes it. */
   async resetPlanQuotaObservation(
     ctxIn: CommandContext,

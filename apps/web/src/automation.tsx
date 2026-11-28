@@ -48,6 +48,7 @@ import { endTimeClose, useEndTime } from './end-time.js';
 import { useAutopilotSettings } from './autopilot-settings.js';
 import {
   Explain,
+  OpenSummariesHint,
   PointList,
   useReadLists,
   useSectionState,
@@ -779,9 +780,12 @@ export function Automation({
                       I have read both summaries; apply them to this run.
                     </label>
                     {!listsRead && step && levelSummary.length > 0 && (
-                      <p className="small muted">
-                        Open both summaries above to confirm them.
-                      </p>
+                      <OpenSummariesHint
+                        names={[
+                          `What ${AUTOMATION_LEVEL_TEXT[level].label} does`,
+                          'Routine approvals',
+                        ]}
+                      />
                     )}
                     {blockers.length > 0 && (
                       <ul className="error">

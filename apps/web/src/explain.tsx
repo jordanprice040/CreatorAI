@@ -220,3 +220,36 @@ function addressId(): string {
     return '';
   }
 }
+
+/**
+ * Autopilot friction pass (November 28): "Open both summaries above" did not say which
+ * summaries or where they open, and the confirm box stayed greyed out with no other hint. This
+ * names them and opens every folded summary of its form in one press (each opened list counts
+ * as read through its own toggle, as when opened by hand).
+ */
+export function OpenSummariesHint({ names }: { names: readonly string[] }) {
+  return (
+    <p className="small muted">
+      To tick the box, read the{' '}
+      {names.length === 2 ? 'two summaries' : 'summaries'} above (
+      {names.map((n) => `“${n}”`).join(' and ')}): open each one’s “more points,
+      open to read” line.{' '}
+      <button
+        type="button"
+        className="secondary"
+        onClick={(e) => {
+          const form = e.currentTarget.closest('form') ?? document;
+          const folds = [
+            ...form.querySelectorAll<HTMLDetailsElement>(
+              '.point-list details:not([open])',
+            ),
+          ];
+          for (const d of folds) d.open = true;
+          folds[0]?.closest('.point-list')?.scrollIntoView({ block: 'start' });
+        }}
+      >
+        Open them here
+      </button>
+    </p>
+  );
+}

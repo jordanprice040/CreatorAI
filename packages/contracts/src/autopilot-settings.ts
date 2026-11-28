@@ -37,6 +37,12 @@ export const AutopilotSettingsValuesSchema = z.strictObject({
    * sections. The drafts wait under their sections; a person still uses each one.
    */
   draft_proposal_sections: z.boolean(),
+  /**
+   * ADR-0137 (Jordan, November 28): on a plan connection (no per-request charge), close a request
+   * whose outcome is unknown as "it ran, or the studio cannot tell" and go on, instead of
+   * stopping for the owner. Never applies to paid API calls. Part of Hands-off.
+   */
+  close_unknown_plan_requests: z.boolean(),
 });
 export type AutopilotSettingsValues = z.infer<
   typeof AutopilotSettingsValuesSchema
@@ -53,6 +59,7 @@ export const AUTOPILOT_SETTINGS_DEFAULT: AutopilotSettingsValues = {
   choose_model_ethics: false,
   accept_quote_checked_claims: false,
   draft_proposal_sections: false,
+  close_unknown_plan_requests: false,
 };
 
 /**
@@ -71,6 +78,7 @@ export function handsOff(v: AutopilotSettingsValues): AutopilotSettingsValues {
     choose_model_ethics: v.choose_model_ethics,
     accept_quote_checked_claims: v.accept_quote_checked_claims,
     draft_proposal_sections: true,
+    close_unknown_plan_requests: true,
   };
 }
 /** The switches Hands-off leaves as they are. */
@@ -139,6 +147,12 @@ export const AutopilotStopKindSchema = z.enum([
   'usage_limit',
   /** Review 1 L-2: the connection refused for its own setup (caps not accepted, sign-in, …). */
   'connection',
+  /**
+   * Autopilot friction pass (November 28): an earlier plan request on the connection has an
+   * unknown outcome (or is still marked running); only the owner closing it under Models and
+   * connections lets any request start there again (invariant 5).
+   */
+  'open_request',
   'call_limit',
   'end_time',
   'spec',
@@ -160,6 +174,7 @@ export const SETTING_FOR_STOP: Partial<
   model_ethics: 'choose_model_ethics',
   failed_step: 'retry_failed',
   claims_held: 'accept_quote_checked_claims',
+  open_request: 'close_unknown_plan_requests',
 };
 
 export const AUTOPILOT_SETTING_TEXT: Record<
@@ -201,6 +216,10 @@ export const AUTOPILOT_SETTING_TEXT: Record<
   accept_quote_checked_claims: {
     label: 'Accept quote-checked web claims',
     text: 'Lets the autopilot use claims from its web searches whose only check is that their quotes were found word for word. Off: they wait for you under Discover › Search the web. Each one used is labelled “Accepted by autopilot · quote check only”, with its source passage.',
+  },
+  close_unknown_plan_requests: {
+    label: 'Close unknown plan requests',
+    text: 'When a ChatGPT plan or Claude Code request ends without a recorded outcome (for example a web search the studio cut off), records it as “it ran, or I cannot tell” and goes on, instead of stopping until you close it. It still counts toward the daily cap. Paid API calls always wait for you.',
   },
   draft_proposal_sections: {
     label: 'Draft a proposal’s missing sections',

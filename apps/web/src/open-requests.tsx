@@ -38,7 +38,10 @@ export function OpenRequests({
   const limit = connection.settings.caps.shared.max_model_requests_per_day;
   return (
     <div className="open-requests">
-      <h4>Requests without a recorded outcome</h4>
+      {/* An autopilot stopped on one of these links here (autopilot friction pass). */}
+      <h4 id={`open-requests-${connection.id}`} tabIndex={-1}>
+        Requests without a recorded outcome
+      </h4>
       <p>
         No other request can start on this connection, chat answers included,
         until {open.length === 1 ? 'this one is closed' : 'these are closed'}.

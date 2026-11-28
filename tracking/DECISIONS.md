@@ -1,5 +1,29 @@
 # Decision log
 
+## ADR-0137 — Autopilots may close unknown plan requests by themselves (November 28, 2026; no migration)
+
+**Decision (Jordan, November 28, 2026, on a decision card):** "Yes, opt-in setting (plan only)" to "Close unknown-outcome plan requests automatically so autopilots keep going?". Jordan's aim the same morning: a fully automatic autopilot he starts quickly and that stops only when it must; the levels and per-stop switches stay.
+
+- New owner autopilot setting **Close unknown plan requests** (`close_unknown_plan_requests`), off by default and part of Hands-off. Hands-off saved before it existed reads as off until the owner turns it on again (the page names it, as for ADR-0101).
+- When a step stops as `open_request` (ADR-0136) and the setting is on, the autopilot closes the requests on that step's connection and tries the step again, recorded on the step as a fallback (`instead_of: open_request`, settings version). At most `AUTO_CLOSE_MAX` = 3 such closes per autopilot; then it stops for the owner as before. Continue is not refused while the setting is on, and the stopped card offers "Allow this from now on and continue".
+- `ConnectionStore.autoClosePlanRequests` enforces it in application code (invariant 3): only an autopilot acting for the owner who started it (its own id), the owner still owns the workspace, the setting is read in the same transaction, and only requests a person could close now (`unknown`, or in flight past the stale point and not waited on by this studio). Each is recorded as `reconciled` with `autopilot_setting_ran`, never "did not run", so it keeps counting toward the daily cap; the connection version moves, and a `connection.request_reconciled` event and audit entry name the autopilot and the settings version.
+
+**How this fits the rules.** ADR-0064 made closing an unknown plan request the owner's act. This keeps it the owner's choice, made once as a standing setting instead of per request, and only on plan connections, which carry no per-request charge, so invariant 5 ("unknown billing is unknown, not zero") is not touched: nothing is recorded as free or as not run. Paid API reservations and their reconciliation are unchanged and still wait for the owner.
+
+## ADR-0136 — Autopilot stops on an open plan request say where to fix it (November 28, 2026; no migration)
+
+**Request (Jordan, November 28, 2026, installed 0.1.9):** an autopilot with every setting on stopped with "Explore the evidence was refused: … An earlier plan request has an unknown outcome; reconcile it in Models and connections", while the card's next step said to approve something under Monitor › Approvals, where nothing waited. He pressed Continue five times (each refused again) and ticked every routine approval, which cannot clear this stop. The open request was a web search the studio itself cut off for searching too often (`studio_search_cap`).
+
+**Decision.**
+
+- A plan refusal whose reasons are only `request_open` (plus used-up caps or quota) is its own autopilot stop kind, `open_request`, instead of `connection`. A setup fault beside it is still `connection`. Its next step is Models and connections, never Approvals. `stopsOnOpenRequest` also reads stops recorded before this kind existed (a `connection` stop whose note carries the reconcile hint), so a card already stopped this way reads correctly after the update.
+- **Continue is refused** (`INVALID_TRANSITION`, nothing recorded, no step taken) while that stop's connection still lists a request without a recorded outcome. Closing it stays with the owner (invariant 5): nothing here closes, reconciles or retries a request by itself.
+- The stopped card's title and next step follow the stop kind for every "needs authority" outcome: open request, per-run cap, daily cap, connection setup and end time point at Models and connections (or a new autopilot); only an approval stop points at Approvals. The open-request button opens Models and connections at the connection's "Requests without a recorded outcome", and that page's "Recent requests" line gains a button to the same place.
+- The Autopilot settings say that Hands-off leaves "Accept quote-checked web claims" off, and list what no setting removes (open requests, limits, uncovered steps, never-automatic actions, value and ethics questions, specs).
+- The start forms name the two summaries the confirm box needs opened and offer "Open them here".
+
+**Not changed.** No migration (stop kinds live in the steps JSON). Routine approvals, the owner's settings, caps, the $20 ceiling and the rule that an unknown outcome stops paid work are unchanged. The scout prompt still does not state its search limit; telling it would change `SCOUT_PROMPT`, so the web discovery qualification would have to be run again (owner's OK, plan requests). That is a separate follow-up.
+
 ## Owner decision recorded November 22, 2026: a much shorter Standard view (no ADR, no migration)
 
 Jordan asked on November 22 to severely reduce the text and large text blocks in Standard, to add collapsible sections where long text remains, and to list Library in Standard. Built in `apps/web/src/explain.tsx`:

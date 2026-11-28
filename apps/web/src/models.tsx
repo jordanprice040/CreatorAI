@@ -37,6 +37,7 @@ import {
 } from './caps-fields.js';
 import { ChatAnswersCard } from './chat-answers.js';
 import { OpenRequests } from './open-requests.js';
+import { reveal } from './ui.js';
 import { ApiKeyCheck } from './api-key-check-panel.js';
 import { AllowTasks } from './allow-tasks.js';
 import { CopyConnection } from './copy-connection.js';
@@ -1145,6 +1146,23 @@ export function Models({
             {detail.usage.last_24h_requests} in the last 24 hours ·{' '}
             {detail.usage.in_flight} running · {detail.usage.unresolved} with an
             unknown outcome
+            {/* Autopilot friction pass (November 28): the way to close one sits near the top of
+                this card, far above this line; the owner looked here and found no control. */}
+            {detail.open_requests.length > 0 && (
+              <>
+                {' '}
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={(e) =>
+                    reveal(e.currentTarget, `open-requests-${c.id}`)
+                  }
+                >
+                  Show the request{detail.open_requests.length === 1 ? '' : 's'}{' '}
+                  to close
+                </button>
+              </>
+            )}
           </p>
           <DailyCapNotice
             path={`${base}/${p}`}
