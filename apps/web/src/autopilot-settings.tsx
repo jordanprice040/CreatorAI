@@ -281,15 +281,21 @@ export function AutopilotSettingsPanel({
  * Autopilot friction pass (November 28): what no setting here removes, so "fully automatic"
  * means what it says. These are the studio's fixed safety rules, not switches.
  */
+/** The runner's AUTO_CLOSE_MAX (apps/api), said in words here. */
+const AUTO_CLOSE_LIMIT = 3;
+
 export function StillStops() {
   return (
     <details className="small">
       <summary>What still stops it, whatever these say</summary>
       <ul>
         <li>
-          A plan or paid request whose outcome is unknown: close it under Models
-          and connections › Requests without a recorded outcome. No request
-          starts on that connection until then.
+          A paid request whose outcome is unknown, a plan request that may still
+          be running, and plan requests once “Close unknown plan requests” has
+          closed them {AUTO_CLOSE_LIMIT} times in one autopilot (or always, with
+          that setting off): close them under Models and connections › Requests
+          without a recorded outcome. No request starts on that connection until
+          then.
         </li>
         <li>
           Limits: the connection’s per-run and daily request caps, the plan’s

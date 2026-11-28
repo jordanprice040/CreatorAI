@@ -15,7 +15,7 @@ export const AutopilotSettingsValuesSchema = z.strictObject({
   choose_with_unknowns: z.boolean(),
   /**
    * Break a tie for first by a fixed order: opportunity rank, fewer unknowns, better worst case,
-   * then (ADR-0139) the option that builds least, then the title.
+   * then (ADR-0139) an option the rule may choose, the option that builds least, then the title.
    */
   break_ties: z.boolean(),
   /** Keep the leader under the owner's weights when a weight check changes the leader. */
@@ -208,7 +208,7 @@ export const AUTOPILOT_SETTING_TEXT: Record<
   },
   break_ties: {
     label: 'Break ties',
-    text: 'A tie for first goes to the better opportunity rank, then fewer unknowns, then the better worst case, then the option that builds least (an existing tool first, software last), then the title.',
+    text: 'A tie for first goes to the better opportunity rank, then fewer unknowns, then the better worst case, then an option the rule may choose, then the option that builds least (an existing tool first, software last), then the title.',
   },
   keep_close_leader: {
     label: 'Keep the leader of a close ranking',
@@ -232,7 +232,7 @@ export const AUTOPILOT_SETTING_TEXT: Record<
   },
   close_unknown_plan_requests: {
     label: 'Close unknown plan requests',
-    text: 'When a ChatGPT plan or Claude Code request ends without a recorded outcome (for example a web search the studio cut off), records it as “it ran, or I cannot tell” and goes on, instead of stopping until you close it. It still counts toward the daily cap. Paid API calls always wait for you.',
+    text: 'When a request on the autopilot’s ChatGPT plan or Claude Code connection has no recorded outcome (for example a web search the studio cut off), records it as “it ran, or I cannot tell” and goes on, instead of stopping until you close it. This covers any such request on that connection, from chat, a qualification or another autopilot too, since each one blocks every request there; requests that may still be running are left alone. At most 3 times per autopilot. It still counts toward the daily cap. Paid API calls always wait for you.',
   },
   decide_for_me: {
     label: 'Decide for me',

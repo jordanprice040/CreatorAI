@@ -73,6 +73,8 @@ pilot or thesis. Accepted owner decisions and existing scoped grants remain auth
 
 Audit phases A and B ran in the cloud (throwaway database, fixture provider, $0; scripts and screenshots in `tracking/evidence/autopilot-friction/`, findings in the plan doc). Fixed: Hands-off goes on with an already-recorded problem instead of stopping at thin evidence, the fixed tie order ends with the option that builds least and then the title, stop cards name the stop kind with the right button, and Automate the rest defaults to a new run. Still open: telling the web search model its search limit plus a "Searches per web search" field (own PR; requalification needs Jordan's typed OK), and phase C (a live run, needs his OK).
 
+Review 1 of #260 (1 M, 5 L, 4 nits) fixed: the auto-close locks only requests nobody can be settling (filtered in the query, before locking), Continue holds when the closes are used up or the request may still be running, the problem is the newest one carried, the setting and "what still stops it" texts are exact, and limit cards promise an automatic continue only when one is waiting.
+
 ## November 28 handoff — Decide without the busywork (ADR-0138, migration 81)
 
 What changed is in ADR-0138. Schema becomes 81 when this merges; the dev studio and the installed app need the migration before they run it. Open follow-ups: the autopilot still stops at the spec for software selected for a build; a model-drafted humility review (so "Decide for me" can also clear the humility gate) is not built; the runbook export still reads only a review of the spec itself.

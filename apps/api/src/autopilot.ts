@@ -863,15 +863,31 @@ export class AutopilotRunner {
     const a = await this.store.getAutopilot(ctx, ws, id).catch(() => null);
     const last = a?.steps.at(-1);
     if (!a || a.state !== 'finished' || !stopsOnOpenRequest(last)) return;
-    // ADR-0137: with the owner's setting on, the autopilot closes the request itself on Continue.
     const settings = await this.#settings(ctx, ws).catch(() => null);
-    if (settings?.values.close_unknown_plan_requests) return;
     const conn = autopilotStepConnection(a.config, last!.stage);
     if (!conn) return;
     const d = await this.store
       .planConnectionDetail(ctx, ws, conn)
       .catch(() => null);
-    const open = d?.open_requests.length ?? 0;
+    const requests = d?.open_requests ?? [];
+    const open = requests.length;
+    if (!open) return;
+    // ADR-0137: with the owner's setting on, the autopilot closes the requests itself on
+    // Continue, but only while it has closes left and one of them can be closed now (review 1
+    // of #260, L-1); otherwise the step would only be refused again.
+    if (settings?.values.close_unknown_plan_requests) {
+      const used = a.steps.filter(
+        (s) => s.fallback?.setting === 'close_unknown_plan_requests',
+      ).length;
+      const closable = requests.some((r) => r.closable);
+      if (used < AUTO_CLOSE_MAX && closable) return;
+      throw new ContractError(
+        'INVALID_TRANSITION',
+        used >= AUTO_CLOSE_MAX
+          ? `This autopilot already closed plan requests ${AUTO_CLOSE_MAX} times, its most, and the connection still has ${open === 1 ? 'one' : open} without a recorded outcome. Under Models and connections › Requests without a recorded outcome, close ${open === 1 ? 'it' : 'them'} with what you know, then continue.`
+          : `${open === 1 ? 'A plan request' : `${open} plan requests`} on this connection may still be running, so ${open === 1 ? 'it' : 'they'} cannot be closed yet. Continue once ${open === 1 ? 'it finishes' : 'they finish'} or ${open === 1 ? 'its' : 'their'} timeout plus 15 minutes has passed.`,
+      );
+    }
     if (open > 0)
       throw new ContractError(
         'INVALID_TRANSITION',
@@ -1464,7 +1480,7 @@ export class AutopilotRunner {
   /**
    * ADR-0137: with the owner's "Close unknown plan requests" on, the plan requests on the step's
    * connection that have no recorded outcome are closed as "it ran, or the studio cannot tell"
-   * (the store checks the setting, the owner and the connection kind again) and the step is
+   * (the store checks the setting and the owner again, and holds only plan connections) and the step is
    * tried again. At most `AUTO_CLOSE_MAX` times per autopilot, so a connection that keeps
    * leaving requests open stops for the owner instead of looping. Null: stop as before.
    */
