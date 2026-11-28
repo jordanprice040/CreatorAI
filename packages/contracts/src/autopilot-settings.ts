@@ -190,6 +190,12 @@ export const SETTING_FOR_STOP: Partial<
   open_request: 'close_unknown_plan_requests',
 };
 
+/**
+ * ADR-0137: the most times one autopilot closes plan requests by itself under "Close unknown
+ * plan requests" (review 2 of #260, N-5: one constant for the runner, the page and the text).
+ */
+export const AUTO_CLOSE_MAX = 3;
+
 export const AUTOPILOT_SETTING_TEXT: Record<
   keyof AutopilotSettingsValues,
   { label: string; text: string }
@@ -232,7 +238,7 @@ export const AUTOPILOT_SETTING_TEXT: Record<
   },
   close_unknown_plan_requests: {
     label: 'Close unknown plan requests',
-    text: 'When a request on the autopilot’s ChatGPT plan or Claude Code connection has no recorded outcome (for example a web search the studio cut off), records it as “it ran, or I cannot tell” and goes on, instead of stopping until you close it. This covers any such request on that connection, from chat, a qualification or another autopilot too, since each one blocks every request there; requests that may still be running are left alone. At most 3 times per autopilot. It still counts toward the daily cap. Paid API calls always wait for you.',
+    text: `When a request on the autopilot’s ChatGPT plan or Claude Code connection has no recorded outcome (for example a web search the studio cut off), records it as “it ran, or I cannot tell” and goes on, instead of stopping until you close it. This covers any such request on that connection, from chat, a qualification or another autopilot too, since each one blocks every request there; requests that may still be running are left alone. At most ${AUTO_CLOSE_MAX} times per autopilot. It still counts toward the daily cap. Paid API calls always wait for you.`,
   },
   decide_for_me: {
     label: 'Decide for me',

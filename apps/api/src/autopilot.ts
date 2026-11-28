@@ -9,6 +9,7 @@ import {
   WebDiscoveryScopeSchema,
   MODEL_ONLY_ETHICS_NOTE,
   autopilotNextSteps,
+  AUTO_CLOSE_MAX,
   type Autopilot,
   type Selection,
   type SelectionReport,
@@ -333,7 +334,7 @@ export function refusalKind(e: unknown): AutopilotStopKind {
 }
 
 /** ADR-0137: plan requests one autopilot may close by itself before it stops for the owner. */
-export const AUTO_CLOSE_MAX = 3;
+export { AUTO_CLOSE_MAX };
 
 const USAGE_LIMIT_NOTE =
   "The plan account's usage limit was reached, so the step is not tried again now. Once it resets (see your plan's usage settings), recheck usage under Models and connections, then continue.";
