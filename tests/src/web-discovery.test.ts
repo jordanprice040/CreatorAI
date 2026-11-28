@@ -713,7 +713,7 @@ const FIXTURE_URLS = [
 const sse = (evs: unknown[]) =>
   evs.map((e) => `data: ${JSON.stringify(e)}\n\n`).join('');
 
-type Mode = 'normal' | 'no_search' | 'pending';
+type Mode = 'normal' | 'no_search' | 'pending' | 'three_searches';
 async function setup(t: test.TestContext) {
   const db = await freshDatabase(t);
   if (!db) return null;
@@ -766,19 +766,21 @@ async function setup(t: test.TestContext) {
       let text: string;
       const items: unknown[] = [];
       if (body.instructions.includes(SCOUT_MARKER)) {
-        if (mode !== 'no_search')
-          items.push({
-            type: 'web_search_call',
-            id: 'ws_1',
-            status: 'completed',
-            action: {
-              type: 'search',
-              query: 'clinic waits',
-              sources: [...FIXTURE_URLS, 'https://excluded.fixture.test/x'].map(
-                (u) => ({ url: u }),
-              ),
-            },
-          });
+        for (let i = 0; i < (mode === 'three_searches' ? 3 : 1); i++)
+          if (mode !== 'no_search')
+            items.push({
+              type: 'web_search_call',
+              id: `ws_${i + 1}`,
+              status: 'completed',
+              action: {
+                type: 'search',
+                query: 'clinic waits',
+                sources: [
+                  ...FIXTURE_URLS,
+                  'https://excluded.fixture.test/x',
+                ].map((u) => ({ url: u })),
+              },
+            });
         text = JSON.stringify({
           summary: 'Searched for clinic waits.',
           leads: [
@@ -1708,4 +1710,35 @@ test('ADR-0140: the scout is told its search limit, and the limit binds the prev
     if (c.check.kind === 'web_scout_contract')
       assert.equal(c.input[0]!.text, SCOUT_PROMPT);
   }
+});
+
+test('ADR-0140 review N-3: a chosen limit reaches both the scout input and the enforced cap', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.qualify();
+  const two = scope({ ...h.scope, max_search_calls: 2 });
+  const asked: (number | undefined)[] = [];
+  const invoke = h.service.invoke.bind(h.service);
+  h.service.invoke = ((...a: Parameters<typeof invoke>) => {
+    if (a[2].web_discovery?.stage === 'search')
+      asked.push(a[2].web_search?.max_calls);
+    return invoke(...a);
+  }) as typeof invoke;
+  const before = h.bodies.length;
+  const d = await h.start(await h.run(), two);
+  assert.equal(d.state, 'done', d.explanation);
+  const sent = h.bodies
+    .slice(before)
+    .find((b) => String(b.instructions).includes(SCOUT_MARKER))!;
+  assert.equal(
+    JSON.parse((sent.input as { content: string }[])[0]!.content).max_searches,
+    2,
+  );
+  assert.deepEqual(asked, [2]);
+  // A scout that starts a third search is cut off, and nothing from it is kept.
+  h.setMode('three_searches');
+  const cut = await h.start(await h.run(), two);
+  assert.deepEqual(asked, [2, 2]);
+  assert.notEqual(cut.state, 'done');
+  assert.equal(cut.leads.length, 0);
 });

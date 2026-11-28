@@ -621,11 +621,25 @@ export const heldOutKeys = (cases: readonly ManifestCase[]) =>
     .filter((k) => k.split === 'held_out')
     .map((k) =>
       canonicalHash({
-        input: k.input.filter((m) => m.role !== 'system'),
+        input: k.input.filter(
+          (m) => m.role !== 'system' && !derivedInput(k, m),
+        ),
         output_format: k.output_format ?? null,
         check: withoutRoleVersion(k.check),
       }),
     );
+/**
+ * PR #262 review M-1: a web discovery case's user message is derived from the scope or packet
+ * in its check (`currentForWebDiscoveryRole` enforces it), so it is left out of the key. A
+ * change to how the input is written then cannot make a viewed case look fresh.
+ */
+function derivedInput(k: ManifestCase, m: { role: string }): boolean {
+  const kind = (k.check as { kind?: string } | null)?.kind;
+  return (
+    m.role === 'user' &&
+    (kind === 'web_scout_contract' || kind === 'web_reader_contract')
+  );
+}
 /**
  * PR #130 review L-1: a discovery check names the role version (and the packet's hash, which
  * follows the packet already in the key), so a revised discovery role would change every key.

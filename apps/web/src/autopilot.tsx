@@ -4,6 +4,7 @@ import {
   PointList,
   useReadLists,
 } from './explain.js';
+import { SearchLimitField } from './search-limit-field.js';
 import {
   useEffect,
   useRef,
@@ -829,26 +830,11 @@ export function Autopilot({
                           do with each other.
                         </p>
                       )}
-                      <label htmlFor="ap-searches">
-                        Searches per web search
-                      </label>
-                      <select
+                      <SearchLimitField
                         id="ap-searches"
                         value={maxSearches}
-                        aria-describedby="ap-searches-hint"
-                        onChange={(e) => setMaxSearches(Number(e.target.value))}
-                      >
-                        {[1, 2, 3, 4, 5].map((n) => (
-                          <option key={n} value={n}>
-                            Up to {n}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="small" id="ap-searches-hint">
-                        How many searches the model may run in its one request.
-                        More can find more pages; the model is told the limit,
-                        and a request that goes past it ends with nothing kept.
-                      </p>
+                        onChange={setMaxSearches}
+                      />
                     </>
                   )}
                   <label htmlFor="ap-class">Evidence sharing class</label>

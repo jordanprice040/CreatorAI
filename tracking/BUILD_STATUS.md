@@ -71,7 +71,7 @@ pilot or thesis. Accepted owner decisions and existing scoped grants remain auth
 
 ## November 28 update — web search told its search limit (ADR-0140, no migration)
 
-The scout's prompt and input state its search limit (role version 3), and both web search forms have a "Searches per web search" field (1 to 5). The web discovery benchmark is now web-discovery-v3 (same cases). After this merges, web search needs the model qualified again on web-discovery-v3 under Models and connections before it can run: live plan requests, Jordan's typed OK.
+The scout's prompt and input state its search limit (role version 3), and both web search forms have a "Searches per web search" field (1 to 10, the plan route's own bound). The web discovery benchmark is now web-discovery-v3: v2's viewed held-out scout cases became practice and three fresh held-out scout cases test limits 1, 5 and 10; the held-out guard no longer counts a web case's derived input in its key (review of #262). After this merges, web search needs the model qualified again on web-discovery-v3 under Models and connections before it can run: live plan requests, Jordan's typed OK.
 
 ## November 28 update — Hands-off self-sufficiency from the friction audit (ADR-0139, no migration)
 

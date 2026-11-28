@@ -21,6 +21,7 @@ import {
   AUTOPILOT_QUOTE_CHECK_LABEL,
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
+import { SearchLimitField } from './search-limit-field.js';
 import { Status, reveal, useLoad } from './ui.js';
 import type { SitesHandoff } from './past-project.js';
 import {
@@ -428,24 +429,11 @@ export function WebDiscover({
                   </div>
                 </div>
                 <div>
-                  <label htmlFor="w-searches">Searches per web search</label>
-                  <select
+                  <SearchLimitField
                     id="w-searches"
                     value={maxSearches}
-                    aria-describedby="w-searches-hint"
-                    onChange={(e) => setMaxSearches(Number(e.target.value))}
-                  >
-                    {[1, 2, 3, 4, 5].map((n) => (
-                      <option key={n} value={n}>
-                        Up to {n}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="small" id="w-searches-hint">
-                    How many searches the model may run in its one request. More
-                    can find more pages; the model is told the limit, and a
-                    request that goes past it ends with nothing kept.
-                  </p>
+                    onChange={setMaxSearches}
+                  />
                 </div>
                 <div className="two">
                   <div>
