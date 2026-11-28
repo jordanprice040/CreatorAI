@@ -440,6 +440,39 @@ export function autopilotContinuable(
 }
 
 /**
+ * Autopilot friction pass (Jordan, November 28): the main-path steps still ahead of an autopilot,
+ * after the one it is on (or, after a "gather more evidence" fallback, from the step it goes back
+ * to). Fallbacks are not planned, so they never show here. After "Choose an option" it writes the
+ * proposal; a software option stops at its spec instead, which the card says.
+ */
+export function autopilotPlannedStages(
+  a: Pick<Autopilot, 'stage' | 'steps'>,
+  /** A stopped autopilot Continue would pick up: its own stage is still ahead too. */
+  stopped = false,
+): AutopilotStage[] {
+  const order: AutopilotStage[] = [
+    'research',
+    'explore',
+    'brief',
+    'discover',
+    'assess',
+    'select',
+    'proposal',
+  ];
+  let from: string = a.stage;
+  let include = stopped;
+  if (from === 'gather') {
+    const then = a.steps.at(-1)?.request?.then;
+    if (typeof then !== 'string') return [];
+    from = then;
+    include = true;
+  }
+  const i = order.indexOf(from as AutopilotStage);
+  if (i < 0) return [];
+  return order.slice(include ? i : i + 1);
+}
+
+/**
  * Autopilot friction pass (November 28): the stop was a plan request with no recorded outcome
  * (or one still marked running) on the step's connection. Stops recorded before the
  * `open_request` kind existed were `connection` stops whose note names the reconcile hint.

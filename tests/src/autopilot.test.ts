@@ -22,6 +22,7 @@ import {
   AutopilotConfigSchema,
   AutopilotSchema,
   autopilotContinuable,
+  autopilotPlannedStages,
   stopsOnOpenRequest,
   autopilotEndsApprovals,
   ContractError,
@@ -29,6 +30,7 @@ import {
   autopilotSummary,
   routinePolicySummary,
   type AutopilotConfig,
+  type AutopilotStage,
   type AutopilotStep,
   type ErrorCode,
   type ExplorationResult,
@@ -4327,4 +4329,34 @@ test('ADR-0137: with Close unknown plan requests on, an open-request stop closes
   assert.equal(done.outcome, 'needs_authority', done.explanation);
   assert.equal(done.steps.at(-1)!.stop_kind, 'open_request');
   assert.equal(done.calls_reserved, 0);
+});
+
+test('Jordan, November 28: the planned steps are the main path still ahead', () => {
+  const step = (stage: AutopilotStage, request: unknown = null) =>
+    ({ stage, request }) as unknown as AutopilotStep;
+  assert.deepEqual(
+    autopilotPlannedStages({ stage: 'assess', steps: [step('assess')] }),
+    ['select', 'proposal'],
+  );
+  // A stopped one that Continue picks up still has its own step ahead.
+  assert.deepEqual(
+    autopilotPlannedStages(
+      { stage: 'explore', steps: [step('explore')] },
+      true,
+    ),
+    ['explore', 'brief', 'discover', 'assess', 'select', 'proposal'],
+  );
+  // A gather fallback goes back to its step; the fallback itself is never planned.
+  assert.deepEqual(
+    autopilotPlannedStages({
+      stage: 'gather',
+      steps: [step('gather', { then: 'assess' })],
+    }),
+    ['assess', 'select', 'proposal'],
+  );
+  assert.deepEqual(
+    autopilotPlannedStages({ stage: 'proposal', steps: [] }),
+    [],
+  );
+  assert.deepEqual(autopilotPlannedStages({ stage: 'spec', steps: [] }), []);
 });

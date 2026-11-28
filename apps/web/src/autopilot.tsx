@@ -17,6 +17,7 @@ import {
   AUTOPILOT_RETRYABLE,
   autopilotContinuable,
   autopilotStepConnection,
+  autopilotPlannedStages,
   stopsOnOpenRequest,
   AUTOPILOT_STAGE_LABEL,
   AutopilotConfigSchema,
@@ -514,6 +515,11 @@ export function Autopilot({
       (last.note === a.explanation ||
         last.note.includes(a.explanation.slice(0, 120)) ||
         a.explanation.includes(last.note.slice(0, 120)));
+    // Only while it works or can continue: a finished one that cannot go on plans nothing.
+    const planned =
+      a.state === 'running' || (offered && can.ok)
+        ? autopilotPlannedStages(a, a.state !== 'running')
+        : [];
     const run = names.get(a.run_id);
     const problem = a.config.start?.problem
       ? names.get(a.config.start.problem.id)
@@ -529,6 +535,22 @@ export function Autopilot({
         <ol className="small">
           {shown.map((s, i) => line(s, folded.length + i))}
         </ol>
+        {/* Jordan, November 28: the steps still ahead, not only those taken. */}
+        {now && planned.length > 0 && (
+          <div className="small muted">
+            <p>Planned next:</p>
+            <ol className="small" start={a.steps.length + 1}>
+              {planned.map((st) => (
+                <li key={st}>
+                  ○ {AUTOPILOT_STAGE_LABEL[st]}
+                  {st === 'proposal'
+                    ? ' (a software option stops at its spec instead)'
+                    : ''}
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
       </>
     );
     const actions = (
