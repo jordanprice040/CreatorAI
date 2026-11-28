@@ -109,7 +109,7 @@ function files(dir: string): string[] {
 /** The reference solution of a v5 benchmark, as package-relative paths. */
 function reference(id: string) {
   const dir = resolve(
-    new URL(`config/recipe-benchmarks/${id}/reference/`, root).pathname,
+    fileURLToPath(new URL(`config/recipe-benchmarks/${id}/reference/`, root)),
   );
   // Bytecode a local reference run left behind is never part of the solution.
   return files(dir)
@@ -205,8 +205,8 @@ test('ADR-0105: a v5 copy has the same task, spec, cases and reference as its so
     };
     assert.deepEqual(b.content, a.content, `${id}: spec content`);
     const ref = (dir: string) =>
-      files(resolve(path(dir).pathname)).map((f) => [
-        relative(resolve(path(dir).pathname), f),
+      files(resolve(fileURLToPath(path(dir)))).map((f) => [
+        relative(resolve(fileURLToPath(path(dir))), f),
         readFileSync(f, 'utf8'),
       ]);
     assert.deepEqual(
