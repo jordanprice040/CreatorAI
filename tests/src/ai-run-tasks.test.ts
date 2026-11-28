@@ -39,6 +39,7 @@ import {
   currentRolePromptHashes,
   firstBuilderInputFloor,
 } from '../../apps/api/dist/recipe-qualification.js';
+import { pythonScriptArgs } from './local-python.js';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const at = (p: string) => join(ROOT, p);
@@ -84,12 +85,16 @@ function task(id: string) {
   };
 }
 function run(dir: string, c: Case) {
-  const r = spawnSync('python3', ['-I', '-B', 'src/main.py', ...c.args], {
-    cwd: dir,
-    input: c.stdin,
-    encoding: 'utf8',
-    timeout: 20_000,
-  });
+  const r = spawnSync(
+    'python3',
+    pythonScriptArgs(['-I', '-B'], 'src/main.py', c.args),
+    {
+      cwd: dir,
+      input: c.stdin,
+      encoding: 'utf8',
+      timeout: 20_000,
+    },
+  );
   return r.stdout + r.stderr === c.stdout && r.status === c.exit_code;
 }
 function files(dir: string): { path: string; content: string }[] {

@@ -33,6 +33,7 @@ import {
 import { freshDatabase, LOGIN_CODE, login } from './pg-harness.js';
 import { TestDoubleExecutor } from './artifact-double.js';
 import { loadWeb } from './web-module.js';
+import { pythonScriptArgs } from './local-python.js';
 
 const hasPython = spawnSync('python3', ['--version']).status === 0;
 const REPAIR = resolve('config/repo-benchmarks/repair-v1/p14-repair-v1');
@@ -75,7 +76,12 @@ class LocalPythonDouble extends TestDoubleExecutor {
       }
       const r = spawnSync(
         'sh',
-        ['-c', 'exec python3 -I src/main.py "$@" 2>&1', 'qa', ...c.args],
+        [
+          '-c',
+          'exec python3 "$@" 2>&1',
+          'qa',
+          ...pythonScriptArgs(['-I'], 'src/main.py', c.args),
+        ],
         { cwd: dir, input: c.stdin, timeout: 20000 },
       );
       return {

@@ -1,6 +1,7 @@
 // Current portable/native safety gate, versioned from frozen v4 checks. No installation or credentials.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { mkdir, writeFile, readFile, symlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import net from 'node:net';
@@ -152,6 +153,9 @@ test('stale release refuses a still-live lock owner without side effects', async
     await unlock();
   }
 });
+// Windows CI names its PostgreSQL bin folder in CREATOR_PG_BIN (the runner ships 17, not 18).
+const PG_BIN =
+  process.env.CREATOR_PG_BIN ?? 'C:/Program Files/PostgreSQL/18/bin';
 test(
   'a foreign loopback listener is refused and remains untouched',
   {
@@ -160,7 +164,9 @@ test(
     skip:
       process.platform !== 'win32'
         ? 'Needs the native Windows PostgreSQL tools; exercised by Windows CI'
-        : false,
+        : !existsSync(join(PG_BIN, 'pg_ctl.exe'))
+          ? `No pg_ctl.exe in ${PG_BIN}; set CREATOR_PG_BIN`
+          : false,
   },
   async () => {
     const home = join(root, 'foreign-home'),
@@ -176,14 +182,9 @@ test(
     const port = server.address().port;
     try {
       await assert.rejects(
-        managed(
-          { pg_bin: 'C:/Program Files/PostgreSQL/18/bin', database: { port } },
-          home,
-          e,
-          () => {
-            throw new Error('Must not start body');
-          },
-        ),
+        managed({ pg_bin: PG_BIN, database: { port } }, home, e, () => {
+          throw new Error('Must not start body');
+        }),
         /Foreign listener/,
       );
       assert.ok(await listening(port));

@@ -18,6 +18,14 @@ import { pathToFileURL } from 'node:url';
 const script = resolve('scripts/p14-benchmark.mjs');
 const load = async () => import(pathToFileURL(script).href);
 const hasPython = spawnSync('python3', ['--version']).status === 0;
+// The frozen graders run each case under POSIX resource limits (Python's resource module and
+// preexec_fn), which Windows Python lacks, so every product fails "compile failed" there.
+// Changing a grader is a new benchmark version, so these runs are Linux-only (CI and WSL2).
+const graderSkip = !hasPython
+  ? 'python3 not on PATH'
+  : process.platform === 'win32'
+    ? 'the frozen grader needs POSIX resource limits (Linux or WSL2)'
+    : false;
 const BENCH = resolve('config/repo-benchmarks');
 const SMALL = 'p14-small-wordtally-v2';
 const LARGER = 'p14-larger-ledgercheck-v2';
@@ -243,7 +251,7 @@ test('compare-spec accepts the stored form of the frozen spec and rejects any ch
 
 test(
   'reference solutions meet every frozen expected result',
-  { skip: !hasPython && 'python3 not on PATH' },
+  { skip: graderSkip },
   async () => {
     const m = await load();
     for (const id of m.BENCHMARKS as string[]) {
@@ -255,7 +263,7 @@ test(
 
 test(
   'every listed known failure is caught by the cases named for it',
-  { skip: !hasPython && 'python3 not on PATH' },
+  { skip: graderSkip },
   async () => {
     const m = await load();
     const dir = mkdtempSync(join(tmpdir(), 'p14-mutant-'));
@@ -289,7 +297,7 @@ test(
 
 test(
   'like studio QA, stderr output and a compile error in an unused module fail',
-  { skip: !hasPython && 'python3 not on PATH' },
+  { skip: graderSkip },
   async () => {
     const m = await load();
     const dir = mkdtempSync(join(tmpdir(), 'p14-grader-'));
@@ -374,7 +382,7 @@ for (const [SET, LARGER3] of [
 
   test(
     `the ${SET} reference passes and every listed ${SET} known failure is caught`,
-    { skip: !hasPython && 'python3 not on PATH' },
+    { skip: graderSkip },
     async () => {
       const m = await load();
       const v3 = await m.loadSet(SET);
@@ -525,7 +533,7 @@ test('the repair benchmark is frozen on its own set and passes the studio build 
 
 test(
   'the repair reference passes and every listed easy-to-miss mistake is caught',
-  { skip: !hasPython && 'python3 not on PATH' },
+  { skip: graderSkip },
   async () => {
     const m = await load();
     const set = await m.loadSet('repair-v1');

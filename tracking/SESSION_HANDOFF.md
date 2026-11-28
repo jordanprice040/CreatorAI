@@ -1446,3 +1446,35 @@ blocked folded section, N-A walk selector) followed. Next: re-review, then the i
   known no-`pwsh` wrapper tests); no test file covers the drop component, so the later review fix is covered by the walk.
 - Not yet seen: a real file drag onto the installed app on Windows. That needs a build from this branch on Jordan's
   PC (or the next release, 0.1.9 or higher).
+
+## Windows CI: the last 10 test failures (November 28, 2026)
+
+Branch `claude/project-thread-09762f`, on top of PR #259 (`be09280`). Test-only, plus the Windows CI job's timeout.
+No app, package, frozen benchmark or grader file changed (one dev-only script fix, below), and on Linux every test passes python3 the same arguments as before.
+
+- **Windows Python writes `\r\n`** for `\n` and reads pipes in the locale code page, so exact output matches failed on
+  the platform, not on the program (`ai-run-tasks`, `p14-xl`, the `build-progress` repair round). New helper
+  `tests/src/local-python.ts`: on Windows only, the test double runs `src/main.py` through `runpy` with `\n` output
+  and `-X utf8` (same `sys.argv`, `__main__` and isolated `sys.path`); on other platforms the arguments are
+  unchanged. Run on Linux with the Windows branch forced, it gives identical stdout, stderr and exit codes on all
+  390 reference cases in `config/recipe-benchmarks` and `config/repo-benchmarks`.
+- **Frozen P14 graders are POSIX-only** (`resource` limits and `preexec_fn`), so every product reads "compile failed"
+  on Windows. Changing a grader is a new benchmark version, so the five grader runs in `p14-benchmarks` now skip on
+  Windows with that reason; Linux CI still runs them.
+- **8.3 short temp paths.** The runner's `tmpdir()` is `C:\Users\RUNNER~1\...`. `withLock` correctly refuses that
+  noncanonical folder, so `locks` now locks the `realpath` of its temp folder; the `claude-code` status test compares
+  real paths of the recorded working directory. Latent note, not a fix: `canonical()` in
+  `packages/executor/src/files.ts` would refuse any studio folder given as a short name; the app's own folders are
+  not built from `tmpdir()`, so no app path is known to hit it.
+- **`test:dev-safety` on Windows** (it runs after the main suite, so it was never reached while the main suite
+  failed): 8 `dev-artifact-retention` tests hit the same short temp path (the cleanup refuses a root that resolves
+  elsewhere), so the sandbox now uses the `realpath` of its temp folder. That exposed a real Windows bug in the
+  dev-only cleanup script `scripts/dev-artifact-retention.mjs` (not shipped in the app): its "disposable roots under
+  the temp folder are allowed" exemption compared against `tmpdir()` as given, so with a short-name temp folder no
+  root could pass both checks. It now compares against both `tmpdir()` and its real path. The foreign-listener guard test hard-coded
+  `C:/Program Files/PostgreSQL/18/bin` while the runner ships 17, so it now uses `CREATOR_PG_BIN` when set and skips
+  with that reason when no `pg_ctl.exe` is there.
+- `.github/workflows/ci.yml`: the Windows job's timeout is 40 minutes (was 25). Its test run alone takes about 17
+  minutes, and one #259 run was cancelled at exactly 25.
+- Checks (cloud, Linux, PostgreSQL 16): `pnpm typecheck`, `pnpm format:check`, and the six changed test files pass
+  (57 pass, 1 existing skip). The Windows result is in the PR's own CI run.
