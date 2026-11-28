@@ -173,7 +173,9 @@ export function Overview({
                 </span>
                 <small>
                   {proposalCount(o)} · newest:{' '}
-                  {ROUTE_TEXT[o.selections.latest?.route ?? 'unset']}
+                  {o.selections.latest?.validation_plan
+                    ? 'custom software, to a validation plan'
+                    : ROUTE_TEXT[o.selections.latest?.route ?? 'unset']}
                 </small>
               </button>
               <button className="tile" onClick={() => open('evidence')}>

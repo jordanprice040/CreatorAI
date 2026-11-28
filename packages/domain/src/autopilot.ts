@@ -43,7 +43,9 @@ export function nextAutopilotStage(
     case 'research':
       return 'explore';
     case 'explore':
-      return 'brief';
+      // ADR-0139: an exploration that went on with an already-recorded problem skips to its
+      // assessment (no brief or discovery to write).
+      return last.problem ? 'assess' : 'brief';
     case 'brief':
       return 'discover';
     case 'discover':
@@ -51,7 +53,11 @@ export function nextAutopilotStage(
     case 'assess':
       return 'select';
     case 'select':
-      return last.option?.kind === 'build' ? 'spec' : 'proposal';
+      // ADR-0138: software taken to validation goes on to its validation plan.
+      return last.option?.kind === 'build' &&
+        last.option.disposition !== 'proceed_to_validation'
+        ? 'spec'
+        : 'proposal';
     case 'gather': {
       // ADR-0100: a fallback goes back to the step it gathered evidence for.
       const then = last.request?.then;
@@ -82,13 +88,21 @@ export function autopilotProblem(
   config: Pick<AutopilotConfig, 'start'>,
   steps: readonly AutopilotStep[],
 ): { id: string; version: number } | null {
-  // ADR-0100: an assessment of the problem's current version (after a person changed it) wins.
-  return (
-    carried(steps, 'assess')?.problem ??
-    carried(steps, 'discover')?.problem ??
-    config.start?.problem ??
-    null
-  );
+  // The newest finished step that carried a problem: an assessment (of the problem's current
+  // version, after a person changed it; ADR-0100), a discovery, or (ADR-0139) an exploration
+  // that went on with an already-recorded problem. Review 1 of #260, L-2: by position, so a
+  // later exploration wins over an older assessment.
+  const found = [...steps]
+    .reverse()
+    .find(
+      (s) =>
+        (s.stage === 'assess' ||
+          s.stage === 'discover' ||
+          s.stage === 'explore') &&
+        s.state === 'done' &&
+        s.problem,
+    );
+  return found?.problem ?? config.start?.problem ?? null;
 }
 
 export type ChildLimits =
@@ -252,7 +266,13 @@ export type ChoiceFallback = {
 export type AutopilotChoice =
   | {
       ok: true;
-      option: { id: string; version: number; kind: string; title: string };
+      option: {
+        id: string;
+        version: number;
+        kind: string;
+        title: string;
+        disposition: SelectionDisposition;
+      };
       request: Omit<SelectRequest, 'data_class'>;
       /** ADR-0100: the owner's settings that let the rule choose instead of stopping. */
       fallbacks: ChoiceFallback[];
@@ -294,6 +314,21 @@ const DISPOSITION_PASSIVE: Partial<Record<string, string>> = {
 };
 
 type Row = SelectionReport['suitability']['candidates'][number];
+/**
+ * ADR-0139: the fixed tie order's last rule before the title: an existing tool first, then a
+ * process change, human-led, hybrid, and software last; any other kind after those.
+ */
+const LEAST_BUILD = [
+  'use_existing',
+  'change_process',
+  'human_led',
+  'hybrid',
+  'build',
+];
+export function leastBuild(kind: string): number {
+  const i = LEAST_BUILD.indexOf(kind);
+  return i < 0 ? LEAST_BUILD.length : i;
+}
 /** a − b for exact scores (sign only). */
 const cmpScore = (a: ExactScore, b: ExactScore) => {
   const l = BigInt(a.numerator) * BigInt(b.denominator);
@@ -398,14 +433,25 @@ export function autopilotChoice(
       .map((c) => [c.alternative.id, c.rank!]),
   );
   // Primary order: rank (or, by the worst case, the range's lower end); then, when the owner
-  // allows breaking ties, opportunity rank, fewer unknowns, the better worst case.
+  // allows breaking ties, opportunity rank, fewer unknowns, the better worst case, the option
+  // that builds least, then the title.
   const primary = (a: Row, b: Row) =>
     worst ? cmpScore(b.range!.lower, a.range!.lower) : a.rank! - b.rank!;
+  // Autopilot friction pass (ADR-0139): then an option the rule may choose, then the option that
+  // builds least (invariant 2, humility before building), then the title, so a tie the scores
+  // cannot separate still has one first option.
   const tiebreak = (a: Row, b: Row) =>
     (oppRank.get(a.alternative.id) ?? Infinity) -
       (oppRank.get(b.alternative.id) ?? Infinity) ||
     a.unknown_criteria.length - b.unknown_criteria.length ||
-    (a.range && b.range ? cmpScore(b.range.lower, a.range.lower) : 0);
+    (a.range && b.range ? cmpScore(b.range.lower, a.range.lower) : 0) ||
+    Number(!choosable(a)) - Number(!choosable(b)) ||
+    leastBuild(a.alternative.kind) - leastBuild(b.alternative.kind) ||
+    (a.alternative.title < b.alternative.title
+      ? -1
+      : a.alternative.title > b.alternative.title
+        ? 1
+        : 0);
   const order = [...ranked].sort(
     (a, b) => primary(a, b) || (settings.break_ties ? tiebreak(a, b) : 0),
   );
@@ -421,13 +467,13 @@ export function autopilotChoice(
         outcome: 'needs_person',
         kind: 'tie',
         reason: clip(
-          `${firstTie.length} options tie for first${worst ? ' by the worst case' : ' on suitability'}: ${tiedNames(firstTie.map((c) => c.alternative.title))}. The fixed order (opportunity rank, fewer unknowns, the better worst case) does not separate them. Choose one under Decide and continue.`,
+          `${firstTie.length} options tie for first${worst ? ' by the worst case' : ' on suitability'}: ${tiedNames(firstTie.map((c) => c.alternative.title))}. The fixed order (opportunity rank, fewer unknowns, the better worst case, an option the rule may choose, the option that builds least, the title) does not separate them. Choose one under Decide and continue.`,
         ),
       };
     fallbacks.push({
       setting: 'break_ties',
       instead_of: 'tie',
-      note: `${firstTie.map((c) => `“${c.alternative.title}”`).join(' and ')} tied for first; the fixed order (opportunity rank, fewer unknowns, the better worst case) put “${order[0]!.alternative.title}” first.`,
+      note: `${firstTie.map((c) => `“${c.alternative.title}”`).join(' and ')} tied for first; the fixed order (opportunity rank, fewer unknowns, the better worst case, an option the rule may choose, the option that builds least, the title) put “${order[0]!.alternative.title}” first.`,
     });
   } else if (firstTie.length > 1)
     return {
@@ -511,8 +557,30 @@ export function autopilotChoice(
     return null;
   };
   let chosen = leader;
+  let validate = false;
   const leaderWhy = why(leader);
-  if (leaderWhy) {
+  // ADR-0138 (Jordan, November 28): with "Decide for me" on, custom software ranking first whose
+  // build is still gated (an incomplete opportunity assessment, no humility review, not alone
+  // on opportunity) is taken to validation before building, when no gate blocks that, instead
+  // of stopping. Its validation plan is the next step; nothing is built and no gate is passed.
+  if (
+    leaderWhy &&
+    settings.decide_for_me &&
+    leader.alternative.kind === 'build' &&
+    (leaderWhy.kind === 'gate_blocked' || leaderWhy.kind === 'opportunity') &&
+    leader.gates.discovery === 'candidate' &&
+    !(leader.gates.blocked.proceed_to_validation ?? []).length
+  ) {
+    validate = true;
+    fallbacks.push({
+      setting: 'decide_for_me',
+      instead_of: leaderWhy.kind,
+      note: clip(
+        `${leaderWhy.reason.replace(/ Resolve it, or choose under Decide yourself, then continue\.$/, '')} Took it to validation before building instead; its validation plan comes next.`,
+        600,
+      ),
+    });
+  } else if (leaderWhy) {
     // A defer, decline or investigate outcome ranking first is the honest result, not a stop.
     const ownKind = autopilotDisposition(leader.alternative.kind) === null;
     const next =
@@ -554,7 +622,9 @@ export function autopilotChoice(
     chosen = next;
   }
   const kind = chosen.alternative.kind;
-  const disposition = autopilotDisposition(kind)!;
+  const disposition: SelectionDisposition = validate
+    ? 'proceed_to_validation'
+    : autopilotDisposition(kind)!;
   const score =
     (worst ? chosen.range?.lower.display : chosen.score?.display) ?? 'n/a';
   const how = worst
@@ -568,6 +638,7 @@ export function autopilotChoice(
       version: chosen.alternative.version,
       kind,
       title: chosen.alternative.title,
+      disposition,
     },
     request: {
       problem: { id: report.problem.id, version: report.problem.version },
@@ -664,7 +735,13 @@ export function personChoice(
   | { kind: 'none' }
   | {
       kind: 'carry';
-      option: { id: string; version: number; kind: string; title: string };
+      option: {
+        id: string;
+        version: number;
+        kind: string;
+        title: string;
+        disposition: SelectionDisposition;
+      };
       disposition: SelectionDisposition;
     }
   | { kind: 'stop'; outcome: AutopilotOutcome; reason: string } {
@@ -696,13 +773,8 @@ export function personChoice(
   const row = selection.report.suitability.candidates.find(
     (c) => c.alternative.id.toLowerCase() === d.alternative.id.toLowerCase(),
   );
-  if (row?.alternative.kind === 'build' && d.disposition !== 'select_for_build')
-    return {
-      kind: 'stop',
-      outcome: 'needs_person',
-      reason:
-        'Your selection advances a software option without selecting it for a build; a software option goes on to a spec, which stays with you.',
-    };
+  // ADR-0138: custom software you take to validation before building goes on to its
+  // validation plan (a proposal); before, this stopped every time Continue was pressed.
   return {
     kind: 'carry',
     disposition: d.disposition,
@@ -714,6 +786,7 @@ export function personChoice(
           ? 'build'
           : (row?.alternative.kind ?? 'unknown'),
       title: row?.alternative.title ?? 'The option you chose',
+      disposition: d.disposition,
     },
   };
 }

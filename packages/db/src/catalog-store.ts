@@ -1259,6 +1259,9 @@ export class CatalogStore extends SelectionStore {
         problem_id: String(latest.problem_id),
         created_at: iso(latest.created_at),
         route,
+        validation_plan:
+          route === 'non_code' &&
+          nonCode.every((x) => kinds.get(x) === 'build'),
         proposal,
       },
     };

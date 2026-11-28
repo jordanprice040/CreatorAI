@@ -1,0 +1,325 @@
+[
+  {
+    "kind": "thin_evidence",
+    "outcome": "insufficient_evidence",
+    "title": "Stopped: not enough evidence",
+    "next": [
+      "search_web",
+      "link_claims",
+      "exploration"
+    ],
+    "buttons": [
+      "Search the web",
+      "Continue the autopilot from choose an option"
+    ],
+    "says_approvals": false,
+    "continue_offered": true
+  },
+  {
+    "kind": "unknown_ratings",
+    "outcome": "needs_person",
+    "title": "Waiting for you: options not fully scored",
+    "next": [
+      "decide",
+      "link_claims"
+    ],
+    "buttons": [
+      "Autopilot settings",
+      "Continue the autopilot from choose an option"
+    ],
+    "says_approvals": false,
+    "continue_offered": true
+  },
+  {
+    "kind": "tie",
+    "outcome": "needs_person",
+    "title": "Waiting for you: options tie for first",
+    "next": [
+      "decide"
+    ],
+    "buttons": [
+      "Autopilot settings",
+      "Continue the autopilot from choose an option"
+    ],
+    "says_approvals": false,
+    "continue_offered": true
+  },
+  {
+    "kind": "close_ranking",
+    "outcome": "needs_person",
+    "title": "Waiting for you: a close ranking",
+    "next": [
+      "decide"
+    ],
+    "buttons": [
+      "Autopilot settings",
+      "Continue the autopilot from choose an option"
+    ],
+    "says_approvals": false,
+    "continue_offered": true
+  },
+  {
+    "kind": "not_advanceable",
+    "outcome": "no_eligible_option",
+    "title": "Stopped: no option can go ahead",
+    "next": [
+      "decide"
+    ],
+    "buttons": [
+      "Search the web",
+      "Continue the autopilot from choose an option"
+    ],
+    "says_approvals": false,
+    "continue_offered": true
+  },
+  {
+    "kind": "gate_blocked",
+    "outcome": "needs_person",
+    "title": "Waiting for you: a gate blocks the first option",
+    "next": [
+      "decide",
+      "link_claims"
+    ],
+    "buttons": [
+      "Autopilot settings",
+      "Continue the autopilot from choose an option"
+    ],
+    "says_approvals": false,
+    "continue_offered": true
+  },
+  {
+    "kind": "opportunity",
+    "outcome": "needs_person",
+    "title": "Waiting for you: building it needs your reason",
+    "next": [
+      "decide"
+    ],
+    "buttons": [
+      "Autopilot settings",
+      "Continue the autopilot from choose an option"
+    ],
+    "says_approvals": false,
+    "continue_offered": true
+  },
+  {
+    "kind": "model_ethics",
+    "outcome": "needs_person",
+    "title": "Waiting for you: an ethics question",
+    "next": [
+      "decide",
+      "approvals"
+    ],
+    "buttons": [
+      "Autopilot settings",
+      "Continue the autopilot from choose an option"
+    ],
+    "says_approvals": false,
+    "continue_offered": true
+  },
+  {
+    "kind": "failed_step",
+    "outcome": "failed",
+    "title": "Stopped: a step failed",
+    "next": [
+      "continue"
+    ],
+    "buttons": [
+      "Continue the autopilot from choose an option"
+    ],
+    "says_approvals": false,
+    "continue_offered": true
+  },
+  {
+    "kind": "claims_held",
+    "outcome": "needs_person",
+    "title": "Waiting for you: web claims to check",
+    "next": [
+      "search_web",
+      "continue"
+    ],
+    "buttons": [
+      "Search the web",
+      "Autopilot settings",
+      "Continue the autopilot from choose an option"
+    ],
+    "says_approvals": false,
+    "continue_offered": true
+  },
+  {
+    "kind": "person_choice",
+    "outcome": "needs_person",
+    "title": "Waiting for you: your choice under Decide",
+    "next": [
+      "decide"
+    ],
+    "buttons": [
+      "Autopilot settings",
+      "Continue the autopilot from choose an option"
+    ],
+    "says_approvals": false,
+    "continue_offered": true
+  },
+  {
+    "kind": "approval",
+    "outcome": "needs_authority",
+    "title": "Stopped: needs an approval",
+    "next": [
+      "approvals"
+    ],
+    "buttons": [
+      "Continue the autopilot from choose an option"
+    ],
+    "says_approvals": true,
+    "continue_offered": true
+  },
+  {
+    "kind": "paused",
+    "outcome": "needs_person",
+    "title": "Waiting for you: the run is paused",
+    "next": [
+      "continue"
+    ],
+    "buttons": [
+      "Continue the autopilot from choose an option"
+    ],
+    "says_approvals": false,
+    "continue_offered": true
+  },
+  {
+    "kind": "run_cap",
+    "outcome": "limit_reached",
+    "title": "Stopped: the connection’s per-run cap is reached",
+    "next": [
+      "models"
+    ],
+    "buttons": [
+      "Open Models and connections",
+      "Continue the autopilot from choose an option"
+    ],
+    "says_approvals": false,
+    "continue_offered": true
+  },
+  {
+    "kind": "run_cap",
+    "outcome": "needs_authority",
+    "title": "Stopped: the connection’s per-run cap is reached",
+    "next": [
+      "models"
+    ],
+    "buttons": [
+      "Open Models and connections",
+      "Continue the autopilot from choose an option"
+    ],
+    "says_approvals": true,
+    "continue_offered": true
+  },
+  {
+    "kind": "daily_cap",
+    "outcome": "limit_reached",
+    "title": "Stopped: the connection’s daily cap is reached",
+    "next": [
+      "add_requests"
+    ],
+    "buttons": [
+      "Open Models and connections",
+      "Continue the autopilot from choose an option"
+    ],
+    "says_approvals": false,
+    "continue_offered": true
+  },
+  {
+    "kind": "usage_limit",
+    "outcome": "limit_reached",
+    "title": "Stopped: the plan’s usage limit is reached",
+    "next": [
+      "models"
+    ],
+    "buttons": [
+      "Continue the autopilot from choose an option"
+    ],
+    "says_approvals": false,
+    "continue_offered": true
+  },
+  {
+    "kind": "connection",
+    "outcome": "needs_authority",
+    "title": "Stopped: the connection needs fixing",
+    "next": [
+      "models"
+    ],
+    "buttons": [
+      "Open Models and connections",
+      "Continue the autopilot from choose an option"
+    ],
+    "says_approvals": true,
+    "continue_offered": true
+  },
+  {
+    "kind": "open_request",
+    "outcome": "needs_authority",
+    "title": "Stopped: a plan request has an unknown outcome",
+    "next": [
+      "models"
+    ],
+    "buttons": [
+      "Open the request to close",
+      "Continue the autopilot from choose an option"
+    ],
+    "says_approvals": true,
+    "continue_offered": true
+  },
+  {
+    "kind": "call_limit",
+    "outcome": "limit_reached",
+    "title": "Stopped: its call limit is reached",
+    "next": [
+      "new_autopilot"
+    ],
+    "buttons": [
+      "Start a new autopilot",
+      "Continue the autopilot from choose an option"
+    ],
+    "says_approvals": false,
+    "continue_offered": true
+  },
+  {
+    "kind": "end_time",
+    "outcome": "limit_reached",
+    "title": "Stopped: its end time passed",
+    "next": [
+      "new_autopilot"
+    ],
+    "buttons": [
+      "Start a new autopilot",
+      "Continue the autopilot from choose an option"
+    ],
+    "says_approvals": false,
+    "continue_offered": true
+  },
+  {
+    "kind": "spec",
+    "outcome": "needs_person",
+    "title": "Waiting for you: a software option’s spec",
+    "next": [
+      "spec"
+    ],
+    "buttons": [
+      "Continue the autopilot from choose an option"
+    ],
+    "says_approvals": false,
+    "continue_offered": true
+  },
+  {
+    "kind": "other",
+    "outcome": "needs_person",
+    "title": "Waiting for you",
+    "next": [
+      "continue"
+    ],
+    "buttons": [
+      "Continue the autopilot from choose an option"
+    ],
+    "says_approvals": false,
+    "continue_offered": true
+  }
+]

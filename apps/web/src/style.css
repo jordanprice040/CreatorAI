@@ -4559,3 +4559,17 @@ details.section-fold .section-fold-state {
   font-size: 12px;
   color: var(--text-2);
 }
+
+/* ---------- ADR-0138: clear what blocks an option, or pass its gates ---------- */
+.gate-clear {
+  margin: 6px 0 10px;
+  font-size: 13px;
+}
+.gate-clear > summary {
+  cursor: pointer;
+  color: var(--warn);
+}
+.gate-clear ul {
+  margin: 4px 0;
+  padding-left: 18px;
+}

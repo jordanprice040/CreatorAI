@@ -59,6 +59,13 @@ export interface ReportSelection {
   by: string;
   rationale: string;
   override_reason: string | null;
+  /** ADR-0138: choices whose gates the owner passed, with the reasons as they read then. */
+  gate_overrides: {
+    option_title: string;
+    disposition: string;
+    reasons: string[];
+  }[];
+  gate_override_reason: string | null;
   dispositions: {
     option_id: string;
     option_title: string;
@@ -333,6 +340,15 @@ function problemSection(p: ReportProblem, fixture: string): string[] {
     );
     if (s.override_reason)
       out.push(`  - Override of the ranking: ${t(s.override_reason)}`);
+    if (s.gate_overrides.length) {
+      out.push(
+        `  - Owner override, gates passed without their checks. Reason: ${t(s.gate_override_reason ?? '')}`,
+      );
+      for (const g of s.gate_overrides)
+        out.push(
+          `    - ${t(stop(g.option_title))}, ${dispositionWords(g.disposition)}: ${g.reasons.map((r) => t(stop(r))).join('; ')}`,
+        );
+    }
     for (const d of s.dispositions)
       out.push(
         `  - ${t(stop(d.option_title))}: ${dispositionWords(d.disposition)}. Reasons: ${d.reasons.map((r) => t(stop(r))).join('; ')}. Would change if: ${t(d.reverse_if)}`,

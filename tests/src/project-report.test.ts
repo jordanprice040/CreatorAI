@@ -124,6 +124,8 @@ test('report text: secrets and personal paths removed, record text cannot forge 
         by: 'Jordan (person)',
         rationale: 'Because.',
         override_reason: null,
+        gate_overrides: [],
+        gate_override_reason: null,
         dispositions: [
           {
             option_id: randomUUID(),

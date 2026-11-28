@@ -47,6 +47,7 @@ import {
 } from './scorecard.js';
 import { AssessmentLines, AutoAssess, RangeWhy } from './assess.js';
 import { AdvanceAndGates, GateLines } from './gates.js';
+import { GateClear } from './gate-override.js';
 import { WaitingAutopilot } from './autopilot-waiting.js';
 import { InlineApproval } from './inline-approval.js';
 import { LinkClaims } from './link-claims.js';
@@ -350,6 +351,9 @@ export function Compare({
   const [overrideKept, setOverrideKept] = useState<string | null>(null);
   const [reasonsKept, setReasonsKept] = useState<Record<string, string>>({});
   const [humilityFor, setHumilityFor] = useState<string | null>(null);
+  // ADR-0138: options whose gates the owner chose to pass, and the one reason saved with them.
+  const [passed, setPassed] = useState<ReadonlySet<string>>(new Set());
+  const [gateReason, setGateReason] = useState('');
   /** ADR-0074: "Edit" on an automatic assessment opens the scoring form on it. */
   // ADR-0091: the "Link claims" panels open in place (one problem, one option at a time).
   const [linkingProblem, setLinkingProblem] = useState(false);
@@ -376,6 +380,8 @@ export function Compare({
     setOutcome(null);
     setError('');
     setHumilityFor(null);
+    setPassed(new Set());
+    setGateReason('');
   }, [focus]);
   const d = detail.data;
   useEffect(() => {
@@ -460,8 +466,19 @@ export function Compare({
   // Recording the same decision on the same report under the same run would only
   // duplicate it; another run is a different record.
   const unchanged = !!gate?.unchanged && runId === latest?.run_id;
+  // ADR-0138: the chosen dispositions that only pass because the owner passes their gates.
+  const passing = alts.filter((a) => {
+    const disp = row(a.entity.id).disposition;
+    return (
+      !!disp &&
+      passed.has(a.entity.id) &&
+      !!suit.get(a.entity.id)?.gates.blocked[disp as SelectionDisposition]
+        ?.length
+    );
+  });
   const complete =
     alts.length > 0 &&
+    !(passing.length && !gateReason.trim()) &&
     alts.every((a) => {
       const r = row(a.entity.id);
       return r.disposition && r.reasons.trim() && r.reverse_if.trim();
@@ -492,6 +509,14 @@ export function Compare({
     rationale: rationale.trim(),
     shortlist_size: 3,
     data_class: workspace.record_mode === 'fixture' ? 'synthetic' : 'public',
+    // ADR-0138: sent only when a chosen disposition is blocked and its gates are passed.
+    gate_override: passing.length
+      ? {
+          reason: gateReason.trim(),
+          alternatives: passing.map((a) => a.entity.id),
+          confirmed: true as const,
+        }
+      : null,
   });
   async function select(e?: FormEvent) {
     e?.preventDefault();
@@ -517,6 +542,8 @@ export function Compare({
         setRationaleKept(null);
         setOverrideKept(null);
         setReasonsKept({});
+        setPassed(new Set());
+        setGateReason('');
         detail.reload();
       }
     } catch (err) {
@@ -1357,20 +1384,73 @@ export function Compare({
                           <option value="">Choose…</option>
                           {SelectionDispositionSchema.options.map((o) => {
                             const blocked = s?.gates.blocked[o];
+                            // ADR-0138: a gate the owner passes opens the choice; a
+                            // choice the option's kind rules out stays closed.
+                            const open =
+                              passed.has(id) &&
+                              kindAllows(String(a.entity.body?.kind ?? ''), o);
                             return (
                               <option
                                 key={o}
                                 value={o}
-                                disabled={!!blocked?.length}
+                                disabled={!!blocked?.length && !open}
                               >
                                 {DISPOSITION_NOTE[o]}
                                 {blocked?.length
-                                  ? ` (blocked: ${blocked[0]})`
+                                  ? open
+                                    ? ' (gates passed by you)'
+                                    : ` (blocked: ${blocked[0]})`
                                   : ''}
                               </option>
                             );
                           })}
                         </select>
+                        {!viewer && (
+                          <GateClear
+                            title={clip(a.entity.title, 80)}
+                            kind={String(a.entity.body?.kind ?? '')}
+                            cand={s}
+                            owner={
+                              workspace.role === 'owner' &&
+                              session.account !== 'tester'
+                            }
+                            passed={passed.has(id)}
+                            reason={gateReason}
+                            onReason={setGateReason}
+                            onPass={() => setPassed((p) => new Set([...p, id]))}
+                            onUndo={() => {
+                              setPassed(
+                                (p) => new Set([...p].filter((x) => x !== id)),
+                              );
+                              const disp = row(id).disposition;
+                              if (
+                                disp &&
+                                s?.gates.blocked[disp as SelectionDisposition]
+                                  ?.length
+                              )
+                                setRow(id, { disposition: '' });
+                            }}
+                            onHumility={
+                              ['build', 'hybrid'].includes(
+                                String(a.entity.body?.kind ?? ''),
+                              )
+                                ? () => setHumilityFor(id)
+                                : null
+                            }
+                            onScore={
+                              opp.get(id)
+                                ? () =>
+                                    setScorePick({
+                                      optionId: id,
+                                      rubric: 'opportunity',
+                                      n: Date.now(),
+                                    })
+                                : null
+                            }
+                            onAutomate={() => open('submit')}
+                            choices={(x) => DISPOSITION_NOTE[x]}
+                          />
+                        )}
                         {gate?.stale_reasons.includes(id) && (
                           <div className="carry-flag">
                             <strong>
@@ -1590,6 +1670,18 @@ export function Compare({
                   ]}
                   note="Nothing is recorded until you press the button below, and the server checks the report, the gates and the run again; if the run needs your approval, it waits on Approvals. Every disposition, reason and rationale is only what you wrote."
                 />
+                {passing.length > 0 && (
+                  <p className="notice small">
+                    <strong>Owner override:</strong> this selection passes the
+                    gates of{' '}
+                    {passing
+                      .map((a) => `“${clip(a.entity.title, 60)}”`)
+                      .join(', ')}
+                    . It is saved with your reason (“
+                    {clip(gateReason.trim() || 'not given yet', 120)}”) and
+                    every gate passed, and labelled as your override.
+                  </p>
+                )}
                 <button
                   className="primary"
                   type="submit"
@@ -1739,6 +1831,18 @@ export function Compare({
                         {s.overrides.length > 0 && (
                           <p className="override">
                             Override: {s.override_reason}
+                          </p>
+                        )}
+                        {s.gate_overrides.length > 0 && (
+                          <p className="override">
+                            <strong>Owner override, gates passed:</strong>{' '}
+                            {s.gate_override_reason} ·{' '}
+                            {s.gate_overrides
+                              .map(
+                                (g) =>
+                                  `${optionName(g.alternative.id)} (${DISPOSITION_NOTE[g.disposition]}): ${g.reasons.join(' ')}`,
+                              )
+                              .join(' · ')}
                           </p>
                         )}
                       </Fold>

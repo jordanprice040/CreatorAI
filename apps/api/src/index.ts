@@ -3260,6 +3260,7 @@ export { createBackups, inside as insideFolder } from './backups.js';
 export { WebDiscoveryRunner, stepId, answerJson } from './web-discovery.js';
 export {
   AutopilotRunner,
+  AUTO_CLOSE_MAX,
   autopilotKey,
   capAlso,
   failedNote,

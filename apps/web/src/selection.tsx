@@ -610,6 +610,9 @@ export function Scoring({
                           · {s.dispositions.length} option
                           {s.dispositions.length === 1 ? '' : 's'}
                           {s.overrides.length > 0 ? ' · with override' : ''}
+                          {s.gate_overrides.length > 0
+                            ? ' · owner override of gates'
+                            : ''}
                         </small>
                       </>
                     }
@@ -647,6 +650,24 @@ export function Scoring({
                         . Reason: {s.override_reason}
                       </p>
                     ))}
+                    {s.gate_overrides.length > 0 && (
+                      <p className="override">
+                        <strong>Owner override, gates passed:</strong>{' '}
+                        {s.gate_override_reason} ·{' '}
+                        {s.gate_overrides
+                          .map(
+                            (g) =>
+                              `${clip(
+                                names.get(g.alternative.id.toLowerCase()) ??
+                                  (standard
+                                    ? 'An option no longer listed'
+                                    : g.alternative.id.slice(0, 8)),
+                                80,
+                              )} (${words(g.disposition)}): ${g.reasons.join(' ')}`,
+                          )
+                          .join(' · ')}
+                      </p>
+                    )}
                   </Fold>
                 </li>
               ))}

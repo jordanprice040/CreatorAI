@@ -1,0 +1,62 @@
+[
+  {
+    "label": "off",
+    "start_disabled_before_reading": true,
+    "clicks_to_start": 3,
+    "outcome": "insufficient_evidence",
+    "stop_kind": "thin_evidence",
+    "steps": [
+      "explore:stopped"
+    ],
+    "explanation": "The exploration found no candidate problem (E1 duplicate; E2 duplicate; E3 duplicate).",
+    "next": [
+      "allow_and_continue: Allow “Gather evidence when it is thin” and continue",
+      "search_web: Search the web",
+      "link_claims: Link claims",
+      "exploration: Open the exploration"
+    ],
+    "card": "Stopped: not enough evidence Autopilot · Nov 28, 2026, 8:55 AM · started Nov 28, 2026, 8:55 AM · 1 of 60 calls set aside · can continue until Nov 28, 2026, 12:56 PM\n\nThe exploration found no candidate problem (E1 duplicate; E2 duplicate; E3 duplicate).\n\nNext: what it found is already recorded as problems. Work on those under Projects › Decide, or leave out their topics (Narrow it and set limits) and start again.\n\nOpen Decide\nOpen the exploration\nContinue the autopilot from explore the evidence\nAllow “Gather evidence when it is thin” and continue\n\nLinks recorded claims that name the problem or its options, searches the web (on a plan connection, public data only) and explores or assesses again. It stays on for later autopilots; change it under Autopilot settings.\n\n✗ Explore the evidence: see above.\n\nPlanned next:\n\n○ Explore the evidence\n○ Write the brief\n○ Find the problem and options\n○ Assess the options\n○ Choose an option\n○ Write the proposal (a software option stops at its spec instead)",
+    "errors": [],
+    "shot": "a-off.png"
+  },
+  {
+    "label": "handsoff",
+    "start_disabled_before_reading": true,
+    "clicks_to_start": 3,
+    "outcome": "insufficient_evidence",
+    "stop_kind": "thin_evidence",
+    "steps": [
+      "explore:stopped"
+    ],
+    "explanation": "The exploration found no candidate problem (E1 duplicate; E2 duplicate; E3 duplicate). It could not gather more evidence: Web search runs only on a ChatGPT plan connection, and this autopilot uses another route.",
+    "next": [
+      "search_web: Search the web",
+      "link_claims: Link claims",
+      "exploration: Open the exploration",
+      "new_autopilot: Start a new autopilot"
+    ],
+    "card": "",
+    "errors": [],
+    "shot": "a-handsoff.png"
+  },
+  {
+    "label": "handsoff-claims",
+    "start_disabled_before_reading": true,
+    "clicks_to_start": 3,
+    "outcome": "insufficient_evidence",
+    "stop_kind": "thin_evidence",
+    "steps": [
+      "explore:stopped"
+    ],
+    "explanation": "The exploration found no candidate problem (E1 duplicate; E2 duplicate; E3 duplicate). It could not gather more evidence: Web search runs only on a ChatGPT plan connection, and this autopilot uses another route.",
+    "next": [
+      "search_web: Search the web",
+      "link_claims: Link claims",
+      "exploration: Open the exploration",
+      "new_autopilot: Start a new autopilot"
+    ],
+    "card": "",
+    "errors": [],
+    "shot": "a-handsoff-claims.png"
+  }
+]

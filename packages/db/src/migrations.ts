@@ -4173,6 +4173,20 @@ begin
 end $$;
 `,
   },
+  {
+    // ADR-0138: the owner may pass the gates that block a choice in Decide. The passed reasons
+    // and the owner's reason are kept on the (append-only) selection; an autopilot never passes.
+    version: 81,
+    name: 'selection_gate_overrides',
+    sql: `
+alter table selections add column gate_overrides jsonb not null default '[]'::jsonb;
+alter table selections add column gate_override_reason text;
+alter table selections add constraint selections_gate_override_check check (
+  jsonb_typeof(gate_overrides) = 'array'
+  and (jsonb_array_length(gate_overrides) = 0) = (gate_override_reason is null)
+  and (jsonb_array_length(gate_overrides) = 0 or autopilot_id is null));
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

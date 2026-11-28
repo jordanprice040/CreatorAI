@@ -260,30 +260,53 @@ export class RunbookStore extends ProposalStore {
       const { references, omitted } = problem
         ? await this.problemReferences(c, ws, problem.id)
         : { references: [], omitted: 0 };
-      // The newest active humility review of this spec (BOUNDED_BUILDER: the spec is the subject).
-      const h = (
-        await c.query(
-          `select * from entities where workspace_id = $1 and kind = 'humility_review'
-              and status = 'active' and body->'subject'->>'id' = $2
-            order by (body->'subject'->>'version')::int = $3 desc, updated_at desc, id limit 1`,
-          [ws, e.id, want],
-        )
-      ).rows[0] as Row | undefined;
-      const hb = h ? HumilityBodySchema.safeParse(h.body) : null;
-      // The same gate a build goes through, for this spec version (ADR-0077 for a hybrid).
-      const gate =
-        h && hb?.success
-          ? humilityGate(
-              {
-                id: String(h.id),
-                version: Number(h.version),
-                status: String(h.status),
-                body: h.body,
-              },
-              { id: e.id, version: want },
-              option.kind === 'hybrid' ? 'hybrid' : 'software',
-            )
-          : null;
+      // The newest active humility review of this spec (BOUNDED_BUILDER: the spec is the subject),
+      // or (ADR-0138, review 1 L-4) of the exact option version the spec builds, the one written
+      // in Decide that a build admission accepts too. A passing review wins; the spec's first.
+      const reviewOf = async (id: string, version: number, exact: boolean) =>
+        (
+          await c.query(
+            `select * from entities where workspace_id = $1 and kind = 'humility_review'
+                and status = 'active' and body->'subject'->>'id' = $2
+                and ($4::boolean = false or (body->'subject'->>'version')::int = $3)
+              order by (body->'subject'->>'version')::int = $3 desc, updated_at desc, id limit 1`,
+            [ws, id, version, exact],
+          )
+        ).rows[0] as Row | undefined;
+      const judge = (
+        h: Row | undefined,
+        subject: { id: string; version: number },
+      ) => {
+        const hb = h ? HumilityBodySchema.safeParse(h.body) : null;
+        // The same gate a build goes through (ADR-0077 for a hybrid).
+        const gate =
+          h && hb?.success
+            ? humilityGate(
+                {
+                  id: String(h.id),
+                  version: Number(h.version),
+                  status: String(h.status),
+                  body: h.body,
+                },
+                subject,
+                option.kind === 'hybrid' ? 'hybrid' : 'software',
+              )
+            : null;
+        return { h, hb, gate };
+      };
+      const ofSpec = judge(await reviewOf(e.id, want, false), {
+        id: e.id,
+        version: want,
+      });
+      const ofOption = judge(
+        await reviewOf(body.alternative.id, body.alternative.version, true),
+        body.alternative,
+      );
+      const picked =
+        [ofSpec, ofOption].find((x) => x.gate?.build_admissible) ??
+        (ofSpec.h ? ofSpec : ofOption);
+      const { h, hb, gate } = picked;
+      const viaOption = picked === ofOption && !!h;
       return {
         spec: {
           id: e.id,
@@ -310,6 +333,7 @@ export class RunbookStore extends ProposalStore {
                 id: String(h.id),
                 version: Number(h.version),
                 subject_version: hb.data.subject.version,
+                ...(viaOption ? { of_option: option.title } : {}),
                 disposition: hb.data.disposition,
                 software_part: hb.data.software_part,
                 human_part: hb.data.human_part,

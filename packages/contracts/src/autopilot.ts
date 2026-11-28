@@ -10,6 +10,7 @@ import { EvidenceRoleSchema, ResponseTypeSchema } from './discovery.js';
 import { ExploreScopeSchema } from './exploration.js';
 import { WebDiscoveryScopeSchema } from './web-discovery.js';
 import { WorkflowResourceSetupSchema } from './orchestration.js';
+import { PLAN_RECONCILE_HINT } from './connections.js';
 import {
   AutopilotFallbackSchema,
   AutopilotNextSchema,
@@ -151,6 +152,11 @@ export const AutopilotStepSchema = z.strictObject({
       version,
       kind: z.string().max(40),
       title: z.string().max(500),
+      /**
+       * ADR-0138: the choice that advanced it, when the selection step knows it. Custom
+       * software taken to validation goes on to its validation plan (a proposal), not a spec.
+       */
+      disposition: z.string().max(40).optional(),
     })
     .nullable(),
   /**
@@ -438,6 +444,55 @@ export function autopilotContinuable(
   return { ok: true };
 }
 
+/**
+ * Autopilot friction pass (Jordan, November 28): the main-path steps still ahead of an autopilot,
+ * after the one it is on (or, after a "gather more evidence" fallback, from the step it goes back
+ * to). Fallbacks are not planned, so they never show here. After "Choose an option" it writes the
+ * proposal; a software option stops at its spec instead, which the card says.
+ */
+export function autopilotPlannedStages(
+  a: Pick<Autopilot, 'stage' | 'steps'>,
+  /** A stopped autopilot Continue would pick up: its own stage is still ahead too. */
+  stopped = false,
+): AutopilotStage[] {
+  const order: AutopilotStage[] = [
+    'research',
+    'explore',
+    'brief',
+    'discover',
+    'assess',
+    'select',
+    'proposal',
+  ];
+  let from: string = a.stage;
+  let include = stopped;
+  if (from === 'gather') {
+    const then = a.steps.at(-1)?.request?.then;
+    if (typeof then !== 'string') return [];
+    from = then;
+    include = true;
+  }
+  const i = order.indexOf(from as AutopilotStage);
+  if (i < 0) return [];
+  return order.slice(include ? i : i + 1);
+}
+
+/**
+ * Autopilot friction pass (November 28): the stop was a plan request with no recorded outcome
+ * (or one still marked running) on the step's connection. Stops recorded before the
+ * `open_request` kind existed were `connection` stops whose note names the reconcile hint.
+ */
+export function stopsOnOpenRequest(
+  step: Pick<AutopilotStep, 'stop_kind' | 'note'> | undefined,
+): boolean {
+  if (!step) return false;
+  if (step.stop_kind === 'open_request') return true;
+  return (
+    step.stop_kind === 'connection' &&
+    (step.note ?? '').includes(PLAN_RECONCILE_HINT)
+  );
+}
+
 /** ADR-0124 (F2): automatic continues one autopilot may make after usage limits (the database refuses more). */
 export const AUTO_RESUME_MAX_CHECKS = 8;
 
@@ -698,6 +753,14 @@ const NEXT: Record<AutopilotStopKind, Omit<AutopilotNext, 'setting'>[]> = {
         'Models and connections: the connection says what it needs (for example accepting its caps); then continue.',
     },
   ],
+  open_request: [
+    {
+      kind: 'models',
+      label: 'Close the request without a recorded outcome',
+      detail:
+        'Models and connections › your plan connection › Requests without a recorded outcome: close it with what you know, then continue. Nothing waits under Approvals.',
+    },
+  ],
   daily_cap: [
     {
       kind: 'add_requests',
@@ -738,7 +801,15 @@ const NEXT: Record<AutopilotStopKind, Omit<AutopilotNext, 'setting'>[]> = {
       detail: 'Build › Spec: writing and freezing it stays with you.',
     },
   ],
-  other: [],
+  // Audit phase B (November 28): an "other" stop offered no next step at all.
+  other: [
+    {
+      kind: 'continue',
+      label: 'Read the note, then continue',
+      detail:
+        'The last step’s note says what stopped it; deal with that, then continue.',
+    },
+  ],
 };
 
 /**
