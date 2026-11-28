@@ -75,9 +75,12 @@ export async function assertSafeRoot(root, { repoRoot = ROOT } = {}) {
       .toLowerCase()
       .replace(/[\\/]+$/, '');
   const within = (p) => lower.startsWith(norm(p) + sep);
+  // Windows may give the temp folder as an 8.3 short name (C:\Users\RUNNER~1);
+  // a root that passed the check above is in long form, so compare with both.
+  const temps = [tmpdir(), await realpath(tmpdir()).catch(() => tmpdir())];
   // The root must not be, or contain, a drive root, the checkout, the home
   // folder or the temp folder.
-  for (const p of [parse(abs).root, repoRoot, homedir(), tmpdir()]) {
+  for (const p of [parse(abs).root, repoRoot, homedir(), ...temps]) {
     const q = norm(p);
     if (
       lower === q ||
@@ -88,7 +91,7 @@ export async function assertSafeRoot(root, { repoRoot = ROOT } = {}) {
   }
   // Application data and install folders hold operational data and
   // credentials. Disposable roots under the temp folder are allowed.
-  if (!within(tmpdir()))
+  if (!temps.some(within))
     for (const env of [
       'APPDATA',
       'LOCALAPPDATA',

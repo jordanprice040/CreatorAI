@@ -1450,7 +1450,7 @@ blocked folded section, N-A walk selector) followed. Next: re-review, then the i
 ## Windows CI: the last 10 test failures (November 28, 2026)
 
 Branch `claude/project-thread-09762f`, on top of PR #259 (`be09280`). Test-only, plus the Windows CI job's timeout.
-No app, package, script, frozen benchmark or grader file changed, and on Linux every test passes python3 the same arguments as before.
+No app, package, frozen benchmark or grader file changed (one dev-only script fix, below), and on Linux every test passes python3 the same arguments as before.
 
 - **Windows Python writes `\r\n`** for `\n` and reads pipes in the locale code page, so exact output matches failed on
   the platform, not on the program (`ai-run-tasks`, `p14-xl`, the `build-progress` repair round). New helper
@@ -1468,7 +1468,10 @@ No app, package, script, frozen benchmark or grader file changed, and on Linux e
   not built from `tmpdir()`, so no app path is known to hit it.
 - **`test:dev-safety` on Windows** (it runs after the main suite, so it was never reached while the main suite
   failed): 8 `dev-artifact-retention` tests hit the same short temp path (the cleanup refuses a root that resolves
-  elsewhere), so the sandbox now uses the `realpath` of its temp folder; the foreign-listener guard test hard-coded
+  elsewhere), so the sandbox now uses the `realpath` of its temp folder. That exposed a real Windows bug in the
+  dev-only cleanup script `scripts/dev-artifact-retention.mjs` (not shipped in the app): its "disposable roots under
+  the temp folder are allowed" exemption compared against `tmpdir()` as given, so with a short-name temp folder no
+  root could pass both checks. It now compares against both `tmpdir()` and its real path. The foreign-listener guard test hard-coded
   `C:/Program Files/PostgreSQL/18/bin` while the runner ships 17, so it now uses `CREATOR_PG_BIN` when set and skips
   with that reason when no `pg_ctl.exe` is there.
 - `.github/workflows/ci.yml`: the Windows job's timeout is 40 minutes (was 25). Its test run alone takes about 17
