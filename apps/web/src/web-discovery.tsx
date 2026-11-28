@@ -21,6 +21,7 @@ import {
   AUTOPILOT_QUOTE_CHECK_LABEL,
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
+import { SearchLimitField } from './search-limit-field.js';
 import { Status, reveal, useLoad } from './ui.js';
 import type { SitesHandoff } from './past-project.js';
 import {
@@ -131,6 +132,8 @@ export function WebDiscover({
     if (sites?.skip !== undefined) setSkip(sites.skip);
   }, [sites?.nonce]);
   const [maxFetches, setMaxFetches] = useState(8);
+  // ADR-0140: the search limit the owner picks (1 to MAX_SEARCH_CALLS), which the scout is told.
+  const [maxSearches, setMaxSearches] = useState(3);
   const [maxClaims, setMaxClaims] = useState(8);
   const [connectionId, setConnectionId] = useState('');
   const [planModel, setPlanModel] = useState('');
@@ -192,7 +195,7 @@ export function WebDiscover({
     question: question.trim() || null,
     exclusions: list(exclusions),
     excluded_hosts: hosts(skip),
-    max_search_calls: 3,
+    max_search_calls: maxSearches,
     max_fetches: maxFetches,
     max_claims: maxClaims,
   };
@@ -242,7 +245,7 @@ export function WebDiscover({
       : []),
     ...(plan && model && !webQualified(plan, model)
       ? [
-          `${model} is not qualified for web discovery (the web-discovery-v2 benchmark). Qualify it under Models and connections first.`,
+          `${model} is not qualified for web discovery (the web-discovery-v3 benchmark). Qualify it under Models and connections first.`,
         ]
       : []),
     ...(current?.data?.fetching_available === false
@@ -424,6 +427,13 @@ export function WebDiscover({
                       onChange={(e) => setSkip(e.target.value)}
                     />
                   </div>
+                </div>
+                <div>
+                  <SearchLimitField
+                    id="w-searches"
+                    value={maxSearches}
+                    onChange={setMaxSearches}
+                  />
                 </div>
                 <div className="two">
                   <div>

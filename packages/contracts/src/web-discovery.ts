@@ -19,6 +19,11 @@ export const WEB_DISCOVERY_POLICY_VERSION = 'web-discovery/1.0' as const;
  */
 export const WEB_DISCOVERY_TASK_CLASS = 'research_synthesis' as const;
 
+/**
+ * ADR-0140 (review L-2): the most search calls one web search request may make. It is the
+ * plan route's own technical bound (`checkPlanWebSearch` in `plan-responses.ts` uses it), not a policy cap.
+ */
+export const MAX_SEARCH_CALLS = 10;
 /** What the owner narrows a web discovery with. Every field is optional. */
 export const WebDiscoveryScopeSchema = z.strictObject({
   /** Interests or fields to lean towards; with none, broad public seeds are used. */
@@ -30,8 +35,8 @@ export const WebDiscoveryScopeSchema = z.strictObject({
   exclusions: z.array(term).max(10).default([]),
   /** Websites the search must not use, and whose pages are never fetched. */
   excluded_hosts: z.array(EvidenceSiteHostSchema).max(20).default([]),
-  /** Search calls the one search request may make (1–5); one more stops it. */
-  max_search_calls: z.number().int().min(1).max(5).default(3),
+  /** Search calls the one search request may make; one more stops it. */
+  max_search_calls: z.number().int().min(1).max(MAX_SEARCH_CALLS).default(3),
   /** Pages the studio may fetch for this discovery (1–15). */
   max_fetches: z.number().int().min(1).max(15).default(8),
   /** Claims the reading request may propose (1–12). */

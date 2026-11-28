@@ -4,6 +4,7 @@ import {
   PointList,
   useReadLists,
 } from './explain.js';
+import { SearchLimitField } from './search-limit-field.js';
 import {
   useEffect,
   useRef,
@@ -262,6 +263,8 @@ export function Autopilot({
   // Review 1 of #213, H-1: an autopilot can pass its end time while the page is open, and then
   // it can no longer continue; drawing again each half minute moves it to Earlier autopilots.
   const [, setTick] = useState(0);
+  // ADR-0140: the web search's search limit (1 to MAX_SEARCH_CALLS), which the scout is told.
+  const [maxSearches, setMaxSearches] = useState(3);
   useEffect(() => {
     const t = setInterval(() => setTick((n) => n + 1), 30_000);
     return () => clearInterval(t);
@@ -289,7 +292,7 @@ export function Autopilot({
     question: question.trim() ? cutText(question.trim(), 300) : null,
     exclusions: list(exclusions),
     excluded_hosts: [],
-    max_search_calls: 3,
+    max_search_calls: maxSearches,
     max_fetches: 8,
     max_claims: 8,
   };
@@ -827,6 +830,11 @@ export function Autopilot({
                           do with each other.
                         </p>
                       )}
+                      <SearchLimitField
+                        id="ap-searches"
+                        value={maxSearches}
+                        onChange={setMaxSearches}
+                      />
                     </>
                   )}
                   <label htmlFor="ap-class">Evidence sharing class</label>

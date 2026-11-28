@@ -1,4 +1,4 @@
-// Writes config/connections/benchmarks/web-discovery-v2.json (ADR-0086, P12). Run after
+// Writes config/connections/benchmarks/web-discovery-v3.json (ADR-0086, P12). Run after
 // `pnpm build:code`: node scripts/web-discovery-benchmark.mjs
 // Scout cases search the live web through the plan connection's own web search and are graded
 // on what the provider reported (a search happened, enough leads from its own source list, from
@@ -145,9 +145,12 @@ const cases = [
     3,
     2,
   ),
+  // ADR-0140 review M-1: v2's held-out scout cases were viewed under the v2 prompt, so they
+  // are practice now (ADR-0052); the held-out scout cases below are new in v3 and cover the
+  // search limits the forms offer (1, 5 and the plan route's maximum of 10).
   scout(
-    'scout-held-donations',
-    'held_out',
+    'scout-dev-donations',
+    'development',
     {
       question:
         'What do small charities report about keeping track of donated goods?',
@@ -156,8 +159,8 @@ const cases = [
     2,
   ),
   scout(
-    'scout-held-allotments',
-    'held_out',
+    'scout-dev-allotments',
+    'development',
     {
       interests: ['community garden plot waiting lists'],
       target_groups: ['neighbourhood associations'],
@@ -167,8 +170,8 @@ const cases = [
     2,
   ),
   scout(
-    'scout-held-school-transport',
-    'held_out',
+    'scout-dev-school-transport',
+    'development',
     {
       interests: ['school bus route changes', 'after-school pickup'],
       target_groups: ['parents'],
@@ -176,6 +179,41 @@ const cases = [
     },
     3,
     2,
+  ),
+  scout(
+    'scout-held-tenant-repairs',
+    'held_out',
+    {
+      interests: ['tenant repair requests'],
+      target_groups: ['renters in small buildings'],
+      max_search_calls: 1,
+    },
+    2,
+    2,
+  ),
+  scout(
+    'scout-held-library-tutoring',
+    'held_out',
+    {
+      question:
+        'What problems do public libraries report when matching volunteer tutors with learners?',
+      excluded_hosts: ['*.quora.com'],
+      max_search_calls: 5,
+    },
+    3,
+    2,
+  ),
+  scout(
+    'scout-held-tool-sharing',
+    'held_out',
+    {
+      interests: ['shared farm equipment', 'tool libraries'],
+      target_groups: ['small farms', 'neighbourhood groups'],
+      exclusions: ['gambling'],
+      max_search_calls: 10,
+    },
+    3,
+    3,
   ),
   reader(
     'reader-dev-clear',
@@ -280,21 +318,21 @@ const cases = [
 
 const manifest = BenchmarkManifestSchema.parse({
   format: 'route-benchmark/1',
-  name: 'web-discovery-v2',
+  name: 'web-discovery-v3',
   fixture: false,
   task_class: 'research_synthesis',
   data_class: 'public',
   cases,
   provenance:
-    'ADR-0086 (P12), November 11, 2026; v2 after the live v1 check (scout prompt states field limits, role version 2; the three v1 held-out scout cases became practice and three new held-out scout cases were added). Scout cases search the live web and are graded on the provider-reported search calls and sources, never on exact URLs; the development scout cases reuse the November 10 search-route test queries. Reader cases are synthetic packets written for this benchmark, graded by the studio quote check. Not a study instrument.',
+    'ADR-0140, November 28, 2026: v3 has role version 3 (the scout prompt and input state the search limit, max_searches); the change came from a live search cut off at its limit, not from any case result. The three v2 held-out scout cases were viewed under the v2 prompt, so they became practice, and three new held-out scout cases with search limits 1, 5 and 10 were added; the reader cases, whose prompt is unchanged, keep their splits and checks. ADR-0086 (P12), November 11, 2026; v2 after the live v1 check (scout prompt states field limits, role version 2; the three v1 held-out scout cases became practice and three new held-out scout cases were added). Scout cases search the live web and are graded on the provider-reported search calls and sources, never on exact URLs; the development scout cases reuse the November 10 search-route test queries. Reader cases are synthetic packets written for this benchmark, graded by the studio quote check. Not a study instrument.',
 });
 writeFileSync(
   new URL(
-    '../config/connections/benchmarks/web-discovery-v2.json',
+    '../config/connections/benchmarks/web-discovery-v3.json',
     import.meta.url,
   ),
   `${JSON.stringify(manifest, null, 2)}\n`,
 );
 console.log(
-  `web-discovery-v2: ${cases.length} cases, ${cases.filter((c) => c.split === 'held_out').length} held out`,
+  `web-discovery-v3: ${cases.length} cases, ${cases.filter((c) => c.split === 'held_out').length} held out`,
 );

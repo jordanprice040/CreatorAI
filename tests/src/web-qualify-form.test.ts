@@ -552,7 +552,7 @@ test('P24 after P12: Qualify several reads each benchmark in its own research sy
   const allowed = ['research_synthesis'];
   const web = (qs: PlanQualification[]) =>
     queueChoices(qs, 'gpt-6-astra', allowed).find(
-      (c) => c.name === 'web-discovery-v2',
+      (c) => c.name === 'web-discovery-v3',
     )?.eligible;
   const decided = {
     task_class: 'research_synthesis' as const,
@@ -606,15 +606,15 @@ test('P24: Qualify several says before it starts when the queue needs more than 
         act: async () => null,
       }),
     );
-  // Seven bundled benchmarks: 8 (spec-cases-v2) + 8 + 8 + 15 + 4 + 4 + 13 plan requests on a
+  // Seven bundled benchmarks: 8 (spec-cases-v2) + 8 + 8 + 15 + 4 + 4 + 16 plan requests on a
   // fresh connection.
   const fresh = html(40);
-  assert.match(fresh, /Qualify all \(7, up to 60 plan requests\)/);
+  assert.match(fresh, /Qualify all \(7, up to 63 plan requests\)/);
   assert.match(
     fresh,
-    /Qualify all needs up to 60 plan requests, more than this connection&#x27;s cap of 40 in any 24 hours/,
+    /Qualify all needs up to 63 plan requests, more than this connection&#x27;s cap of 40 in any 24 hours/,
   );
-  assert.doesNotMatch(html(60), /more than this connection/);
+  assert.doesNotMatch(html(63), /more than this connection/);
 });
 
 test('ADR-0089: the discovery benchmarks are listed with their own allow, start and qualified states', async () => {
@@ -949,8 +949,8 @@ test('P24 with P34: Qualify several offers the discovery benchmarks by name, per
   const skeptic = discovery.find((b) => b.task_class === 'scoring')!.name;
   const fresh = byName([]);
   for (const b of discovery) assert.equal(fresh[b.name]?.eligible, true);
-  // Qualify all on a fresh connection: the seven bundled benchmarks (60 plan requests) and the
-  // three discovery ones (2 + 4 cases each) come to 78, above the default 40 in any 24 hours.
+  // Qualify all on a fresh connection: the seven bundled benchmarks (63 plan requests) and the
+  // three discovery ones (2 + 4 cases each) come to 81, above the default 40 in any 24 hours.
   assert.equal(
     queueChoices(
       [],
@@ -964,7 +964,7 @@ test('P24 with P34: Qualify several offers the discovery benchmarks by name, per
       ],
       list,
     ).reduce((n, c) => n + (c as unknown as { requests: number }).requests, 0),
-    78,
+    81,
   );
   assert.equal(fresh['assessment-synthetic-v3']?.eligible, true);
   // A discovery benchmark is queued by name; the server loads its manifest.

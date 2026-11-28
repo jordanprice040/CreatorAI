@@ -19,8 +19,9 @@ import { quoteInPassage } from './research.js';
 // page is judged, the reading packet, and which proposed claims passed the word-for-word quote
 // check. A model's text is never trusted to say where a URL came from or whether a quote fits.
 
-export const WEB_DISCOVERY_ROLE_VERSION = 'web-discovery-role/2' as const;
-export const SCOUT_MARKER = '[web-discovery:scout/2]';
+// ADR-0140: role version 3, the scout is told its search limit (max_searches in its input).
+export const WEB_DISCOVERY_ROLE_VERSION = 'web-discovery-role/3' as const;
+export const SCOUT_MARKER = '[web-discovery:scout/3]';
 export const READER_MARKER = '[web-discovery:reader/1]';
 /** At most this many pages from one website are fetched for one discovery. */
 export const MAX_PAGES_PER_HOST = 2;
@@ -35,8 +36,9 @@ export const BROAD_SEEDS = [
   'surveys, reports or case studies documenting unmet needs, workarounds or frequent complaints',
 ] as const;
 
-export const SCOUT_PROMPT = `${SCOUT_MARKER} You are the scout of an evidence-based product studio. Use web search to find public web pages that document real problems people have, in their own words or in studies: complaints, practitioner write-ups, surveys, reports, case studies, incident reports. Work only within the focus given in the user message; when it lists broad seeds, cover at least two of them.
+export const SCOUT_PROMPT = `${SCOUT_MARKER} You are the scout of an evidence-based product studio. Use web search to find public web pages that document real problems people have, in their own words or in studies: complaints, practitioner write-ups, surveys, reports, case studies, incident reports. Work only within the focus given in the user message; when it lists broad seeds, cover at least two of them within your search limit.
 Rules:
+- Run at most max_searches web searches (the number in the user message). If you start more searches than that, the studio ends the request and keeps nothing from it, so plan your queries, combine topics in one query when the limit is small, and stop searching once you have enough leads.
 - List only pages your web search returned. Never invent or guess a URL.
 - Prefer ordinary HTML pages that anyone can read without signing in. Avoid PDFs, paywalled journal pages, login walls, video and social media apps that need JavaScript.
 - Prefer primary sources and open-access copies. Cover at least two different fields or kinds of source.
@@ -84,6 +86,7 @@ export function scoutInput(scope: WebDiscoveryScope): string {
     excluded_topics: scope.exclusions,
     excluded_websites: scope.excluded_hosts,
     max_leads: Math.min(20, scope.max_fetches * 2),
+    max_searches: scope.max_search_calls,
   });
 }
 export const scoutInputHash = (scope: WebDiscoveryScope) =>

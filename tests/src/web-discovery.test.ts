@@ -22,6 +22,9 @@ import {
 import {
   READER_PROMPT,
   SCOUT_MARKER,
+  SCOUT_PROMPT,
+  WEB_DISCOVERY_ROLE_VERSION,
+  scoutInput,
   READER_MARKER,
   buildReaderPacket,
   canonicalHash,
@@ -591,7 +594,7 @@ test('the bundled benchmark binds both stages to the current prompts and grades 
     JSON.parse(
       readFileSync(
         new URL(
-          '../../config/connections/benchmarks/web-discovery-v2.json',
+          '../../config/connections/benchmarks/web-discovery-v3.json',
           import.meta.url,
         ),
         'utf8',
@@ -710,7 +713,7 @@ const FIXTURE_URLS = [
 const sse = (evs: unknown[]) =>
   evs.map((e) => `data: ${JSON.stringify(e)}\n\n`).join('');
 
-type Mode = 'normal' | 'no_search' | 'pending';
+type Mode = 'normal' | 'no_search' | 'pending' | 'three_searches';
 async function setup(t: test.TestContext) {
   const db = await freshDatabase(t);
   if (!db) return null;
@@ -763,19 +766,21 @@ async function setup(t: test.TestContext) {
       let text: string;
       const items: unknown[] = [];
       if (body.instructions.includes(SCOUT_MARKER)) {
-        if (mode !== 'no_search')
-          items.push({
-            type: 'web_search_call',
-            id: 'ws_1',
-            status: 'completed',
-            action: {
-              type: 'search',
-              query: 'clinic waits',
-              sources: [...FIXTURE_URLS, 'https://excluded.fixture.test/x'].map(
-                (u) => ({ url: u }),
-              ),
-            },
-          });
+        for (let i = 0; i < (mode === 'three_searches' ? 3 : 1); i++)
+          if (mode !== 'no_search')
+            items.push({
+              type: 'web_search_call',
+              id: `ws_${i + 1}`,
+              status: 'completed',
+              action: {
+                type: 'search',
+                query: 'clinic waits',
+                sources: [
+                  ...FIXTURE_URLS,
+                  'https://excluded.fixture.test/x',
+                ].map((u) => ({ url: u })),
+              },
+            });
         text = JSON.stringify({
           summary: 'Searched for clinic waits.',
           leads: [
@@ -923,7 +928,7 @@ async function setup(t: test.TestContext) {
   const manifest = JSON.parse(
     readFileSync(
       new URL(
-        '../../config/connections/benchmarks/web-discovery-v2.json',
+        '../../config/connections/benchmarks/web-discovery-v3.json',
         import.meta.url,
       ),
       'utf8',
@@ -1055,6 +1060,8 @@ test('search, guarded fetch, reading and the quote check run end to end on a bar
       excluded_topics: [],
       excluded_websites: ['excluded.fixture.test'],
       max_leads: 10,
+      // ADR-0140: the scout is told its search limit.
+      max_searches: 3,
     }),
   );
   const by = Object.fromEntries(d.leads.map((l) => [l.url, l]));
@@ -1672,4 +1679,67 @@ test('review 2 N-3: every distinct quote that loses its page’s row is named, a
   assert.match(many[0]!, /“no no/);
   assert.match(many[1]!, /“never/);
   assert.equal(many[2], 'It has 2 more quotes not recorded as their own rows.');
+});
+
+test('ADR-0140: the scout is told its search limit, and the limit binds the preview hash', () => {
+  assert.equal(WEB_DISCOVERY_ROLE_VERSION, 'web-discovery-role/3');
+  assert.match(SCOUT_PROMPT, /at most max_searches web searches/);
+  const two = WebDiscoveryScopeSchema.parse({ max_search_calls: 2 });
+  const five = WebDiscoveryScopeSchema.parse({ max_search_calls: 5 });
+  assert.equal(JSON.parse(scoutInput(two)).max_searches, 2);
+  assert.equal(JSON.parse(scoutInput(five)).max_searches, 5);
+  assert.notEqual(scoutInputHash(two), scoutInputHash(five));
+  // The web discovery benchmark carries the current prompt, so a pass under role 2 no longer
+  // admits web discovery until the model is qualified again.
+  const bench = JSON.parse(
+    readFileSync(
+      new URL(
+        '../../config/connections/benchmarks/web-discovery-v3.json',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  ) as {
+    cases: {
+      input: { role: string; text: string }[];
+      check: { kind: string; role_version: string };
+    }[];
+  };
+  for (const c of bench.cases) {
+    assert.equal(c.check.role_version, WEB_DISCOVERY_ROLE_VERSION);
+    if (c.check.kind === 'web_scout_contract')
+      assert.equal(c.input[0]!.text, SCOUT_PROMPT);
+  }
+});
+
+test('ADR-0140 review N-3: a chosen limit reaches both the scout input and the enforced cap', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.qualify();
+  const two = scope({ ...h.scope, max_search_calls: 2 });
+  const asked: (number | undefined)[] = [];
+  const invoke = h.service.invoke.bind(h.service);
+  h.service.invoke = ((...a: Parameters<typeof invoke>) => {
+    if (a[2].web_discovery?.stage === 'search')
+      asked.push(a[2].web_search?.max_calls);
+    return invoke(...a);
+  }) as typeof invoke;
+  const before = h.bodies.length;
+  const d = await h.start(await h.run(), two);
+  assert.equal(d.state, 'done', d.explanation);
+  const sent = h.bodies
+    .slice(before)
+    .find((b) => String(b.instructions).includes(SCOUT_MARKER))!;
+  assert.equal(
+    JSON.parse((sent.input as { content: string }[])[0]!.content).max_searches,
+    2,
+  );
+  assert.deepEqual(asked, [2]);
+  // A scout that starts a third search is cut off, and nothing from it is kept.
+  h.setMode('three_searches');
+  const cut = await h.start(await h.run(), two);
+  assert.deepEqual(asked, [2, 2]);
+  assert.notEqual(cut.state, 'done');
+  assert.match(cut.explanation, /more than 2 search calls|studio_search_cap/);
+  assert.equal(cut.leads.length, 0);
 });

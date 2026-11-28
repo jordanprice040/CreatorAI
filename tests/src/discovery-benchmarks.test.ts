@@ -24,7 +24,10 @@ import {
   DISCOVERY_BENCHMARK_DIRS,
   currentForDiscoveryRole,
   heldOutKeys,
+  heldOutPrompts,
+  heldOutSeen,
   offeredDiscoveryBenchmark,
+  promptHash,
   offeredDiscoveryBenchmarks,
   type CommandContext,
 } from '@creator/db';
@@ -251,7 +254,7 @@ test('ADR-0089: start a discovery qualification by name; stale names, fixture mi
   const web = BenchmarkManifestSchema.parse(
     JSON.parse(
       readFileSync(
-        new URL('config/connections/benchmarks/web-discovery-v2.json', root),
+        new URL('config/connections/benchmarks/web-discovery-v3.json', root),
         'utf8',
       ),
     ),
@@ -338,4 +341,64 @@ test('ADR-0089: start a discovery qualification by name; stale names, fixture mi
   // ...and a viewed locate qualification does not refuse web discovery.
   await viewed(locateQ.id, manifest.cases);
   assert.equal((await startWeb('m3')).admits_web_discovery, true);
+});
+
+test('PR #262 review M-1: the web discovery v2 held-out views do not reach v3, and a changed input cannot hide them', () => {
+  const load = (name: string) =>
+    BenchmarkManifestSchema.parse(
+      JSON.parse(
+        readFileSync(
+          new URL(`config/connections/benchmarks/${name}.json`, root),
+          'utf8',
+        ),
+      ),
+    ).cases;
+  const v2 = load('web-discovery-v2');
+  const v3 = load('web-discovery-v3');
+  // A view of v2's results, as the store rebuilds it from the stored manifest.
+  const view = {
+    prompt_hash: promptHash(v2),
+    held_out: heldOutKeys(v2),
+    held_out_prompts: heldOutPrompts(v2),
+  };
+  // v3 revises the scout prompt and moved v2's viewed scout cases to practice; its reader cases
+  // keep the unchanged reader prompt, so nothing it holds out was seen under another prompt.
+  assert.equal(heldOutSeen(view, v3), 0);
+  const ids = (cs: typeof v3, split: string) =>
+    cs.filter((c) => c.split === split).map((c) => c.case_id);
+  const v2Scouts = ids(v2, 'held_out').filter((id) => id.startsWith('scout'));
+  assert.equal(v2Scouts.length, 3);
+  for (const id of v2Scouts) {
+    assert.ok(!ids(v3, 'held_out').includes(id));
+    assert.ok(ids(v3, 'development').includes(id.replace('held', 'dev')));
+  }
+  // The fresh held-out scout cases cover the search limits the forms offer.
+  assert.deepEqual(
+    v3
+      .filter(
+        (c) => c.split === 'held_out' && c.check.kind === 'web_scout_contract',
+      )
+      .map(
+        (c) =>
+          (c.check as { scope: { max_search_calls: number } }).scope
+            .max_search_calls,
+      ),
+    [1, 5, 10],
+  );
+  // Had v3 kept v2's held-out scout cases, the new scout input (it adds max_searches) would
+  // not hide them: the user message follows from the check and is not part of the key.
+  const scoutPrompt = v3.find((c) => c.check.kind === 'web_scout_contract')!
+    .input[0]!;
+  const kept = v2.map((c) =>
+    c.check.kind === 'web_scout_contract'
+      ? {
+          ...c,
+          input: [
+            scoutPrompt,
+            { role: 'user' as const, text: `${c.input[1]!.text} changed` },
+          ],
+        }
+      : c,
+  );
+  assert.equal(heldOutSeen(view, kept), 3);
 });
