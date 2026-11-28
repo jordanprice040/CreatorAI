@@ -1320,6 +1320,29 @@ export class SelectionStore extends TeamStore {
           'ACCESS_DENIED',
           'Only the workspace owner, signed in as a person, can pass gates.',
         );
+      if (passing) {
+        // Review 1 L-2: the override passes the options the owner named, no others.
+        const named = new Set(passing.alternatives.map((x) => x.toLowerCase()));
+        const unnamed = check.gated.filter(
+          (g) => !named.has(g.alternative.id.toLowerCase()),
+        );
+        if (unnamed.length)
+          throw fail(
+            'INVALID_TRANSITION',
+            unnamed
+              .flatMap((g) => g.reasons)
+              .join(' ')
+              .slice(0, 2000),
+          );
+        const gated = new Set(
+          check.gated.map((g) => g.alternative.id.toLowerCase()),
+        );
+        if ([...named].some((x) => !gated.has(x)))
+          throw fail(
+            'INVALID_CONTRACT',
+            'The override names an option whose chosen gates do not block it.',
+          );
+      }
       if (check.override_reason_missing)
         throw fail(
           'INVALID_CONTRACT',

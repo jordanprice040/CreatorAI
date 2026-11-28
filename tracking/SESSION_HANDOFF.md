@@ -77,7 +77,7 @@ Review 1 of #260 (1 M, 5 L, 4 nits) fixed: the auto-close locks only requests no
 
 ## November 28 handoff — Decide without the busywork (ADR-0138, migration 81)
 
-What changed is in ADR-0138. Schema becomes 81 when this merges; the dev studio and the installed app need the migration before they run it. Open follow-ups: the autopilot still stops at the spec for software selected for a build; a model-drafted humility review (so "Decide for me" can also clear the humility gate) is not built; the runbook export still reads only a review of the spec itself.
+What changed is in ADR-0138. Schema becomes 81 when this merges; the dev studio and the installed app need the migration before they run it. Open follow-ups: the autopilot still stops at the spec for software selected for a build; a model-drafted humility review (so "Decide for me" can also clear the humility gate) is not built; the thesis study exports do not read selections. Review 1 (1 M, 5 L, 4 nits) fixed: the project report lists overrides with their reason and gates, the override names the options it passes, the runbook reports the option's review, a Decide for me re-recording that needs approval stops on it, and testers are not offered the override.
 
 ## November 28 handoff — autopilot stops on an open plan request (ADR-0136, ADR-0137, no migration)
 

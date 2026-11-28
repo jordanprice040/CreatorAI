@@ -511,7 +511,11 @@ export function Compare({
     data_class: workspace.record_mode === 'fixture' ? 'synthetic' : 'public',
     // ADR-0138: sent only when a chosen disposition is blocked and its gates are passed.
     gate_override: passing.length
-      ? { reason: gateReason.trim(), confirmed: true as const }
+      ? {
+          reason: gateReason.trim(),
+          alternatives: passing.map((a) => a.entity.id),
+          confirmed: true as const,
+        }
       : null,
   });
   async function select(e?: FormEvent) {
@@ -1406,7 +1410,10 @@ export function Compare({
                             title={clip(a.entity.title, 80)}
                             kind={String(a.entity.body?.kind ?? '')}
                             cand={s}
-                            owner={workspace.role === 'owner'}
+                            owner={
+                              workspace.role === 'owner' &&
+                              session.account !== 'tester'
+                            }
                             passed={passed.has(id)}
                             reason={gateReason}
                             onReason={setGateReason}

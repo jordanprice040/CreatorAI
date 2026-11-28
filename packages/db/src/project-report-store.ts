@@ -358,6 +358,21 @@ export class ProjectReportStore extends RunbookStore {
         rationale: String(s.rationale),
         override_reason:
           s.override_reason === null ? null : String(s.override_reason),
+        gate_overrides: arr(s.gate_overrides).map((g) => {
+          const x = obj(g);
+          const alt = obj(x.alternative);
+          return {
+            option_title:
+              titles.get(str(alt.id).toLowerCase()) ??
+              `option ${str(alt.id).slice(0, 8)}`,
+            disposition: str(x.disposition),
+            reasons: arr(x.reasons).map(str),
+          };
+        }),
+        gate_override_reason:
+          s.gate_override_reason == null
+            ? null
+            : String(s.gate_override_reason),
         dispositions: arr(s.dispositions).map((d) => {
           const x = obj(d);
           const alt = obj(x.alternative);

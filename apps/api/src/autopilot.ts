@@ -2679,7 +2679,8 @@ export class AutopilotRunner {
    * scores is recorded again, unchanged, on the current ones, when the current report still
    * accepts it as it is (same option versions, no gate blocking it, any ranking override reason
    * it needs already given). A gate the person passed is never passed again by the autopilot.
-   * Null: the autopilot stops for the person as before.
+   * Null: the autopilot stops for the person as before; a recording that needs approval stops on
+   * that approval.
    */
   async #recordAgain(
     ctx: CommandContext,
@@ -2716,7 +2717,22 @@ export class AutopilotRunner {
       shortlist_size: now.suitability.sensitivity.shortlist_size,
       data_class: a.config.data_class,
     });
-    if (out.status !== 'recorded' || !out.selection) return null;
+    if (out.status !== 'recorded' || !out.selection) {
+      // Review 1 L-1: the admission may have opened a request under Approvals; the stop names it
+      // (as the autopilot's own choice does) instead of leaving it behind a generic stop.
+      const n = notAdmitted(mine.option.title, out.admission);
+      const ethics = /ethic/i.test(
+        `${out.admission.reason_code} ${out.admission.explanation}`,
+      );
+      return {
+        stop: {
+          outcome: 'needs_authority',
+          kind: ethics ? 'model_ethics' : 'approval',
+          note: n.note,
+          ...(n.asked ? { asked: n.asked } : {}),
+        },
+      };
+    }
     return {
       done: {
         child: { kind: 'selection', id: out.selection.id },

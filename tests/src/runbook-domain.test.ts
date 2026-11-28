@@ -617,7 +617,7 @@ test('a spec the studio would not build says so in the bundle', () => {
   const none = softwareRunbook(input({ humility: null }));
   assert.match(
     none.manifest.warnings.join(' '),
-    /No should-this-be-software \(humility\) review of this spec is recorded/,
+    /No should-this-be-software \(humility\) review of this spec, or of the option version it builds, is recorded/,
   );
   const noneDec = textOf(none.files, 'DECISIONS.md');
   assert.match(noneDec, /\*\*No should-this-be-software review\*\*/);

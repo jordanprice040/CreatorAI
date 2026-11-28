@@ -674,6 +674,8 @@ export const SelectRequestSchema = z.strictObject({
   gate_override: z
     .strictObject({
       reason: note,
+      /** The options whose gates the owner chose to pass (review 1 L-2): exactly the gated ones. */
+      alternatives: z.array(id).min(1).max(20),
       /** The owner saw the warning and confirmed it. */
       confirmed: z.literal(true),
     })

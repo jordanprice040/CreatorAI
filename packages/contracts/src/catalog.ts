@@ -261,6 +261,11 @@ export const OverviewSchema = z.strictObject({
         problem_id: id,
         created_at: timestamp,
         route: z.enum(['software', 'non_code', 'none']),
+        /**
+         * ADR-0138 (review 1 N-3): every option the `non_code` route advances is custom software
+         * taken to validation, so its proposal is a validation plan.
+         */
+        validation_plan: z.boolean().default(false),
         proposal: z
           .strictObject({
             id,

@@ -152,13 +152,13 @@ test('a spec runbook is exported by version from the records, frozen or not', as
   const ev = text(files, 'EVIDENCE.md');
   assert.match(ev, /\*\*\[R1\]\*\*/);
   assert.ok(evidence.some((e) => ev.includes(e.id.slice(0, 8))));
-  // No humility review of the spec yet: none is claimed.
-  assert.doesNotMatch(dec, /Should-this-be-software review/);
-  // Review M-2: and the bundle says the studio would not build without one.
+  // No humility review of the spec yet: the review of the option version it builds (written in
+  // Decide) is reported as the option's, as a build admission accepts it (ADR-0138, review 1 L-4).
   assert.match(
-    out.manifest.warnings.join(' '),
-    /No should-this-be-software \(humility\) review of this spec is recorded/,
+    dec,
+    /Should-this-be-software review\*\* \(review [0-9a-f]{8}, of option “[^”]+” version \d+, the version this spec builds\)/,
   );
+  assert.doesNotMatch(out.manifest.warnings.join(' '), /humility/);
   // The same version exports the same bytes.
   const again = await s.store.specRunbook(owner, s.ws.id, specId, 1);
   assert.ok(again.archive.equals(out.archive));
@@ -196,10 +196,12 @@ test('a spec runbook is exported by version from the records, frozen or not', as
     v2.manifest.warnings.join(' '),
     /version 2 of the spec, which is not frozen \(version 1 is\)/,
   );
-  // The review judged version 1, so the build gate does not accept it for version 2.
+  // The spec's own review judged version 1, so it does not clear version 2; the review of the
+  // option version both spec versions build does, as it would for a build (ADR-0138).
+  assert.doesNotMatch(v2.manifest.warnings.join(' '), /humility/);
   assert.match(
-    v2.manifest.warnings.join(' '),
-    /does not clear a build: The review assesses a different subject or version\./,
+    text(readZip(v2.archive), 'DECISIONS.md'),
+    /of option “[^”]+” version \d+, the version this spec builds\)/,
   );
   assert.match(
     text(readZip(v2.archive), 'REQUIREMENTS.md'),

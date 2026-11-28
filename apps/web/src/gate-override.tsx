@@ -34,7 +34,7 @@ export function gateStep(reason: string): GateStep {
 }
 
 export const OVERRIDE_WARNING =
-  'Passing gates records this choice without the checks the studio uses to keep a decision honest (complete scores, ethics and access, a humility review). It is saved as an owner override with your reason and every gate it passed, shown on the selection and in Activity, and kept apart in exports and thesis evidence. A build still needs a passing humility review of the option (or its spec) before it starts; an autopilot never passes gates for you.';
+  'Passing gates records this choice without the checks the studio uses to keep a decision honest (complete scores, ethics and access, a humility review). It is saved as an owner override with your reason and every gate it passed, shown on the selection, in Activity and in the project report, so an override can be told apart from a cleared gate. A build still needs a passing humility review of the option (or its spec) before it starts; an autopilot never passes gates for you.';
 
 export function GateClear({
   title,
@@ -130,8 +130,8 @@ export function GateClear({
         {steps.has('other') && (
           <li>
             Discovery’s verdict on this option (for example a duplicate) is not
-            a step you can redo here; a new discovery run, or passing the gate
-            below, changes it.
+            a step you can redo here; a new discovery run may change it, or you
+            can pass the gate below (the verdict stays as it is).
           </li>
         )}
         <li>
@@ -158,7 +158,8 @@ export function GateClear({
             <strong>Pass the gates for “{title}”?</strong> {OVERRIDE_WARNING}
           </p>
           <label htmlFor={`gate-reason-${cand?.alternative.id ?? ''}`}>
-            Why you pass them (saved with the choice)
+            Why you pass them (one reason for every option you pass in this
+            selection, saved with it)
           </label>
           <input
             id={`gate-reason-${cand?.alternative.id ?? ''}`}

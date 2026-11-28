@@ -2286,10 +2286,6 @@ export class OversightStore extends Store {
   }
 
   /**
-   * ADR-0077 (pilot F9): a hybrid option, or a spec written from one, is a hybrid subject; the
-   * humility gate then reads the hybrid comparison. Anything else is judged as software-only.
-   */
-  /**
    * ADR-0138 (Jordan, November 28): the subject a humility review is checked against for this
    * target. A spec is covered by the review of the exact option version it was written from
    * (the review done in Decide), so a build does not ask for the same review again; any other
@@ -2321,6 +2317,10 @@ export class OversightStore extends Store {
       : target;
   }
 
+  /**
+   * ADR-0077 (pilot F9): a hybrid option, or a spec written from one, is a hybrid subject; the
+   * humility gate then reads the hybrid comparison. Anything else is judged as software-only.
+   */
   protected async humilitySubjectKind(
     c: PoolClient,
     ws: string,

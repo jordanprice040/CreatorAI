@@ -258,6 +258,11 @@ export interface RunbookProblem extends Ref {
 export interface RunbookHumility extends Ref {
   /** The subject version the review judged. */
   subject_version: number;
+  /**
+   * ADR-0138: set when the review is of the option version this spec builds (written in Decide),
+   * not of the spec itself; the option's title.
+   */
+  of_option?: string;
   disposition: string;
   software_part: string;
   human_part: string;
@@ -842,7 +847,7 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
     !!humility && !humility.build_admissible && humility.needs_judgment;
   if (!humility)
     warnings.push(
-      'No should-this-be-software (humility) review of this spec is recorded. The studio would not start a build without one.',
+      'No should-this-be-software (humility) review of this spec, or of the option version it builds, is recorded. The studio would not start a build without one.',
     );
   else if (!humility.build_admissible)
     warnings.push(
@@ -1100,7 +1105,7 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
   );
   if (humility)
     dec.push(
-      `- **Should-this-be-software review** (review ${humility.id.slice(0, 8)}, of spec version ${humility.subject_version}): disposition “${inlineText(humility.disposition.replaceAll('_', ' '))}”.`,
+      `- **Should-this-be-software review** (review ${humility.id.slice(0, 8)}, of ${humility.of_option ? `option “${inlineText(humility.of_option)}” version ${humility.subject_version}, the version this spec builds` : `spec version ${humility.subject_version}`}): disposition “${inlineText(humility.disposition.replaceAll('_', ' '))}”.`,
       `  - The software part: ${inlineText(humility.software_part)}`,
       `  - The part people keep: ${inlineText(humility.human_part)}`,
       `  - Rationale: ${inlineText(humility.rationale)}`,
@@ -1114,7 +1119,7 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
     );
   else
     dec.push(
-      '- **No should-this-be-software review** of this spec is recorded. Whether this should be software at all has not been reviewed.',
+      '- **No should-this-be-software review** of this spec, or of the option version it builds, is recorded. Whether this should be software at all has not been reviewed.',
     );
   dec.push(
     '',

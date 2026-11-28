@@ -2216,6 +2216,84 @@ test('ADR-0138: with Decide for me on, a choice made on older scores is recorded
   assert.match(again.rationale, /Recorded again by the autopilot/);
 });
 
+test('ADR-0138 review 1 L-5: Decide for me never records again a choice whose gates the owner passed', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  const runId = await h.run();
+  const first = await h.start(runId);
+  const problem = first.steps[2]!.problem!;
+  const rep = await h.store.selectionReport(owner, h.ws.id, problem.id);
+  // The existing tool, recommended before a person confirmed its ethics and access.
+  const tool = rep.suitability.candidates.find(
+    (c) => c.alternative.kind === 'use_existing',
+  )!;
+  assert.ok(tool.gates.blocked.recommend_alternative?.length);
+  const out = await h.store.select(owner, h.ws.id, runId, {
+    problem: { id: rep.problem.id, version: rep.problem.version },
+    report_hash: rep.report_hash,
+    dispositions: rep.suitability.candidates.map((c) => ({
+      alternative: { id: c.alternative.id, version: c.alternative.version },
+      disposition:
+        c.alternative.id === tool.alternative.id
+          ? 'recommend_alternative'
+          : 'defer',
+      reasons: ['My call (test).'],
+      reverse_if: 'New evidence.',
+    })),
+    override_reason: null,
+    rationale: 'Recommend the tool; I pass its gates (test).',
+    shortlist_size: 3,
+    data_class: 'synthetic',
+    gate_override: {
+      reason: 'I accept it without confirming ethics first (test).',
+      alternatives: [tool.alternative.id],
+      confirmed: true,
+    },
+  });
+  assert.equal(out.status, 'recorded', out.admission.explanation);
+  assert.ok(out.selection!.gate_overrides.length);
+  // The gates clear afterwards, so the choice would pass on today's scores: only the override
+  // itself keeps the autopilot from recording it again as its own.
+  for (const gate of ['ethics', 'access'] as const)
+    await h.store.confirmGate(owner, h.ws.id, problem.id, {
+      alternative: {
+        id: tool.alternative.id,
+        version: tool.alternative.version,
+      },
+      gate,
+      reason: 'I checked this one (test).',
+      concerns_seen:
+        tool.gates.gate_details
+          ?.find((d) => d.gate === gate)
+          ?.concerns.map((x) => x.scorecard) ?? [],
+    });
+  const cleared = await h.store.selectionReport(owner, h.ws.id, problem.id);
+  assert.notEqual(cleared.report_hash, out.selection!.report_hash);
+  assert.deepEqual(
+    checkSelection(cleared, {
+      dispositions: out.selection!.dispositions,
+      override_reason: null,
+    }).blocked,
+    [],
+  );
+  await h.store.saveAutopilotSettings(owner, h.ws.id, {
+    expected_version: 0,
+    values: { ...AUTOPILOT_SETTINGS_DEFAULT, decide_for_me: true },
+  });
+  const later = await h.start(
+    await h.run(),
+    h.config({ start: { stage: 'assess', problem } }),
+  );
+  assert.equal(later.outcome, 'needs_person', later.explanation);
+  assert.match(later.explanation, /made on other scores than the current ones/);
+  const sels = await h.store.listSelections(owner, h.ws.id, problem.id);
+  assert.deepEqual(
+    sels.map((x) => [x.id, x.current]),
+    [[out.selection!.id, true]],
+  );
+});
+
 test('review 4 L-1: a start at assessment does not end on an older choice that advanced nothing', async (t) => {
   const h = await setup(t);
   if (!h) return;
