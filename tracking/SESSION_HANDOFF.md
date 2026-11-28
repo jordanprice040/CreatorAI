@@ -2,7 +2,7 @@
 
 Current source: main `7f75907` (PR #257, November 22), which includes every merged PR through #257. Schema **80**
 (migrations 42, 71, 75, 76 and 77 are unused; 76 stays reserved for later F11 slices). Next free migration **81**,
-next ADR **0136**. **Release 0.1.9** (the tester build from `9940601`, with PostgreSQL 18.6 included) is published
+next ADR **0140** (0138 and migration 81 claimed by the "Automate Decide" thread). **Release 0.1.9** (the tester build from `9940601`, with PostgreSQL 18.6 included) is published
 as `v0.1.9` on the private releases repository, which the in-app updater reads, and on this repository's releases
 page; the deliberately broken `v0.1.7` is deleted (Jordan, November 22). On Jordan's PC the installed app is still
 the **trial build 0.1.8** (schema 79) and can now update itself to 0.1.9; the dev studio runs from the worktree
@@ -68,6 +68,16 @@ OK, by November 27); the loose ends above that need Jordan's PC or typed OK (0.1
 rerun, N3 check 13 with `cargo test`, F11 slice 2); then the owner's choice between a short P17 acceptance walk and
 build phase 2 (B5 PyPI packages first). Do not automatically install, publish, run a live provider or advance the
 pilot or thesis. Accepted owner decisions and existing scoped grants remain authoritative.
+
+## November 28 handoff — Hands-off self-sufficiency from the friction audit (ADR-0139, no migration)
+
+Audit phases A and B ran in the cloud (throwaway database, fixture provider, $0; scripts and screenshots in `tracking/evidence/autopilot-friction/`, findings in the plan doc). Fixed: Hands-off goes on with an already-recorded problem instead of stopping at thin evidence, the fixed tie order ends with the option that builds least and then the title, stop cards name the stop kind with the right button, and Automate the rest defaults to a new run. Still open: telling the web search model its search limit plus a "Searches per web search" field (own PR; requalification needs Jordan's typed OK), and phase C (a live run, needs his OK).
+
+Review 1 of #260 (1 M, 5 L, 4 nits) fixed: the auto-close locks only requests nobody can be settling (filtered in the query, before locking), Continue holds when the closes are used up or the request may still be running, the problem is the newest one carried, the setting and "what still stops it" texts are exact, and limit cards promise an automatic continue only when one is waiting.
+
+## November 28 handoff — autopilot stops on an open plan request (ADR-0136, ADR-0137, no migration)
+
+What changed is in ADR-0136. Root cause on Jordan's PC: a web search ran past its search cap (`studio_search_cap`), the studio cut the stream, and the request was left with an unknown outcome, which blocks every request on that connection until the owner closes it under Models and connections. Jordan closed it on November 28 and chose (decision card) the opt-in auto-close built as ADR-0137. Open follow-ups for the autopilot friction audit: tell the scout its `max_search_calls` (prompt change, requalification needs Jordan's OK); overlapping active runs from Explore for me and Search the web keep their routine approvals until their end time.
 
 ## November 22 handoff — docs for release 0.1.9 (docs only, no migration or ADR)
 

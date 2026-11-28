@@ -43,7 +43,9 @@ export function nextAutopilotStage(
     case 'research':
       return 'explore';
     case 'explore':
-      return 'brief';
+      // ADR-0139: an exploration that went on with an already-recorded problem skips to its
+      // assessment (no brief or discovery to write).
+      return last.problem ? 'assess' : 'brief';
     case 'brief':
       return 'discover';
     case 'discover':
@@ -82,13 +84,21 @@ export function autopilotProblem(
   config: Pick<AutopilotConfig, 'start'>,
   steps: readonly AutopilotStep[],
 ): { id: string; version: number } | null {
-  // ADR-0100: an assessment of the problem's current version (after a person changed it) wins.
-  return (
-    carried(steps, 'assess')?.problem ??
-    carried(steps, 'discover')?.problem ??
-    config.start?.problem ??
-    null
-  );
+  // The newest finished step that carried a problem: an assessment (of the problem's current
+  // version, after a person changed it; ADR-0100), a discovery, or (ADR-0139) an exploration
+  // that went on with an already-recorded problem. Review 1 of #260, L-2: by position, so a
+  // later exploration wins over an older assessment.
+  const found = [...steps]
+    .reverse()
+    .find(
+      (s) =>
+        (s.stage === 'assess' ||
+          s.stage === 'discover' ||
+          s.stage === 'explore') &&
+        s.state === 'done' &&
+        s.problem,
+    );
+  return found?.problem ?? config.start?.problem ?? null;
 }
 
 export type ChildLimits =
@@ -294,6 +304,21 @@ const DISPOSITION_PASSIVE: Partial<Record<string, string>> = {
 };
 
 type Row = SelectionReport['suitability']['candidates'][number];
+/**
+ * ADR-0139: the fixed tie order's last rule before the title: an existing tool first, then a
+ * process change, human-led, hybrid, and software last; any other kind after those.
+ */
+const LEAST_BUILD = [
+  'use_existing',
+  'change_process',
+  'human_led',
+  'hybrid',
+  'build',
+];
+export function leastBuild(kind: string): number {
+  const i = LEAST_BUILD.indexOf(kind);
+  return i < 0 ? LEAST_BUILD.length : i;
+}
 /** a − b for exact scores (sign only). */
 const cmpScore = (a: ExactScore, b: ExactScore) => {
   const l = BigInt(a.numerator) * BigInt(b.denominator);
@@ -398,14 +423,25 @@ export function autopilotChoice(
       .map((c) => [c.alternative.id, c.rank!]),
   );
   // Primary order: rank (or, by the worst case, the range's lower end); then, when the owner
-  // allows breaking ties, opportunity rank, fewer unknowns, the better worst case.
+  // allows breaking ties, opportunity rank, fewer unknowns, the better worst case, the option
+  // that builds least, then the title.
   const primary = (a: Row, b: Row) =>
     worst ? cmpScore(b.range!.lower, a.range!.lower) : a.rank! - b.rank!;
+  // Autopilot friction pass (ADR-0139): then an option the rule may choose, then the option that
+  // builds least (invariant 2, humility before building), then the title, so a tie the scores
+  // cannot separate still has one first option.
   const tiebreak = (a: Row, b: Row) =>
     (oppRank.get(a.alternative.id) ?? Infinity) -
       (oppRank.get(b.alternative.id) ?? Infinity) ||
     a.unknown_criteria.length - b.unknown_criteria.length ||
-    (a.range && b.range ? cmpScore(b.range.lower, a.range.lower) : 0);
+    (a.range && b.range ? cmpScore(b.range.lower, a.range.lower) : 0) ||
+    Number(!choosable(a)) - Number(!choosable(b)) ||
+    leastBuild(a.alternative.kind) - leastBuild(b.alternative.kind) ||
+    (a.alternative.title < b.alternative.title
+      ? -1
+      : a.alternative.title > b.alternative.title
+        ? 1
+        : 0);
   const order = [...ranked].sort(
     (a, b) => primary(a, b) || (settings.break_ties ? tiebreak(a, b) : 0),
   );
@@ -421,13 +457,13 @@ export function autopilotChoice(
         outcome: 'needs_person',
         kind: 'tie',
         reason: clip(
-          `${firstTie.length} options tie for first${worst ? ' by the worst case' : ' on suitability'}: ${tiedNames(firstTie.map((c) => c.alternative.title))}. The fixed order (opportunity rank, fewer unknowns, the better worst case) does not separate them. Choose one under Decide and continue.`,
+          `${firstTie.length} options tie for first${worst ? ' by the worst case' : ' on suitability'}: ${tiedNames(firstTie.map((c) => c.alternative.title))}. The fixed order (opportunity rank, fewer unknowns, the better worst case, an option the rule may choose, the option that builds least, the title) does not separate them. Choose one under Decide and continue.`,
         ),
       };
     fallbacks.push({
       setting: 'break_ties',
       instead_of: 'tie',
-      note: `${firstTie.map((c) => `“${c.alternative.title}”`).join(' and ')} tied for first; the fixed order (opportunity rank, fewer unknowns, the better worst case) put “${order[0]!.alternative.title}” first.`,
+      note: `${firstTie.map((c) => `“${c.alternative.title}”`).join(' and ')} tied for first; the fixed order (opportunity rank, fewer unknowns, the better worst case, an option the rule may choose, the option that builds least, the title) put “${order[0]!.alternative.title}” first.`,
     });
   } else if (firstTie.length > 1)
     return {

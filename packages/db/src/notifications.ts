@@ -235,6 +235,7 @@ export const AUTOPILOT_STOP_PHRASE: Record<AutopilotStopKind, string> = {
   daily_cap: "the connection's daily cap was reached",
   usage_limit: "the plan's usage limit was reached",
   connection: 'the connection refused',
+  open_request: 'a plan request has an unknown outcome',
   call_limit: "the autopilot's call limit was reached",
   end_time: 'its end time passed',
   spec: 'the software spec needs you',

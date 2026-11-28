@@ -22,12 +22,15 @@ import {
   AutopilotConfigSchema,
   AutopilotSchema,
   autopilotContinuable,
+  autopilotPlannedStages,
+  stopsOnOpenRequest,
   autopilotEndsApprovals,
   ContractError,
   WebDiscoveryScopeSchema,
   autopilotSummary,
   routinePolicySummary,
   type AutopilotConfig,
+  type AutopilotStage,
   type AutopilotStep,
   type ErrorCode,
   type ExplorationResult,
@@ -37,6 +40,7 @@ import {
   type Selection,
   type SelectionReport,
   type WebDiscovery,
+  ExplorationResultSchema,
 } from '@creator/contracts';
 import {
   DISCOVERY_SCENARIOS,
@@ -67,6 +71,7 @@ import {
   nextGatherQuestion,
   refusalKind,
   refusalStop,
+  AUTO_CLOSE_MAX,
   stalledNote,
   spentCandidates,
   spentSettled,
@@ -588,6 +593,30 @@ test('a person’s choice under Decide carries the autopilot on; part-way starts
   assert.equal(nextAutopilotStage({ research: null, start }, []), 'select');
   assert.deepEqual(autopilotProblem({ start }, []), { id: 'p', version: 3 });
   assert.equal(autopilotProblem({ start: null }, []), null);
+  // Review 1 of #260, L-2: the newest step that carried a problem wins, so an exploration that
+  // went on with a recorded problem (ADR-0139) after a gather loop wins over an older assessment.
+  const p1 = { id: 'p1', version: 1 };
+  const p2 = { id: 'p2', version: 1 };
+  const carriedBy = (stage: AutopilotStep['stage'], problem: typeof p1) => ({
+    ...step(stage),
+    problem,
+  });
+  assert.deepEqual(
+    autopilotProblem({ start: null }, [
+      carriedBy('discover', p1),
+      carriedBy('assess', p1),
+      step('gather'),
+      carriedBy('explore', p2),
+    ]),
+    p2,
+  );
+  assert.deepEqual(
+    autopilotProblem({ start: null }, [
+      carriedBy('explore', p2),
+      carriedBy('assess', { id: 'p2', version: 2 }),
+    ]),
+    { id: 'p2', version: 2 },
+  );
 
   // Review L-3 and N-4: Continue cannot get past a stop marked final, or a full step list.
   const finished = {
@@ -2193,9 +2222,62 @@ test('ADR-0100: settings let the choice rule go past a stop, and the request it 
   assert.ok(t2.ok);
   assert.equal(t2.option.id, 'b');
   assert.match(t2.fallbacks[0]!.note, /fixed order/);
-  // A tie the fixed order cannot separate still stops.
+  // ADR-0139: a tie the scores cannot separate goes to the option that builds least, then
+  // the title (whatever order the report lists them in).
+  const least = autopilotChoice(
+    report([
+      cand('s', 'build', 1),
+      cand('h', 'hybrid', 1),
+      cand('p', 'change_process', 1),
+    ]),
+    { ...OFF, break_ties: true },
+  );
+  assert.ok(least.ok);
+  assert.equal(least.option.id, 'p');
+  assert.match(least.fallbacks[0]!.note, /builds least/);
+  const byTitle = autopilotChoice(
+    report([
+      cand('b', 'use_existing', 1, {
+        alternative: {
+          id: 'b',
+          version: 1,
+          kind: 'use_existing',
+          title: 'Beta',
+        },
+      }),
+      cand('a', 'use_existing', 1, {
+        alternative: {
+          id: 'a',
+          version: 1,
+          kind: 'use_existing',
+          title: 'Alpha',
+        },
+      }),
+    ]),
+    { ...OFF, break_ties: true },
+  );
+  assert.ok(byTitle.ok);
+  assert.equal(byTitle.option.id, 'a');
+  // Only options alike in every rule (kind and title too) still stop.
   const flat = autopilotChoice(
-    report([cand('a', 'use_existing', 1), cand('b', 'change_process', 1)]),
+    report([
+      cand('a', 'use_existing', 1, {
+        alternative: {
+          id: 'a',
+          version: 1,
+          kind: 'use_existing',
+          title: 'Same',
+        },
+      }),
+      cand('b', 'use_existing', 1, {
+        alternative: {
+          id: 'b',
+          version: 1,
+          kind: 'use_existing',
+          title: 'Same',
+        },
+      }),
+    ]),
     { ...OFF, break_ties: true },
   );
   assert.ok(!flat.ok);
@@ -2537,10 +2619,77 @@ test('ADR-0100: discovery links the claims each option cites; a tie stop offers 
     [a.id],
   );
   assert.equal(cont.rows[0].payload.allowed, 'break_ties');
-  // The fixture rates every option the same, so the fixed order cannot separate them either.
+  // The fixture rates every option the same; since ADR-0139 the fixed order still puts one
+  // first, and the fixture's discovery did not recommend it, so it stops there instead.
   const c = await h.store.getAutopilot(owner, h.ws.id, a.id);
-  assert.equal(c.steps.at(-1)!.stop_kind, 'tie', c.explanation);
-  assert.match(c.explanation, /fixed order/);
+  assert.equal(c.steps.at(-1)!.stop_kind, 'not_advanceable', c.explanation);
+  assert.match(c.explanation, /not advanced/);
+});
+
+test('ADR-0139: when everything an exploration finds is already recorded, "Try the next candidate" goes on with the recorded problem', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  // The first autopilot records a problem; then an option of it repeats each card the fixture
+  // explorer writes (as in the audit's phase A, where every card repeated a recorded one).
+  const first = await h.start(await h.run());
+  const problem = first.steps[2]!.problem!;
+  const ex = await h.store.getWorkflow(
+    owner,
+    h.ws.id,
+    first.steps[0]!.child!.id,
+  );
+  const cards = ExplorationResultSchema.parse(
+    ex.workflow.result?.exploration,
+  ).candidates;
+  assert.ok(cards.length);
+  for (const c of cards) {
+    const alt = await h.store.createEntity(owner, h.ws.id, {
+      kind: 'alternative',
+      title: c.card.title,
+      body: {
+        kind: 'use_existing',
+        rationale: c.card.observable_pain,
+        tradeoffs: ['Test option.'],
+        uncertainty: 'Test option.',
+      },
+    });
+    await h.store.createLink(owner, h.ws.id, {
+      relation: 'derived_from',
+      from: { id: alt.id, version: alt.version },
+      to: problem,
+      rationale: 'Repeats an explorer card.',
+    });
+  }
+  // Off: a second autopilot finds only repeats and stops at thin evidence.
+  const off = await h.start(await h.run());
+  assert.equal(off.steps.at(-1)!.stop_kind, 'thin_evidence', off.explanation);
+  assert.match(off.explanation, /duplicate/);
+  await h.store.saveAutopilotSettings(owner, h.ws.id, {
+    expected_version: 0,
+    values: { ...AUTOPILOT_SETTINGS_DEFAULT, next_candidate: true },
+  });
+  const on = await h.start(await h.run());
+  assert.deepEqual(
+    on.steps.map((s) => [s.stage, s.state]),
+    [
+      ['explore', 'done'],
+      ['assess', 'done'],
+      ['select', 'stopped'],
+    ],
+    on.explanation,
+  );
+  const explore = on.steps[0]!;
+  const recorded = (
+    await h.store.getEntity(owner, h.ws.id, explore.problem!.id)
+  ).entity;
+  assert.equal(recorded.id, problem.id);
+  assert.equal(recorded.status, 'active');
+  assert.equal(explore.fallback?.setting, 'next_candidate');
+  assert.equal(explore.fallback?.instead_of, 'thin_evidence');
+  assert.match(explore.note, /already recorded as the problem/);
+  assert.equal(on.steps[1]!.problem?.id, recorded.id);
+  assert.deepEqual(autopilotProblem(on.config, on.steps), on.steps[1]!.problem);
 });
 
 test('ADR-0100: with the owner’s ethics setting on, the autopilot chooses past model-only ethics and flags it on the selection and proposal', async (t) => {
@@ -3245,6 +3394,32 @@ test('review 1 L-2: a plan refusal is read by its code, not its words', () => {
   assert.equal(
     refusalKind(refused('cap_reached', 'The per-run request cap is reached.')),
     'run_cap',
+  );
+  // Autopilot friction pass (November 28): an earlier request with no recorded outcome is its
+  // own stop, fixed under Models and connections, not an approval or a setup fault.
+  assert.equal(
+    refusalKind(
+      refused(
+        'request_open',
+        'An earlier plan request has an unknown outcome; reconcile it in Models and connections.',
+      ),
+    ),
+    'open_request',
+  );
+  assert.equal(
+    refusalKind(
+      new ContractError(
+        'ACCESS_DENIED',
+        'This plan request is not admitted.',
+        ['Unknown outcome.', 'Caps not accepted.'],
+        [
+          { code: 'request_open', text: 'Unknown outcome.' },
+          { code: 'caps_not_accepted', text: 'Caps not accepted.' },
+        ],
+      ),
+    ),
+    'connection',
+    'a setup fault beside it is still named as the connection',
   );
   // Re-review 2 N-1: a connection that is not set up is named first, whatever else is used up.
   assert.equal(
@@ -4107,4 +4282,244 @@ test('PR #211 review 1 L-2b: a gather round that leaves as many unknown ratings 
     done.explanation,
     /left 1 unknown rating, the same as the 1 before it, so it stops gathering/,
   );
+});
+
+test('autopilot friction pass (November 28): a stop on a request with no recorded outcome points at Models and connections, and Continue waits until it is closed', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  const conn = '00000000-0000-4000-8000-0000000000c1';
+  let open = 1;
+  let closable = true;
+  class Holding extends ConnectionStore {
+    override async planRunRoomIn() {
+      return { per_run: 40, used: 0, daily_left: 50 };
+    }
+    override async planConnectionDetail(
+      ...args: Parameters<ConnectionStore['planConnectionDetail']>
+    ) {
+      if (args[2] !== conn) return super.planConnectionDetail(...args);
+      return {
+        connection: { quota: { state: 'ok' } },
+        open_requests: Array.from({ length: open }, () => ({ closable })),
+      } as unknown as Awaited<
+        ReturnType<ConnectionStore['planConnectionDetail']>
+      >;
+    }
+  }
+  let starts = 0;
+  const web = webStub(async () => {
+    starts += 1;
+    throw new ContractError(
+      'ACCESS_DENIED',
+      "Web search can't start on this connection now.",
+      [
+        'An earlier plan request has an unknown outcome; reconcile it in Models and connections.',
+      ],
+      [
+        {
+          code: 'request_open',
+          text: 'An earlier plan request has an unknown outcome; reconcile it in Models and connections.',
+        },
+      ],
+    );
+  });
+  const runner = new AutopilotRunner(new Holding(h.db.pool), web, {
+    pollMs: 5,
+    onWait: () => h.worker.settle(),
+  });
+  const research = {
+    connection_id: conn,
+    model_id: 'gpt-test',
+    scope: WebDiscoveryScopeSchema.parse({ interests: ['volunteers'] }),
+    input_hash: 'c'.repeat(64),
+  };
+  const runId = await h.run(
+    h.policy(['research', 'evidence', 'model_work', 'selection'], {
+      data_classes: ['public', 'synthetic'],
+    }),
+  );
+  const a = await runner.start(
+    owner,
+    h.ws.id,
+    runId,
+    h.body(h.config({ research })),
+  );
+  await runner.settled(a.id);
+  const done = runner.with(await h.store.getAutopilot(owner, h.ws.id, a.id));
+  assert.equal(starts, 1);
+  assert.equal(done.outcome, 'needs_authority', done.explanation);
+  assert.equal(done.steps.at(-1)!.stop_kind, 'open_request');
+  assert.ok(stopsOnOpenRequest(done.steps.at(-1)));
+  // ADR-0137: the one-click setting comes first, then closing it by hand.
+  assert.equal(
+    done.next?.[0]?.setting,
+    'close_unknown_plan_requests',
+    JSON.stringify(done.next),
+  );
+  assert.ok(done.next?.some((n) => n.kind === 'models'));
+  assert.ok(
+    !done.next?.some((n) => n.kind === 'approvals'),
+    'nothing waits under Approvals for it',
+  );
+  assert.ok(autopilotContinuable(done).ok);
+
+  // While the request stays open, Continue is refused without taking a step or calling out.
+  await rejects(
+    'INVALID_TRANSITION',
+    runner.retry(owner, h.ws.id, a.id, { expected_version: done.version }),
+    /no recorded outcome yet/,
+  );
+  const same = await h.store.getAutopilot(owner, h.ws.id, a.id);
+  assert.equal(same.version, done.version, 'no attempt was recorded');
+  assert.equal(same.steps.length, done.steps.length);
+  assert.equal(starts, 1);
+
+  // Review 1 of #260, L-1: with Close unknown plan requests on, Continue still waits while the
+  // only open request may still be running (nothing could close it).
+  await h.store.saveAutopilotSettings(owner, h.ws.id, {
+    expected_version: 0,
+    values: {
+      ...AUTOPILOT_SETTINGS_DEFAULT,
+      close_unknown_plan_requests: true,
+    },
+  });
+  closable = false;
+  await rejects(
+    'INVALID_TRANSITION',
+    runner.retry(owner, h.ws.id, a.id, { expected_version: done.version }),
+    /may still be running/,
+  );
+  assert.equal(starts, 1);
+
+  // Once it is closed, Continue tries the step again.
+  open = 0;
+  const cont = await runner.retry(owner, h.ws.id, a.id, {
+    expected_version: done.version,
+  });
+  await runner.settled(cont.id);
+  assert.equal(starts, 2, 'tried again after the request was closed');
+});
+
+test('autopilot friction pass (November 28): a stop recorded before the open-request kind is still read as one', () => {
+  assert.ok(
+    stopsOnOpenRequest({
+      stop_kind: 'connection',
+      note: "Explore the evidence was refused: Exploration can't start on this connection now. An earlier plan request has an unknown outcome; reconcile it in Models and connections.",
+    }),
+  );
+  assert.ok(
+    !stopsOnOpenRequest({
+      stop_kind: 'connection',
+      note: 'Discover was refused: Caps not accepted.',
+    }),
+  );
+  assert.ok(!stopsOnOpenRequest(undefined));
+});
+
+test('ADR-0137: with Close unknown plan requests on, an open-request stop closes them and tries again, at most AUTO_CLOSE_MAX times', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  const conn = '00000000-0000-4000-8000-0000000000c1';
+  let closes = 0;
+  class Closing extends ConnectionStore {
+    override async planRunRoomIn() {
+      return { per_run: 40, used: 0, daily_left: 50 };
+    }
+    override async autoClosePlanRequests(
+      ...args: Parameters<ConnectionStore['autoClosePlanRequests']>
+    ) {
+      assert.equal(args[2], conn, 'the step’s own connection');
+      assert.equal(args[0].autopilot?.id, args[3].toLowerCase());
+      closes += 1;
+      return [randomUUID()];
+    }
+  }
+  let starts = 0;
+  const web = webStub(async () => {
+    starts += 1;
+    throw new ContractError(
+      'ACCESS_DENIED',
+      "Web search can't start on this connection now.",
+      ['An earlier plan request has an unknown outcome.'],
+      [
+        {
+          code: 'request_open',
+          text: 'An earlier plan request has an unknown outcome.',
+        },
+      ],
+    );
+  });
+  const store = new Closing(h.db.pool);
+  await store.saveAutopilotSettings(owner, h.ws.id, {
+    expected_version: 0,
+    values: {
+      ...AUTOPILOT_SETTINGS_DEFAULT,
+      close_unknown_plan_requests: true,
+    },
+  });
+  const runner = new AutopilotRunner(store, web, {
+    pollMs: 5,
+    onWait: () => h.worker.settle(),
+  });
+  const research = {
+    connection_id: conn,
+    model_id: 'gpt-test',
+    scope: WebDiscoveryScopeSchema.parse({ interests: ['volunteers'] }),
+    input_hash: 'c'.repeat(64),
+  };
+  const runId = await h.run(
+    h.policy(['research', 'evidence', 'model_work', 'selection'], {
+      data_classes: ['public', 'synthetic'],
+    }),
+  );
+  const a = await runner.start(
+    owner,
+    h.ws.id,
+    runId,
+    h.body(h.config({ research })),
+  );
+  await runner.settled(a.id);
+  const done = await h.store.getAutopilot(owner, h.ws.id, a.id);
+  assert.equal(closes, AUTO_CLOSE_MAX);
+  assert.equal(starts, AUTO_CLOSE_MAX + 1);
+  const fallbacks = done.steps.filter(
+    (s) => s.fallback?.setting === 'close_unknown_plan_requests',
+  );
+  assert.equal(fallbacks.length, AUTO_CLOSE_MAX);
+  assert.ok(fallbacks.every((s) => s.stop_kind === 'open_request'));
+  assert.match(fallbacks[0]!.note, /it ran, or the studio cannot tell/);
+  // Past the bound it stops for the owner as before, with nothing set aside for refusals.
+  assert.equal(done.outcome, 'needs_authority', done.explanation);
+  assert.equal(done.steps.at(-1)!.stop_kind, 'open_request');
+  assert.equal(done.calls_reserved, 0);
+});
+
+test('Jordan, November 28: the planned steps are the main path still ahead', () => {
+  const step = (stage: AutopilotStage, request: unknown = null) =>
+    ({ stage, request }) as unknown as AutopilotStep;
+  assert.deepEqual(
+    autopilotPlannedStages({ stage: 'assess', steps: [step('assess')] }),
+    ['select', 'proposal'],
+  );
+  // A stopped one that Continue picks up still has its own step ahead.
+  assert.deepEqual(
+    autopilotPlannedStages(
+      { stage: 'explore', steps: [step('explore')] },
+      true,
+    ),
+    ['explore', 'brief', 'discover', 'assess', 'select', 'proposal'],
+  );
+  // A gather fallback goes back to its step; the fallback itself is never planned.
+  assert.deepEqual(
+    autopilotPlannedStages({
+      stage: 'gather',
+      steps: [step('gather', { then: 'assess' })],
+    }),
+    ['assess', 'select', 'proposal'],
+  );
+  assert.deepEqual(
+    autopilotPlannedStages({ stage: 'proposal', steps: [] }),
+    [],
+  );
+  assert.deepEqual(autopilotPlannedStages({ stage: 'spec', steps: [] }), []);
 });

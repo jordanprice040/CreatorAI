@@ -137,7 +137,11 @@ export function AutoResumeStatus({
           ? `It has continued by itself ${r.max} times, the most it may; continue it yourself.`
           : stoppedOnLimit
             ? 'It will not continue by itself: its next check would come after its end time, or it cannot continue.'
-            : `Set to continue by itself after a usage limit${r.checks ? ` (${r.checks} of ${r.max} used)` : ''}.`;
+            : // Autopilot friction pass (November 28): read beside another kind of stop, the
+              // plain "set to continue by itself" sounded as if this stop would pass by itself.
+              a.state === 'finished'
+              ? `It continues by itself only after a usage limit; this stop needs you${r.checks ? ` (${r.checks} of ${r.max} automatic continues used)` : ''}.`
+              : `Set to continue by itself after a usage limit${r.checks ? ` (${r.checks} of ${r.max} used)` : ''}.`;
   const canTurnOff = owner && (r.state === 'waiting' || r.state === 'on');
 
   async function off() {

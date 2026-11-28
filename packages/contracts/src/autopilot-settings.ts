@@ -13,7 +13,10 @@ export const AutopilotSettingsValuesSchema = z.strictObject({
   max_extra_searches: z.number().int().min(0).max(3),
   /** Choose by the worst case (each unknown rating at 1) when options are not fully scored. */
   choose_with_unknowns: z.boolean(),
-  /** Break a tie for first by a fixed order: opportunity rank, fewer unknowns, better worst case. */
+  /**
+   * Break a tie for first by a fixed order: opportunity rank, fewer unknowns, better worst case,
+   * then (ADR-0139) an option the rule may choose, the option that builds least, then the title.
+   */
   break_ties: z.boolean(),
   /** Keep the leader under the owner's weights when a weight check changes the leader. */
   keep_close_leader: z.boolean(),
@@ -37,6 +40,12 @@ export const AutopilotSettingsValuesSchema = z.strictObject({
    * sections. The drafts wait under their sections; a person still uses each one.
    */
   draft_proposal_sections: z.boolean(),
+  /**
+   * ADR-0137 (Jordan, November 28): on a plan connection (no per-request charge), close a request
+   * whose outcome is unknown as "it ran, or the studio cannot tell" and go on, instead of
+   * stopping for the owner. Never applies to paid API calls. Part of Hands-off.
+   */
+  close_unknown_plan_requests: z.boolean(),
 });
 export type AutopilotSettingsValues = z.infer<
   typeof AutopilotSettingsValuesSchema
@@ -53,6 +62,7 @@ export const AUTOPILOT_SETTINGS_DEFAULT: AutopilotSettingsValues = {
   choose_model_ethics: false,
   accept_quote_checked_claims: false,
   draft_proposal_sections: false,
+  close_unknown_plan_requests: false,
 };
 
 /**
@@ -71,6 +81,7 @@ export function handsOff(v: AutopilotSettingsValues): AutopilotSettingsValues {
     choose_model_ethics: v.choose_model_ethics,
     accept_quote_checked_claims: v.accept_quote_checked_claims,
     draft_proposal_sections: true,
+    close_unknown_plan_requests: true,
   };
 }
 /** The switches Hands-off leaves as they are. */
@@ -139,6 +150,12 @@ export const AutopilotStopKindSchema = z.enum([
   'usage_limit',
   /** Review 1 L-2: the connection refused for its own setup (caps not accepted, sign-in, …). */
   'connection',
+  /**
+   * Autopilot friction pass (November 28): an earlier plan request on the connection has an
+   * unknown outcome (or is still marked running); only the owner closing it under Models and
+   * connections lets any request start there again (invariant 5).
+   */
+  'open_request',
   'call_limit',
   'end_time',
   'spec',
@@ -160,7 +177,14 @@ export const SETTING_FOR_STOP: Partial<
   model_ethics: 'choose_model_ethics',
   failed_step: 'retry_failed',
   claims_held: 'accept_quote_checked_claims',
+  open_request: 'close_unknown_plan_requests',
 };
+
+/**
+ * ADR-0137: the most times one autopilot closes plan requests by itself under "Close unknown
+ * plan requests" (review 2 of #260, N-5: one constant for the runner, the page and the text).
+ */
+export const AUTO_CLOSE_MAX = 3;
 
 export const AUTOPILOT_SETTING_TEXT: Record<
   keyof AutopilotSettingsValues,
@@ -180,7 +204,7 @@ export const AUTOPILOT_SETTING_TEXT: Record<
   },
   break_ties: {
     label: 'Break ties',
-    text: 'A tie for first goes to the better opportunity rank, then fewer unknowns, then the better worst case.',
+    text: 'A tie for first goes to the better opportunity rank, then fewer unknowns, then the better worst case, then an option the rule may choose, then the option that builds least (an existing tool first, software last), then the title.',
   },
   keep_close_leader: {
     label: 'Keep the leader of a close ranking',
@@ -188,7 +212,7 @@ export const AUTOPILOT_SETTING_TEXT: Record<
   },
   next_candidate: {
     label: 'Try the next candidate',
-    text: 'Moves on to the next candidate problem when discovery finds too little, and to the next option it may advance when the first is blocked or cannot be advanced.',
+    text: 'Moves on to the next candidate problem when discovery finds too little, goes on with the recorded problem when everything an exploration finds is already recorded, and moves to the next option it may advance when the first is blocked or cannot be advanced.',
   },
   retry_failed: {
     label: 'Retry a failed step',
@@ -201,6 +225,10 @@ export const AUTOPILOT_SETTING_TEXT: Record<
   accept_quote_checked_claims: {
     label: 'Accept quote-checked web claims',
     text: 'Lets the autopilot use claims from its web searches whose only check is that their quotes were found word for word. Off: they wait for you under Discover › Search the web. Each one used is labelled “Accepted by autopilot · quote check only”, with its source passage.',
+  },
+  close_unknown_plan_requests: {
+    label: 'Close unknown plan requests',
+    text: `When a request on the autopilot’s ChatGPT plan or Claude Code connection has no recorded outcome (for example a web search the studio cut off), records it as “it ran, or I cannot tell” and goes on, instead of stopping until you close it. This covers any such request on that connection, from chat, a qualification or another autopilot too, since each one blocks every request there; requests that may still be running are left alone. At most ${AUTO_CLOSE_MAX} times per autopilot. It still counts toward the daily cap. Paid API calls always wait for you.`,
   },
   draft_proposal_sections: {
     label: 'Draft a proposal’s missing sections',
