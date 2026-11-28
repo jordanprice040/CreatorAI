@@ -56,17 +56,11 @@
         "kind": "web_scout_contract",
         "role_version": "web-discovery-role/3",
         "scope": {
-          "interests": [
-            "volunteer scheduling"
-          ],
-          "target_groups": [
-            "small community organisations"
-          ],
+          "interests": ["volunteer scheduling"],
+          "target_groups": ["small community organisations"],
           "question": null,
           "exclusions": [],
-          "excluded_hosts": [
-            "reddit.com"
-          ],
+          "excluded_hosts": ["reddit.com"],
           "max_search_calls": 3,
           "max_fetches": 8,
           "max_claims": 8
@@ -126,10 +120,7 @@
         "kind": "web_scout_contract",
         "role_version": "web-discovery-role/3",
         "scope": {
-          "interests": [
-            "aviation checklists",
-            "home medication management"
-          ],
+          "interests": ["aviation checklists", "home medication management"],
           "target_groups": [],
           "question": null,
           "exclusions": [],
@@ -161,19 +152,11 @@
         "kind": "web_scout_contract",
         "role_version": "web-discovery-role/3",
         "scope": {
-          "interests": [
-            "appointment no-shows"
-          ],
-          "target_groups": [
-            "small clinics"
-          ],
+          "interests": ["appointment no-shows"],
+          "target_groups": ["small clinics"],
           "question": null,
-          "exclusions": [
-            "cryptocurrency"
-          ],
-          "excluded_hosts": [
-            "*.facebook.com"
-          ],
+          "exclusions": ["cryptocurrency"],
+          "excluded_hosts": ["*.facebook.com"],
           "max_search_calls": 3,
           "max_fetches": 8,
           "max_claims": 8
@@ -233,17 +216,11 @@
         "kind": "web_scout_contract",
         "role_version": "web-discovery-role/3",
         "scope": {
-          "interests": [
-            "community garden plot waiting lists"
-          ],
-          "target_groups": [
-            "neighbourhood associations"
-          ],
+          "interests": ["community garden plot waiting lists"],
+          "target_groups": ["neighbourhood associations"],
           "question": null,
           "exclusions": [],
-          "excluded_hosts": [
-            "*.pinterest.com"
-          ],
+          "excluded_hosts": ["*.pinterest.com"],
           "max_search_calls": 3,
           "max_fetches": 8,
           "max_claims": 8
@@ -271,17 +248,10 @@
         "kind": "web_scout_contract",
         "role_version": "web-discovery-role/3",
         "scope": {
-          "interests": [
-            "school bus route changes",
-            "after-school pickup"
-          ],
-          "target_groups": [
-            "parents"
-          ],
+          "interests": ["school bus route changes", "after-school pickup"],
+          "target_groups": ["parents"],
           "question": null,
-          "exclusions": [
-            "real estate"
-          ],
+          "exclusions": ["real estate"],
           "excluded_hosts": [],
           "max_search_calls": 3,
           "max_fetches": 8,
@@ -314,9 +284,7 @@
           "kind": "untrusted_evidence/1",
           "authority": "none",
           "focus": {
-            "interests": [
-              "volunteer scheduling"
-            ],
+            "interests": ["volunteer scheduling"],
             "target_groups": [],
             "question": null
           },
@@ -389,9 +357,7 @@
           "kind": "untrusted_evidence/1",
           "authority": "none",
           "focus": {
-            "interests": [
-              "clinic appointment waits"
-            ],
+            "interests": ["clinic appointment waits"],
             "target_groups": [],
             "question": null
           },
@@ -443,9 +409,7 @@
         "packet_hash": "5b436930d05bba4f28e044727c08c6fefab97bd5227eadd3dc4dd6f408de667b",
         "min_verified": 1,
         "max_verified": 6,
-        "forbidden_refs": [
-          "S1.P3"
-        ]
+        "forbidden_refs": ["S1.P3"]
       }
     },
     {
@@ -471,9 +435,7 @@
           "kind": "untrusted_evidence/1",
           "authority": "none",
           "focus": {
-            "interests": [
-              "clinic appointment waits"
-            ],
+            "interests": ["clinic appointment waits"],
             "target_groups": [],
             "question": null
           },
@@ -600,9 +562,7 @@
           "authority": "none",
           "focus": {
             "interests": [],
-            "target_groups": [
-              "home caregivers"
-            ],
+            "target_groups": ["home caregivers"],
             "question": null
           },
           "max_claims": 6,
