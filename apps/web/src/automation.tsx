@@ -217,7 +217,10 @@ export function Automation({
     'selection',
   );
   // "Automate the rest" can start on a new run, made for it (with no run yet, it must).
-  const isNew = level === 'rest' && (runId === NEW_RUN || !c?.runs.length);
+  // Audit phase A (November 28): Automate the rest starts on a new run unless one is picked,
+  // which saves a step (a new run gets routine approvals made for the autopilot).
+  const isNew =
+    level === 'rest' && (runId === NEW_RUN || runId === '' || !c?.runs.length);
   const run: RunControl | undefined = isNew
     ? undefined
     : (c?.runs.find((r) => r.run_id === runId) ?? c?.runs[0]);

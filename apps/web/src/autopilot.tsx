@@ -34,6 +34,7 @@ import {
   z,
   type Autopilot as AutopilotRecord,
   type AutopilotConfig,
+  type AutopilotStopKind,
   type EvidenceRole,
   type SessionInfo,
   type Workspace,
@@ -99,14 +100,39 @@ function outcomeLabel(a: AutopilotRecord): string {
   if (a.outcome === 'needs_authority') {
     if (stopsOnOpenRequest(last))
       return 'Stopped: a plan request has an unknown outcome';
-    if (last?.stop_kind === 'run_cap' || last?.stop_kind === 'daily_cap')
-      return 'Stopped: connection request cap reached';
     if (last?.stop_kind === 'connection')
       return 'Stopped: the connection needs fixing';
-    if (last?.stop_kind === 'end_time') return 'Stopped: its end time passed';
   }
+  // Audit phase B (November 28): eleven kinds of stop all read "Waiting for you" and five read
+  // "limit reached"; the title now says which one it is.
+  const kind = last?.stop_kind;
+  if (
+    kind &&
+    (a.outcome === 'needs_person' ||
+      a.outcome === 'needs_authority' ||
+      a.outcome === 'limit_reached') &&
+    STOP_TITLE[kind]
+  )
+    return STOP_TITLE[kind];
   return OUTCOME_LABEL[a.outcome ?? ''] ?? words(a.outcome ?? '');
 }
+const STOP_TITLE: Partial<Record<AutopilotStopKind, string>> = {
+  unknown_ratings: 'Waiting for you: options not fully scored',
+  tie: 'Waiting for you: options tie for first',
+  close_ranking: 'Waiting for you: a close ranking',
+  gate_blocked: 'Waiting for you: a gate blocks the first option',
+  opportunity: 'Waiting for you: building it needs your reason',
+  model_ethics: 'Waiting for you: an ethics question',
+  claims_held: 'Waiting for you: web claims to check',
+  person_choice: 'Waiting for you: your choice under Decide',
+  paused: 'Waiting for you: a step is paused',
+  spec: 'Waiting for you: a software option’s spec',
+  run_cap: 'Stopped: the connection’s per-run cap is reached',
+  daily_cap: 'Stopped: the connection’s daily cap is reached',
+  usage_limit: 'Stopped: the plan’s usage limit is reached',
+  call_limit: 'Stopped: its call limit is reached',
+  end_time: 'Stopped: its end time passed',
+};
 const MARK: Record<string, string> = {
   done: '✓',
   running: '…',
@@ -540,9 +566,15 @@ export function Autopilot({
           <div className="small muted">
             <p>Planned next:</p>
             <ol className="small" start={a.steps.length + 1}>
-              {planned.map((st) => (
+              {planned.map((st, i) => (
                 <li key={st}>
-                  ○ {AUTOPILOT_STAGE_LABEL[st]}
+                  ○{' '}
+                  {/* Audit phase B: the stopped step, done again on Continue, says so. */}
+                  {i === 0 &&
+                  a.state !== 'running' &&
+                  a.steps.at(-1)?.stage === st
+                    ? `Try again: ${AUTOPILOT_STAGE_LABEL[st].toLowerCase()}`
+                    : AUTOPILOT_STAGE_LABEL[st]}
                   {st === 'proposal'
                     ? ' (a software option stops at its spec instead)'
                     : ''}
@@ -1100,7 +1132,7 @@ function NextAfterStop({
     case 'no_eligible_option':
       if (allDuplicates) {
         text =
-          'Next: what it found is already recorded as problems. Work on those under Projects › Decide, or leave out their topics (Narrow it and set limits) and start again.';
+          'Next: what it found is already recorded as problems. Work on those under Projects › Decide, or leave out their topics (Narrow it and set limits) and start again. With “Try the next candidate” on (part of Hands-off), the autopilot goes on with the recorded problem itself.';
         actions = (
           <>
             {decide}
@@ -1146,7 +1178,21 @@ function NextAfterStop({
         );
         break;
       }
-      text = `Next: this step is yours. Make the choice under Projects › Decide (or write the proposal under Proposals)${then} Autopilot settings below choose which stops it may handle on its own.`;
+      // Audit phase B (November 28): a paused step, a spec or another stop is not a choice under
+      // Decide.
+      if (last?.stop_kind === 'paused') {
+        text = `Next: a person paused this step. Resume it under Monitor${then}`;
+        break;
+      }
+      if (last?.stop_kind === 'spec') {
+        text = `Next: a software option stops at its spec, which stays with you: write and freeze it under Build › Spec.`;
+        break;
+      }
+      if (last?.stop_kind === 'other') {
+        text = `Next: the step's note above says what stopped it; deal with that${then}`;
+        break;
+      }
+      text = `Next: this step is yours. Make the choice under Projects › Decide${then} Autopilot settings below choose which stops it may handle on its own.`;
       actions = (
         <>
           {decide}
@@ -1203,6 +1249,10 @@ function NextAfterStop({
           'Next: its end time passed. Start a new autopilot (Narrow it and set limits); what this one made is kept.';
         break;
       }
+      if (last?.stop_kind === 'other') {
+        text = `Next: nothing waits under Approvals. The step's note above says what stopped it; deal with that${then}`;
+        break;
+      }
       text = `Next: approve the waiting action under Monitor › Approvals${then}`;
       actions = (
         <a
@@ -1214,11 +1264,54 @@ function NextAfterStop({
       );
       break;
     }
-    case 'limit_reached':
+    case 'limit_reached': {
+      // Audit phase B (November 28): each limit says what to do about that limit.
+      const kind = last?.stop_kind;
+      const startNew = (
+        <button
+          type="button"
+          className="secondary"
+          onClick={go('autopilot-title')}
+        >
+          Start a new autopilot
+        </button>
+      );
+      if (kind === 'run_cap' || kind === 'daily_cap') {
+        text =
+          kind === 'run_cap'
+            ? `Next: the connection's per-run request cap is used up; raise it under Models and connections › Change caps${then}`
+            : "Next: the connection's daily request cap is used up. The autopilot carries on by itself once the cap has room (this card says when it checks next), or add requests under Models and connections.";
+        actions = (
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => open('models')}
+          >
+            Open Models and connections
+          </button>
+        );
+        break;
+      }
+      if (kind === 'usage_limit') {
+        text = canContinue
+          ? 'Next: nothing to do. The plan account’s usage limit resets by itself, and the autopilot carries on once it has (this card says when it checks next). Continue also works after the reset.'
+          : 'Next: the plan account’s usage limit resets by itself; start a new autopilot after that. What this one made is kept.';
+        break;
+      }
+      if (kind === 'call_limit' || kind === 'end_time') {
+        text =
+          kind === 'call_limit'
+            ? 'Next: it used every call it was given. Start a new autopilot with more calls (Narrow it and set limits); what this one made is kept.'
+            : 'Next: its end time passed. Start a new autopilot with more hours (Narrow it and set limits); what this one made is kept.';
+        actions = startNew;
+        break;
+      }
       text = canContinue
         ? 'Next: press Continue to carry on with what is left, or start a new autopilot with more calls or hours.'
         : 'Next: start a new autopilot with more calls or hours (Narrow it and set limits). What this one made is kept.';
+      actions = startNew;
       break;
+    }
     case 'failed':
       text = canContinue
         ? 'Next: read the last step’s note above. Continue tries that step again.'

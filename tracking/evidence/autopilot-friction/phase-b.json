@@ -18,7 +18,7 @@
   {
     "kind": "unknown_ratings",
     "outcome": "needs_person",
-    "title": "Waiting for you",
+    "title": "Waiting for you: options not fully scored",
     "next": [
       "decide",
       "link_claims"
@@ -33,7 +33,7 @@
   {
     "kind": "tie",
     "outcome": "needs_person",
-    "title": "Waiting for you",
+    "title": "Waiting for you: options tie for first",
     "next": [
       "decide"
     ],
@@ -47,7 +47,7 @@
   {
     "kind": "close_ranking",
     "outcome": "needs_person",
-    "title": "Waiting for you",
+    "title": "Waiting for you: a close ranking",
     "next": [
       "decide"
     ],
@@ -75,7 +75,7 @@
   {
     "kind": "gate_blocked",
     "outcome": "needs_person",
-    "title": "Waiting for you",
+    "title": "Waiting for you: a gate blocks the first option",
     "next": [
       "decide",
       "link_claims"
@@ -90,7 +90,7 @@
   {
     "kind": "opportunity",
     "outcome": "needs_person",
-    "title": "Waiting for you",
+    "title": "Waiting for you: building it needs your reason",
     "next": [
       "decide"
     ],
@@ -104,7 +104,7 @@
   {
     "kind": "model_ethics",
     "outcome": "needs_person",
-    "title": "Waiting for you",
+    "title": "Waiting for you: an ethics question",
     "next": [
       "decide",
       "approvals"
@@ -132,7 +132,7 @@
   {
     "kind": "claims_held",
     "outcome": "needs_person",
-    "title": "Waiting for you",
+    "title": "Waiting for you: web claims to check",
     "next": [
       "search_web",
       "continue"
@@ -148,7 +148,7 @@
   {
     "kind": "person_choice",
     "outcome": "needs_person",
-    "title": "Waiting for you",
+    "title": "Waiting for you: your choice under Decide",
     "next": [
       "decide"
     ],
@@ -175,12 +175,11 @@
   {
     "kind": "paused",
     "outcome": "needs_person",
-    "title": "Waiting for you",
+    "title": "Waiting for you: the run is paused",
     "next": [
       "continue"
     ],
     "buttons": [
-      "Autopilot settings",
       "Continue the autopilot from choose an option"
     ],
     "says_approvals": false,
@@ -189,11 +188,12 @@
   {
     "kind": "run_cap",
     "outcome": "limit_reached",
-    "title": "Stopped: limit reached",
+    "title": "Stopped: the connection’s per-run cap is reached",
     "next": [
       "models"
     ],
     "buttons": [
+      "Open Models and connections",
       "Continue the autopilot from choose an option"
     ],
     "says_approvals": false,
@@ -202,7 +202,7 @@
   {
     "kind": "run_cap",
     "outcome": "needs_authority",
-    "title": "Stopped: connection request cap reached",
+    "title": "Stopped: the connection’s per-run cap is reached",
     "next": [
       "models"
     ],
@@ -216,11 +216,12 @@
   {
     "kind": "daily_cap",
     "outcome": "limit_reached",
-    "title": "Stopped: limit reached",
+    "title": "Stopped: the connection’s daily cap is reached",
     "next": [
       "add_requests"
     ],
     "buttons": [
+      "Open Models and connections",
       "Continue the autopilot from choose an option"
     ],
     "says_approvals": false,
@@ -229,7 +230,7 @@
   {
     "kind": "usage_limit",
     "outcome": "limit_reached",
-    "title": "Stopped: limit reached",
+    "title": "Stopped: the plan’s usage limit is reached",
     "next": [
       "models"
     ],
@@ -270,11 +271,12 @@
   {
     "kind": "call_limit",
     "outcome": "limit_reached",
-    "title": "Stopped: limit reached",
+    "title": "Stopped: its call limit is reached",
     "next": [
       "new_autopilot"
     ],
     "buttons": [
+      "Start a new autopilot",
       "Continue the autopilot from choose an option"
     ],
     "says_approvals": false,
@@ -283,11 +285,12 @@
   {
     "kind": "end_time",
     "outcome": "limit_reached",
-    "title": "Stopped: limit reached",
+    "title": "Stopped: its end time passed",
     "next": [
       "new_autopilot"
     ],
     "buttons": [
+      "Start a new autopilot",
       "Continue the autopilot from choose an option"
     ],
     "says_approvals": false,
@@ -296,12 +299,11 @@
   {
     "kind": "spec",
     "outcome": "needs_person",
-    "title": "Waiting for you",
+    "title": "Waiting for you: a software option’s spec",
     "next": [
       "spec"
     ],
     "buttons": [
-      "Autopilot settings",
       "Continue the autopilot from choose an option"
     ],
     "says_approvals": false,
@@ -311,9 +313,10 @@
     "kind": "other",
     "outcome": "needs_person",
     "title": "Waiting for you",
-    "next": [],
+    "next": [
+      "continue"
+    ],
     "buttons": [
-      "Autopilot settings",
       "Continue the autopilot from choose an option"
     ],
     "says_approvals": false,

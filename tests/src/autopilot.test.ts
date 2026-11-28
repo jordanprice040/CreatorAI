@@ -40,6 +40,7 @@ import {
   type Selection,
   type SelectionReport,
   type WebDiscovery,
+  ExplorationResultSchema,
 } from '@creator/contracts';
 import {
   DISCOVERY_SCENARIOS,
@@ -2197,9 +2198,62 @@ test('ADR-0100: settings let the choice rule go past a stop, and the request it 
   assert.ok(t2.ok);
   assert.equal(t2.option.id, 'b');
   assert.match(t2.fallbacks[0]!.note, /fixed order/);
-  // A tie the fixed order cannot separate still stops.
+  // ADR-0139: a tie the scores cannot separate goes to the option that builds least, then
+  // the title (whatever order the report lists them in).
+  const least = autopilotChoice(
+    report([
+      cand('s', 'build', 1),
+      cand('h', 'hybrid', 1),
+      cand('p', 'change_process', 1),
+    ]),
+    { ...OFF, break_ties: true },
+  );
+  assert.ok(least.ok);
+  assert.equal(least.option.id, 'p');
+  assert.match(least.fallbacks[0]!.note, /builds least/);
+  const byTitle = autopilotChoice(
+    report([
+      cand('b', 'use_existing', 1, {
+        alternative: {
+          id: 'b',
+          version: 1,
+          kind: 'use_existing',
+          title: 'Beta',
+        },
+      }),
+      cand('a', 'use_existing', 1, {
+        alternative: {
+          id: 'a',
+          version: 1,
+          kind: 'use_existing',
+          title: 'Alpha',
+        },
+      }),
+    ]),
+    { ...OFF, break_ties: true },
+  );
+  assert.ok(byTitle.ok);
+  assert.equal(byTitle.option.id, 'a');
+  // Only options alike in every rule (kind and title too) still stop.
   const flat = autopilotChoice(
-    report([cand('a', 'use_existing', 1), cand('b', 'change_process', 1)]),
+    report([
+      cand('a', 'use_existing', 1, {
+        alternative: {
+          id: 'a',
+          version: 1,
+          kind: 'use_existing',
+          title: 'Same',
+        },
+      }),
+      cand('b', 'use_existing', 1, {
+        alternative: {
+          id: 'b',
+          version: 1,
+          kind: 'use_existing',
+          title: 'Same',
+        },
+      }),
+    ]),
     { ...OFF, break_ties: true },
   );
   assert.ok(!flat.ok);
@@ -2541,10 +2595,77 @@ test('ADR-0100: discovery links the claims each option cites; a tie stop offers 
     [a.id],
   );
   assert.equal(cont.rows[0].payload.allowed, 'break_ties');
-  // The fixture rates every option the same, so the fixed order cannot separate them either.
+  // The fixture rates every option the same; since ADR-0139 the fixed order still puts one
+  // first, and the fixture's discovery did not recommend it, so it stops there instead.
   const c = await h.store.getAutopilot(owner, h.ws.id, a.id);
-  assert.equal(c.steps.at(-1)!.stop_kind, 'tie', c.explanation);
-  assert.match(c.explanation, /fixed order/);
+  assert.equal(c.steps.at(-1)!.stop_kind, 'not_advanceable', c.explanation);
+  assert.match(c.explanation, /not advanced/);
+});
+
+test('ADR-0139: when everything an exploration finds is already recorded, "Try the next candidate" goes on with the recorded problem', async (t) => {
+  const h = await setup(t);
+  if (!h) return;
+  await h.seed();
+  // The first autopilot records a problem; then an option of it repeats each card the fixture
+  // explorer writes (as in the audit's phase A, where every card repeated a recorded one).
+  const first = await h.start(await h.run());
+  const problem = first.steps[2]!.problem!;
+  const ex = await h.store.getWorkflow(
+    owner,
+    h.ws.id,
+    first.steps[0]!.child!.id,
+  );
+  const cards = ExplorationResultSchema.parse(
+    ex.workflow.result?.exploration,
+  ).candidates;
+  assert.ok(cards.length);
+  for (const c of cards) {
+    const alt = await h.store.createEntity(owner, h.ws.id, {
+      kind: 'alternative',
+      title: c.card.title,
+      body: {
+        kind: 'use_existing',
+        rationale: c.card.observable_pain,
+        tradeoffs: ['Test option.'],
+        uncertainty: 'Test option.',
+      },
+    });
+    await h.store.createLink(owner, h.ws.id, {
+      relation: 'derived_from',
+      from: { id: alt.id, version: alt.version },
+      to: problem,
+      rationale: 'Repeats an explorer card.',
+    });
+  }
+  // Off: a second autopilot finds only repeats and stops at thin evidence.
+  const off = await h.start(await h.run());
+  assert.equal(off.steps.at(-1)!.stop_kind, 'thin_evidence', off.explanation);
+  assert.match(off.explanation, /duplicate/);
+  await h.store.saveAutopilotSettings(owner, h.ws.id, {
+    expected_version: 0,
+    values: { ...AUTOPILOT_SETTINGS_DEFAULT, next_candidate: true },
+  });
+  const on = await h.start(await h.run());
+  assert.deepEqual(
+    on.steps.map((s) => [s.stage, s.state]),
+    [
+      ['explore', 'done'],
+      ['assess', 'done'],
+      ['select', 'stopped'],
+    ],
+    on.explanation,
+  );
+  const explore = on.steps[0]!;
+  const recorded = (
+    await h.store.getEntity(owner, h.ws.id, explore.problem!.id)
+  ).entity;
+  assert.equal(recorded.id, problem.id);
+  assert.equal(recorded.status, 'active');
+  assert.equal(explore.fallback?.setting, 'next_candidate');
+  assert.equal(explore.fallback?.instead_of, 'thin_evidence');
+  assert.match(explore.note, /already recorded as the problem/);
+  assert.equal(on.steps[1]!.problem?.id, recorded.id);
+  assert.deepEqual(autopilotProblem(on.config, on.steps), on.steps[1]!.problem);
 });
 
 test('ADR-0100: with the owner’s ethics setting on, the autopilot chooses past model-only ethics and flags it on the selection and proposal', async (t) => {

@@ -796,7 +796,15 @@ const NEXT: Record<AutopilotStopKind, Omit<AutopilotNext, 'setting'>[]> = {
       detail: 'Build › Spec: writing and freezing it stays with you.',
     },
   ],
-  other: [],
+  // Audit phase B (November 28): an "other" stop offered no next step at all.
+  other: [
+    {
+      kind: 'continue',
+      label: 'Read the note, then continue',
+      detail:
+        'The last step’s note says what stopped it; deal with that, then continue.',
+    },
+  ],
 };
 
 /**

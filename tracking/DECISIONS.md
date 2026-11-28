@@ -1,5 +1,13 @@
 # Decision log
 
+## ADR-0139 — Hands-off goes past recorded problems and full ties; stop cards say which stop (November 28, 2026; no migration)
+
+**Request (Jordan, November 28, 2026):** a fully automatic autopilot that "runs without stopping unless absolutely necessary"; the levels and per-stop switches stay. Audit phases A and B (throwaway database, fixture provider, $0; evidence in `tracking/evidence/autopilot-friction/`) found two places where Hands-off still stopped and several unclear cards.
+
+- **Recorded problems.** When every card an exploration writes repeats a recorded problem (or an option, which names its problem through `derived_from`), and "Try the next candidate" is on (part of Hands-off), the explore step goes on with the closest recorded problem that is still active: the step records the problem and a fallback (`next_candidate` instead of `thin_evidence`), and the next stage is its assessment (no brief or discovery). An exploration with any non-duplicate card stops as before.
+- **Full ties.** The fixed tie order ("Break ties", part of Hands-off) adds, after opportunity rank, fewer unknowns and the better worst case: an option the rule may choose, then the option that builds least (existing tool, process change, human-led, hybrid, software last; invariant 2), then the title. Only options alike in every rule still stop.
+- **Cards.** Titles name the stop kind ("Waiting for you: options tie for first", "Stopped: its call limit is reached", …); cap stops always offer Models and connections; call-limit and end-time stops offer "Start a new autopilot"; paused, spec and other stops no longer point at Decide or Approvals; "other" gets a next step; Planned next labels the stopped step "Try again". Automate the rest starts on a new run unless one is picked.
+
 ## ADR-0137 — Autopilots may close unknown plan requests by themselves (November 28, 2026; no migration)
 
 **Decision (Jordan, November 28, 2026, on a decision card):** "Yes, opt-in setting (plan only)" to "Close unknown-outcome plan requests automatically so autopilots keep going?". Jordan's aim the same morning: a fully automatic autopilot he starts quickly and that stops only when it must; the levels and per-stop switches stay.

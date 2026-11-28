@@ -18,6 +18,8 @@ import {
   type AutopilotStep,
   type ErrorCode,
   type WebDiscovery,
+  type ExplorationResult,
+  type StoredEntity,
   type Workflow,
   PlanRefusalCodeSchema,
   StartAutopilotRequestSchema,
@@ -2071,10 +2073,27 @@ export class AutopilotRunner {
     if (step.stage === 'explore') {
       const r = ExplorationResultSchema.parse(result?.exploration);
       const pick = pickExplored(r);
-      if (!pick.ok)
+      if (!pick.ok) {
+        const recorded = await this.#recordedProblem(ctx, ws, r);
+        if (recorded)
+          return {
+            done: {
+              child,
+              problem: {
+                id: recorded.entity.id,
+                version: recorded.entity.version,
+              },
+              fallback: recorded.fallback,
+              note: cutText(
+                `${pick.reason} It is already recorded as the problem “${recorded.entity.title}”, so the autopilot assesses that problem's options.`,
+                1200,
+              ),
+            },
+          };
         return this.#thin(ctx, ws, a, child, pick.reason, 'explore', {
           questions: [...r.directions.map((d) => d.question), ...r.not_covered],
         });
+      }
       return {
         done: {
           child,
@@ -2248,6 +2267,60 @@ export class AutopilotRunner {
         },
       },
     };
+  }
+
+  /**
+   * ADR-0139: an exploration whose candidates all repeat recorded problems (or options, which
+   * name their problem). With "Try the next candidate" on, the autopilot carries on with the
+   * closest recorded problem that is still active instead of stopping at thin evidence; the step
+   * records the fallback.
+   */
+  async #recordedProblem(
+    ctx: CommandContext,
+    ws: string,
+    r: ExplorationResult,
+  ): Promise<{ entity: StoredEntity; fallback: AutopilotFallback } | null> {
+    const dups = r.candidates
+      .flatMap((c) =>
+        c.disposition === 'duplicate' &&
+        (c.duplicate_of?.kind === 'problem' ||
+          c.duplicate_of?.kind === 'alternative')
+          ? [{ ref: c.ref, ...c.duplicate_of }]
+          : [],
+      )
+      .sort((x, y) => y.similarity - x.similarity);
+    // Only when nothing new was found: an exploration with a thin new candidate stops as before.
+    if (!dups.length || r.candidates.some((c) => c.disposition !== 'duplicate'))
+      return null;
+    const settings = await this.#settings(ctx, ws);
+    if (!settings.values.next_candidate) return null;
+    const read = (id: string) =>
+      this.store.getEntity(ctx, ws, id).catch(() => null);
+    for (const d of dups) {
+      let found = await read(d.id);
+      // An option repeats the problem it was derived from.
+      if (found?.entity.kind === 'alternative') {
+        const up = found.outgoing.find(
+          (l) =>
+            l.relation === 'derived_from' &&
+            l.to.kind === 'problem' &&
+            !l.retracted_at,
+        );
+        found = up ? await read(up.to.id) : null;
+      }
+      const e = found?.entity;
+      if (!e || e.kind !== 'problem' || e.status !== 'active') continue;
+      return {
+        entity: e,
+        fallback: this.#fb(
+          settings,
+          'next_candidate',
+          'thin_evidence',
+          `${d.ref} repeats the recorded problem “${cutText(e.title, 120)}”; going on with it.`,
+        ),
+      };
+    }
+    return null;
   }
 
   /** Candidate problems the newest exploration has that no brief has been written from yet. */

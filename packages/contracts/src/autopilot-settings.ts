@@ -13,7 +13,10 @@ export const AutopilotSettingsValuesSchema = z.strictObject({
   max_extra_searches: z.number().int().min(0).max(3),
   /** Choose by the worst case (each unknown rating at 1) when options are not fully scored. */
   choose_with_unknowns: z.boolean(),
-  /** Break a tie for first by a fixed order: opportunity rank, fewer unknowns, better worst case. */
+  /**
+   * Break a tie for first by a fixed order: opportunity rank, fewer unknowns, better worst case,
+   * then (ADR-0139) the option that builds least, then the title.
+   */
   break_ties: z.boolean(),
   /** Keep the leader under the owner's weights when a weight check changes the leader. */
   keep_close_leader: z.boolean(),
@@ -195,7 +198,7 @@ export const AUTOPILOT_SETTING_TEXT: Record<
   },
   break_ties: {
     label: 'Break ties',
-    text: 'A tie for first goes to the better opportunity rank, then fewer unknowns, then the better worst case.',
+    text: 'A tie for first goes to the better opportunity rank, then fewer unknowns, then the better worst case, then the option that builds least (an existing tool first, software last), then the title.',
   },
   keep_close_leader: {
     label: 'Keep the leader of a close ranking',
@@ -203,7 +206,7 @@ export const AUTOPILOT_SETTING_TEXT: Record<
   },
   next_candidate: {
     label: 'Try the next candidate',
-    text: 'Moves on to the next candidate problem when discovery finds too little, and to the next option it may advance when the first is blocked or cannot be advanced.',
+    text: 'Moves on to the next candidate problem when discovery finds too little, goes on with the recorded problem when everything an exploration finds is already recorded, and moves to the next option it may advance when the first is blocked or cannot be advanced.',
   },
   retry_failed: {
     label: 'Retry a failed step',
