@@ -6,6 +6,7 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   utimesSync,
   writeFileSync,
 } from 'node:fs';
@@ -205,7 +206,12 @@ test('status reads auth status in the dedicated folder and never passes a key th
   for (const c of calls) {
     assert.equal(c.env.includes('ANTHROPIC_API_KEY'), false);
     assert.ok(c.env.includes('CLAUDE_CONFIG_DIR'));
-    assert.equal(c.cwd, host.work_dir);
+    // Windows may give tmpdir() as an 8.3 short name (C:\Users\RUNNER~1); the child reports
+    // the long one, so compare the real paths.
+    assert.equal(
+      realpathSync.native(c.cwd),
+      realpathSync.native(host.work_dir),
+    );
   }
   setFake(host.config_dir, { status: { loggedIn: false, authMethod: 'none' } });
   assert.equal((await claudeCodeStatus(host)).logged_in, false);

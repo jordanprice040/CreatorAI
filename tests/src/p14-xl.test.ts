@@ -34,6 +34,7 @@ import {
   type PackageStructureRule,
 } from '@creator/executor';
 import { firstBuilderInputFloor } from '../../apps/api/dist/recipe-qualification.js';
+import { pythonScriptArgs } from './local-python.js';
 
 const ID = 'p14-xl-v1';
 const DIR = fileURLToPath(
@@ -76,12 +77,16 @@ for (const e of extended) cases.set(e.id, e);
 
 const python = spawnSync('python3', ['--version']).status === 0;
 function run(dir: string, c: Case) {
-  const r = spawnSync('python3', ['-I', 'src/main.py', ...c.args], {
-    cwd: dir,
-    input: c.stdin,
-    encoding: 'utf8',
-    timeout: 20_000,
-  });
+  const r = spawnSync(
+    'python3',
+    pythonScriptArgs(['-I'], 'src/main.py', c.args),
+    {
+      cwd: dir,
+      input: c.stdin,
+      encoding: 'utf8',
+      timeout: 20_000,
+    },
+  );
   return r.stdout === c.stdout && r.status === c.exit_code;
 }
 function files(dir: string): { path: string; content: string }[] {

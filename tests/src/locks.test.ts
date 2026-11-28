@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import {
   mkdtemp,
   readFile,
+  realpath,
   rename,
   rm,
   stat,
@@ -13,9 +14,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { lockHolder, withLock } from '@creator/executor';
 
+// withLock refuses a noncanonical folder, and Windows may give tmpdir() as an 8.3 short name
+// (C:\Users\RUNNER~1), so each test locks the real path of its temporary folder.
+
 // ADR-0046 Recover: who holds a product-store lock. Recover releases only 'dead' locks.
 test('lock holders: own locks by live token, others by liveness and boot, empty locks by age', async (t) => {
-  const dir = await mkdtemp(join(tmpdir(), 'creator-locks-'));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'creator-locks-')));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const lock = join(dir, 'supervisor.lock');
   const now = Date.now();
@@ -58,7 +62,9 @@ test('lock holders: own locks by live token, others by liveness and boot, empty 
 // releasing as stale. A poller acts like Recover (judge, then rename if dead) throughout
 // many lock lifetimes; it must never release one, and no lock holder may fail.
 test('a lock this process is taking or releasing is never judged stale', async (t) => {
-  const dir = await mkdtemp(join(tmpdir(), 'creator-locks-race-'));
+  const dir = await realpath(
+    await mkdtemp(join(tmpdir(), 'creator-locks-race-')),
+  );
   t.after(() => rm(dir, { recursive: true, force: true }));
   const lock = join(dir, 'supervisor.lock');
   let stolen = 0;
