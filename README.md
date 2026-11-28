@@ -1,30 +1,30 @@
 # Creator Agent
 
-Creator Agent is a local evidence and product studio with a React web interface,
-Node API/CLI and PostgreSQL records. It supports evidence-backed discovery,
-web search with checked quotes, uploaded documents as evidence, alternative
-comparison, automatic assessments, human decisions, an autopilot that stops for a
-person, non-code proposals, workspace files and notes, bounded workflows and budgets, searchable provenance, and reviewed
-build/package/preview paths for a Python CLI prototype and a small static web page.
+**Honors thesis project.** Creator Agent is a local studio for AI-assisted problem discovery and prototyping. A person starts from a theme, the studio gathers evidence from web pages and uploaded documents, turns checked quotes into claims, compares alternatives, and records every human decision. Bounded AI-agent workflows can then build and review a small prototype, under spending limits and with a person approving each step that matters. The thesis question is how autonomous AI, human-assisted AI and human-only workflows compare, and the repo includes the evaluation tooling for that comparison.
 
-Start with [local development](docs/LOCAL_DEVELOPMENT.md) for setup and operation.
-The [current product guide](docs/CODE_AUDIT_AND_PRODUCT_GUIDE.md) covers features,
-usage and remaining work. [Build status](tracking/BUILD_STATUS.md) and
-[integration readiness](tracking/INTEGRATIONS.md) distinguish implementation,
-recorded verification, configuration and activation.
+## What it does
 
-## Install on Windows (testers)
+- **Evidence-backed discovery.** Fetches pages and reads uploaded text documents marked as evidence. A claim's quote is checked against the source text before it is accepted.
+- **Provenance in PostgreSQL.** Sources, claims, assessments and decisions are linked records, so any conclusion can be traced back to the quote and source behind it.
+- **Bounded agent workflows.** Builder and reviewer roles, per-run budgets and spending limits, and tests against acceptance criteria that are frozen before the build starts. An autopilot runs the same steps and stops wherever a person must decide.
+- **Sandboxed execution.** Generated code runs in a reviewed WSL2 worker. Supported recipes: a Python standard-library CLI and a plain HTML/CSS/JS static page checked in a pinned headless browser.
+- **Evaluation tooling.** Study, evaluation and analysis commands (`pnpm evaluate`, `pnpm analyze`) for comparing autonomous AI, human-assisted AI and human-only workflows.
+- **Windows desktop build.** A Tauri installer that bundles PostgreSQL, so testers install nothing else ([latest release](https://github.com/jordanprice040/CreatorAI/releases)).
 
-The current release is **0.1.9** ([release page](https://github.com/jordanprice040/CreatorAI/releases/tag/v0.1.9)).
-Its installer includes PostgreSQL 18 and the Visual C++ runtime it needs, so a tester installs
-nothing else: no database, Docker or Node. Windows 10 or 11 (64-bit), no administrator rights.
-The build is not code-signed, so it goes, with its SHA-256 hash, only to people the owner knows
-personally. Follow the [tester guide](docs/TESTER_GUIDE.md); the
-[desktop studio guide](docs/DESKTOP_STUDIO.md) covers updates, backups and building the installer.
+## Tech stack
 
-## Quick start (development)
+TypeScript (pnpm monorepo), React (Vite) web UI, Node.js API and CLI, PostgreSQL, Tauri desktop shell, WSL2 worker for isolated execution, Node test runner, GitHub Actions CI.
 
-Use Node 22.23.4+ within Node 22 or 24.22.2+ within Node 24 and pnpm 11.25.0.
+```
+apps/      api, cli, desktop (Tauri), web (React)
+packages/  broker, contracts, db, domain, executor, orchestrator, research
+tests/     unit and integration tests
+docs/      setup, product guide, capability matrix, status
+```
+
+## Run it locally
+
+Requires Node 22 (22.23.4+) or Node 24 (24.22.2+) and pnpm 11.25.0.
 
 ```powershell
 pnpm install --frozen-lockfile
@@ -32,43 +32,18 @@ pnpm build
 pnpm dev
 ```
 
-Open [the local app](http://127.0.0.1:5273) (development ports; the installed
-desktop app uses 5173). Without CREATOR_DATABASE_URL, only
-the stateless fixture demonstration is available. For saved records and sign-in,
-configure loopback PostgreSQL, run `pnpm db:migrate`, then start the app and use
-the one-run login link printed by the API.
+Open http://127.0.0.1:5273. Without `CREATOR_DATABASE_URL` set, only the stateless fixture demo runs (deterministic synthetic responses). For saved records and sign-in, point `CREATOR_DATABASE_URL` at a loopback PostgreSQL 16+ database, run `pnpm db:migrate`, start the app and use the one-time login link the API prints. Full setup: [docs/LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md).
 
-## Current boundaries
+Run `pnpm check` for typecheck, tests and formatting. Database and isolation tests skip unless configured.
 
-Fixture demonstrations use deterministic synthetic responses. Live provider and
-source-fetch adapters exist, but paid inference and live research are not verified
-or activated by setup. Submitting a theme uses recorded evidence. Evidence comes from
-pages the studio fetched itself or from uploaded text documents marked **Use as evidence**; a claim's quote is checked
-against that text. Searching the web
-(Projects › Discover › Search the web) needs a plan connection qualified for web
-discovery, and only quotes the studio finds on a fetched page become draft claims.
-The autopilot takes the same steps for you and stops where a person must decide.
-Standard view (the default) keeps explanations short and folds long sections; Advanced shows
-every tab, exact amounts and ids.
-Generated execution needs the reviewed WSL2
-worker and supports a bounded Python standard-library CLI recipe and the
-`static-web/1` recipe (plain HTML, CSS and JavaScript, checked in a pinned headless browser);
-see the [capability matrix](docs/CAPABILITY_MATRIX_2026-11-05.md).
+## Status and limits
 
-Study/evaluation/analysis machinery is implemented and rehearsed; final participant
-evaluation, independent ratings, empirical analysis and committee acceptance remain
-incomplete. Windows desktop, scoped GitHub, hosted, commerce and marketing adapters are implemented
-with differing contract/native/live evidence. Hosted operation, live commerce and campaigns
-remain separately gated; see [current status](docs/CURRENT_STATUS.md).
+- The evaluation machinery is implemented and rehearsed. The final participant study, independent ratings and empirical analysis are not finished yet, so there are no results to report here.
+- Live model providers and live web research have adapters but are not activated by default setup.
+- See [docs/CURRENT_STATUS.md](docs/CURRENT_STATUS.md) and the [capability matrix](docs/CAPABILITY_MATRIX_2026-11-05.md) for what is verified versus implemented.
 
-Run `pnpm check` for typecheck, tests and formatting. Database and real-isolation
-tests explicitly skip unless configured; use the documented disposable database
-and WSL gates before claiming those paths pass.
+## More
 
-## Project context
-
-[PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) defines intent;
-[PROMPT_LIBRARY.md](PROMPT_LIBRARY.md) defines milestones. Follow
-[AGENTS.md](AGENTS.md) for coding-agent work. The
-[original kit/scaffold README](README_IMPLEMENTATION_KIT.md) is historical evidence,
-not current setup guidance.
+- [Product guide](docs/CODE_AUDIT_AND_PRODUCT_GUIDE.md): features and usage
+- [Tester guide](docs/TESTER_GUIDE.md) and [desktop studio guide](docs/DESKTOP_STUDIO.md)
+- [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md): project intent
